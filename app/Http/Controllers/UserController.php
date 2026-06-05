@@ -21,7 +21,7 @@ class UserController extends Controller
         SysLogService::record(
             action: 'read',
             table: 'users',
-            description: 'Tiningnan ang listahan ng users ('.$users->total().' records)',
+            description: 'Viewed users list ('.$users->total().' records)',
         );
 
         return view('users.index', compact('users'));
@@ -34,7 +34,7 @@ class UserController extends Controller
         SysLogService::record(
             action: 'read',
             table: 'users',
-            description: 'Binuksan ang form para gumawa ng bagong user',
+            description: 'Opened create user form',
         );
 
         return view('users.create', [
@@ -51,12 +51,12 @@ class UserController extends Controller
             table: 'users',
             recordId: $user->id,
             newValues: $user->logSnapshot(),
-            description: 'Gumawa ng bagong user: '.$user->name,
+            description: 'Created user: '.$user->name,
         );
 
         return redirect()
             ->route('users.index')
-            ->with('success', 'Matagumpay na nalikha ang user.');
+            ->with('success', 'User created successfully.');
     }
 
     public function show(User $user): View
@@ -69,7 +69,7 @@ class UserController extends Controller
             action: 'read',
             table: 'users',
             recordId: $user->id,
-            description: 'Tiningnan ang user: '.$user->name,
+            description: 'Viewed user: '.$user->name,
         );
 
         return view('users.show', compact('user'));
@@ -85,7 +85,7 @@ class UserController extends Controller
             action: 'read',
             table: 'users',
             recordId: $user->id,
-            description: 'Binuksan ang edit form para kay '.$user->name,
+            description: 'Opened edit form for '.$user->name,
         );
 
         return view('users.edit', [
@@ -107,7 +107,7 @@ class UserController extends Controller
         ) {
             return back()
                 ->withInput()
-                ->withErrors(['role_id' => 'Hindi maaaring alisin ang role ng huling administrator.']);
+                ->withErrors(['role_id' => 'Cannot remove the role from the last administrator.']);
         }
 
         $oldValues = $user->logSnapshot();
@@ -125,12 +125,12 @@ class UserController extends Controller
             recordId: $user->id,
             oldValues: $oldValues,
             newValues: $user->fresh()->logSnapshot(),
-            description: 'In-update ang user: '.$user->name,
+            description: 'Updated user: '.$user->name,
         );
 
         return redirect()
             ->route('users.index')
-            ->with('success', 'Matagumpay na na-update ang user.');
+            ->with('success', 'User updated successfully.');
     }
 
     public function destroy(User $user): RedirectResponse
@@ -148,11 +148,11 @@ class UserController extends Controller
             table: 'users',
             recordId: $userId,
             oldValues: $oldValues,
-            description: 'Binura ang user: '.$name,
+            description: 'Deleted user: '.$name,
         );
 
         return redirect()
             ->route('users.index')
-            ->with('success', 'Matagumpay na nabura ang user.');
+            ->with('success', 'User deleted successfully.');
     }
 }

@@ -23,7 +23,7 @@
                 <p class="truncate text-[10px] text-white/60">ISKOLARIS Desktop</p>
             </div>
         </div>
-        <button id="sidebar-close" type="button" class="shrink-0 rounded-lg p-1 text-white hover:bg-white/10 lg:hidden" aria-label="Isara ang sidebar">
+        <button id="sidebar-close" type="button" class="shrink-0 rounded-lg p-1 text-white hover:bg-white/10 lg:hidden" aria-label="Close sidebar">
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
     </div>
@@ -67,7 +67,7 @@
             @csrf
             <button type="submit" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                Mag-logout
+                Log out
             </button>
         </form>
     </div>

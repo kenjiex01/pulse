@@ -10,7 +10,7 @@
             @isset($actionIcon)
                 {!! $actionIcon !!}
             @endisset
-            {{ $actionLabel ?? 'Gumawa' }}
+            {{ $actionLabel ?? 'Create' }}
         </a>
     @endisset
 </div>

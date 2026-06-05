@@ -20,7 +20,7 @@ class RoleController extends Controller
         SysLogService::record(
             action: 'read',
             table: 'roles',
-            description: 'Tiningnan ang listahan ng roles ('.$roles->total().' records)',
+            description: 'Viewed roles list ('.$roles->total().' records)',
         );
 
         return view('roles.index', compact('roles'));
@@ -33,7 +33,7 @@ class RoleController extends Controller
         SysLogService::record(
             action: 'read',
             table: 'roles',
-            description: 'Binuksan ang form para gumawa ng bagong role',
+            description: 'Opened create role form',
         );
 
         return view('roles.create');
@@ -48,12 +48,12 @@ class RoleController extends Controller
             table: 'roles',
             recordId: $role->id,
             newValues: $role->only(['name', 'slug', 'description']),
-            description: 'Gumawa ng bagong role: '.$role->name,
+            description: 'Created role: '.$role->name,
         );
 
         return redirect()
             ->route('roles.index')
-            ->with('success', 'Matagumpay na nalikha ang role.');
+            ->with('success', 'Role created successfully.');
     }
 
     public function show(Role $role): View
@@ -66,7 +66,7 @@ class RoleController extends Controller
             action: 'read',
             table: 'roles',
             recordId: $role->id,
-            description: 'Tiningnan ang role: '.$role->name,
+            description: 'Viewed role: '.$role->name,
         );
 
         return view('roles.show', compact('role'));
@@ -80,7 +80,7 @@ class RoleController extends Controller
             action: 'read',
             table: 'roles',
             recordId: $role->id,
-            description: 'Binuksan ang edit form para sa role: '.$role->name,
+            description: 'Opened edit form for role: '.$role->name,
         );
 
         return view('roles.edit', compact('role'));
@@ -99,12 +99,12 @@ class RoleController extends Controller
             recordId: $role->id,
             oldValues: $oldValues,
             newValues: $role->only(['name', 'slug', 'description']),
-            description: 'In-update ang role: '.$role->name,
+            description: 'Updated role: '.$role->name,
         );
 
         return redirect()
             ->route('roles.index')
-            ->with('success', 'Matagumpay na na-update ang role.');
+            ->with('success', 'Role updated successfully.');
     }
 
     public function destroy(Role $role): RedirectResponse
@@ -122,11 +122,11 @@ class RoleController extends Controller
             table: 'roles',
             recordId: $roleId,
             oldValues: $oldValues,
-            description: 'Binura ang role: '.$name,
+            description: 'Deleted role: '.$name,
         );
 
         return redirect()
             ->route('roles.index')
-            ->with('success', 'Matagumpay na nabura ang role.');
+            ->with('success', 'Role deleted successfully.');
     }
 }

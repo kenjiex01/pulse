@@ -11,8 +11,11 @@ class NativeAppServiceProvider implements ProvidesPhpIni
     {
         Window::open()
             ->title(config('app.name'))
+            ->url(route('login'))
             ->width(1280)
-            ->height(800);
+            ->height(800)
+            ->minWidth(1024)
+            ->minHeight(640);
     }
 
     public function phpIni(): array

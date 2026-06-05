@@ -31,10 +31,10 @@ class StoreRoleRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required' => 'Kailangan ang pangalan ng role.',
-            'slug.required' => 'Kailangan ang slug.',
-            'slug.unique' => 'Ginagamit na ang slug na ito.',
-            'slug.alpha_dash' => 'Ang slug ay dapat letters, numbers, dash, o underscore lang.',
+            'name.required' => 'Role name is required.',
+            'slug.required' => 'Slug is required.',
+            'slug.unique' => 'This slug is already in use.',
+            'slug.alpha_dash' => 'Slug may only contain letters, numbers, dashes, and underscores.',
         ];
     }
 }

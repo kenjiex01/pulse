@@ -13,7 +13,7 @@ class EnsureRole
         $user = $request->user();
 
         if (! $user || ! $user->hasAnyRole($roles)) {
-            abort(403, 'Walang pahintulot na i-access ang pahinang ito.');
+            abort(403, 'You do not have permission to access this page.');
         }
 
         return $next($request);

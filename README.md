@@ -65,12 +65,28 @@ Open http://127.0.0.1:8000
 
 ## Desktop (NativePHP)
 
+### Dev preview (Electron window)
+
 ```bash
-php artisan native:install
 php artisan native:serve
 ```
 
-On desktop launch, the app uses SQLite at `storage/app/iskolaris.sqlite` and runs migrations automatically.
+### Build macOS sample app
+
+```bash
+php artisan native:build mac arm64
+```
+
+Output:
+
+- `dist/Pulse-0.1.0-arm64.dmg` — installer (double-click to install)
+- `dist/mac-arm64/Pulse.app` — runnable app bundle
+
+On first launch, the desktop app creates SQLite at `storage/app/iskolaris.sqlite`, runs migrations, and seeds the default admin account.
+
+**Default login:** `admin@pulso.local` / `password`
+
+> macOS may block unsigned builds. Right-click the app → **Open**, or allow it in **System Settings → Privacy & Security**.
 
 ## License
 

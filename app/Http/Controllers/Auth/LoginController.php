@@ -17,7 +17,7 @@ class LoginController extends Controller
         SysLogService::record(
             action: 'read',
             table: 'users',
-            description: 'Binuksan ang login page',
+            description: 'Opened login page',
         );
 
         return view('auth.login');
@@ -31,7 +31,7 @@ class LoginController extends Controller
             SysLogService::record(
                 action: 'read',
                 table: 'users',
-                description: 'Nabigong pag-login: '.$request->input('email'),
+                description: 'Failed login attempt: '.$request->input('email'),
             );
 
             throw $exception;
@@ -46,7 +46,7 @@ class LoginController extends Controller
             table: 'users',
             recordId: $user->id,
             newValues: ['email' => $user->email, 'name' => $user->name],
-            description: 'Matagumpay na nag-login si '.$user->name,
+            description: 'Successful login: '.$user->name,
             userId: $user->id,
         );
 
@@ -62,7 +62,7 @@ class LoginController extends Controller
                 action: 'read',
                 table: 'users',
                 recordId: $user->id,
-                description: 'Nag-logout si '.$user->name,
+                description: 'Logged out: '.$user->name,
                 userId: $user->id,
             );
         }

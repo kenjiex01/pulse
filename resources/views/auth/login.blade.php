@@ -1,6 +1,6 @@
 @extends('layouts.guest')
 
-@section('title', 'Mag-login — '.config('app.name'))
+@section('title', 'Login — '.config('app.name'))
 
 @section('content')
     <div
@@ -50,7 +50,7 @@
                     </div>
 
                     <div class="relative z-10">
-                        <p class="mb-2 text-xs font-semibold tracking-[0.25em] text-white/80 sm:text-sm">MALIGAYANG PAGDATING</p>
+                        <p class="mb-2 text-xs font-semibold tracking-[0.25em] text-white/80 sm:text-sm">WELCOME</p>
                         <h1 class="mb-1 text-2xl font-bold leading-tight tracking-tight sm:text-3xl lg:text-4xl">
                             SKOLARIS
                             <br>
@@ -62,7 +62,7 @@
                             <span class="h-1 w-10 rounded-full bg-[#00A3E6]"></span>
                         </div>
                         <p class="max-w-xs text-sm leading-relaxed text-white/75">
-                            Desktop application ng ISKOLARIS. Mag-login gamit ang iyong account para magpatuloy.
+                            ISKOLARIS desktop application. Sign in with your account to continue.
                         </p>
                         <p class="mt-6 text-[11px] font-medium tracking-wide text-[#F5B800]">A Global Pinoy Distinction</p>
                     </div>
@@ -77,8 +77,8 @@
                             <p class="text-xs font-semibold tracking-[0.2em] text-[#0B318F]/70">SKOLARIS PULSE</p>
                         </div>
 
-                        <h2 class="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">Mag-login</h2>
-                        <p class="mb-6 text-sm text-gray-500">Ilagay ang iyong credentials para ma-access ang {{ config('app.name') }}.</p>
+                        <h2 class="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">Sign in</h2>
+                        <p class="mb-6 text-sm text-gray-500">Enter your credentials to access {{ config('app.name') }}.</p>
 
                         @if ($errors->any())
                             <div class="mb-4 rounded-xl border border-red-100 bg-red-50 p-3">
@@ -121,7 +121,7 @@
                                         autocomplete="current-password"
                                         class="flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400"
                                     >
-                                    <button type="button" data-toggle-password="password" class="shrink-0 text-xs font-semibold text-[#0B318F]">IPAKITA</button>
+                                    <button type="button" data-toggle-password="password" class="shrink-0 text-xs font-semibold text-[#0B318F]">SHOW</button>
                                 </div>
                                 @error('password')
                                     <p class="ml-1 mt-1 text-xs text-red-600">{{ $message }}</p>
@@ -131,7 +131,7 @@
                             <div class="flex items-center text-sm">
                                 <label class="flex cursor-pointer items-center gap-2 text-gray-700">
                                     <input type="checkbox" name="remember" class="h-4 w-4 rounded border-gray-300" style="accent-color: #0B318F;">
-                                    Tandaan ako
+                                    Remember me
                                 </label>
                             </div>
 
@@ -140,7 +140,7 @@
                                 class="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white shadow-md transition-all hover:opacity-95 hover:shadow-lg"
                                 style="background: #1e293b;"
                             >
-                                Mag-login
+                                Sign in
                             </button>
                         </form>
                     </div>

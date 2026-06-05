@@ -22,7 +22,7 @@ class UpdateRoleRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required' => 'Kailangan ang pangalan ng role.',
+            'name.required' => 'Role name is required.',
         ];
     }
 }

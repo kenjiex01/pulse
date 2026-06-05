@@ -25,14 +25,14 @@ class StoreUserRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required' => 'Kailangan ang pangalan.',
-            'email.required' => 'Kailangan ang email.',
-            'email.unique' => 'Ginagamit na ang email na ito.',
-            'password.required' => 'Kailangan ang password.',
-            'password.min' => 'Dapat hindi bababa sa 8 character ang password.',
-            'password.confirmed' => 'Hindi magkatugma ang password.',
-            'role_id.required' => 'Pumili ng role.',
-            'role_id.exists' => 'Hindi wasto ang napiling role.',
+            'name.required' => 'Name is required.',
+            'email.required' => 'Email is required.',
+            'email.unique' => 'This email is already in use.',
+            'password.required' => 'Password is required.',
+            'password.min' => 'Password must be at least 8 characters.',
+            'password.confirmed' => 'Password confirmation does not match.',
+            'role_id.required' => 'Please select a role.',
+            'role_id.exists' => 'The selected role is invalid.',
         ];
     }
 }

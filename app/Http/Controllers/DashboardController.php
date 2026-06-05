@@ -17,7 +17,7 @@ class DashboardController extends Controller
             action: 'read',
             table: 'users',
             recordId: $user->id,
-            description: 'Binuksan ang dashboard ni '.$user->name,
+            description: 'Opened dashboard: '.$user->name,
             userId: $user->id,
         );
 

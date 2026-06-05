@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\User;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
@@ -38,8 +39,9 @@ class AppServiceProvider extends ServiceProvider
         }
 
         $databasePath = storage_path('app/iskolaris.sqlite');
+        $isFirstLaunch = ! File::exists($databasePath);
 
-        if (! File::exists($databasePath)) {
+        if ($isFirstLaunch) {
             File::ensureDirectoryExists(dirname($databasePath));
             File::put($databasePath, '');
         }
@@ -50,5 +52,9 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         Artisan::call('migrate', ['--force' => true]);
+
+        if ($isFirstLaunch || ! User::query()->exists()) {
+            Artisan::call('db:seed', ['--force' => true]);
+        }
     }
 }

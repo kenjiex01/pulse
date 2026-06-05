@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const isHidden = input.type === 'password';
             input.type = isHidden ? 'text' : 'password';
-            button.textContent = isHidden ? 'ITAGO' : 'IPAKITA';
+            button.textContent = isHidden ? 'HIDE' : 'SHOW';
         });
     });
 });

@@ -27,9 +27,9 @@ class LoginRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.required' => 'Kailangan ang email.',
-            'email.email' => 'Maglagay ng wastong email address.',
-            'password.required' => 'Kailangan ang password.',
+            'email.required' => 'Email is required.',
+            'email.email' => 'Please enter a valid email address.',
+            'password.required' => 'Password is required.',
         ];
     }
 
@@ -41,7 +41,7 @@ class LoginRequest extends FormRequest
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
-                'email' => 'Mali ang email o password.',
+                'email' => 'Invalid email or password.',
             ]);
         }
 
@@ -59,7 +59,7 @@ class LoginRequest extends FormRequest
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
-            'email' => "Masyadong maraming pagtatangka. Subukan ulit pagkatapos ng {$seconds} segundo.",
+            'email' => "Too many login attempts. Please try again in {$seconds} seconds.",
         ]);
     }
 
