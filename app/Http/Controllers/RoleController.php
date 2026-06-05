@@ -26,7 +26,7 @@ class RoleController extends Controller
         return view('roles.index', compact('roles'));
     }
 
-    public function create(): View
+    public function create(): RedirectResponse
     {
         $this->authorize('create', Role::class);
 
@@ -36,7 +36,7 @@ class RoleController extends Controller
             description: 'Opened create role form',
         );
 
-        return view('roles.create');
+        return redirect()->route('roles.index', ['create' => 1]);
     }
 
     public function store(StoreRoleRequest $request): RedirectResponse
@@ -56,11 +56,9 @@ class RoleController extends Controller
             ->with('success', 'Role created successfully.');
     }
 
-    public function show(Role $role): View
+    public function show(Role $role): RedirectResponse
     {
         $this->authorize('view', $role);
-
-        $role->loadCount('users');
 
         SysLogService::record(
             action: 'read',
@@ -69,10 +67,10 @@ class RoleController extends Controller
             description: 'Viewed role: '.$role->name,
         );
 
-        return view('roles.show', compact('role'));
+        return redirect()->route('roles.index', ['view_role' => $role->id]);
     }
 
-    public function edit(Role $role): View
+    public function edit(Role $role): RedirectResponse
     {
         $this->authorize('update', $role);
 
@@ -83,7 +81,7 @@ class RoleController extends Controller
             description: 'Opened edit form for role: '.$role->name,
         );
 
-        return view('roles.edit', compact('role'));
+        return redirect()->route('roles.index', ['edit_role' => $role->id]);
     }
 
     public function update(UpdateRoleRequest $request, Role $role): RedirectResponse

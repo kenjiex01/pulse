@@ -24,7 +24,8 @@
         @apply bg-slate-50 text-gray-900 font-sans antialiased;
     }
 
-    body.sidebar-open {
+    body.sidebar-open,
+    body.modal-open {
         @apply overflow-hidden lg:overflow-auto;
     }
 }
@@ -140,5 +141,33 @@
 
     .pagination-skolaris-page {
         @apply px-2 text-xs font-medium text-gray-700 sm:text-sm;
+    }
+
+    .modal-overlay {
+        @apply fixed inset-0 z-[70] flex items-center justify-center p-4;
+    }
+
+    .modal-overlay.hidden {
+        @apply pointer-events-none opacity-0;
+    }
+
+    .modal-backdrop {
+        @apply absolute inset-0 bg-black/50 backdrop-blur-[2px];
+    }
+
+    .modal-panel {
+        @apply relative z-10 w-full max-w-lg overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl;
+    }
+
+    .modal-header {
+        @apply flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4 sm:px-6;
+    }
+
+    .modal-body {
+        @apply max-h-[70vh] overflow-y-auto px-5 py-4 sm:px-6 sm:py-5;
+    }
+
+    .modal-close-btn {
+        @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700;
     }
 }

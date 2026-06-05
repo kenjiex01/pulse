@@ -5,7 +5,14 @@
             <p class="mt-1 text-xs text-gray-600 sm:text-sm">{{ $description }}</p>
         @endisset
     </div>
-    @isset($actionUrl)
+    @isset($actionModalId)
+        <button type="button" data-modal-open="{{ $actionModalId }}" class="btn-primary w-full shrink-0 sm:w-auto">
+            @isset($actionIcon)
+                {!! $actionIcon !!}
+            @endisset
+            {{ $actionLabel ?? 'Create' }}
+        </button>
+    @elseif(isset($actionUrl))
         <a href="{{ $actionUrl }}" class="btn-primary w-full shrink-0 sm:w-auto">
             @isset($actionIcon)
                 {!! $actionIcon !!}

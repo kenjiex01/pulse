@@ -24,10 +24,13 @@ class UserController extends Controller
             description: 'Viewed users list ('.$users->total().' records)',
         );
 
-        return view('users.index', compact('users'));
+        return view('users.index', [
+            'users' => $users,
+            'roles' => Role::query()->orderBy('name')->get(),
+        ]);
     }
 
-    public function create(): View
+    public function create(): RedirectResponse
     {
         $this->authorize('create', User::class);
 
@@ -37,9 +40,7 @@ class UserController extends Controller
             description: 'Opened create user form',
         );
 
-        return view('users.create', [
-            'roles' => Role::query()->orderBy('name')->get(),
-        ]);
+        return redirect()->route('users.index', ['create' => 1]);
     }
 
     public function store(StoreUserRequest $request): RedirectResponse
@@ -59,11 +60,9 @@ class UserController extends Controller
             ->with('success', 'User created successfully.');
     }
 
-    public function show(User $user): View
+    public function show(User $user): RedirectResponse
     {
         $this->authorize('view', $user);
-
-        $user->load('role');
 
         SysLogService::record(
             action: 'read',
@@ -72,14 +71,12 @@ class UserController extends Controller
             description: 'Viewed user: '.$user->name,
         );
 
-        return view('users.show', compact('user'));
+        return redirect()->route('users.index', ['view_user' => $user->id]);
     }
 
-    public function edit(User $user): View
+    public function edit(User $user): RedirectResponse
     {
         $this->authorize('update', $user);
-
-        $user->load('role');
 
         SysLogService::record(
             action: 'read',
@@ -88,10 +85,7 @@ class UserController extends Controller
             description: 'Opened edit form for '.$user->name,
         );
 
-        return view('users.edit', [
-            'user' => $user,
-            'roles' => Role::query()->orderBy('name')->get(),
-        ]);
+        return redirect()->route('users.index', ['edit_user' => $user->id]);
     }
 
     public function update(UpdateUserRequest $request, User $user): RedirectResponse
