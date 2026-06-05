@@ -78,7 +78,7 @@
                         </div>
 
                         <h2 class="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">Mag-login</h2>
-                        <p class="mb-6 text-sm text-gray-500">Ilagay ang iyong credentials para ma-access ang PULSO.</p>
+                        <p class="mb-6 text-sm text-gray-500">Ilagay ang iyong credentials para ma-access ang {{ config('app.name') }}.</p>
 
                         @if ($errors->any())
                             <div class="mb-4 rounded-xl border border-red-100 bg-red-50 p-3">

@@ -1,4 +1,4 @@
-# PULSO
+# Pulse
 
 Desktop-first school management app built with Laravel and NativePHP.
 
@@ -36,7 +36,7 @@ php artisan key:generate
 Configure `.env` for MySQL development:
 
 ```env
-APP_NAME=PULSO
+APP_NAME=Pulse
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306

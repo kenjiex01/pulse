@@ -10,7 +10,7 @@ class NativeAppServiceProvider implements ProvidesPhpIni
     public function boot(): void
     {
         Window::open()
-            ->title('PULSO')
+            ->title(config('app.name'))
             ->width(1280)
             ->height(800);
     }
