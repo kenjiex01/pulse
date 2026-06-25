@@ -7,7 +7,7 @@
     @if ($open ?? false) data-modal-auto-open @endif
 >
     <div class="modal-backdrop" data-modal-close aria-hidden="true"></div>
-    <div class="modal-panel">
+    <div class="modal-panel {{ $panelClass ?? '' }}">
         <div class="modal-header">
             <div>
                 <h2 id="{{ $id }}-title" class="text-lg font-bold text-[#0B318F]">{{ $title }}</h2>

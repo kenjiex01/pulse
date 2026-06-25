@@ -40,7 +40,7 @@ APP_NAME=Pulse
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=iskolaris
+DB_DATABASE=pulse
 DB_USERNAME=root
 DB_PASSWORD=
 ```
@@ -65,26 +65,45 @@ Open http://127.0.0.1:8000
 
 ## Desktop (NativePHP)
 
+Single installer — no separate PHP/MySQL setup for clients. Uses embedded SQLite on first launch.
+
 ### Dev preview (Electron window)
 
 ```bash
 php artisan native:serve
 ```
 
-### Build macOS sample app
+### Build installers
 
 ```bash
-php artisan native:build mac arm64
+chmod +x scripts/build-desktop.sh
+
+# macOS DMG (Apple Silicon)
+./scripts/build-desktop.sh mac
+
+# Windows setup EXE (can be built from macOS)
+./scripts/build-desktop.sh win
+
+# Both platforms
+./scripts/build-desktop.sh all
 ```
 
-Output:
+Or via npm:
 
-- `dist/Pulse-0.1.0-arm64.dmg` — installer (double-click to install)
-- `dist/mac-arm64/Pulse.app` — runnable app bundle
+```bash
+npm run desktop:mac      # ISKOLARIS-1.0.0-arm64.dmg
+npm run desktop:win      # ISKOLARIS-1.0.0-setup.exe
+npm run desktop:all
+```
 
-On first launch, the desktop app creates SQLite at `storage/app/iskolaris.sqlite`, runs migrations, and seeds the default admin account.
+Output folder: `pulse/dist/`
 
-**Default login:** `admin@pulso.local` / `password`
+- **macOS:** `ISKOLARIS-1.0.0-arm64.dmg` — double-click to install
+- **Windows:** `ISKOLARIS-1.0.0-setup.exe` — run installer
+
+On first launch, the desktop app creates SQLite at `storage/app/pulse.sqlite`, runs migrations, and seeds the default admin account.
+
+**Default login:** `superadmin@icct.edu.ph` / `Password123!`
 
 > macOS may block unsigned builds. Right-click the app → **Open**, or allow it in **System Settings → Privacy & Security**.
 

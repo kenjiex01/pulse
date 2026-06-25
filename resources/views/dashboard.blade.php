@@ -27,9 +27,9 @@
         ])
         @include('partials.stat-card', [
             'index' => 1,
-            'title' => 'Role',
-            'value' => $user->role?->name ?? '—',
-            'subtitle' => $user->role?->slug ?? 'No role',
+            'title' => 'Roles',
+            'value' => $user->roleLabel(),
+            'subtitle' => $user->roles->pluck('slug')->join(', ') ?: 'No roles',
             'icon' => '<svg class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>',
         ])
         @if ($user->isAdmin())
@@ -93,6 +93,19 @@
                         <svg class="ml-1 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                     </span>
                 </a>
+                @if ($databaseBackupPath)
+                    <a href="{{ $databaseBackupPath }}" class="group quick-link-card block no-underline" data-no-loader>
+                        <div class="mb-3 inline-flex rounded-xl bg-gradient-to-br from-[#0f766e] to-[#14b8a6] p-2.5 text-white">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        </div>
+                        <h3 class="font-semibold text-[#0B318F] transition-colors group-hover:text-[#00A3E6]">Database Backup</h3>
+                        <p class="mb-3 mt-1 text-xs text-gray-500">Download a snapshot of the current database.</p>
+                        <span class="inline-flex items-center text-xs font-medium text-[#00A3E6]">
+                            Download
+                            <svg class="ml-1 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                        </span>
+                    </a>
+                @endif
             </div>
         </div>
     @endif

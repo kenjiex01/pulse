@@ -7,27 +7,54 @@ use App\Http\Requests\User\UpdateUserRequest;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\SysLogService;
+use App\Support\LiveTable;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class UserController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
         $this->authorize('viewAny', User::class);
 
-        $users = User::query()->with('role')->orderBy('name')->paginate(10);
+        $search = $request->string('search')->trim()->toString();
 
-        SysLogService::record(
-            action: 'read',
-            table: 'users',
-            description: 'Viewed users list ('.$users->total().' records)',
-        );
+        $users = User::query()
+            ->with('roles')
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($searchQuery) use ($search) {
+                    $searchQuery->where('name', 'like', '%'.$search.'%')
+                        ->orWhere('email', 'like', '%'.$search.'%');
+                });
+            })
+            ->orderBy('name')
+            ->paginate(LiveTable::perPage($request, 10))
+            ->withQueryString();
 
-        return view('users.index', [
+        $roles = Role::query()->orderBy('name')->get();
+
+        if (! $request->ajax()) {
+            SysLogService::record(
+                action: 'read',
+                table: 'users',
+                description: 'Viewed users list ('.$users->total().' records)',
+            );
+        }
+
+        $viewData = [
             'users' => $users,
-            'roles' => Role::query()->orderBy('name')->get(),
-        ]);
+            'roles' => $roles,
+            'search' => $search,
+            'openViewUserId' => $request->input('view_user'),
+            'openEditUserId' => $request->input('edit_user'),
+        ];
+
+        if ($request->ajax()) {
+            return view('users._results', $viewData);
+        }
+
+        return view('users.index', $viewData);
     }
 
     public function create(): RedirectResponse
@@ -45,13 +72,15 @@ class UserController extends Controller
 
     public function store(StoreUserRequest $request): RedirectResponse
     {
-        $user = User::query()->create($request->validated());
+        $data = $request->safe()->except('role_ids');
+        $user = User::query()->create($data);
+        $user->roles()->sync($request->input('role_ids', []));
 
         SysLogService::record(
             action: 'create',
             table: 'users',
             recordId: $user->id,
-            newValues: $user->logSnapshot(),
+            newValues: $user->fresh()->logSnapshot(),
             description: 'Created user: '.$user->name,
         );
 
@@ -93,25 +122,27 @@ class UserController extends Controller
         $this->authorize('update', $user);
 
         $adminRoleId = Role::query()->where('slug', Role::SLUG_ADMIN)->value('id');
+        $newRoleIds = array_map('intval', $request->input('role_ids', []));
 
         if (
             $user->isAdmin()
-            && User::query()->whereHas('role', fn ($q) => $q->where('slug', Role::SLUG_ADMIN))->count() <= 1
-            && (int) $request->input('role_id') !== (int) $adminRoleId
+            && User::query()->whereHas('roles', fn ($query) => $query->where('slug', Role::SLUG_ADMIN))->count() <= 1
+            && ! in_array((int) $adminRoleId, $newRoleIds, true)
         ) {
             return back()
                 ->withInput()
-                ->withErrors(['role_id' => 'Cannot remove the role from the last administrator.']);
+                ->withErrors(['role_ids' => 'Cannot remove the administrator role from the last administrator.']);
         }
 
         $oldValues = $user->logSnapshot();
-        $data = $request->validated();
+        $data = $request->safe()->except('role_ids');
 
         if (empty($data['password'])) {
             unset($data['password']);
         }
 
         $user->update($data);
+        $user->roles()->sync($newRoleIds);
 
         SysLogService::record(
             action: 'update',

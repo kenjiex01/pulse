@@ -8,14 +8,14 @@
         <p class="mt-1 font-medium text-gray-900">{{ $user->email }}</p>
     </div>
     <div>
-        <p class="text-sm text-gray-600">Role</p>
-        <p class="mt-1">
-            @if ($user->role)
-                <span class="badge-brand">{{ $user->role->name }}</span>
-            @else
-                —
-            @endif
-        </p>
+        <p class="text-sm text-gray-600">Roles</p>
+        <div class="mt-1 flex flex-wrap gap-1.5">
+            @forelse ($user->roles as $role)
+                <span class="badge-brand">{{ $role->name }}</span>
+            @empty
+                <span class="text-gray-500">—</span>
+            @endforelse
+        </div>
     </div>
     <div>
         <p class="text-sm text-gray-600">Created at</p>

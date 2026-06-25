@@ -1,0 +1,3315 @@
+{
+  "campuses": [
+    {
+      "campus_code": "AG",
+      "campus_name": "ICCT Colleges Angono Campus",
+      "address": "Manila East Rd, Angono, 1930 Rizal",
+      "phone": "451-2688",
+      "email": "angono@icct.edu.ph",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "campus_name": "ICCT Colleges Antipolo Campus",
+      "address": "J. Sumulong Extn., Bgy. San Roque, Antipolo City, Rizal",
+      "phone": "(02) 7975-4229",
+      "email": "antipolo@icct.edu.ph",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "campus_name": "ICCT Colleges Binangonan Campus",
+      "address": "ICCT Bldg., National Rd., Bgy. Calumpang,\nBinangonan, Rizal",
+      "phone": "0908-398-6459",
+      "email": "binangonan@icct.edu.ph",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "campus_name": "ICCT Colleges Cainta Main Campus",
+      "address": "V.V. Soliven Avenue II, Bgy. San Isidro, Cainta, Rizal",
+      "phone": "(02) 8123-4567",
+      "email": "main@icct.edu.ph",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "campus_name": "ICCT Colleges Cogeo  Campus",
+      "address": "ICCT Bldg., Foresthills Avenue cor. Aspen St., Eastland Heights,\nBagong Nayon II (Cogeo), Antipolo City, Rizal",
+      "phone": "0917-193-4228",
+      "email": "cogeo@icct.edu.ph",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
+    },
+    {
+      "campus_code": "DC",
+      "campus_name": "ICCT Colleges Digital Campus",
+      "address": "Virtual",
+      "phone": "",
+      "email": "",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "campus_name": "ICCT Colleges San Mateo Campus",
+      "address": "ICCT Bldg., Gen. Luna Rd. cor. Ressurreccion St.,\nBgy. Sta. Ana, San Mateo, Rizal",
+      "phone": "0917-183-4228",
+      "email": "sanmateo@icct.edu.ph",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "campus_name": "ICCT Colleges Sumulong Campus",
+      "address": "ICCT Compound, Sumulong Hi-way,\nBgy. San Isidro, Cainta, Rizal",
+      "phone": "0917-177-4228",
+      "email": "sumulong@icct.edu.ph",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "campus_name": "ICCT Colleges Taytay Campus",
+      "address": "ICCT Bldg., Cabrera Rd. cor. Manila East Rd.\nBgy. San Juan, Taytay, Rizal",
+      "phone": "0917-188-4228",
+      "email": "taytay@icct.edu.ph",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
+    }
+  ],
+  "programs": [
+    {
+      "campus_code": "CA",
+      "program_code": "SHSACABM",
+      "program_name": "Accountancy, Business and Management (ABM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "SHSACABM",
+      "program_name": "Accountancy, Business and Management (ABM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "SHSACABM",
+      "program_name": "Accountancy, Business and Management (ABM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "SHSACABM",
+      "program_name": "Accountancy, Business and Management (ABM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "SHSACABM",
+      "program_name": "Accountancy, Business and Management (ABM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "SHSACABM",
+      "program_name": "Accountancy, Business and Management (ABM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "SHSACABM",
+      "program_name": "Accountancy, Business and Management (ABM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "SHSACABM",
+      "program_name": "Accountancy, Business and Management (ABM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "SHS-ACAD-ASSH",
+      "program_name": "Arts, Social Sciences, and Humanities (ASSH)",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "SHS-ACAD-ASSH",
+      "program_name": "Arts, Social Sciences, and Humanities (ASSH)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "SHS-ACAD-ASSH",
+      "program_name": "Arts, Social Sciences, and Humanities (ASSH)",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "SHS-ACAD-ASSH",
+      "program_name": "Arts, Social Sciences, and Humanities (ASSH)",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "SHS-ACAD-ASSH",
+      "program_name": "Arts, Social Sciences, and Humanities (ASSH)",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "SHS-ACAD-ASSH",
+      "program_name": "Arts, Social Sciences, and Humanities (ASSH)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "SHS-ACAD-ASSH",
+      "program_name": "Arts, Social Sciences, and Humanities (ASSH)",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "ABA",
+      "program_name": "Associate in Business Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "ABA",
+      "program_name": "Associate in Business Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "ABA",
+      "program_name": "Associate in Business Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "ABA",
+      "program_name": "Associate in Business Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "ABA",
+      "program_name": "Associate in Business Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "ABA-B",
+      "program_name": "Associate in Business Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "ABA",
+      "program_name": "Associate in Business Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "ABA-B",
+      "program_name": "Associate in Business Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "ABA-B",
+      "program_name": "Associate in Business Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "ABA-B",
+      "program_name": "Associate in Business Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "ABA-B",
+      "program_name": "Associate in Business Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "ABA-B",
+      "program_name": "Associate in Business Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "ACT-B",
+      "program_name": "Associate in Computer Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "ACT",
+      "program_name": "Associate in Computer Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "ACT-B",
+      "program_name": "Associate in Computer Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "ACT-B",
+      "program_name": "Associate in Computer Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "ACT-B",
+      "program_name": "Associate in Computer Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "ACT-B",
+      "program_name": "Associate in Computer Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "ACT-B",
+      "program_name": "Associate in Computer Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "ACT",
+      "program_name": "Associate in Computer Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "ACT",
+      "program_name": "Associate in Computer Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "ACT",
+      "program_name": "Associate in Computer Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "ACT",
+      "program_name": "Associate in Computer Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "ACT",
+      "program_name": "Associate in Computer Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BECEd",
+      "program_name": "Bachelor in Early Childhood Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BECEd",
+      "program_name": "Bachelor in Early Childhood Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BECEd",
+      "program_name": "Bachelor in Early Childhood Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BECEd",
+      "program_name": "Bachelor in Early Childhood Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BECEd",
+      "program_name": "Bachelor in Early Childhood Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BECEd-B",
+      "program_name": "Bachelor in Early Childhood Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BECEd",
+      "program_name": "Bachelor in Early Childhood Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BECEd-B",
+      "program_name": "Bachelor in Early Childhood Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BECEd-B",
+      "program_name": "Bachelor in Early Childhood Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BECEd-B",
+      "program_name": "Bachelor in Early Childhood Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BECEd-B",
+      "program_name": "Bachelor in Early Childhood Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BECEd-B",
+      "program_name": "Bachelor in Early Childhood Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BPA-B",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BPA",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BPA",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BPA",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BPA",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BPA",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BPA",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BPA",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BPA-B",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BPA-B",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BPA-B",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BPA-B",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BPA-B",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BPA-B",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BPA-B",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BPA",
+      "program_name": "Bachelor in Public Administration",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSED_ENGLISH",
+      "program_name": "Bachelor in Secondary Education Major in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSED_ENGLISH-B",
+      "program_name": "Bachelor in Secondary Education Major in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSED_ENGLISH-B",
+      "program_name": "Bachelor in Secondary Education Major in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSED_ENGLISH",
+      "program_name": "Bachelor in Secondary Education Major in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSED_ENGLISH",
+      "program_name": "Bachelor in Secondary Education Major in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSED_ENGLISH",
+      "program_name": "Bachelor in Secondary Education Major in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSEd_English",
+      "program_name": "Bachelor in Secondary Education Major in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSED_ENGLISH",
+      "program_name": "Bachelor in Secondary Education Major in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSED_FILIPINO",
+      "program_name": "Bachelor in Secondary Education Major in Filipino",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSED_FILIPINO",
+      "program_name": "Bachelor in Secondary Education Major in Filipino",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSED_FILIPINO",
+      "program_name": "Bachelor in Secondary Education Major in Filipino",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSEd_Filipino",
+      "program_name": "Bachelor in Secondary Education Major in Filipino",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSEd_Filipino",
+      "program_name": "Bachelor in Secondary Education Major in Filipino",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSED_FILIPINO",
+      "program_name": "Bachelor in Secondary Education Major in Filipino",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSED_FILIPINO-B",
+      "program_name": "Bachelor in Secondary Education Major in Filipino",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSED_FILIPINO-B",
+      "program_name": "Bachelor in Secondary Education Major in Filipino",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSED_MATH-B",
+      "program_name": "Bachelor in Secondary Education Major in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSED_MATH",
+      "program_name": "Bachelor in Secondary Education Major in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSED_MATH",
+      "program_name": "Bachelor in Secondary Education Major in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSED_MATH",
+      "program_name": "Bachelor in Secondary Education Major in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSEd_Math",
+      "program_name": "Bachelor in Secondary Education Major in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSEd_Math",
+      "program_name": "Bachelor in Secondary Education Major in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSED_MATH",
+      "program_name": "Bachelor in Secondary Education Major in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSED_MATH-B",
+      "program_name": "Bachelor in Secondary Education Major in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSED_SCIENCE",
+      "program_name": "Bachelor in Secondary Education Major in Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSED_SCIENCE-B",
+      "program_name": "Bachelor in Secondary Education Major in Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSED_SCIENCE-B",
+      "program_name": "Bachelor in Secondary Education Major in Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSED_SCIENCE",
+      "program_name": "Bachelor in Secondary Education Major in Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSED_SCIENCE",
+      "program_name": "Bachelor in Secondary Education Major in Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSED_SCIENCE",
+      "program_name": "Bachelor in Secondary Education Major in Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSEd_Science",
+      "program_name": "Bachelor in Secondary Education Major in Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSEd_Science",
+      "program_name": "Bachelor in Secondary Education Major in Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BTVTEd",
+      "program_name": "Bachelor in Technical Vocational Teacher Education Major in Computer Programming",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BTVTEd",
+      "program_name": "Bachelor in Technical Vocational Teacher Education Major in Computer Programming",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BTVTEd-B",
+      "program_name": "Bachelor in Technical Vocational Teacher Education Major in Computer Programming",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BTVTEd-B",
+      "program_name": "Bachelor in Technical Vocational Teacher Education Major in Computer Programming",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BTVTEd",
+      "program_name": "Bachelor in Technical Vocational Teacher Education Major in Information Communication Technology / ICT",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BTVTEd",
+      "program_name": "Bachelor in Technical Vocational Teacher Education Major in Information Communication Technology / ICT",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BTVTEd",
+      "program_name": "Bachelor in Technical Vocational Teacher Education Major in Information Communication Technology / ICT",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BTVTEd",
+      "program_name": "Bachelor in Technical Vocational Teacher Education Major in Information Communication Technology / ICT",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BTVTEd_ICT",
+      "program_name": "Bachelor in Technical Vocational Teacher Education Major in Information Communication Technology / ICT",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "ABCOMM",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "ABCOMM",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "ABCOMM",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "ABCom",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "ABCOMM",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "ABCom",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "ABCom",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "ABCOMM-B",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "ABCOMM-B",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "ABCOMM-B",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "ABCom-B",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "ABCOMM-B",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "ABCom-B",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "ABCom-B",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "ABCOMM",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "ABCOMM-B",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "ABCOMM",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "ABCOMM-B",
+      "program_name": "Bachelor of Arts in Communication (Masscom)",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "AB_ENGLISH-B",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "AB_ENGLISH-B",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "ABEng-B",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "AB_ENGLISH-B",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "ABEng-B",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "AB_ENGLISH",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "AB_ENGLISH-B",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "AB_ENGLISH",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "AB_ENGLISH",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "AB_ENGLISH-B",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "AB_ENGLISH-B",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "AB_ENGLISH",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "AB_ENGLISH",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "ABEng",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "AB_ENGLISH",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "ABEng",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "ABEng",
+      "program_name": "Bachelor of Arts in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BElemEd",
+      "program_name": "Bachelor of Elementary Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BELemEd",
+      "program_name": "Bachelor of Elementary Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BELemEd",
+      "program_name": "Bachelor of Elementary Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BELemEd",
+      "program_name": "Bachelor of Elementary Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BELemEd",
+      "program_name": "Bachelor of Elementary Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BELemEd",
+      "program_name": "Bachelor of Elementary Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BElemEd-B",
+      "program_name": "Bachelor of Elementary Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BElemEd",
+      "program_name": "Bachelor of Elementary Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BElemEd-B",
+      "program_name": "Bachelor of Elementary Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BElemEd-B",
+      "program_name": "Bachelor of Elementary Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BElemEd-B",
+      "program_name": "Bachelor of Elementary Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BElemEd-B",
+      "program_name": "Bachelor of Elementary Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BElemEd-B",
+      "program_name": "Bachelor of Elementary Education",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSA-B",
+      "program_name": "Bachelor of Science in Accountancy",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSA-B",
+      "program_name": "Bachelor of Science in Accountancy",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSA-B",
+      "program_name": "Bachelor of Science in Accountancy",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSA-B",
+      "program_name": "Bachelor of Science in Accountancy",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSA",
+      "program_name": "Bachelor of Science in Accountancy",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSA",
+      "program_name": "Bachelor of Science in Accountancy",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSA",
+      "program_name": "Bachelor of Science in Accountancy",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSA",
+      "program_name": "Bachelor of Science in Accountancy",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSA",
+      "program_name": "Bachelor of Science in Accountancy",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSA",
+      "program_name": "Bachelor of Science in Accountancy",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSA-B",
+      "program_name": "Bachelor of Science in Accountancy",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSA",
+      "program_name": "Bachelor of Science in Accountancy",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSA-B",
+      "program_name": "Bachelor of Science in Accountancy",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSAIS-B",
+      "program_name": "Bachelor of Science in Accounting Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSAIS",
+      "program_name": "Bachelor of Science in Accounting Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSAIS-B",
+      "program_name": "Bachelor of Science in Accounting Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSAIS-B",
+      "program_name": "Bachelor of Science in Accounting Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSAIS-B",
+      "program_name": "Bachelor of Science in Accounting Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSAIS-B",
+      "program_name": "Bachelor of Science in Accounting Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSAIS-B",
+      "program_name": "Bachelor of Science in Accounting Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSAIS",
+      "program_name": "Bachelor of Science in Accounting Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSAIS",
+      "program_name": "Bachelor of Science in Accounting Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSAIS",
+      "program_name": "Bachelor of Science in Accounting Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSAIS",
+      "program_name": "Bachelor of Science in Accounting Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSAIS",
+      "program_name": "Bachelor of Science in Accounting Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSAIS",
+      "program_name": "Bachelor of Science in Accounting Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSBA_BUS.ECO",
+      "program_name": "Bachelor of Science in Business Administration Major in Business Economics",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSBA_BUS.ECO",
+      "program_name": "Bachelor of Science in Business Administration Major in Business Economics",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSBA_BUS.ECO",
+      "program_name": "Bachelor of Science in Business Administration Major in Business Economics",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSBA_BUS.ECO",
+      "program_name": "Bachelor of Science in Business Administration Major in Business Economics",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSBA_BUS.ECO",
+      "program_name": "Bachelor of Science in Business Administration Major in Business Economics",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSBA_BUS.ECO",
+      "program_name": "Bachelor of Science in Business Administration Major in Business Economics",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSBA_BUS.ECO-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Business Economics",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSBA_BUS.ECO",
+      "program_name": "Bachelor of Science in Business Administration Major in Business Economics",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSBA_BUS.ECO-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Business Economics",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSBA_BUS.ECO-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Business Economics",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSBA_BUS.ECO-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Business Economics",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSBA_BUS.ECO-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Business Economics",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSBA_BUS.ECO-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Business Economics",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSBA_FINAMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Financial Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSBA_FINAMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Financial Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSBA_FINAMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Financial Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSBA_FINAMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Financial Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSBA_FINAMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Financial Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSBA_FINAMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Financial Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSBA_FINAMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Financial Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSBA_FINAMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Financial Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSBA_FINAMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Financial Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSBA_FINAMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Financial Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSBA_FINAMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Financial Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSBA_FINAMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Financial Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSBA_FINAMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Financial Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSBA_HRMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Human Resource Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSBA_HRMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Human Resource Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSBA_HRMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Human Resource Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSBA_HRMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Human Resource Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSBA_HRMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Human Resource Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSBA_HRMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Human Resource Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSBA_HRMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Human Resource Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSBA_HRMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Human Resource Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSBA_HRMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Human Resource Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSBA_HRMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Human Resource Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSBA_HRMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Human Resource Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSBA_HRMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Human Resource Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSBA_HRMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Human Resource Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSBA_MKTGMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSBA_MKTGMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSBA_MKTGMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSBA_MKTGMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSBA_MKTGMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSBA_MKTGMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSBA_MKTGMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSBA_MKTGMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "DC",
+      "program_code": "BSBA_MKTGMGMT (ODeL)",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSBA_MKTGMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSBA_MKTGMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSBA_MKTGMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSBA_MKTGMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSBA_MKTGMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Marketing Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSBA_OPMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Operations Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSBA_OPMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Operations Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSBA_OPMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Operations Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSBA_OPMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Operations Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSBA_OPMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Operations Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSBA_OPMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Operations Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSBA_OPMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Operations Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSBA_OPMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Operations Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSBA_OPMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Operations Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSBA_OPMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Operations Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSBA_OPMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Operations Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSBA_OPMGMT",
+      "program_name": "Bachelor of Science in Business Administration Major in Operations Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSBA_OPMGMT-B",
+      "program_name": "Bachelor of Science in Business Administration Major in Operations Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSCOE-B",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSCOE-B",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSCOE-B",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSCOE-B",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSCOE-B",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSCOE-B",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSCOE-B",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "DC",
+      "program_code": "BSCOE (ODeL)",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSCOE",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSCOE",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSCOE",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSCOE",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSCOE",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSCOE",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSCOE",
+      "program_name": "Bachelor of Science in Computer Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSCS",
+      "program_name": "Bachelor of Science in Computer Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSCS",
+      "program_name": "Bachelor of Science in Computer Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSCS",
+      "program_name": "Bachelor of Science in Computer Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSCS",
+      "program_name": "Bachelor of Science in Computer Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSCS",
+      "program_name": "Bachelor of Science in Computer Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSCS",
+      "program_name": "Bachelor of Science in Computer Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSCS",
+      "program_name": "Bachelor of Science in Computer Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSCS-B",
+      "program_name": "Bachelor of Science in Computer Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSCS-B",
+      "program_name": "Bachelor of Science in Computer Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSCS-B",
+      "program_name": "Bachelor of Science in Computer Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSCS-B",
+      "program_name": "Bachelor of Science in Computer Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSCS-B",
+      "program_name": "Bachelor of Science in Computer Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSCS-B",
+      "program_name": "Bachelor of Science in Computer Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSELE",
+      "program_name": "Bachelor of Science in Electronics Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSELE-B",
+      "program_name": "Bachelor of Science in Electronics Engineering",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSELE-B",
+      "program_name": "Bachelor of Science in Electronics Engineering Major in Telecommunication and Major in Broadcasting",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSELE-B",
+      "program_name": "Bachelor of Science in Electronics Engineering Major in Telecommunication and Major in Broadcasting",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSELE-B",
+      "program_name": "Bachelor of Science in Electronics Engineering Major in Telecommunication and Major in Broadcasting",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSELE-B",
+      "program_name": "Bachelor of Science in Electronics Engineering Major in Telecommunication and Major in Broadcasting",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSELE-B",
+      "program_name": "Bachelor of Science in Electronics Engineering Major in Telecommunication and Major in Broadcasting",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSELE-B",
+      "program_name": "Bachelor of Science in Electronics Engineering Major in Telecommunication and Major in Broadcasting",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSELE",
+      "program_name": "Bachelor of Science in Electronics Engineering Major in Telecommunication and Major in Broadcasting",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSELE",
+      "program_name": "Bachelor of Science in Electronics Engineering Major in Telecommunication and Major in Broadcasting",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSELE",
+      "program_name": "Bachelor of Science in Electronics Engineering Major in Telecommunication and Major in Broadcasting",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSELE",
+      "program_name": "Bachelor of Science in Electronics Engineering Major in Telecommunication and Major in Broadcasting",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSELE",
+      "program_name": "Bachelor of Science in Electronics Engineering Major in Telecommunication and Major in Broadcasting",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSELE",
+      "program_name": "Bachelor of Science in Electronics Engineering Major in Telecommunication and Major in Broadcasting",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSHM",
+      "program_name": "Bachelor of Science in Hospitality Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSHM",
+      "program_name": "Bachelor of Science in Hospitality Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSHM",
+      "program_name": "Bachelor of Science in Hospitality Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSHM",
+      "program_name": "Bachelor of Science in Hospitality Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSHM",
+      "program_name": "Bachelor of Science in Hospitality Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSHM",
+      "program_name": "Bachelor of Science in Hospitality Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSHM",
+      "program_name": "Bachelor of Science in Hospitality Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSHM",
+      "program_name": "Bachelor of Science in Hospitality Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "DC",
+      "program_code": "BSHM (ODeL)",
+      "program_name": "Bachelor of Science in Hospitality Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSHM-B",
+      "program_name": "Bachelor of Science in Hospitality Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSHM-B",
+      "program_name": "Bachelor of Science in Hospitality Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSHM-B",
+      "program_name": "Bachelor of Science in Hospitality Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSISM-B",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSISM-B",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSISM-B",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSISM-B",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSISM-B",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSISM-B",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSISM-B",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSISM",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSISM-B",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSISM",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSISM",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSISM",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSISM",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSISM",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSISM",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSISM",
+      "program_name": "Bachelor of Science in Industrial Security Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSIS",
+      "program_name": "Bachelor of Science in Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSIS",
+      "program_name": "Bachelor of Science in Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSIS",
+      "program_name": "Bachelor of Science in Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSIS",
+      "program_name": "Bachelor of Science in Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSIS",
+      "program_name": "Bachelor of Science in Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSIS",
+      "program_name": "Bachelor of Science in Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSIS",
+      "program_name": "Bachelor of Science in Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSIS-B",
+      "program_name": "Bachelor of Science in Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSIS-B",
+      "program_name": "Bachelor of Science in Information System",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSIT-B",
+      "program_name": "Bachelor of Science in Information Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSIT-B",
+      "program_name": "Bachelor of Science in Information Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSIT",
+      "program_name": "Bachelor of Science in Information Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSIT",
+      "program_name": "Bachelor of Science in Information Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSIT",
+      "program_name": "Bachelor of Science in Information Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSIT",
+      "program_name": "Bachelor of Science in Information Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSIT",
+      "program_name": "Bachelor of Science in Information Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSIT",
+      "program_name": "Bachelor of Science in Information Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSIT",
+      "program_name": "Bachelor of Science in Information Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSIA",
+      "program_name": "Bachelor of Science in Internal Auditing",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSIA",
+      "program_name": "Bachelor of Science in Internal Auditing",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSIA",
+      "program_name": "Bachelor of Science in Internal Auditing",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSIA",
+      "program_name": "Bachelor of Science in Internal Auditing",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSIA",
+      "program_name": "Bachelor of Science in Internal Auditing",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSIA",
+      "program_name": "Bachelor of Science in Internal Auditing",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSIA",
+      "program_name": "Bachelor of Science in Internal Auditing",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSIA-B",
+      "program_name": "Bachelor of Science in Internal Auditing",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSIA-B",
+      "program_name": "Bachelor of Science in Internal Auditing",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSLM-GBM",
+      "program_name": "Bachelor of Science in Legal Management major in General Business Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSLM-GBM-B",
+      "program_name": "Bachelor of Science in Legal Management Major in General Business Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSLM-GBM",
+      "program_name": "Bachelor of Science in Legal Management major in General Business Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSLM-GBM-B",
+      "program_name": "Bachelor of Science in Legal Management Major in General Business Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSLM-LAW",
+      "program_name": "Bachelor of Science in Legal Management Major in Law",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSLM-LAW-B",
+      "program_name": "Bachelor of Science in Legal Management Major in Law",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSLM-LAW",
+      "program_name": "Bachelor of Science in Legal Management Major in Law",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSLM-LAW-B",
+      "program_name": "Bachelor of Science in Legal Management Major in Law",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSMA-B",
+      "program_name": "Bachelor of Science in Management Accounting",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSMA-B",
+      "program_name": "Bachelor of Science in Management Accounting",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSMA",
+      "program_name": "Bachelor of Science in Management Accounting",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSMA",
+      "program_name": "Bachelor of Science in Management Accounting",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSMA",
+      "program_name": "Bachelor of Science in Management Accounting",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSMA",
+      "program_name": "Bachelor of Science in Management Accounting",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSMA",
+      "program_name": "Bachelor of Science in Management Accounting",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSMA",
+      "program_name": "Bachelor of Science in Management Accounting",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSMA",
+      "program_name": "Bachelor of Science in Management Accounting",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSM",
+      "program_name": "Bachelor of Science in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSM",
+      "program_name": "Bachelor of Science in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSM",
+      "program_name": "Bachelor of Science in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSM",
+      "program_name": "Bachelor of Science in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSM",
+      "program_name": "Bachelor of Science in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSM",
+      "program_name": "Bachelor of Science in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSM",
+      "program_name": "Bachelor of Science in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSM-B",
+      "program_name": "Bachelor of Science in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSM-B",
+      "program_name": "Bachelor of Science in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSM-B",
+      "program_name": "Bachelor of Science in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSM-B",
+      "program_name": "Bachelor of Science in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSM-B",
+      "program_name": "Bachelor of Science in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSM-B",
+      "program_name": "Bachelor of Science in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSN-B",
+      "program_name": "Bachelor of Science in Nursing",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSN",
+      "program_name": "Bachelor of Science in Nursing",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSRT",
+      "program_name": "Bachelor of Science in Radiologic Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSRT-B",
+      "program_name": "Bachelor of Science in Radiologic Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "DC",
+      "program_code": "BSREM (ODeL)",
+      "program_name": "Bachelor of Science in Real Estate Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSREM",
+      "program_name": "Bachelor of Science in Real Estate Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSREM",
+      "program_name": "Bachelor of Science in Real Estate Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSREM",
+      "program_name": "Bachelor of Science in Real Estate Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSREM",
+      "program_name": "Bachelor of Science in Real Estate Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSREM",
+      "program_name": "Bachelor of Science in Real Estate Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSREM",
+      "program_name": "Bachelor of Science in Real Estate Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSREM",
+      "program_name": "Bachelor of Science in Real Estate Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSREM-B",
+      "program_name": "Bachelor of Science in Real Estate Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSREM-B",
+      "program_name": "Bachelor of Science in Real Estate Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSTM-B",
+      "program_name": "Bachelor of Science in Tourism Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSTM-B",
+      "program_name": "Bachelor of Science in Tourism Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSTM-B",
+      "program_name": "Bachelor of Science in Tourism Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSTM",
+      "program_name": "Bachelor of Science in Tourism Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSTM",
+      "program_name": "Bachelor of Science in Tourism Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSTM",
+      "program_name": "Bachelor of Science in Tourism Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSTM",
+      "program_name": "Bachelor of Science in Tourism Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSTM",
+      "program_name": "Bachelor of Science in Tourism Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSTM",
+      "program_name": "Bachelor of Science in Tourism Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSTM",
+      "program_name": "Bachelor of Science in Tourism Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSTM",
+      "program_name": "Bachelor of Science in Tourism Management",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSC",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSC",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSC",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSC",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSC",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSC",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSC",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSC",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSC-B",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSC-B",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSC-B",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSC-B",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSC-B",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSC-B",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSC-B",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSC-B",
+      "program_name": "Bachelor of Sciences in Criminology",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSMedTech-B",
+      "program_name": "Bachelor of Sciences in Medical Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "BSMedTech",
+      "program_name": "Bachelor of Sciences in Medical Technology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSP",
+      "program_name": "Bachelor of Sciences in Psychology",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSP",
+      "program_name": "Bachelor of Sciences in Psychology",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSP",
+      "program_name": "Bachelor of Sciences in Psychology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSP",
+      "program_name": "Bachelor of Sciences in Psychology",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSP",
+      "program_name": "Bachelor of Sciences in Psychology",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSP",
+      "program_name": "Bachelor of Sciences in Psychology",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "BSP",
+      "program_name": "Bachelor of Sciences in Psychology",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSP-B",
+      "program_name": "Bachelor of Sciences in Psychology",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSP-B",
+      "program_name": "Bachelor of Sciences in Psychology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "BSP-B",
+      "program_name": "Bachelor of Sciences in Psychology",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "BSP-B",
+      "program_name": "Bachelor of Sciences in Psychology",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "BSP-B",
+      "program_name": "Bachelor of Sciences in Psychology",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "BSP-B",
+      "program_name": "Bachelor of Sciences in Psychology",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSED_ENGLISH-B",
+      "program_name": "Bachelor of Secondary Education Major in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSED_ENGLISH-B",
+      "program_name": "Bachelor of Secondary Education Major in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSED_ENGLISH",
+      "program_name": "Bachelor of Secondary Education Major in English",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSED_FILIPINO",
+      "program_name": "Bachelor of Secondary Education Major in Filipino",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSED_FILIPINO-B",
+      "program_name": "Bachelor of Secondary Education Major in Filipino",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSED_FILIPINO-B",
+      "program_name": "Bachelor of Secondary Education Major in Filipino",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSED_MATH-B",
+      "program_name": "Bachelor of Secondary Education Major in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSED_MATH",
+      "program_name": "Bachelor of Secondary Education Major in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSED_MATH-B",
+      "program_name": "Bachelor of Secondary Education Major in Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSED_SCIENCE-B",
+      "program_name": "Bachelor of Secondary Education Major in Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "BSED_SCIENCE-B",
+      "program_name": "Bachelor of Secondary Education Major in Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "BSED_SCIENCE",
+      "program_name": "Bachelor of Secondary Education Major in Science",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "SHS-ACAD-BE",
+      "program_name": "Business and Enterprenuership (BE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "SHS-ACAD-BE",
+      "program_name": "Business and Enterprenuership (BE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "SHS-ACAD-BE",
+      "program_name": "Business and Enterprenuership (BE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "SHS-ACAD-BE",
+      "program_name": "Business and Enterprenuership (BE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "SHS-ACAD-BE",
+      "program_name": "Business and Enterprenuership (BE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "SHS-ACAD-BE",
+      "program_name": "Business and Enterprenuership (BE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "SHS-ACAD-BE",
+      "program_name": "Business and Enterprenuership (BE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "SHS-TECHPRO-DS&CT",
+      "program_name": "Digital Services & Creative Technologies (DS&CT)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "SHS-TECHPRO-DS&CT",
+      "program_name": "Digital Services & Creative Technologies (DS&CT)",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "SHS-TECHPRO-DS&CT",
+      "program_name": "Digital Services & Creative Technologies (DS&CT)",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "SHS-TP-DSCT",
+      "program_name": "Digital Services & Creative Technologies (DS&CT)",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "SHS-TECHPRO-DS&CT",
+      "program_name": "Digital Services & Creative Technologies (DS&CT)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "SHS-TECHPRO-DS&CT",
+      "program_name": "Digital Services & Creative Technologies (DS&CT)",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "SHS-TP-DSCT",
+      "program_name": "Digital Services & Creative Technologies (DS&CT)",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "DHWA",
+      "program_name": "Diploma in Health & Wellness Associate",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "DHRM1",
+      "program_name": "Diploma in Hotel & Restaurant Management 1",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "DHRM1",
+      "program_name": "Diploma in Hotel & Restaurant Management 1",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "DHRM1",
+      "program_name": "Diploma in Hotel & Restaurant Management 1",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "DHRM1",
+      "program_name": "Diploma in Hotel & Restaurant Management 1",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "DHRM1",
+      "program_name": "Diploma in Hotel & Restaurant Management 1",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "DHRM1",
+      "program_name": "Diploma in Hotel & Restaurant Management 1",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "DHRM1",
+      "program_name": "Diploma in Hotel & Restaurant Management 1",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "DHRM1",
+      "program_name": "Diploma in Hotel & Restaurant Management 1",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "DHRM2",
+      "program_name": "Diploma in Hotel & Restaurant Management 2",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "DHRM2",
+      "program_name": "Diploma in Hotel & Restaurant Management 2",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "DHRM2",
+      "program_name": "Diploma in Hotel & Restaurant Management 2",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "DHRM2",
+      "program_name": "Diploma in Hotel & Restaurant Management 2",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "DHRM2",
+      "program_name": "Diploma in Hotel & Restaurant Management 2",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "DHRM2",
+      "program_name": "Diploma in Hotel & Restaurant Management 2",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "DHRM2",
+      "program_name": "Diploma in Hotel & Restaurant Management 2",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "DHRM2",
+      "program_name": "Diploma in Hotel & Restaurant Management 2",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "SHSACGAS",
+      "program_name": "General Academics  (GAS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "SHSACGAS",
+      "program_name": "General Academics  (GAS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "SHSACGAS",
+      "program_name": "General Academics  (GAS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "SHSACGAS",
+      "program_name": "General Academics  (GAS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "SHSACGAS",
+      "program_name": "General Academics  (GAS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "SHSACGAS",
+      "program_name": "General Academics  (GAS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "SHSACGAS",
+      "program_name": "General Academics  (GAS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "SHSACGAS",
+      "program_name": "General Academics  (GAS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "SHSTVHE-B",
+      "program_name": "Home Economics - Food And Beverage / Bartending / Front Office Services (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "SHSTVHE-B",
+      "program_name": "Home Economics - Food And Beverage / Bartending / Front Office Services (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "SHSTVHE-B",
+      "program_name": "Home Economics - Food And Beverage / Bartending / Front Office Services (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "SHSTVHE-B",
+      "program_name": "Home Economics - Food And Beverage / Bartending / Front Office Services (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "SHSTVHE-B",
+      "program_name": "Home Economics - Food And Beverage / Bartending / Front Office Services (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "SHSTVHE-B",
+      "program_name": "Home Economics - Food And Beverage / Bartending / Front Office Services (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "SHSTVHE-B",
+      "program_name": "Home Economics - Food And Beverage / Bartending / Front Office Services (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "SHSTVHE-B",
+      "program_name": "Home Economics - Food And Beverage / Bartending / Front Office Services (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "SHSTVHE",
+      "program_name": "Home Economics - Housekeeping/Cookery/ Bread & Pastry Production (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "SHSTVHE",
+      "program_name": "Home Economics - Housekeeping/Cookery/ Bread & Pastry Production (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "SHSTVHE",
+      "program_name": "Home Economics - Housekeeping/Cookery/ Bread & Pastry Production (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "SHSTVHE",
+      "program_name": "Home Economics - Housekeeping/Cookery/ Bread & Pastry Production (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "SHSTVHE",
+      "program_name": "Home Economics - Housekeeping/Cookery/ Bread & Pastry Production (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "SHSTVHE",
+      "program_name": "Home Economics - Housekeeping/Cookery/ Bread & Pastry Production (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "SHSTVHE",
+      "program_name": "Home Economics - Housekeeping/Cookery/ Bread & Pastry Production (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "SHSTVHE",
+      "program_name": "Home Economics - Housekeeping/Cookery/ Bread & Pastry Production (HE) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "SHS-TP-HTEE",
+      "program_name": "Hospitality, Tourism and Events Excellence (HT&EE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "SHS-TP-HTEE",
+      "program_name": "Hospitality, Tourism and Events Excellence (HT&EE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "SHS-TECHPRO-HT&EE",
+      "program_name": "Hospitality, Tourism and Events Excellence (HT&EE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "SHS-TECHPRO-HT&EE",
+      "program_name": "Hospitality, Tourism and Events Excellence (HT&EE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "SHS-TP-HTEE",
+      "program_name": "Hospitality, Tourism and Events Excellence (HT&EE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "SHS-TECHPRO-HT&EE",
+      "program_name": "Hospitality, Tourism and Events Excellence (HT&EE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "SHS-TECHPRO-HT&EE",
+      "program_name": "Hospitality, Tourism and Events Excellence (HT&EE)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "SHSACHUMSS",
+      "program_name": "Humanities and Social Sciences  (HUMSS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "SHSACHUMSS",
+      "program_name": "Humanities and Social Sciences  (HUMSS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "SHSACHUMSS",
+      "program_name": "Humanities and Social Sciences  (HUMSS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "SHSACHUMSS",
+      "program_name": "Humanities and Social Sciences  (HUMSS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "SHSACHUMSS",
+      "program_name": "Humanities and Social Sciences  (HUMSS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "SHSACHUMSS",
+      "program_name": "Humanities and Social Sciences  (HUMSS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "SHSACHUMSS",
+      "program_name": "Humanities and Social Sciences  (HUMSS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "SHSACHUMSS",
+      "program_name": "Humanities and Social Sciences  (HUMSS) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "SHSTVICT",
+      "program_name": "Information and Communication Technology (ICT) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "SHSTVICT",
+      "program_name": "Information and Communication Technology (ICT) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "SHSTVICT",
+      "program_name": "Information and Communication Technology (ICT) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "SHSTVICT",
+      "program_name": "Information and Communication Technology (ICT) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "SHSTVICT",
+      "program_name": "Information and Communication Technology (ICT) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "SHSTVICT",
+      "program_name": "Information and Communication Technology (ICT) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "SHSTVICT",
+      "program_name": "Information and Communication Technology (ICT) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "SHSTVICT",
+      "program_name": "Information and Communication Technology (ICT) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "PROG009",
+      "program_name": "Sample Program Name",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "SHSACSTEM",
+      "program_name": "Science Technology, Engineering and Mathematics (STEM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "SHSACSTEM",
+      "program_name": "Science Technology, Engineering and Mathematics (STEM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "SHSACSTEM",
+      "program_name": "Science Technology, Engineering and Mathematics (STEM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "SHSACSTEM",
+      "program_name": "Science Technology, Engineering and Mathematics (STEM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "SHSACSTEM",
+      "program_name": "Science Technology, Engineering and Mathematics (STEM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "SHSACSTEM",
+      "program_name": "Science Technology, Engineering and Mathematics (STEM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "SHSACSTEM",
+      "program_name": "Science Technology, Engineering and Mathematics (STEM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "AG",
+      "program_code": "SHSACSTEM",
+      "program_name": "Science Technology, Engineering and Mathematics (STEM) Strand",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "STEM",
+      "program_name": "Science, Technology, Engineering, and Mathematics",
+      "is_active": true
+    },
+    {
+      "campus_code": "UA",
+      "program_code": "SHS-ACAD-STEM",
+      "program_name": "Science, Technology, Engineering, and Mathematics (STEM)",
+      "is_active": true
+    },
+    {
+      "campus_code": "BI",
+      "program_code": "SHS-ACAD-STEM",
+      "program_name": "Science, Technology, Engineering, and Mathematics (STEM)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CA",
+      "program_code": "SHS-ACAD-STEM",
+      "program_name": "Science, Technology, Engineering, and Mathematics (STEM)",
+      "is_active": true
+    },
+    {
+      "campus_code": "TA",
+      "program_code": "SHS-ACAD-STEM",
+      "program_name": "Science, Technology, Engineering, and Mathematics (STEM)",
+      "is_active": true
+    },
+    {
+      "campus_code": "SU",
+      "program_code": "SHS-ACAD-STEM",
+      "program_name": "Science, Technology, Engineering, and Mathematics (STEM)",
+      "is_active": true
+    },
+    {
+      "campus_code": "SA",
+      "program_code": "SHS-ACAD-STEM",
+      "program_name": "Science, Technology, Engineering, and Mathematics (STEM)",
+      "is_active": true
+    },
+    {
+      "campus_code": "CO",
+      "program_code": "SHS-ACAD-STEM",
+      "program_name": "Science, Technology, Engineering, and Mathematics (STEM)",
+      "is_active": true
+    }
+  ]
+}
