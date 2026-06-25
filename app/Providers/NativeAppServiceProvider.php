@@ -20,6 +20,6 @@ class NativeAppServiceProvider implements ProvidesPhpIni
 
     public function phpIni(): array
     {
-        return [];
+        return config('uploads.php_ini', []);
     }
 }

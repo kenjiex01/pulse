@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\User;
 
+use App\Support\ValidationRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,10 +22,11 @@ class UpdateUserRequest extends FormRequest
                 'string',
                 'email',
                 'max:255',
-                Rule::unique('users', 'email')->ignore($this->route('user')),
+                ValidationRules::uniqueSoft('users', 'email', $this->route('user')),
             ],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
-            'role_id' => ['required', Rule::exists('roles', 'id')],
+            'role_ids' => ['required', 'array', 'min:1'],
+            'role_ids.*' => ['integer', Rule::exists('roles', 'id')],
         ];
     }
 
@@ -33,11 +35,11 @@ class UpdateUserRequest extends FormRequest
         return [
             'name.required' => 'Name is required.',
             'email.required' => 'Email is required.',
-            'email.unique' => 'This email is already in use.',
+            'email.unique' => 'This email is already registered.',
             'password.min' => 'Password must be at least 8 characters.',
             'password.confirmed' => 'Password confirmation does not match.',
-            'role_id.required' => 'Please select a role.',
-            'role_id.exists' => 'The selected role is invalid.',
+            'role_ids.required' => 'Please select at least one role.',
+            'role_ids.min' => 'Please select at least one role.',
         ];
     }
 }

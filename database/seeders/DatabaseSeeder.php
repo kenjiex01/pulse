@@ -12,16 +12,25 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(RoleSeeder::class);
+        $this->call(ModuleSeeder::class);
+        $this->call(SubModuleSeeder::class);
+        $this->call(RoleModuleSeeder::class);
+        $this->call(ReferenceDataSeeder::class);
 
         $adminRole = Role::query()->where('slug', Role::SLUG_ADMIN)->first();
 
-        User::query()->updateOrCreate(
-            ['email' => 'admin@pulso.local'],
+        $adminUser = User::query()->updateOrCreate(
+            ['email' => 'superadmin@icct.edu.ph'],
             [
-                'name' => 'Administrator',
-                'password' => Hash::make('password'),
-                'role_id' => $adminRole?->id,
+                'name' => 'Super Administrator',
+                'password' => Hash::make('Password123!'),
             ],
         );
+
+        User::query()->where('email', 'admin@pulso.local')->delete();
+
+        if ($adminRole) {
+            $adminUser->roles()->syncWithoutDetaching([$adminRole->id]);
+        }
     }
 }

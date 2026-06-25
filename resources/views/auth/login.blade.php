@@ -54,7 +54,7 @@
                         <h1 class="mb-1 text-2xl font-bold leading-tight tracking-tight sm:text-3xl lg:text-4xl">
                             SKOLARIS
                             <br>
-                            <span class="text-[#00A3E6]">PULSE</span>
+                            <span class="text-[#00A3E6]">APP PULSE</span>
                         </h1>
                         <div class="mb-5 mt-4 flex gap-1">
                             <span class="h-1 w-10 rounded-full bg-[#E31837]"></span>
@@ -74,7 +74,7 @@
 
                     <div class="relative z-10 mx-auto w-full max-w-sm">
                         <div class="mb-6 md:hidden">
-                            <p class="text-xs font-semibold tracking-[0.2em] text-[#0B318F]/70">SKOLARIS PULSE</p>
+                            <p class="text-xs font-semibold tracking-[0.2em] text-[#0B318F]/70">DESKTOP PULSE</p>
                         </div>
 
                         <h2 class="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">Sign in</h2>

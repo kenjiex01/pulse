@@ -11,7 +11,7 @@ class DashboardController extends Controller
 {
     public function __invoke(): View
     {
-        $user = auth()->user()->load('role');
+        $user = auth()->user()->load('roles');
 
         SysLogService::record(
             action: 'read',
@@ -25,6 +25,7 @@ class DashboardController extends Controller
             'user' => $user,
             'userCount' => $user->isAdmin() ? User::query()->count() : null,
             'roleCount' => $user->isAdmin() ? Role::query()->count() : null,
+            'databaseBackupPath' => $user->isSuperAdmin() ? route('system.database-backup') : null,
         ]);
     }
 }

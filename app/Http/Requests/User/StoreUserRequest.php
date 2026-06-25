@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\User;
 
+use App\Support\ValidationRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -16,9 +17,10 @@ class StoreUserRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['required', 'string', 'email', 'max:255', ValidationRules::uniqueSoft('users', 'email')],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'role_id' => ['required', Rule::exists('roles', 'id')],
+            'role_ids' => ['required', 'array', 'min:1'],
+            'role_ids.*' => ['integer', Rule::exists('roles', 'id')],
         ];
     }
 
@@ -27,12 +29,12 @@ class StoreUserRequest extends FormRequest
         return [
             'name.required' => 'Name is required.',
             'email.required' => 'Email is required.',
-            'email.unique' => 'This email is already in use.',
+            'email.unique' => 'This email is already registered.',
             'password.required' => 'Password is required.',
             'password.min' => 'Password must be at least 8 characters.',
             'password.confirmed' => 'Password confirmation does not match.',
-            'role_id.required' => 'Please select a role.',
-            'role_id.exists' => 'The selected role is invalid.',
+            'role_ids.required' => 'Please select at least one role.',
+            'role_ids.min' => 'Please select at least one role.',
         ];
     }
 }

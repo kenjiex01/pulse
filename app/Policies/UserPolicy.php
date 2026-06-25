@@ -36,7 +36,7 @@ class UserPolicy
             return false;
         }
 
-        if ($model->isAdmin() && User::query()->whereHas('role', fn ($q) => $q->where('slug', \App\Models\Role::SLUG_ADMIN))->count() <= 1) {
+        if ($model->isAdmin() && User::query()->whereHas('roles', fn ($query) => $query->where('slug', \App\Models\Role::SLUG_ADMIN))->count() <= 1) {
             return false;
         }
 
