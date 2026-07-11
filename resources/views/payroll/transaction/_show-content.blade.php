@@ -39,9 +39,33 @@
             <p class="text-xs text-gray-500">Date Created</p>
             <p class="mt-1 font-medium text-gray-900">{{ $batch->dt_created?->format('M j, Y g:i A') ?? '—' }}</p>
         </div>
+        @if ($batch->dt_processed)
+            <div>
+                <p class="text-xs text-gray-500">Processed By</p>
+                <p class="mt-1 font-medium text-gray-900">{{ $batch->processedBy?->name ?? '—' }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-500">Date Processed</p>
+                <p class="mt-1 font-medium text-gray-900">{{ $batch->dt_processed->format('M j, Y g:i A') }}</p>
+            </div>
+        @endif
+        @if ($batch->dt_posted)
+            <div>
+                <p class="text-xs text-gray-500">Posted By</p>
+                <p class="mt-1 font-medium text-gray-900">{{ $batch->postedBy?->name ?? '—' }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-500">Date Posted</p>
+                <p class="mt-1 font-medium text-gray-900">{{ $batch->dt_posted->format('M j, Y g:i A') }}</p>
+            </div>
+        @endif
     </div>
 
-    @if (! $batchEditable)
+    @if ($batch->dt_posted)
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            This batch is posted and can no longer be modified or re-processed.
+        </div>
+    @elseif (! $batchEditable)
         <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             This batch can no longer be modified. Employee add/remove is disabled.
         </div>
@@ -49,6 +73,39 @@
 
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-2">
+            @if ($batchProcessable ?? false)
+                <form
+                    method="POST"
+                    action="{{ route(\App\Support\PayrollTransactionModule::routeName('process'), $batch) }}"
+                    onsubmit="return confirm('Process this payroll batch? Income and deduction lines will be generated for each employee.');"
+                >
+                    @csrf
+                    <input type="hidden" name="batch_employee_search" value="{{ $batchEmployeeSearch }}">
+                    <button type="submit" class="btn-primary !px-3 !py-1.5 text-xs">Process</button>
+                </form>
+            @endif
+            @if ($batchReprocessable ?? false)
+                <form
+                    method="POST"
+                    action="{{ route(\App\Support\PayrollTransactionModule::routeName('reprocess'), $batch) }}"
+                    onsubmit="return confirm('Re-process this payroll batch? System-generated lines will be cleared and regenerated. Manually added income/deduction lines and uploaded adjustments are kept.');"
+                >
+                    @csrf
+                    <input type="hidden" name="batch_employee_search" value="{{ $batchEmployeeSearch }}">
+                    <button type="submit" class="btn-secondary !px-3 !py-1.5 text-xs">Re-process</button>
+                </form>
+            @endif
+            @if ($batchPostable ?? false)
+                <form
+                    method="POST"
+                    action="{{ route(\App\Support\PayrollTransactionModule::routeName('post'), $batch) }}"
+                    onsubmit="return confirm('Post this payroll batch? Once posted, its income and deduction lines can no longer be modified or re-processed.');"
+                >
+                    @csrf
+                    <input type="hidden" name="batch_employee_search" value="{{ $batchEmployeeSearch }}">
+                    <button type="submit" class="btn-primary !px-3 !py-1.5 text-xs">Post</button>
+                </form>
+            @endif
             @if ($batchEditable)
                 <button
                     type="button"

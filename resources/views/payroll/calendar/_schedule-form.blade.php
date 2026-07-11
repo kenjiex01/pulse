@@ -1,12 +1,18 @@
 @php
     use App\Support\PayrollCalendarModule;
+    use App\Support\PhilhealthDeductionTypes;
 
     $selectedDeductionIds = $selectedDeductionIds ?? $period->deductions->pluck('deduction_type_id')->all();
     $selectedLoanIds = $selectedLoanIds ?? $period->loans->pluck('loan_type_id')->all();
 @endphp
 
 @can('payroll-calendar.update')
-    <form method="POST" action="{{ route(PayrollCalendarModule::routeName('schedule'), ['payType' => $payTypeSlug, 'period' => $period->payroll_calendar_id]) }}" class="space-y-4">
+    <form
+        method="POST"
+        action="{{ route(PayrollCalendarModule::routeName('schedule'), ['payType' => $payTypeSlug, 'period' => $period->payroll_calendar_id]) }}"
+        class="space-y-4"
+        data-payroll-calendar-schedule-form
+    >
         @csrf
         <input type="hidden" name="view_period_id" value="{{ $period->payroll_calendar_id }}">
 
@@ -20,6 +26,10 @@
                                 type="checkbox"
                                 name="deduction_type_ids[]"
                                 value="{{ $deductionType->deduction_type_id }}"
+                                data-deduction-code="{{ $deductionType->deduction_type_code }}"
+                                @if (in_array($deductionType->deduction_type_code, PhilhealthDeductionTypes::EXCLUSIVE_CODES, true))
+                                    data-philhealth-exclusive
+                                @endif
                                 @checked(in_array($deductionType->deduction_type_id, $selectedDeductionIds, true))
                             >
                             <span>{{ $deductionType->description }}</span>

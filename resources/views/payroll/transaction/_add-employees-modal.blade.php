@@ -23,6 +23,7 @@
                 'eligibleEmployees' => $eligibleEmployees,
                 'addEmployeeSearch' => $addEmployeeSearch ?? '',
                 'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
+                'addEmployeesEmptyMessage' => $addEmployeesEmptyMessage ?? null,
             ])
         </div>
     </div>

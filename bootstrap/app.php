@@ -35,6 +35,23 @@ return Application::configure(basePath: dirname(__DIR__))
                 return redirect()->route('login');
             }
 
-            return null;
+            if ($request->expectsJson()) {
+                return null;
+            }
+
+            $message = 'Your session expired. Refresh the page and try again.';
+
+            if ($request->is('timekeeping/time-logs/upload/*')) {
+                $tab = \App\Support\TimeLogs::resolveTab($request->input('tab'));
+
+                return redirect()
+                    ->route('timekeeping.time-logs.tab', ['tab' => $tab, 'upload' => 1])
+                    ->with('error', $message);
+            }
+
+            return redirect()
+                ->back()
+                ->withInput($request->except('upload_file', '_token', 'password', 'password_confirmation'))
+                ->with('error', $message);
         });
     })->create();

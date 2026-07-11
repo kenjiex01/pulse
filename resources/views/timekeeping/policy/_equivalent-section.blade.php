@@ -9,7 +9,12 @@
 
 <div class="mt-6 rounded-xl border border-gray-200 bg-white p-6 @if(($type ?? '') === 'breaks') !mt-4 !border-0 !p-0 !shadow-none @endif">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h3 class="text-sm font-semibold text-gray-900">{{ $config['name'] }}s</h3>
+        <div>
+            <h3 class="text-sm font-semibold text-gray-900">{{ $config['name'] }}s</h3>
+            @if ($type === 'tardiness')
+                <p class="mt-1 text-xs text-gray-500">Late conversion rules — e.g. 1–5 min → 5 min, 16+ min → absent.</p>
+            @endif
+        </div>
         @can('timekeeping-policy.create')
             <button type="button" class="btn-secondary" data-modal-open="{{ $modalPrefix }}-create">
                 Add Equivalent
@@ -25,6 +30,9 @@
                         <th>From (minutes)</th>
                         <th>To (minutes)</th>
                         <th>Equivalent (minutes)</th>
+                        @if ($config['supports_marks_absent'] ?? false)
+                            <th>Absent</th>
+                        @endif
                         <th class="text-right">Actions</th>
                     </tr>
                 </thead>
@@ -33,7 +41,16 @@
                         <tr>
                             <td class="font-medium text-gray-900">{{ \App\Support\TimekeepingPolicy::formatMinutes($record->time_from) }}</td>
                             <td class="text-gray-600">{{ \App\Support\TimekeepingPolicy::formatMinutes($record->time_to) }}</td>
-                            <td class="text-gray-600">{{ \App\Support\TimekeepingPolicy::formatMinutes($record->equivalent) }}</td>
+                            <td class="text-gray-600">
+                                @if (($config['supports_marks_absent'] ?? false) && $record->marks_absent)
+                                    <span class="text-red-600">Absent</span>
+                                @else
+                                    {{ \App\Support\TimekeepingPolicy::formatMinutes($record->equivalent) }}
+                                @endif
+                            </td>
+                            @if ($config['supports_marks_absent'] ?? false)
+                                <td class="text-gray-600">{{ $record->marks_absent ? 'Yes' : '—' }}</td>
+                            @endif
                             <td>
                                 <div class="flex items-center justify-end gap-1.5">
                                     @can('timekeeping-policy.update')
@@ -58,7 +75,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="py-8 text-center text-sm text-gray-500">No equivalents defined yet.</td>
+                            <td colspan="{{ ($config['supports_marks_absent'] ?? false) ? 5 : 4 }}" class="py-8 text-center text-sm text-gray-500">No equivalents defined yet.</td>
                         </tr>
                     @endforelse
                 </tbody>

@@ -65,11 +65,7 @@
             </label>
         @empty
             <p class="px-4 py-8 text-center text-sm text-gray-500">
-                @if ($addEmployeeSearch !== '')
-                    No eligible employees match your search.
-                @else
-                    All eligible employees are already assigned to a batch for this pay period.
-                @endif
+                {{ $addEmployeesEmptyMessage ?? 'No eligible employees found for this batch.' }}
             </p>
         @endforelse
     </div>

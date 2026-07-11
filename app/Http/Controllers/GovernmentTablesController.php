@@ -111,6 +111,11 @@ class GovernmentTablesController extends Controller
     public function store(Request $request, string $tab): RedirectResponse
     {
         $tab = GovernmentTables::resolveTab($tab);
+
+        if (! GovernmentTables::allowsCreate($tab)) {
+            abort(403);
+        }
+
         GovernmentTables::authorize($request->user(), 'add');
 
         $config = GovernmentTables::config($tab);
@@ -163,6 +168,11 @@ class GovernmentTablesController extends Controller
     public function destroy(Request $request, string $tab, int $record): RedirectResponse
     {
         $tab = GovernmentTables::resolveTab($tab);
+
+        if (! GovernmentTables::allowsDelete($tab)) {
+            abort(403);
+        }
+
         GovernmentTables::authorize($request->user(), 'delete');
 
         $config = GovernmentTables::config($tab);

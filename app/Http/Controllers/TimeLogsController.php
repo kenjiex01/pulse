@@ -2,15 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Campus;
 use App\Models\RawTimekeepingTransaction;
 use App\Models\TimeCaptureFormat;
 use App\Services\SysLogService;
+use App\Services\TimeLogsDtrUploadService;
 use App\Services\TimeLogsUploadService;
 use App\Support\LiveTable;
 use App\Support\TimeLogs;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -19,6 +22,7 @@ class TimeLogsController extends Controller
 {
     public function __construct(
         private readonly TimeLogsUploadService $uploadService,
+        private readonly TimeLogsDtrUploadService $dtrUploadService,
     ) {}
 
     public function index(Request $request, string $tab): View
@@ -39,6 +43,12 @@ class TimeLogsController extends Controller
                     $searchQuery->orWhereHas('uploadedBy', function ($userQuery) use ($search) {
                         $userQuery->where('name', 'like', '%'.$search.'%');
                     });
+
+                    if (TimeLogs::requiresCampus($tab)) {
+                        $searchQuery->orWhereHas('campus', function ($campusQuery) use ($search) {
+                            $campusQuery->where('campus_name', 'like', '%'.$search.'%');
+                        });
+                    }
                 });
             })
             ->orderByDesc('timekeeping_transaction_id')
@@ -60,6 +70,8 @@ class TimeLogsController extends Controller
             'records' => $records,
             'search' => $search,
             'formats' => TimeCaptureFormat::query()->orderBy('device_name')->get(),
+            'dtrCampuses' => TimeLogs::dtrCampuses(),
+            'requiresCampus' => TimeLogs::requiresCampus($tab),
             'openUpload' => ($request->boolean('upload') || $request->boolean('create')) && ! $request->boolean('preview'),
             'openPreview' => $request->boolean('preview') && session('time_logs_staging_token'),
             'openViewId' => $request->input('view'),
@@ -72,6 +84,7 @@ class TimeLogsController extends Controller
                 ->where('timekeeping_transaction_type_id', $config['transaction_type_id'])
                 ->with([
                     'uploadedBy',
+                    'campus',
                     'timeCaptureFormat',
                     'inAndOutRecords' => fn ($query) => $query->with('employee')->orderBy('dt_datetime')->orderBy('timekeeping_inandout_id'),
                     'timeLogRecords' => fn ($query) => $query->with('employee'),
@@ -80,9 +93,14 @@ class TimeLogsController extends Controller
         }
 
         if ($viewData['openPreview'] && $viewData['stagingToken']) {
-            $viewData['staging'] = $this->uploadService->getStaging($request->user(), (string) $viewData['stagingToken']);
-            $viewData['previewFormat'] = isset($viewData['staging']['format_id'])
+            $viewData['staging'] = $this->uploadService->getStaging($request->user(), (string) $viewData['stagingToken'])
+                ?? $this->dtrUploadService->getStaging($request->user(), (string) $viewData['stagingToken']);
+            $viewData['isDtrStaging'] = ($viewData['staging']['parser'] ?? null) === 'dtr';
+            $viewData['previewFormat'] = ! ($viewData['isDtrStaging'] ?? false) && isset($viewData['staging']['format_id'])
                 ? TimeCaptureFormat::query()->find($viewData['staging']['format_id'])
+                : null;
+            $viewData['previewCampus'] = isset($viewData['staging']['campus_id'])
+                ? TimeLogs::dtrCampuses()->firstWhere('campus_id', (int) $viewData['staging']['campus_id'])
                 : null;
         }
 
@@ -112,19 +130,49 @@ class TimeLogsController extends Controller
     {
         TimeLogs::authorize($request->user(), 'add');
 
-        $validated = $request->validate([
-            'timecapture_format_id' => ['required', 'exists:tbl_timecapture_formats,timecapture_format_id'],
-            'upload_file' => ['required', 'file', 'max:10240'],
-        ]);
+        $tab = TimeLogs::resolveTab($request->input('tab'));
 
-        $format = TimeCaptureFormat::query()->with('fields')->findOrFail((int) $validated['timecapture_format_id']);
+        $rules = [
+            'tab' => ['required', Rule::in(array_keys(TimeLogs::tabs()))],
+            'upload_file' => ['required', 'file', 'max:'.config('uploads.max_file_kb', 15360)],
+        ];
+
+        if (TimeLogs::requiresCampus($tab)) {
+            $rules['campus_id'] = [
+                'required',
+                Rule::exists('tbl_campuses', 'campus_id')
+                    ->whereIn('campus_code', TimeLogs::DTR_CAMPUS_CODES)
+                    ->whereNull('deleted_at'),
+            ];
+        } else {
+            $rules['timecapture_format_id'] = ['required', 'exists:tbl_timecapture_formats,timecapture_format_id'];
+        }
+
+        $validated = $request->validate($rules);
 
         try {
-            $result = $this->uploadService->parseUploadedFile($request->file('upload_file'), $format);
-            $token = $this->uploadService->createStagingToken($request->user(), $format->timecapture_format_id, $result);
+            if (TimeLogs::requiresCampus($tab)) {
+                $campus = Campus::query()->findOrFail((int) $validated['campus_id']);
+                $result = $this->dtrUploadService->parseUploadedFile($request->file('upload_file'), $campus);
+                $token = $this->dtrUploadService->createStagingToken(
+                    $request->user(),
+                    $campus->campus_id,
+                    $result,
+                    $tab,
+                );
+            } else {
+                $format = TimeCaptureFormat::query()->with('fields')->findOrFail((int) $validated['timecapture_format_id']);
+                $result = $this->uploadService->parseUploadedFile($request->file('upload_file'), $format);
+                $token = $this->uploadService->createStagingToken(
+                    $request->user(),
+                    $format->timecapture_format_id,
+                    $result,
+                    $tab,
+                );
+            }
         } catch (RuntimeException $exception) {
             return redirect()
-                ->route(TimeLogs::routeName('tab'), ['tab' => TimeLogs::defaultTab(), 'upload' => 1])
+                ->route(TimeLogs::routeName('tab'), ['tab' => $tab, 'upload' => 1])
                 ->withInput()
                 ->with('error', $exception->getMessage());
         }
@@ -133,7 +181,7 @@ class TimeLogsController extends Controller
 
         return redirect()
             ->route(TimeLogs::routeName('tab'), [
-                'tab' => TimeLogs::defaultTab(),
+                'tab' => $tab,
                 'preview' => 1,
             ])
             ->with('success', 'File parsed. Review the preview before loading to the database.');
@@ -147,27 +195,43 @@ class TimeLogsController extends Controller
             'staging_token' => ['required', 'string'],
         ]);
 
+        $staging = $this->uploadService->getStaging($request->user(), $validated['staging_token'])
+            ?? $this->dtrUploadService->getStaging($request->user(), $validated['staging_token']);
+        $tab = TimeLogs::resolveTab(is_array($staging) ? ($staging['tab'] ?? null) : null);
+        $isDtr = is_array($staging) && ($staging['parser'] ?? null) === 'dtr';
+
         try {
-            $transaction = $this->uploadService->commit($request->user(), $validated['staging_token']);
+            $result = $isDtr
+                ? $this->dtrUploadService->commit($request->user(), $validated['staging_token'])
+                : $this->uploadService->commit($request->user(), $validated['staging_token']);
+            $transaction = $result['transaction'];
         } catch (RuntimeException $exception) {
             return redirect()
-                ->route(TimeLogs::routeName('tab'), ['tab' => TimeLogs::defaultTab(), 'preview' => 1])
+                ->route(TimeLogs::routeName('tab'), ['tab' => $tab, 'preview' => 1])
                 ->withInput()
                 ->with('error', $exception->getMessage());
         }
 
         session()->forget('time_logs_staging_token');
 
+        $config = TimeLogs::config($tab);
+
         SysLogService::record(
             action: 'create',
             table: 'raw_timekeeping_transactions',
             recordId: $transaction->timekeeping_transaction_id,
-            description: 'Uploaded time logs batch #'.$transaction->batch_no.' ('.$transaction->filename.')',
+            description: 'Uploaded '.$config['name'].' batch #'.$transaction->batch_no.' ('.$transaction->filename.')',
         );
 
+        $successMessage = 'Time logs successfully loaded to the database ('.$result['inserted'].' record(s)).';
+
+        if (($result['skipped_duplicates'] ?? 0) > 0) {
+            $successMessage .= ' '.$result['skipped_duplicates'].' duplicate record(s) were skipped.';
+        }
+
         return redirect()
-            ->route(TimeLogs::routeName('tab'), ['tab' => TimeLogs::defaultTab(), 'view' => $transaction->timekeeping_transaction_id])
-            ->with('success', 'Time logs successfully loaded to the database.');
+            ->route(TimeLogs::routeName('tab'), ['tab' => $tab, 'view' => $transaction->timekeeping_transaction_id])
+            ->with('success', $successMessage);
     }
 
     public function discardStaging(Request $request): RedirectResponse
@@ -175,15 +239,21 @@ class TimeLogsController extends Controller
         TimeLogs::authorize($request->user(), 'add');
 
         $token = (string) $request->input('staging_token', session('time_logs_staging_token'));
+        $staging = $token !== '' ? (
+            $this->uploadService->getStaging($request->user(), $token)
+            ?? $this->dtrUploadService->getStaging($request->user(), $token)
+        ) : null;
+        $tab = TimeLogs::resolveTab(is_array($staging) ? ($staging['tab'] ?? null) : $request->input('tab'));
 
         if ($token !== '') {
             $this->uploadService->discardStaging($request->user(), $token);
+            $this->dtrUploadService->discardStaging($request->user(), $token);
         }
 
         session()->forget('time_logs_staging_token');
 
         return redirect()
-            ->route(TimeLogs::routeName('tab'), ['tab' => TimeLogs::defaultTab(), 'upload' => 1])
+            ->route(TimeLogs::routeName('tab'), ['tab' => $tab, 'upload' => 1])
             ->with('success', 'Upload cancelled.');
     }
 
@@ -200,6 +270,7 @@ class TimeLogsController extends Controller
 
         $transaction->load([
             'uploadedBy',
+            'campus',
             'timeCaptureFormat',
             'inAndOutRecords' => fn ($query) => $query->with('employee')->orderBy('dt_datetime')->orderBy('timekeeping_inandout_id'),
             'timeLogRecords' => fn ($query) => $query->with('employee'),

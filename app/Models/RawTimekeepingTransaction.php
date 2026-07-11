@@ -10,6 +10,8 @@ class RawTimekeepingTransaction extends Model
 {
     public const TYPE_TIME_IN_OUT = 1;
 
+    public const TYPE_TIMELOGS_DTR = 2;
+
     protected $table = 'raw_timekeeping_transactions';
 
     protected $primaryKey = 'timekeeping_transaction_id';
@@ -25,6 +27,7 @@ class RawTimekeepingTransaction extends Model
         'batch_no',
         'filename',
         'timecapture_format_id',
+        'campus_id',
     ];
 
     protected function casts(): array
@@ -46,6 +49,11 @@ class RawTimekeepingTransaction extends Model
     public function timeCaptureFormat(): BelongsTo
     {
         return $this->belongsTo(TimeCaptureFormat::class, 'timecapture_format_id', 'timecapture_format_id');
+    }
+
+    public function campus(): BelongsTo
+    {
+        return $this->belongsTo(Campus::class, 'campus_id', 'campus_id');
     }
 
     public function inAndOutRecords(): HasMany

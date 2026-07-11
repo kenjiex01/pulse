@@ -6,11 +6,19 @@
     <p class="text-sm text-gray-600">Upload preview expired. Please upload the file again.</p>
 @else
     <div class="space-y-4">
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div class="rounded-lg border border-gray-200 bg-white p-3">
-                <p class="text-xs text-gray-500">Format</p>
-                <p class="mt-1 font-medium text-gray-900">{{ $previewFormat?->device_name ?? '—' }}</p>
-            </div>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            @if (! ($isDtrStaging ?? false))
+                <div class="rounded-lg border border-gray-200 bg-white p-3">
+                    <p class="text-xs text-gray-500">Format</p>
+                    <p class="mt-1 font-medium text-gray-900">{{ $previewFormat?->device_name ?? '—' }}</p>
+                </div>
+            @endif
+            @if ($previewCampus ?? null)
+                <div class="rounded-lg border border-gray-200 bg-white p-3">
+                    <p class="text-xs text-gray-500">Campus</p>
+                    <p class="mt-1 font-medium text-gray-900">{{ $previewCampus->campus_name }}</p>
+                </div>
+            @endif
             <div class="rounded-lg border border-gray-200 bg-white p-3">
                 <p class="text-xs text-gray-500">File Name</p>
                 <p class="mt-1 font-medium text-gray-900">{{ $staging['filename'] ?? '—' }}</p>
@@ -71,6 +79,7 @@
             <form method="POST" action="{{ route(TimeLogsSupport::routeName('discard')) }}">
                 @csrf
                 <input type="hidden" name="staging_token" value="{{ $stagingToken }}">
+                <input type="hidden" name="tab" value="{{ $tab }}">
                 <button type="submit" class="btn-secondary">Re-upload File</button>
             </form>
 

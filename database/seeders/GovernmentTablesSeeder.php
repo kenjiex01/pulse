@@ -4,10 +4,10 @@ namespace Database\Seeders;
 
 use App\Models\GovtTablePagibig;
 use App\Models\GovtTablePhilhealth;
+use App\Models\GovtTablePhilhealthMinimum;
 use App\Models\GovtTableSss;
 use App\Models\GovtTableWtax2023;
 use App\Models\GovtTableWtaxAnnual2023;
-use App\Models\WithholdingTaxClass;
 use Illuminate\Database\Seeder;
 
 class GovernmentTablesSeeder extends Seeder
@@ -16,17 +16,18 @@ class GovernmentTablesSeeder extends Seeder
     {
         $this->seedPagibig();
         $this->seedPhilhealth();
+        $this->seedPhilhealthMinimum();
         $this->seedSss();
-        $this->seedWithholdingTaxClasses();
         $this->seedWtax2023Grid();
         $this->seedWtaxAnnual2023();
     }
 
     private function seedPagibig(): void
     {
+        // Contributions are fixed peso amounts (not percentages of salary).
         foreach ([
-            ['govt_table_pagibig_id' => 2, 'salary_cap' => 1500.00, 'employee_contribution' => 2.00, 'employer_contribution' => 1.00],
-            ['govt_table_pagibig_id' => 3, 'salary_cap' => 5000.00, 'employee_contribution' => 2.00, 'employer_contribution' => 2.00],
+            ['govt_table_pagibig_id' => 2, 'salary_cap' => 1500.00, 'employee_contribution' => 200.00, 'employer_contribution' => 200.00],
+            ['govt_table_pagibig_id' => 3, 'salary_cap' => 5000.00, 'employee_contribution' => 200.00, 'employer_contribution' => 200.00],
         ] as $row) {
             GovtTablePagibig::query()->updateOrCreate(
                 ['govt_table_pagibig_id' => $row['govt_table_pagibig_id']],
@@ -85,6 +86,14 @@ class GovernmentTablesSeeder extends Seeder
         }
     }
 
+    private function seedPhilhealthMinimum(): void
+    {
+        GovtTablePhilhealthMinimum::query()->updateOrCreate(
+            ['govt_table_philhealth_minimum_id' => 1],
+            ['employee_amount' => 250.00, 'employer_amount' => 250.00],
+        );
+    }
+
     private function seedSss(): void
     {
         $rows = [
@@ -129,36 +138,6 @@ class GovernmentTablesSeeder extends Seeder
                     'employer_sss' => $row['employer_sss'],
                     'employee_sss' => $row['employee_sss'],
                     'employer_ec' => $row['employer_ec'],
-                ],
-            );
-        }
-    }
-
-    private function seedWithholdingTaxClasses(): void
-    {
-        $rows = [
-            ['withholding_tax_class_id' => 7, 'withholding_tax_class_code' => 'ME', 'description' => 'Married', 'number_of_dependents' => 0, 'exemption_amount' => 50000.00, 'is_married' => true],
-            ['withholding_tax_class_id' => 8, 'withholding_tax_class_code' => 'ME1', 'description' => 'Married with 1 Dependent', 'number_of_dependents' => 1, 'exemption_amount' => 75000.00, 'is_married' => true],
-            ['withholding_tax_class_id' => 9, 'withholding_tax_class_code' => 'ME2', 'description' => 'Married with 2 Dependents', 'number_of_dependents' => 2, 'exemption_amount' => 100000.00, 'is_married' => true],
-            ['withholding_tax_class_id' => 10, 'withholding_tax_class_code' => 'ME3', 'description' => 'Married with 3 Dependents', 'number_of_dependents' => 3, 'exemption_amount' => 125000.00, 'is_married' => true],
-            ['withholding_tax_class_id' => 11, 'withholding_tax_class_code' => 'ME4', 'description' => 'Married with 4 Dependents', 'number_of_dependents' => 4, 'exemption_amount' => 150000.00, 'is_married' => true],
-            ['withholding_tax_class_id' => 14, 'withholding_tax_class_code' => 'S', 'description' => 'Single', 'number_of_dependents' => null, 'exemption_amount' => 50000.00, 'is_married' => null],
-            ['withholding_tax_class_id' => 15, 'withholding_tax_class_code' => 'Z', 'description' => 'Zero', 'number_of_dependents' => null, 'exemption_amount' => 0.00, 'is_married' => null],
-            ['withholding_tax_class_id' => 16, 'withholding_tax_class_code' => 'S1', 'description' => 'Single with 1 Dependent', 'number_of_dependents' => 1, 'exemption_amount' => 75000.00, 'is_married' => null],
-            ['withholding_tax_class_id' => 17, 'withholding_tax_class_code' => 'S2', 'description' => 'Single with 2 Dependents', 'number_of_dependents' => 2, 'exemption_amount' => 100000.00, 'is_married' => null],
-            ['withholding_tax_class_id' => 18, 'withholding_tax_class_code' => 'S3', 'description' => 'Single with 3 Dependents', 'number_of_dependents' => 3, 'exemption_amount' => 125000.00, 'is_married' => null],
-            ['withholding_tax_class_id' => 19, 'withholding_tax_class_code' => 'S4', 'description' => 'Single with 4 Dependents', 'number_of_dependents' => 4, 'exemption_amount' => 150000.00, 'is_married' => null],
-        ];
-
-        foreach ($rows as $row) {
-            WithholdingTaxClass::query()->updateOrCreate(
-                ['withholding_tax_class_id' => $row['withholding_tax_class_id']],
-                [
-                    'withholding_tax_class_code' => $row['withholding_tax_class_code'],
-                    'description' => $row['description'],
-                    'number_of_dependents' => $row['number_of_dependents'],
-                    'exemption_amount' => $row['exemption_amount'],
-                    'is_married' => $row['is_married'],
                 ],
             );
         }

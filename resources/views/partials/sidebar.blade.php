@@ -2,7 +2,7 @@
 
 <aside
     id="app-sidebar"
-    class="fixed left-0 top-0 z-[60] flex h-full w-72 flex-col bg-[#0B318F] text-white shadow-xl transition-transform duration-300 ease-in-out"
+    class="fixed inset-y-0 left-0 z-[60] flex w-72 flex-col bg-[#0B318F] text-white shadow-xl transition-transform duration-300 ease-in-out"
 >
     <div class="flex h-14 shrink-0 items-center justify-between border-b border-white/10 px-4">
         <div class="flex min-w-0 items-center gap-2">

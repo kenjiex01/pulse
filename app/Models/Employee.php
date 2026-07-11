@@ -103,6 +103,9 @@ class Employee extends Model
             $employee->employmentInformations()->each(
                 fn (EmployeeEmploymentInformation $info) => $info->delete()
             );
+            $employee->campusAssignments()->each(
+                fn (EmployeeCampusAssignment $assignment) => $assignment->delete()
+            );
         });
     }
 
@@ -111,11 +114,41 @@ class Employee extends Model
         return $this->belongsTo(Campus::class, 'campus_id', 'campus_id');
     }
 
+    public function getCampusNameAttribute(): ?string
+    {
+        if ($this->relationLoaded('campus')) {
+            $relation = $this->getRelation('campus');
+
+            if ($relation instanceof Campus) {
+                return $relation->campus_name;
+            }
+        }
+
+        if ($this->campus_id) {
+            $name = $this->campus()->value('campus_name');
+
+            if (filled($name)) {
+                return $name;
+            }
+        }
+
+        $code = $this->attributes['campus'] ?? null;
+
+        return filled($code) ? (string) $code : null;
+    }
+
     public function employmentInformations(): HasMany
     {
         return $this->hasMany(EmployeeEmploymentInformation::class, 'employee_id', 'employee_id')
             ->orderBy('sort_order')
             ->orderBy('employment_info_id');
+    }
+
+    public function campusAssignments(): HasMany
+    {
+        return $this->hasMany(EmployeeCampusAssignment::class, 'employee_id', 'employee_id')
+            ->orderBy('sort_order')
+            ->orderBy('employee_campus_assignment_id');
     }
 
     public function timekeepingSetup(): HasOne

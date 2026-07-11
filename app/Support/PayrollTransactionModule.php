@@ -26,6 +26,7 @@ class PayrollTransactionModule
     public const BATCH_DETAIL_TABS = [
         'incomes' => 'Incomes',
         'deductions' => 'Deductions',
+        'net-pay' => 'Net Pay',
     ];
 
     public const DEFAULT_BATCH_DETAIL_TAB = 'incomes';
@@ -116,6 +117,8 @@ class PayrollTransactionModule
             'upload.commit' => 'payroll.transaction.upload.commit',
             'upload.discard' => 'payroll.transaction.upload.discard',
             'upload.destroy' => 'payroll.transaction.upload.destroy',
+            'employees.incomes.store' => 'payroll.transaction.employees.incomes.store',
+            'employees.deductions.store' => 'payroll.transaction.employees.deductions.store',
             default => "payroll.transaction.$action",
         };
     }

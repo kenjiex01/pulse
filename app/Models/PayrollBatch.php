@@ -24,6 +24,8 @@ class PayrollBatch extends Model
         'dt_locked',
         'processed_by_id',
         'dt_processed',
+        'posted_by_id',
+        'dt_posted',
         'payroll_batch_status_id',
         'progress_current',
         'progress_total',
@@ -37,6 +39,7 @@ class PayrollBatch extends Model
             'dt_created' => 'datetime',
             'dt_locked' => 'datetime',
             'dt_processed' => 'datetime',
+            'dt_posted' => 'datetime',
             'progress_current' => 'integer',
             'progress_total' => 'integer',
             'withholding_tax_computation_id' => 'integer',
@@ -67,6 +70,16 @@ class PayrollBatch extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_id', 'id');
+    }
+
+    public function processedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'processed_by_id', 'id');
+    }
+
+    public function postedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'posted_by_id', 'id');
     }
 
     public function withholdingTaxComputation(): BelongsTo

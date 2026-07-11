@@ -107,9 +107,6 @@
                 @case('team-settings')
                     @include('timekeeping.policy._settings-team-settings')
                     @break
-                @case('toil-settings')
-                    @include('timekeeping.policy._settings-toil-settings')
-                    @break
                 @case('logs-tagging')
                     @include('timekeeping.policy._settings-logs-tagging')
                     @break

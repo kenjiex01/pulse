@@ -17,6 +17,7 @@ class RawPayrollDeduction extends Model
         'payroll_transaction_id',
         'employee_id',
         'deduction_type_id',
+        'hours',
         'employee_amount',
         'employer_amount',
         'amount',
@@ -28,6 +29,7 @@ class RawPayrollDeduction extends Model
     protected function casts(): array
     {
         return [
+            'hours' => 'decimal:4',
             'employee_amount' => 'decimal:2',
             'employer_amount' => 'decimal:2',
             'amount' => 'decimal:2',

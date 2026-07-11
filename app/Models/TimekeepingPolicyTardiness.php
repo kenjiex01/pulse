@@ -15,7 +15,7 @@ class TimekeepingPolicyTardiness extends Model
 
     protected $primaryKey = 'timekeeping_policy_tardiness_id';
 
-    protected $fillable = ['timekeeping_policy_id', 'time_from', 'time_to', 'equivalent'];
+    protected $fillable = ['timekeeping_policy_id', 'time_from', 'time_to', 'equivalent', 'marks_absent'];
 
     protected function casts(): array
     {
@@ -23,6 +23,7 @@ class TimekeepingPolicyTardiness extends Model
             'time_from' => 'decimal:4',
             'time_to' => 'decimal:4',
             'equivalent' => 'decimal:4',
+            'marks_absent' => 'boolean',
         ];
     }
 }

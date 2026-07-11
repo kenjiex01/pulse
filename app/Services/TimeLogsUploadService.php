@@ -3,12 +3,14 @@
 namespace App\Services;
 
 use App\Models\Employee;
+use App\Models\EmployeeCampusAssignment;
 use App\Models\RawTimekeepingInandout;
 use App\Models\RawTimekeepingTimeLog;
 use App\Models\RawTimekeepingTransaction;
 use App\Models\TimeCaptureFormat;
 use App\Models\TimeCode;
 use App\Models\User;
+use App\Support\TimeCaptureFormat as TimeCaptureFormatSupport;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -170,11 +172,14 @@ class TimeLogsUploadService
     /**
      * @param  array<string, mixed>  $parseResult
      */
-    public function createStagingToken(User $user, int $formatId, array $parseResult): string
+    public function createStagingToken(User $user, int $formatId, array $parseResult, string $tab, ?int $campusId = null): string
     {
         $token = (string) Str::uuid();
 
         Cache::put($this->stagingCacheKey($user->id, $token), [
+            'parser' => 'format',
+            'tab' => $tab,
+            'campus_id' => $campusId,
             'format_id' => $formatId,
             'filename' => $parseResult['filename'],
             'valid' => $parseResult['valid'],
@@ -201,23 +206,32 @@ class TimeLogsUploadService
         return is_array($payload) ? $payload : null;
     }
 
-    public function commit(User $user, string $token): RawTimekeepingTransaction
+    /**
+     * @return array{
+     *     transaction: RawTimekeepingTransaction,
+     *     inserted: int,
+     *     skipped_duplicates: int
+     * }
+     */
+    public function commit(User $user, string $token): array
     {
         $staging = $this->getStaging($user, $token);
 
-        if (! $staging || ($staging['valid_count'] ?? 0) === 0) {
+        if (! $staging || ($staging['parser'] ?? 'format') === 'dtr' || ($staging['valid_count'] ?? 0) === 0) {
             throw new RuntimeException('No valid staged records to load.');
         }
 
         $format = TimeCaptureFormat::query()->with('fields')->findOrFail((int) $staging['format_id']);
         $fieldNames = $this->orderedFieldNames($format);
         $rows = $staging['valid'];
+        $tab = (string) ($staging['tab'] ?? 'time-in-out');
+        $transactionTypeId = \App\Support\TimeLogs::transactionTypeId($tab);
 
-        return DB::transaction(function () use ($user, $format, $fieldNames, $rows, $staging, $token) {
-            $dateRange = $this->resolveDateRange($rows, $fieldNames);
+        return DB::transaction(function () use ($user, $format, $fieldNames, $rows, $staging, $token, $transactionTypeId) {
+            $dateRange = $this->resolveDateRange($format, $rows);
 
             $transaction = RawTimekeepingTransaction::query()->create([
-                'timekeeping_transaction_type_id' => RawTimekeepingTransaction::TYPE_TIME_IN_OUT,
+                'timekeeping_transaction_type_id' => $transactionTypeId,
                 'dt_from' => $dateRange['from'],
                 'dt_to' => $dateRange['to'],
                 'uploaded_by_id' => $user->id,
@@ -225,99 +239,261 @@ class TimeLogsUploadService
                 'batch_no' => $this->nextBatchNumber(),
                 'filename' => $staging['filename'],
                 'timecapture_format_id' => $format->timecapture_format_id,
+                'campus_id' => $staging['campus_id'] ?? null,
             ]);
 
-            $this->persistRows($format, $fieldNames, $rows, $transaction);
+            $persisted = $this->persistRows($format, $fieldNames, $rows, $transaction);
+
+            if ($persisted['inserted'] === 0) {
+                throw new RuntimeException('All records are duplicates of existing time logs and were not saved.');
+            }
 
             $this->discardStaging($user, $token);
 
-            return $transaction->fresh(['uploadedBy', 'timeCaptureFormat']);
+            return [
+                'transaction' => $transaction->fresh(['uploadedBy', 'timeCaptureFormat', 'campus']),
+                'inserted' => $persisted['inserted'],
+                'skipped_duplicates' => $persisted['skipped_duplicates'],
+            ];
         });
     }
 
     /**
      * @param  array<int, array<string, mixed>>  $rows
      * @param  array<int, string>  $fieldNames
+     * @return array{inserted: int, skipped_duplicates: int}
      */
-    private function persistRows(TimeCaptureFormat $format, array $fieldNames, array $rows, RawTimekeepingTransaction $transaction): void
+    private function persistRows(TimeCaptureFormat $format, array $fieldNames, array $rows, RawTimekeepingTransaction $transaction): array
     {
         $inOutRows = [];
+        $batchFingerprints = [];
+        $skippedDuplicates = 0;
+        $roles = TimeCaptureFormatSupport::fieldRoles($format);
 
         foreach ($rows as $row) {
-            if (in_array('reason', $fieldNames, true)) {
-                $timeLog = RawTimekeepingTimeLog::query()->create([
+            if ($roles['reason'] !== null) {
+                $dateField = TimeCaptureFormatSupport::requireFieldRole($format, 'date');
+                $timeInField = $roles['time_in'];
+                $timeOutField = $roles['time_out'];
+
+                if ($this->timeLogAlreadyExists($row, $dateField, $timeInField, $timeOutField)) {
+                    $skippedDuplicates++;
+
+                    continue;
+                }
+
+                RawTimekeepingTimeLog::query()->create([
                     'timekeeping_transaction_id' => $transaction->timekeeping_transaction_id,
                     'employee_id' => $row['employee_id'],
-                    'time_in' => $this->normalizeTimeValue($row['time_in'] ?? null),
-                    'time_out' => $this->normalizeTimeValue($row['time_out'] ?? null),
-                    'date_out' => $this->normalizeDateValue($row['date_out'] ?? null),
+                    'time_in' => $timeInField ? $this->normalizeTimeValue($row[$timeInField] ?? null) : null,
+                    'time_out' => $timeOutField ? $this->normalizeTimeValue($row[$timeOutField] ?? null) : null,
+                    'date_out' => $this->normalizeDateValue($row[$dateField] ?? null),
                     'time_code_id' => $row['time_code_id'] ?? null,
                 ]);
 
-                if (in_array('time_in', $fieldNames, true) || in_array('time_out', $fieldNames, true)) {
-                    [$timeIn, $timeOut] = $this->resolveReasonDateTimes($row);
+                if ($timeInField !== null || $timeOutField !== null) {
+                    [$timeIn, $timeOut] = $this->resolveSeparateDateTimes($format, $row);
 
-                    if (in_array('time_in', $fieldNames, true)) {
-                        $inOutRows[] = [
-                            'timekeeping_transaction_id' => $transaction->timekeeping_transaction_id,
-                            'employee_id' => $row['employee_id'],
-                            'dt_datetime' => $timeIn,
-                            'is_in' => true,
-                        ];
+                    if ($timeInField !== null) {
+                        $skippedDuplicates += $this->queueInOutRow(
+                            $inOutRows,
+                            $batchFingerprints,
+                            (int) $row['employee_id'],
+                            $timeIn,
+                            true,
+                            $transaction->timekeeping_transaction_id,
+                        );
                     }
 
-                    if (in_array('time_out', $fieldNames, true)) {
-                        $inOutRows[] = [
-                            'timekeeping_transaction_id' => $transaction->timekeeping_transaction_id,
-                            'employee_id' => $row['employee_id'],
-                            'dt_datetime' => $timeOut,
-                            'is_in' => false,
-                        ];
+                    if ($timeOutField !== null) {
+                        $skippedDuplicates += $this->queueInOutRow(
+                            $inOutRows,
+                            $batchFingerprints,
+                            (int) $row['employee_id'],
+                            $timeOut,
+                            false,
+                            $transaction->timekeeping_transaction_id,
+                        );
                     }
                 }
 
                 continue;
             }
 
-            if (in_array('worktime', $fieldNames, true)) {
+            if ($roles['worktime'] !== null) {
+                $worktimeField = TimeCaptureFormatSupport::requireFieldRole($format, 'worktime');
                 $isIn = $this->resolveIndicator($format, (string) ($row['is_in'] ?? ''));
 
-                $inOutRows[] = [
-                    'timekeeping_transaction_id' => $transaction->timekeeping_transaction_id,
-                    'employee_id' => $row['employee_id'],
-                    'dt_datetime' => $this->combineDateTime($row['actual_date'], $row['worktime']),
-                    'is_in' => $isIn,
-                ];
+                $skippedDuplicates += $this->queueInOutRow(
+                    $inOutRows,
+                    $batchFingerprints,
+                    (int) $row['employee_id'],
+                    $this->combineDateTime(
+                        $this->resolveRowDateString($format, $row),
+                        (string) $row[$worktimeField],
+                    ),
+                    $isIn,
+                    $transaction->timekeeping_transaction_id,
+                );
 
                 continue;
             }
 
-            if (in_array('time_in', $fieldNames, true) || in_array('time_out', $fieldNames, true)) {
-                [$timeIn, $timeOut] = $this->resolveWorkDateTimes($row);
+            if ($roles['time_in'] !== null || $roles['time_out'] !== null) {
+                [$timeIn, $timeOut] = $this->resolveSeparateDateTimes($format, $row);
 
-                if (in_array('time_in', $fieldNames, true)) {
-                    $inOutRows[] = [
-                        'timekeeping_transaction_id' => $transaction->timekeeping_transaction_id,
-                        'employee_id' => $row['employee_id'],
-                        'dt_datetime' => $timeIn,
-                        'is_in' => true,
-                    ];
+                if ($roles['time_in'] !== null) {
+                    $skippedDuplicates += $this->queueInOutRow(
+                        $inOutRows,
+                        $batchFingerprints,
+                        (int) $row['employee_id'],
+                        $timeIn,
+                        true,
+                        $transaction->timekeeping_transaction_id,
+                    );
                 }
 
-                if (in_array('time_out', $fieldNames, true)) {
-                    $inOutRows[] = [
-                        'timekeeping_transaction_id' => $transaction->timekeeping_transaction_id,
-                        'employee_id' => $row['employee_id'],
-                        'dt_datetime' => $timeOut,
-                        'is_in' => false,
-                    ];
+                if ($roles['time_out'] !== null) {
+                    $skippedDuplicates += $this->queueInOutRow(
+                        $inOutRows,
+                        $batchFingerprints,
+                        (int) $row['employee_id'],
+                        $timeOut,
+                        false,
+                        $transaction->timekeeping_transaction_id,
+                    );
                 }
             }
         }
 
-        foreach ($inOutRows as $inOutRow) {
+        $filtered = $this->filterExistingInOutRows($inOutRows);
+        $skippedDuplicates += $filtered['skipped'];
+
+        foreach ($filtered['rows'] as $inOutRow) {
             RawTimekeepingInandout::query()->create($inOutRow);
         }
+
+        return [
+            'inserted' => count($filtered['rows']),
+            'skipped_duplicates' => $skippedDuplicates,
+        ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $inOutRows
+     * @param  array<string, true>  $batchFingerprints
+     */
+    private function queueInOutRow(
+        array &$inOutRows,
+        array &$batchFingerprints,
+        int $employeeId,
+        Carbon $dtDatetime,
+        bool $isIn,
+        int $transactionId,
+    ): int {
+        $fingerprint = $this->inOutFingerprint($employeeId, $dtDatetime, $isIn);
+
+        if (isset($batchFingerprints[$fingerprint])) {
+            return 1;
+        }
+
+        $batchFingerprints[$fingerprint] = true;
+        $inOutRows[] = [
+            'timekeeping_transaction_id' => $transactionId,
+            'employee_id' => $employeeId,
+            'dt_datetime' => $dtDatetime,
+            'is_in' => $isIn,
+        ];
+
+        return 0;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $inOutRows
+     * @return array{rows: array<int, array<string, mixed>>, skipped: int}
+     */
+    private function filterExistingInOutRows(array $inOutRows): array
+    {
+        if ($inOutRows === []) {
+            return ['rows' => [], 'skipped' => 0];
+        }
+
+        $employeeIds = array_values(array_unique(array_map(
+            fn (array $row) => (int) $row['employee_id'],
+            $inOutRows,
+        )));
+
+        $dateTimes = collect($inOutRows)->map(fn (array $row) => Carbon::parse($row['dt_datetime']));
+        $rangeStart = $dateTimes->min()->copy()->startOfDay();
+        $rangeEnd = $dateTimes->max()->copy()->endOfDay();
+
+        $existingFingerprints = RawTimekeepingInandout::query()
+            ->whereIn('employee_id', $employeeIds)
+            ->whereBetween('dt_datetime', [$rangeStart, $rangeEnd])
+            ->get()
+            ->mapWithKeys(fn (RawTimekeepingInandout $record) => [
+                $this->inOutFingerprint(
+                    (int) $record->employee_id,
+                    Carbon::parse($record->dt_datetime),
+                    (bool) $record->is_in,
+                ) => true,
+            ])
+            ->all();
+
+        $filtered = [];
+        $skipped = 0;
+
+        foreach ($inOutRows as $row) {
+            $fingerprint = $this->inOutFingerprint(
+                (int) $row['employee_id'],
+                Carbon::parse($row['dt_datetime']),
+                (bool) $row['is_in'],
+            );
+
+            if (isset($existingFingerprints[$fingerprint])) {
+                $skipped++;
+
+                continue;
+            }
+
+            $existingFingerprints[$fingerprint] = true;
+            $filtered[] = $row;
+        }
+
+        return ['rows' => $filtered, 'skipped' => $skipped];
+    }
+
+    private function inOutFingerprint(int $employeeId, Carbon $dtDatetime, bool $isIn): string
+    {
+        return $employeeId.'|'.$dtDatetime->format('Y-m-d H:i:s').'|'.($isIn ? '1' : '0');
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function timeLogAlreadyExists(
+        array $row,
+        string $dateField,
+        ?string $timeInField,
+        ?string $timeOutField,
+    ): bool {
+        $query = RawTimekeepingTimeLog::query()
+            ->where('employee_id', $row['employee_id'])
+            ->where('date_out', $this->normalizeDateValue($row[$dateField] ?? null));
+
+        if ($timeInField !== null) {
+            $query->where('time_in', $this->normalizeTimeValue($row[$timeInField] ?? null));
+        }
+
+        if ($timeOutField !== null) {
+            $query->where('time_out', $this->normalizeTimeValue($row[$timeOutField] ?? null));
+        }
+
+        if (filled($row['time_code_id'] ?? null)) {
+            $query->where('time_code_id', $row['time_code_id']);
+        }
+
+        return $query->exists();
     }
 
     private function assertTextFile(UploadedFile $file): void
@@ -436,9 +612,19 @@ class TimeLogsUploadService
             return null;
         }
 
-        $employee = Employee::query()
-            ->where('employee_number', $value)
-            ->first();
+        $assignments = EmployeeCampusAssignment::query()
+            ->where('biometric_id', $value)
+            ->get();
+        $employeeIds = $assignments->pluck('employee_id')->unique();
+
+        if ($employeeIds->count() !== 1) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Invalid Employee Biometric ID ({$value}).";
+
+            return null;
+        }
+
+        $employee = Employee::query()->find((int) $employeeIds->first());
 
         if (! $employee) {
             $hasError = true;
@@ -617,28 +803,24 @@ class TimeLogsUploadService
      * @param  array<string, mixed>  $row
      * @return array{0: Carbon, 1: Carbon}
      */
-    private function resolveReasonDateTimes(array $row): array
+    private function resolveSeparateDateTimes(TimeCaptureFormat $format, array $row): array
     {
-        $dateOut = Carbon::parse($row['date_out']);
-        $timeIn = Carbon::parse($dateOut->toDateString().' '.$row['time_in']);
-        $timeOut = Carbon::parse($dateOut->toDateString().' '.$row['time_out']);
+        $roles = TimeCaptureFormatSupport::fieldRoles($format);
+        $dateField = TimeCaptureFormatSupport::requireFieldRole($format, 'date');
+        $timeInField = TimeCaptureFormatSupport::requireFieldRole($format, 'time_in');
+        $timeOutField = TimeCaptureFormatSupport::requireFieldRole($format, 'time_out');
 
-        if ($timeIn->format('H:i:s') > $timeOut->format('H:i:s')) {
-            $timeIn = $timeIn->copy()->subDay();
+        $date = Carbon::parse($this->resolveRowDateString($format, $row));
+        $timeIn = Carbon::parse($date->toDateString().' '.$row[$timeInField]);
+        $timeOut = Carbon::parse($date->toDateString().' '.$row[$timeOutField]);
+
+        if ($roles['reason'] !== null) {
+            if ($timeIn->format('H:i:s') > $timeOut->format('H:i:s')) {
+                $timeIn = $timeIn->copy()->subDay();
+            }
+
+            return [$timeIn, $timeOut];
         }
-
-        return [$timeIn, $timeOut];
-    }
-
-    /**
-     * @param  array<string, mixed>  $row
-     * @return array{0: Carbon, 1: Carbon}
-     */
-    private function resolveWorkDateTimes(array $row): array
-    {
-        $date = Carbon::parse($row['workdate']);
-        $timeIn = Carbon::parse($date->toDateString().' '.$row['time_in']);
-        $timeOut = Carbon::parse($date->toDateString().' '.$row['time_out']);
 
         if ($timeIn->format('H:i:s') > $timeOut->format('H:i:s')) {
             $timeOut = $timeOut->copy()->addDay();
@@ -648,31 +830,52 @@ class TimeLogsUploadService
     }
 
     /**
+     * @param  array<string, mixed>  $row
+     */
+    private function resolveRowDateString(TimeCaptureFormat $format, array $row): string
+    {
+        $dateField = TimeCaptureFormatSupport::requireFieldRole($format, 'date');
+        $value = $row[$dateField] ?? null;
+
+        if (! filled($value)) {
+            throw new RuntimeException("Missing date value for mapped field {$dateField}.");
+        }
+
+        return Carbon::parse((string) $value)->toDateString();
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $rows
-     * @param  array<int, string>  $fieldNames
      * @return array{from: Carbon, to: Carbon}
      */
-    private function resolveDateRange(array $rows, array $fieldNames): array
+    private function resolveDateRange(TimeCaptureFormat $format, array $rows): array
     {
+        $roles = TimeCaptureFormatSupport::fieldRoles($format);
+        $dateField = $roles['date'];
         $dates = [];
 
+        if ($dateField === null) {
+            $today = now();
+
+            return ['from' => $today->copy()->startOfDay(), 'to' => $today->copy()->endOfDay()];
+        }
+
+        $timeFields = array_values(array_filter([
+            $roles['worktime'],
+            $roles['time_in'],
+            $roles['time_out'],
+        ]));
+
         foreach ($rows as $row) {
-            foreach (['actual_date', 'workdate', 'date_out'] as $dateField) {
-                if (in_array($dateField, $fieldNames, true) && filled($row[$dateField] ?? null)) {
-                    $dates[] = Carbon::parse($row[$dateField])->startOfDay();
-                }
+            if (filled($row[$dateField] ?? null)) {
+                $dates[] = Carbon::parse($row[$dateField])->startOfDay();
             }
 
-            foreach (['worktime', 'time_in', 'time_out'] as $timeField) {
-                if (! in_array($timeField, $fieldNames, true)) {
-                    continue;
-                }
-
-                $dateValue = $row['actual_date'] ?? $row['workdate'] ?? $row['date_out'] ?? null;
+            foreach ($timeFields as $timeField) {
                 $timeValue = $row[$timeField] ?? null;
 
-                if ($dateValue && $timeValue) {
-                    $dates[] = Carbon::parse($dateValue.' '.$timeValue);
+                if (filled($row[$dateField] ?? null) && filled($timeValue)) {
+                    $dates[] = Carbon::parse($row[$dateField].' '.$timeValue);
                 }
             }
         }

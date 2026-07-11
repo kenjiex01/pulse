@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DeductionType;
+use App\Models\IncomeType;
 use App\Models\PayrollBatch;
 use App\Models\PayrollBatchDetail;
 use App\Models\PayrollBatchStatus;
@@ -26,7 +28,7 @@ class PayrollTransactionController extends Controller
         private readonly PayrollTransactionUploadService $uploadService,
     ) {}
 
-    public function index(Request $request, string $tab): View
+    public function index(Request $request, string $tab): View|RedirectResponse
     {
         $tab = PayrollTransactionModule::resolveTab($tab);
         PayrollTransactionModule::authorize($request->user(), 'view');
@@ -47,8 +49,13 @@ class PayrollTransactionController extends Controller
         $openAddEmployees = false;
         $batchEmployeeSearch = $request->string('batch_employee_search')->trim()->toString();
         $addEmployeeSearch = $request->string('add_employee_search')->trim()->toString();
+        $addEmployeesEmptyMessage = null;
         $viewBatchDetail = null;
         $batchDetailTab = PayrollTransactionModule::resolveBatchDetailTab($request->input('batch_detail_tab'));
+        $incomeTypes = collect();
+        $deductionTypes = collect();
+        $openAddEmployeeIncome = false;
+        $openAddEmployeeDeduction = false;
         $uploadRecords = null;
         $uploadConfig = null;
         $openUpload = false;
@@ -63,6 +70,9 @@ class PayrollTransactionController extends Controller
                 ->withCount('details')
                 ->when($tab === 'unpost-batches', function ($query) {
                     $query->where('payroll_batch_status_id', PayrollBatchStatus::POSTED);
+                })
+                ->when($tab === 'batches', function ($query) {
+                    $query->where('payroll_batch_status_id', '!=', PayrollBatchStatus::POSTED);
                 })
                 ->when($search !== '', function ($query) use ($search) {
                     $query->where(function ($searchQuery) use ($search) {
@@ -92,6 +102,17 @@ class PayrollTransactionController extends Controller
                 if ($viewBatchId > 0) {
                     $viewBatch = $this->batchService->loadBatchForView($viewBatchId);
 
+                    // Posted batches belong on Unpost Batches, not the working list.
+                    if (
+                        $viewBatch
+                        && (int) $viewBatch->payroll_batch_status_id === PayrollBatchStatus::POSTED
+                    ) {
+                        return redirect()
+                            ->route(PayrollTransactionModule::routeName('tab'), [
+                                'tab' => 'unpost-batches',
+                            ]);
+                    }
+
                     if ($viewBatch) {
                         $batchEmployees = $this->batchService
                             ->batchEmployeesQuery($viewBatch, $batchEmployeeSearch !== '' ? $batchEmployeeSearch : null)
@@ -106,6 +127,13 @@ class PayrollTransactionController extends Controller
                                 ->eligibleEmployeesQuery($viewBatch, $addEmployeeSearch !== '' ? $addEmployeeSearch : null)
                                 ->limit(200)
                                 ->get();
+
+                            if ($eligibleEmployees->isEmpty()) {
+                                $addEmployeesEmptyMessage = $this->batchService->addEmployeesEmptyMessage(
+                                    $viewBatch,
+                                    $addEmployeeSearch !== '',
+                                );
+                            }
                         }
 
                         $viewBatchDetailId = (int) $request->input('view_batch_detail', 0);
@@ -117,8 +145,6 @@ class PayrollTransactionController extends Controller
                             );
 
                             if ($viewBatchDetail) {
-                                $this->batchService->prepareDetailTransactions($viewBatchDetail);
-
                                 if (! $request->ajax()) {
                                     SysLogService::record(
                                         action: 'read',
@@ -129,6 +155,34 @@ class PayrollTransactionController extends Controller
                                             .' in batch no. '.$viewBatch->formattedBatchNo(),
                                     );
                                 }
+
+                                $incomeTypes = IncomeType::query()
+                                    ->where('is_active', true)
+                                    ->orderBy('income_type_code')
+                                    ->get();
+
+                                $deductionTypes = DeductionType::query()
+                                    ->where('is_active', true)
+                                    ->where(function ($query) {
+                                        $query->where('is_valid_govt_deduction', false)
+                                            ->orWhereNull('is_valid_govt_deduction');
+                                    })
+                                    ->orderBy('deduction_type_code')
+                                    ->get();
+
+                                $openAddEmployeeIncome = $request->boolean('add_income')
+                                    || (
+                                        $request->session()->get('errors')?->any()
+                                        && old('form_context') === 'add-batch-employee-income'
+                                        && (int) old('payroll_batch_detail_id') === $viewBatchDetail->payroll_batch_detail_id
+                                    );
+
+                                $openAddEmployeeDeduction = $request->boolean('add_deduction')
+                                    || (
+                                        $request->session()->get('errors')?->any()
+                                        && old('form_context') === 'add-batch-employee-deduction'
+                                        && (int) old('payroll_batch_detail_id') === $viewBatchDetail->payroll_batch_detail_id
+                                    );
                             }
                         }
 
@@ -231,9 +285,17 @@ class PayrollTransactionController extends Controller
             'openAddEmployees' => $openAddEmployees,
             'batchEmployeeSearch' => $batchEmployeeSearch,
             'addEmployeeSearch' => $addEmployeeSearch,
+            'addEmployeesEmptyMessage' => $addEmployeesEmptyMessage,
             'batchEditable' => $viewBatch ? $this->batchService->isBatchEditable($viewBatch) : false,
+            'batchProcessable' => $viewBatch ? $this->batchService->canProcessBatch($viewBatch) : false,
+            'batchReprocessable' => $viewBatch ? $this->batchService->canReprocessBatch($viewBatch) : false,
+            'batchPostable' => $viewBatch ? $this->batchService->canPostBatch($viewBatch) : false,
             'viewBatchDetail' => $viewBatchDetail,
             'batchDetailTab' => $batchDetailTab,
+            'incomeTypes' => $incomeTypes,
+            'deductionTypes' => $deductionTypes,
+            'openAddEmployeeIncome' => $openAddEmployeeIncome,
+            'openAddEmployeeDeduction' => $openAddEmployeeDeduction,
             'uploadRecords' => $uploadRecords,
             'uploadConfig' => $uploadConfig,
             'openUpload' => $openUpload,
@@ -317,6 +379,119 @@ class PayrollTransactionController extends Controller
         ]);
     }
 
+    public function storeEmployeeIncome(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        if ((int) $detail->payroll_batch_id !== (int) $batch->payroll_batch_id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'income_type_id' => ['required', 'integer', 'exists:tbl_income_types,income_type_id'],
+            'taxable' => ['nullable', 'numeric', 'min:0'],
+            'non_taxable' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        try {
+            $income = $this->batchService->addIncomeToDetail($batch, $detail, $validated);
+        } catch (ValidationException $exception) {
+            return redirect()
+                ->route(PayrollTransactionModule::routeName('tab'), [
+                    'tab' => 'batches',
+                    'view_payroll_batch' => $batch->payroll_batch_id,
+                    'view_batch_detail' => $detail->payroll_batch_detail_id,
+                    'batch_detail_tab' => 'incomes',
+                    'add_income' => 1,
+                    'batch_employee_search' => $request->input('batch_employee_search'),
+                    'search' => $request->input('search'),
+                ])
+                ->withErrors($exception->errors())
+                ->withInput();
+        }
+
+        $detail->loadMissing('employee');
+        $incomeCode = $income->incomeType?->income_type_code ?? $income->income_type_id;
+
+        SysLogService::record(
+            action: 'create',
+            table: 'trn_payroll_incomes',
+            recordId: $income->payroll_income_id,
+            description: 'Added income '.$incomeCode.' for employee '
+                .($detail->employee?->employee_number ?? $detail->employee_id)
+                .' in payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return redirect()
+            ->route(PayrollTransactionModule::routeName('tab'), [
+                'tab' => 'batches',
+                'view_payroll_batch' => $batch->payroll_batch_id,
+                'view_batch_detail' => $detail->payroll_batch_detail_id,
+                'batch_detail_tab' => 'incomes',
+                'batch_employee_search' => $request->input('batch_employee_search'),
+                'search' => $request->input('search'),
+            ])
+            ->with('success', 'Income line added for '.$detail->employee?->full_name.'.');
+    }
+
+    public function storeEmployeeDeduction(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        if ((int) $detail->payroll_batch_id !== (int) $batch->payroll_batch_id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'deduction_type_id' => ['required', 'integer', 'exists:tbl_deduction_types,deduction_type_id'],
+            'hours' => ['nullable', 'numeric', 'min:0'],
+            'employee_amount' => ['nullable', 'numeric', 'min:0'],
+            'employer_amount' => ['nullable', 'numeric', 'min:0'],
+            'reference_number' => ['nullable', 'string', 'max:45'],
+            'reference_date' => ['nullable', 'date'],
+        ]);
+
+        try {
+            $deduction = $this->batchService->addDeductionToDetail($batch, $detail, $validated);
+        } catch (ValidationException $exception) {
+            return redirect()
+                ->route(PayrollTransactionModule::routeName('tab'), [
+                    'tab' => 'batches',
+                    'view_payroll_batch' => $batch->payroll_batch_id,
+                    'view_batch_detail' => $detail->payroll_batch_detail_id,
+                    'batch_detail_tab' => 'deductions',
+                    'add_deduction' => 1,
+                    'batch_employee_search' => $request->input('batch_employee_search'),
+                    'search' => $request->input('search'),
+                ])
+                ->withErrors($exception->errors())
+                ->withInput();
+        }
+
+        $detail->loadMissing('employee');
+        $deductionCode = $deduction->deductionType?->deduction_type_code ?? $deduction->deduction_type_id;
+
+        SysLogService::record(
+            action: 'create',
+            table: 'trn_payroll_deductions',
+            recordId: $deduction->payroll_deduction_id,
+            description: 'Added deduction '.$deductionCode.' for employee '
+                .($detail->employee?->employee_number ?? $detail->employee_id)
+                .' in payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return redirect()
+            ->route(PayrollTransactionModule::routeName('tab'), [
+                'tab' => 'batches',
+                'view_payroll_batch' => $batch->payroll_batch_id,
+                'view_batch_detail' => $detail->payroll_batch_detail_id,
+                'batch_detail_tab' => 'deductions',
+                'batch_employee_search' => $request->input('batch_employee_search'),
+                'search' => $request->input('search'),
+            ])
+            ->with('success', 'Deduction line added for '.$detail->employee?->full_name.'.');
+    }
+
     public function storeEmployees(Request $request, PayrollBatch $batch): RedirectResponse
     {
         PayrollTransactionModule::authorize($request->user(), 'edit');
@@ -396,6 +571,140 @@ class PayrollTransactionController extends Controller
                 'batch_employee_search' => $request->input('batch_employee_search'),
             ])
             ->with('success', $removed.' employee'.($removed === 1 ? '' : 's').' removed from batch '.$batch->formattedBatchNo().'.');
+    }
+
+    public function processBatch(Request $request, PayrollBatch $batch): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        try {
+            $processed = $this->batchService->processBatch($request->user(), $batch);
+        } catch (ValidationException $exception) {
+            return redirect()
+                ->route(PayrollTransactionModule::routeName('tab'), [
+                    'tab' => 'batches',
+                    'view_payroll_batch' => $batch->payroll_batch_id,
+                    'batch_employee_search' => $request->input('batch_employee_search'),
+                ])
+                ->withErrors($exception->errors());
+        }
+
+        $batch->refresh();
+
+        SysLogService::record(
+            action: 'update',
+            table: 'trn_payroll_batches',
+            recordId: $batch->payroll_batch_id,
+            description: 'Processed payroll batch no. '.$batch->formattedBatchNo()
+                .' ('.$processed.' employee'.($processed === 1 ? '' : 's').')',
+        );
+
+        return redirect()
+            ->route(PayrollTransactionModule::routeName('tab'), [
+                'tab' => 'batches',
+                'view_payroll_batch' => $batch->payroll_batch_id,
+                'batch_employee_search' => $request->input('batch_employee_search'),
+            ])
+            ->with('success', 'Payroll batch '.$batch->formattedBatchNo().' processed successfully.');
+    }
+
+    public function reprocessBatch(Request $request, PayrollBatch $batch): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        try {
+            $processed = $this->batchService->reprocessBatch($request->user(), $batch);
+        } catch (ValidationException $exception) {
+            return redirect()
+                ->route(PayrollTransactionModule::routeName('tab'), [
+                    'tab' => 'batches',
+                    'view_payroll_batch' => $batch->payroll_batch_id,
+                    'batch_employee_search' => $request->input('batch_employee_search'),
+                ])
+                ->withErrors($exception->errors());
+        }
+
+        $batch->refresh();
+
+        SysLogService::record(
+            action: 'update',
+            table: 'trn_payroll_batches',
+            recordId: $batch->payroll_batch_id,
+            description: 'Re-processed payroll batch no. '.$batch->formattedBatchNo()
+                .' ('.$processed.' employee'.($processed === 1 ? '' : 's').')',
+        );
+
+        return redirect()
+            ->route(PayrollTransactionModule::routeName('tab'), [
+                'tab' => 'batches',
+                'view_payroll_batch' => $batch->payroll_batch_id,
+                'batch_employee_search' => $request->input('batch_employee_search'),
+            ])
+            ->with('success', 'Payroll batch '.$batch->formattedBatchNo().' re-processed successfully.');
+    }
+
+    public function postBatch(Request $request, PayrollBatch $batch): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        try {
+            $this->batchService->postBatch($request->user(), $batch);
+        } catch (ValidationException $exception) {
+            return redirect()
+                ->route(PayrollTransactionModule::routeName('tab'), [
+                    'tab' => 'batches',
+                    'view_payroll_batch' => $batch->payroll_batch_id,
+                    'batch_employee_search' => $request->input('batch_employee_search'),
+                ])
+                ->withErrors($exception->errors());
+        }
+
+        $batch->refresh();
+
+        SysLogService::record(
+            action: 'update',
+            table: 'trn_payroll_batches',
+            recordId: $batch->payroll_batch_id,
+            description: 'Posted payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return redirect()
+            ->route(PayrollTransactionModule::routeName('tab'), [
+                'tab' => 'unpost-batches',
+            ])
+            ->with('success', 'Payroll batch '.$batch->formattedBatchNo().' posted successfully.');
+    }
+
+    public function unpostBatch(Request $request, PayrollBatch $batch): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        try {
+            $this->batchService->unpostBatch($request->user(), $batch);
+        } catch (ValidationException $exception) {
+            return redirect()
+                ->route(PayrollTransactionModule::routeName('tab'), [
+                    'tab' => 'unpost-batches',
+                    'search' => $request->input('search'),
+                ])
+                ->withErrors($exception->errors());
+        }
+
+        $batch->refresh();
+
+        SysLogService::record(
+            action: 'update',
+            table: 'trn_payroll_batches',
+            recordId: $batch->payroll_batch_id,
+            description: 'Unposted payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return redirect()
+            ->route(PayrollTransactionModule::routeName('tab'), [
+                'tab' => 'unpost-batches',
+                'search' => $request->input('search'),
+            ])
+            ->with('success', 'Payroll batch '.$batch->formattedBatchNo().' unposted successfully.');
     }
 
     public function downloadUploadTemplate(Request $request, string $uploadType): StreamedResponse
@@ -494,15 +803,25 @@ class PayrollTransactionController extends Controller
                 ->with('error', $exception->getMessage());
         }
 
+        $applied = $this->batchService->applyRawUploadToOpenBatches($transaction);
+
         session()->forget('payroll_upload_staging_token');
 
         SysLogService::record(
             action: 'create',
             table: 'raw_payroll_transactions',
             recordId: $transaction->payroll_transaction_id,
-            description: 'Uploaded '.PayrollTransactionModule::uploadTypes()[$uploadType]
-                .' batch no. '.$transaction->batch_no.' ('.$transaction->filename.')',
+            description: 'Loaded payroll upload batch no. '.$transaction->batch_no
+                .' ('.$uploadType.')'
+                .($applied > 0 ? '; applied '.$applied.' payroll line(s) to open payroll batch(es)' : ''),
         );
+
+        $successMessage = 'Upload batch #'.$transaction->batch_no.' loaded successfully.';
+
+        if ($applied > 0) {
+            $successMessage .= ' Applied '.$applied.' payroll line'
+                .($applied === 1 ? '' : 's').' to the matching payroll batch.';
+        }
 
         return redirect()
             ->route(PayrollTransactionModule::routeName('tab'), [
@@ -510,7 +829,7 @@ class PayrollTransactionController extends Controller
                 'upload' => $uploadType,
                 'view_upload' => $transaction->payroll_transaction_id,
             ])
-            ->with('success', 'Upload batch successfully loaded to the database.');
+            ->with('success', $successMessage);
     }
 
     public function discardUploadStaging(Request $request): RedirectResponse

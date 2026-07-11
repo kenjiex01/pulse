@@ -111,3 +111,14 @@
         </div>
     @endcan
 </form>
+
+@include('timekeeping.policy._equivalent-section', [
+    'policy' => $policy,
+    'type' => 'tardiness',
+    'records' => $equivalentRecords['tardiness'] ?? collect(),
+])
+
+<p class="mt-2 text-xs text-gray-500">
+    Example: 1–5 min late → 5 min equivalent; 6–15 min → 15 min; 16 min and up → check <strong>Mark as absent</strong> (equivalent may be 0).
+    Assign this policy group on each employee under Timekeeping → Employee Profile → Timekeeping Settings.
+</p>

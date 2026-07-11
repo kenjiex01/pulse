@@ -32,11 +32,8 @@
                     name="{{ $fieldName }}"
                     type="{{ $fieldType === 'number' ? 'number' : 'text' }}"
                     value="{{ $value }}"
-                    class="form-input {{ $fieldName === 'withholding_tax_class_code' ? 'uppercase' : '' }}"
+                    class="form-input"
                     @if ($fieldType === 'number') step="0.01" min="0" @endif
-                    @if ($fieldName === 'withholding_tax_class_code') maxlength="4" @endif
-                    @if ($fieldName === 'description') maxlength="45" @endif
-                    @if ($fieldName === 'number_of_dependents') max="99" step="1" @endif
                 >
                 @error($fieldName)<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>

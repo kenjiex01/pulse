@@ -140,75 +140,13 @@
     </div>
 
     <div class="employee-tab-panel {{ ($wizardMode || $activeTab === 'assignment') ? '' : 'hidden' }}" @unless($wizardMode) data-employee-tab-panel="assignment" @endunless>
-        <section class="employee-tab-section">
-            <h2 class="mb-4 text-lg font-semibold text-gray-900">Assignment & Organization</h2>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                @if ($wizardMode)
-                    <div class="md:col-span-2">
-                        <label class="form-label">Campus</label>
-                        <p class="mt-1 text-sm font-medium text-gray-900">{{ $employee->campus?->campus_name ?? 'Selected in step 1' }}</p>
-                        <p class="text-xs text-gray-500">Campus was selected in the first wizard step.</p>
-                    </div>
-                @else
-                    <div>
-                        <label for="campus_id" class="form-label">Campus <span class="text-red-500">*</span></label>
-                        <select id="campus_id" name="campus_id" class="form-input" required>
-                            <option value="">Select campus</option>
-                            @foreach ($campuses as $campus)
-                                <option value="{{ $campus->campus_id }}" @selected((string) old('campus_id', $employee->campus_id ?? '') === (string) $campus->campus_id)>
-                                    {{ $campus->campus_name }} ({{ $campus->campus_code }})
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('campus_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
-                    </div>
-                @endif
-                <div>
-                    <label for="college" class="form-label">Department / College</label>
-                    <select id="college" name="college" class="form-input" data-campus-filter="college" @disabled($wizardMode ? ! $formCampusId : false)>
-                        <option value="">Select College</option>
-                        @foreach ($formOptions['colleges'] as $college)
-                            <option value="{{ $college->college_name }}" data-campus-id="{{ $college->campus_id }}" @selected(old('college', $employee->college ?? '') === $college->college_name)>
-                                {{ $college->college_name }}
-                            </option>
-                        @endforeach
-                        @if (old('college', $employee->college ?? '') && ! $formOptions['colleges']->contains('college_name', old('college', $employee->college ?? '')))
-                            <option value="{{ old('college', $employee->college) }}" selected>{{ old('college', $employee->college) }} (Legacy)</option>
-                        @endif
-                    </select>
-                    <p class="mt-1 text-xs text-gray-500">Use this for faculty or college-based assignment.</p>
-                </div>
-                <div>
-                    <label for="department" class="form-label">Employee Department</label>
-                    <select id="department" name="department" class="form-input">
-                        <option value="">Select Employee Department</option>
-                        @foreach ($formOptions['employeeDepartments'] as $employeeDepartment)
-                            <option value="{{ $employeeDepartment->department_name }}" @selected(old('department', $employee->department ?? '') === $employeeDepartment->department_name)>
-                                {{ $employeeDepartment->department_name }}
-                            </option>
-                        @endforeach
-                        @if (old('department', $employee->department ?? '') && ! $formOptions['employeeDepartments']->contains('department_name', old('department', $employee->department ?? '')))
-                            <option value="{{ old('department', $employee->department) }}" selected>{{ old('department', $employee->department) }} (Legacy)</option>
-                        @endif
-                    </select>
-                    <p class="mt-1 text-xs text-gray-500">Use this for staff or office-based assignment.</p>
-                </div>
-                <div>
-                    <label for="program" class="form-label">Program</label>
-                    <select id="program" name="program" class="form-input" data-campus-filter="program" @disabled($wizardMode ? ! $formCampusId : false)>
-                        <option value="">Select Program</option>
-                        @foreach ($formOptions['programs'] as $program)
-                            <option value="{{ $program->program_name }}" data-campus-id="{{ $program->campus_id }}" @selected(old('program', $employee->program ?? '') === $program->program_name)>
-                                {{ $program->program_name }}
-                            </option>
-                        @endforeach
-                        @if (old('program', $employee->program ?? '') && ! $formOptions['programs']->contains('program_name', old('program', $employee->program ?? '')))
-                            <option value="{{ old('program', $employee->program) }}" selected>{{ old('program', $employee->program) }} (Legacy)</option>
-                        @endif
-                    </select>
-                </div>
-            </div>
-        </section>
+        @include('employees.partials._campus-assignments', [
+            'employee' => $employee,
+            'campuses' => $campuses,
+            'formOptions' => $formOptions,
+            'wizardMode' => $wizardMode,
+            'wizardCampusId' => $formCampusId,
+        ])
     </div>
 
     <div class="employee-tab-panel {{ ($wizardMode || $activeTab === 'employment') ? '' : 'hidden' }}" @unless($wizardMode) data-employee-tab-panel="employment" @endunless>

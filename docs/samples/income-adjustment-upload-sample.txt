@@ -1,0 +1,5 @@
+emp_num	income_type	taxable	non_taxable	amount
+Employee No.	Income Type Code	Taxable	Non-Taxable	Amount
+Accepts all existing Employee No.	Accepts: 13TH, BASC, OTHR, OVRT	Accepts up to 8 digits and 2 decimals	Accepts up to 8 digits and 2 decimals	Accepts up to 8 digits and 2 decimals
+2026-00003	OVRT	500.00		500.00
+2026-00001	OTHR		1500.00	1500.00

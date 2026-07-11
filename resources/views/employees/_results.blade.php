@@ -49,7 +49,7 @@
                         <td class="text-gray-600">{{ $employee->full_name }}</td>
                         <td class="text-gray-600">{{ $employee->email ?: '—' }}</td>
                         <td class="text-gray-600">{{ $employee->position ?: '—' }}</td>
-                        <td class="text-gray-600">{{ $employee->college ?: $employee->department ?: ($employee->campus?->campus_name ?: '—') }}</td>
+                        <td class="text-gray-600">{{ $employee->college ?: $employee->department ?: ($employee->campus_name ?: '—') }}</td>
                         <td>@include('employees._compliance-badge', ['status' => $employee->compliance_status])</td>
                         <td>
                             <span class="capitalize {{ $employee->employment_status === 'active' ? 'badge-success' : 'badge-muted' }}">

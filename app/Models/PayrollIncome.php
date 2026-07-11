@@ -23,6 +23,7 @@ class PayrollIncome extends Model
         'is_deletable',
         'orig_taxable',
         'orig_non_taxable',
+        'is_manual',
     ];
 
     protected function casts(): array
@@ -32,6 +33,7 @@ class PayrollIncome extends Model
             'non_taxable' => 'decimal:2',
             'orig_taxable' => 'decimal:2',
             'orig_non_taxable' => 'decimal:2',
+            'is_manual' => 'boolean',
             'is_editable' => 'boolean',
             'is_deletable' => 'boolean',
         ];

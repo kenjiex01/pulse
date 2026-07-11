@@ -35,20 +35,20 @@ return [
         'night-differential' => 'Night Differential',
         'general' => 'General',
         'team-settings' => 'Team Settings',
-        'toil-settings' => 'TOIL Settings',
         'logs-tagging' => 'Logs Tagging',
     ],
 
     'equivalents' => [
         'tardiness' => [
-            'name' => 'Tardiness Equivalent',
+            'name' => 'Tardiness Equivalent (Late)',
             'tab' => 'tardiness-undertime',
             'model' => TimekeepingPolicyTardiness::class,
             'primary_key' => 'timekeeping_policy_tardiness_id',
             'log_table' => 'tbl_timekeeping_policy_tardiness',
             'order' => ['time_from' => 'asc'],
-            'overlap_check' => false,
+            'overlap_check' => true,
             'requires_leave_type' => false,
+            'supports_marks_absent' => true,
         ],
         'undertime' => [
             'name' => 'Undertime Equivalent',

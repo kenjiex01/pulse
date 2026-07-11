@@ -65,7 +65,10 @@ class EmployeeFormOptions
                 ->when($campusId, fn ($query) => $query->where('campus_id', $campusId))
                 ->with('campus')
                 ->orderBy('program_name')
-                ->get(),
+                ->orderBy('program_id')
+                ->get()
+                ->unique(fn (Program $program) => $program->campus_id.'|'.$program->program_name)
+                ->values(),
             'countries' => Country::query()->active()->orderBy('country_name')->get(),
             'regions' => $regions,
             'provinces' => $provinces,

@@ -5,13 +5,6 @@
     $restDayMap = $employee->timekeepingRestDays->keyBy('day_id');
     $isComplete = TimekeepingEmployeeProfile::isSetupComplete($employee);
     $activeTab = TimekeepingEmployeeProfile::normalizeSetupTab(request('view_tab', 'timekeeping'));
-
-    $attendanceLogs = \App\Models\RawTimekeepingInandout::query()
-        ->where('employee_id', $employee->employee_id)
-        ->orderByDesc('dt_datetime')
-        ->orderByDesc('timekeeping_inandout_id')
-        ->limit(50)
-        ->get();
 @endphp
 
 <div class="space-y-4" data-employee-form-tabs>
@@ -77,10 +70,6 @@
                     <dt class="font-medium text-gray-500">Auto Populate Attendance</dt>
                     <dd class="mt-0.5 text-gray-900">{{ $setup?->is_populate ? 'Enabled' : 'Disabled' }}</dd>
                 </div>
-                <div>
-                    <dt class="font-medium text-gray-500">Team Subordinates Viewing Limit</dt>
-                    <dd class="mt-0.5 text-gray-900">{{ $setup?->teamSetting?->description ?? '—' }}</dd>
-                </div>
             </dl>
         </div>
     </div>
@@ -94,11 +83,28 @@
         </div>
     @endif
 
-    <div class="employee-tab-panel {{ $activeTab === 'attendance' ? '' : 'hidden' }}" data-employee-tab-panel="attendance">
-        @include('timekeeping.employee-profile._tab-attendance-view', [
-            'employee' => $employee,
-            'attendanceLogs' => $attendanceLogs,
-        ])
+    <div
+        class="employee-tab-panel {{ $activeTab === 'attendance' ? '' : 'hidden' }}"
+        data-employee-tab-panel="attendance"
+        data-employee-profile-lazy-panel
+        data-lazy-url="{{ route(TimekeepingEmployeeProfile::routeName('attendance'), $employee->employee_id) }}"
+        data-lazy-pending="true"
+    >
+        <div class="py-6 text-center text-sm text-gray-500">
+            {{ $activeTab === 'attendance' ? 'Loading attendance view…' : 'Open this tab to load attendance view.' }}
+        </div>
+    </div>
+
+    <div
+        class="employee-tab-panel {{ $activeTab === 'employee-load' ? '' : 'hidden' }}"
+        data-employee-tab-panel="employee-load"
+        data-employee-profile-lazy-panel
+        data-lazy-url="{{ route(TimekeepingEmployeeProfile::routeName('employee-load'), $employee->employee_id) }}"
+        data-lazy-pending="true"
+    >
+        <div class="py-6 text-center text-sm text-gray-500">
+            {{ $activeTab === 'employee-load' ? 'Loading employee load…' : 'Open this tab to load employee load.' }}
+        </div>
     </div>
 
     @can('employee-profile.update')

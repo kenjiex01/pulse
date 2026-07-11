@@ -148,23 +148,6 @@
                 <span>Auto populate attendance</span>
             </label>
         </div>
-
-        <div>
-            <label for="team-limit-{{ $employee->employee_id }}" class="form-label">Team Subordinates Viewing Limit</label>
-            <select
-                id="team-limit-{{ $employee->employee_id }}"
-                name="timekeeping_policy_team_setting_id"
-                class="form-input"
-            >
-                <option value="">— Please select —</option>
-                @foreach ($formOptions['teamSettings'] as $teamSetting)
-                    <option
-                        value="{{ $teamSetting->timekeeping_policy_team_setting_id }}"
-                        @selected((string) old('timekeeping_policy_team_setting_id', $setup?->timekeeping_policy_team_setting_id) === (string) $teamSetting->timekeeping_policy_team_setting_id)
-                    >{{ $teamSetting->description }}</option>
-                @endforeach
-            </select>
-        </div>
     </div>
 </div>
 

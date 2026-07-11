@@ -18,6 +18,7 @@
                     <th>Status</th>
                     <th>Created By</th>
                     <th>Date Created</th>
+                    <th class="w-28 text-right">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -39,10 +40,22 @@
                         <td class="text-gray-600">{{ $batch->status?->payroll_batch_status ?? '—' }}</td>
                         <td class="text-gray-600">{{ $batch->createdBy?->name ?? '—' }}</td>
                         <td class="whitespace-nowrap text-gray-600">{{ $batch->dt_created?->format('M j, Y g:i A') ?? '—' }}</td>
+                        <td class="text-right">
+                            <form
+                                method="POST"
+                                action="{{ route(\App\Support\PayrollTransactionModule::routeName('unpost'), $batch) }}"
+                                class="inline"
+                                data-confirm-submit="Unpost batch {{ $batch->formattedBatchNo() }}? It will return to Processed and can be re-processed or edited again."
+                            >
+                                @csrf
+                                <input type="hidden" name="search" value="{{ request('search') }}">
+                                <button type="submit" class="btn-secondary !px-3 !py-1.5 text-xs">Unpost</button>
+                            </form>
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9" class="py-16 text-center text-sm text-gray-500">
+                        <td colspan="10" class="py-16 text-center text-sm text-gray-500">
                             No posted batches found.
                         </td>
                     </tr>

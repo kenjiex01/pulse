@@ -19,6 +19,7 @@
                 @forelse ($records as $record)
                     @php
                         $isProtected = \App\Support\PayrollMaintenance::isProtectedRecord($record, $tab);
+                        $isAlwaysActive = \App\Support\PayrollMaintenance::isAlwaysActiveRecord($record, $tab);
                     @endphp
                     <tr>
                         @foreach ($config['columns'] as $column)
@@ -42,20 +43,22 @@
                                         <button type="button" data-modal-open="payroll-maintenance-edit-{{ $tab }}-{{ $record->{$primaryKey} }}" class="btn-icon" title="Edit">
                                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                         </button>
-                                        <form method="POST" action="{{ route(\App\Support\PayrollMaintenance::routeName('toggle-status'), ['tab' => $tab, 'record' => $record->{$primaryKey}]) }}" class="inline">
-                                            @csrf
-                                            <button
-                                                type="submit"
-                                                class="btn-icon {{ $record->is_active ? '!text-green-600 hover:!text-green-700 hover:bg-green-50' : '!text-gray-400 hover:!text-gray-500 hover:bg-gray-50' }}"
-                                                title="{{ $record->is_active ? 'Set inactive' : 'Set active' }}"
-                                            >
-                                                @if ($record->is_active)
-                                                    <svg class="h-5 w-5 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="17" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
-                                                @else
-                                                    <svg class="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="7" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
-                                                @endif
-                                            </button>
-                                        </form>
+                                        @if (! $isAlwaysActive)
+                                            <form method="POST" action="{{ route(\App\Support\PayrollMaintenance::routeName('toggle-status'), ['tab' => $tab, 'record' => $record->{$primaryKey}]) }}" class="inline">
+                                                @csrf
+                                                <button
+                                                    type="submit"
+                                                    class="btn-icon {{ $record->is_active ? '!text-green-600 hover:!text-green-700 hover:bg-green-50' : '!text-gray-400 hover:!text-gray-500 hover:bg-gray-50' }}"
+                                                    title="{{ $record->is_active ? 'Set inactive' : 'Set active' }}"
+                                                >
+                                                    @if ($record->is_active)
+                                                        <svg class="h-5 w-5 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="17" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
+                                                    @else
+                                                        <svg class="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="7" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
+                                                    @endif
+                                                </button>
+                                            </form>
+                                        @endif
                                     @endcan
                                     @if (! $record->is_active)
                                         @can('payroll-maintenance.delete', $record)

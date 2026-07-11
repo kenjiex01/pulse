@@ -40,6 +40,7 @@ return [
         'log_table' => 'tbl_deduction_types',
         'order' => ['deduction_type_code' => 'asc'],
         'search' => ['deduction_type_code', 'description'],
+        'always_active_codes' => ['PHIL', 'PHIM', 'PIBG', 'SSSP'],
         'with' => ['govtTable'],
         'columns' => [
             ['key' => 'deduction_type_code', 'label' => 'Code'],

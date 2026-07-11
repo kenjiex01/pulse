@@ -10,6 +10,7 @@ use App\Http\Requests\Employee\WizardReviewRequest;
 use App\Models\Campus;
 use App\Models\Employee;
 use App\Models\Role;
+use App\Services\EmployeeCampusAssignmentSync;
 use App\Services\EmployeeEmploymentSync;
 use App\Services\EmployeeSalarySync;
 use App\Services\EmployeeWizardSession;
@@ -125,6 +126,15 @@ class EmployeeController extends Controller
             $employee->setRelation('employmentInformations', collect());
         }
 
+        if (! empty($wizardData['campus_assignments'])) {
+            $employee->setRelation(
+                'campusAssignments',
+                collect($wizardData['campus_assignments'])->map(fn (array $record) => new \App\Models\EmployeeCampusAssignment($record)),
+            );
+        } elseif (! $employee->relationLoaded('campusAssignments')) {
+            $employee->setRelation('campusAssignments', collect());
+        }
+
         $roles = Role::query()->orderBy('name')->get();
 
         SysLogService::record(
@@ -192,7 +202,20 @@ class EmployeeController extends Controller
             (array) ($data['employee_salaries'] ?? []),
             (bool) ($data['is_hybrid'] ?? false),
         );
-        unset($data['employment_informations'], $data['employee_salaries']);
+        $campusAssignments = EmployeeCampusAssignmentSync::normalizeRecords(
+            (array) ($data['campus_assignments'] ?? []),
+        );
+        unset($data['employment_informations'], $data['employee_salaries'], $data['campus_assignments']);
+
+        if ($campusAssignments !== []) {
+            $primary = $campusAssignments[0];
+            $primaryCampus = Campus::query()->find((int) $primary['campus_id']);
+            $data['campus_id'] = (int) $primary['campus_id'];
+            $data['campus'] = $primaryCampus?->campus_code;
+            $data['college'] = $primary['college'] ?? null;
+            $data['department'] = $primary['department'] ?? null;
+            $data['program'] = $primary['program'] ?? null;
+        }
 
         $data['employee_number'] = trim((string) ($data['employee_number'] ?? ''));
 
@@ -220,8 +243,9 @@ class EmployeeController extends Controller
 
         $employee = Employee::query()->create($data);
 
-        DB::transaction(function () use ($employee, $employmentInformations, $employeeSalaries, $data): void {
+        DB::transaction(function () use ($employee, $employmentInformations, $employeeSalaries, $campusAssignments, $data): void {
             EmployeeEmploymentSync::sync($employee, $employmentInformations);
+            EmployeeCampusAssignmentSync::sync($employee, $campusAssignments);
             EmployeeSalarySync::sync($employee, $employeeSalaries, (bool) ($data['is_hybrid'] ?? false));
         });
 
@@ -245,6 +269,7 @@ class EmployeeController extends Controller
         $this->authorize('view', $employee);
         $employee->load([
             'campus',
+            'campusAssignments.campus',
             'employmentInformations.salary.payType',
             'employmentInformations.salary.basicComputation',
             'employmentInformations.salary.rateGroup',
@@ -268,6 +293,7 @@ class EmployeeController extends Controller
         $this->authorize('update', $employee);
         $employee->load([
             'campus',
+            'campusAssignments.campus',
             'employmentInformations.salary.payType',
             'employmentInformations.salary.basicComputation',
             'employmentInformations.salary.rateGroup',
@@ -303,11 +329,13 @@ class EmployeeController extends Controller
 
         $employmentInformations = $request->employmentInformations();
         $employeeSalaries = $request->employeeSalaries();
+        $campusAssignments = $request->campusAssignments();
         $isHybrid = (bool) ($payload['is_hybrid'] ?? false);
 
-        DB::transaction(function () use ($employee, $payload, $employmentInformations, $employeeSalaries, $isHybrid): void {
+        DB::transaction(function () use ($employee, $payload, $employmentInformations, $employeeSalaries, $campusAssignments, $isHybrid): void {
             $employee->update($payload);
             EmployeeEmploymentSync::sync($employee, $employmentInformations);
+            EmployeeCampusAssignmentSync::sync($employee, $campusAssignments);
             EmployeeSalarySync::sync($employee, $employeeSalaries, $isHybrid);
         });
 

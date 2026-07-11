@@ -314,6 +314,8 @@ class PayrollCalendarController extends Controller
             'loan_type_ids.*' => ['integer', Rule::exists('tbl_loan_types', 'loan_type_id')],
         ]);
 
+        $this->scheduleService->assertExclusivePhilhealth($validated['deduction_type_ids'] ?? []);
+
         $this->scheduleService->sync(
             $period,
             $validated['deduction_type_ids'] ?? [],

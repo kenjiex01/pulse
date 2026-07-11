@@ -1,0 +1,5 @@
+row_no,faculty_name,college,modality,subject,section,load_date,class_schedule,time_in,time_out,remarks,comments,verification_remarks,employee_number,skolaris_offering_id,session_date_iso
+No.,"Faculty Name",College,Modality,Subject,Section,Date,"Class Schedule","Time In","Time Out",Remarks,Comments,"Verification Remarks","Employee No.","Offering ID","Session Date (ISO)"
+1,"Maria L. Santos",CITE,ONSITE,IT101,BSIT-1A,"2-Jun-26 (MONDAY)","8:00 AM - 10:00 AM","7:55 AM","10:05 AM","On time",,Verified,2026-00001,10001,2026-06-02
+2,"Maria L. Santos",CITE,ONSITE,IT101,BSIT-1A,"4-Jun-26 (WEDNESDAY)","8:00 AM - 10:00 AM","8:02 AM","10:00 AM","Late 2 min",,,2026-00001,10001,2026-06-04
+3,"test test test",CBA,ONLINE,MGT201,BSA-2B,"5-Jun-26 (THURSDAY)","1:00 PM - 3:00 PM","12:58 PM","3:10 PM",,"Ended late — extended discussion",OK,2026-00003,10002,2026-06-05

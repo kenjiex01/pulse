@@ -15,6 +15,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\HolidaySettingsController;
 use App\Http\Controllers\ShiftCodeController;
 use App\Http\Controllers\TimeCapturingSettingsController;
+use App\Http\Controllers\TimekeepingEmployeeLoadController;
 use App\Http\Controllers\TimekeepingEmployeeProfileController;
 use App\Http\Controllers\TimekeepingPolicyController;
 use App\Http\Controllers\TimekeepingTemplateController;
@@ -213,11 +214,33 @@ Route::middleware('auth')->group(function () {
             ->whereNumber('detail')
             ->name('payroll.transaction.employees.show');
 
+        Route::post('payroll/transaction/batches/{batch}/employees/{detail}/incomes', [PayrollTransactionController::class, 'storeEmployeeIncome'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->name('payroll.transaction.employees.incomes.store');
+
+        Route::post('payroll/transaction/batches/{batch}/employees/{detail}/deductions', [PayrollTransactionController::class, 'storeEmployeeDeduction'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->name('payroll.transaction.employees.deductions.store');
+
         Route::post('payroll/transaction/batches/{batch}/employees', [PayrollTransactionController::class, 'storeEmployees'])
             ->name('payroll.transaction.employees.store');
 
         Route::delete('payroll/transaction/batches/{batch}/employees', [PayrollTransactionController::class, 'destroyEmployees'])
             ->name('payroll.transaction.employees.destroy');
+
+        Route::post('payroll/transaction/batches/{batch}/process', [PayrollTransactionController::class, 'processBatch'])
+            ->name('payroll.transaction.process');
+
+        Route::post('payroll/transaction/batches/{batch}/reprocess', [PayrollTransactionController::class, 'reprocessBatch'])
+            ->name('payroll.transaction.reprocess');
+
+        Route::post('payroll/transaction/batches/{batch}/post', [PayrollTransactionController::class, 'postBatch'])
+            ->name('payroll.transaction.post');
+
+        Route::post('payroll/transaction/batches/{batch}/unpost', [PayrollTransactionController::class, 'unpostBatch'])
+            ->name('payroll.transaction.unpost');
 
         Route::get('payroll/transaction/upload/{uploadType}/template', [PayrollTransactionController::class, 'downloadUploadTemplate'])
             ->name('payroll.transaction.upload.template');
@@ -236,7 +259,7 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::middleware('module:payroll.government-tables.index')->group(function () {
-        $tabs = 'pag-ibig|philhealth|sss|wtax-classification|withholding-tax-2023';
+        $tabs = 'pag-ibig|philhealth|philhealth-minimum|sss|withholding-tax-2023';
         $frequencies = 'daily|weekly|semi-monthly|monthly';
 
         Route::get('payroll/government-tables', function () {
@@ -260,13 +283,13 @@ Route::middleware('auth')->group(function () {
             ->where('tab', $tabs)
             ->name('payroll.government-tables.tab');
         Route::post('payroll/government-tables/{tab}', [GovernmentTablesController::class, 'store'])
-            ->where('tab', implode('|', \App\Support\GovernmentTables::crudTabs()))
+            ->where('tab', implode('|', \App\Support\GovernmentTables::storeTabs()))
             ->name('payroll.government-tables.store');
         Route::put('payroll/government-tables/{tab}/{record}', [GovernmentTablesController::class, 'update'])
             ->where('tab', implode('|', \App\Support\GovernmentTables::crudTabs()))
             ->name('payroll.government-tables.update');
         Route::delete('payroll/government-tables/{tab}/{record}', [GovernmentTablesController::class, 'destroy'])
-            ->where('tab', implode('|', \App\Support\GovernmentTables::crudTabs()))
+            ->where('tab', implode('|', \App\Support\GovernmentTables::destroyTabs()))
             ->name('payroll.government-tables.destroy');
     });
 
@@ -460,5 +483,29 @@ Route::middleware('auth')->group(function () {
         Route::get('timekeeping/employee-profile/{employee}/attendance-view', [TimekeepingEmployeeProfileController::class, 'attendanceView'])
             ->whereNumber('employee')
             ->name('timekeeping.employee-profile.attendance');
+
+        Route::get('timekeeping/employee-profile/{employee}/employee-load', [TimekeepingEmployeeProfileController::class, 'employeeLoadView'])
+            ->whereNumber('employee')
+            ->name('timekeeping.employee-profile.employee-load');
+    });
+
+    Route::middleware('module:timekeeping.employee-load.index')->group(function () {
+        Route::get('timekeeping/employee-load', [TimekeepingEmployeeLoadController::class, 'index'])
+            ->name('timekeeping.employee-load.index');
+
+        Route::get('timekeeping/employee-load/template', [TimekeepingEmployeeLoadController::class, 'downloadTemplate'])
+            ->name('timekeeping.employee-load.template');
+
+        Route::post('timekeeping/employee-load/upload/process', [TimekeepingEmployeeLoadController::class, 'processUpload'])
+            ->name('timekeeping.employee-load.upload.process');
+
+        Route::post('timekeeping/employee-load/upload/commit', [TimekeepingEmployeeLoadController::class, 'commitUpload'])
+            ->name('timekeeping.employee-load.upload.commit');
+
+        Route::post('timekeeping/employee-load/upload/discard', [TimekeepingEmployeeLoadController::class, 'discardStaging'])
+            ->name('timekeeping.employee-load.upload.discard');
+
+        Route::delete('timekeeping/employee-load/purge', [TimekeepingEmployeeLoadController::class, 'destroy'])
+            ->name('timekeeping.employee-load.destroy');
     });
 });

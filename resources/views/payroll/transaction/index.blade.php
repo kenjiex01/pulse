@@ -102,6 +102,9 @@
                 'batch' => $viewBatch,
                 'batchEmployees' => $batchEmployees,
                 'batchEditable' => $batchEditable ?? false,
+                'batchProcessable' => $batchProcessable ?? false,
+                'batchReprocessable' => $batchReprocessable ?? false,
+                'batchPostable' => $batchPostable ?? false,
                 'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
             ])->render(),
         ])
@@ -113,6 +116,7 @@
                 'open' => $openAddEmployees ?? false,
                 'addEmployeeSearch' => $addEmployeeSearch ?? '',
                 'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
+                'addEmployeesEmptyMessage' => $addEmployeesEmptyMessage ?? null,
             ])
         @endif
 
@@ -123,12 +127,39 @@
                 'description' => 'Review income and deduction lines for this employee in the batch.',
                 'open' => true,
                 'panelClass' => 'max-w-4xl',
+                'backUrl' => route(\App\Support\PayrollTransactionModule::routeName('tab'), [
+                    'tab' => 'batches',
+                    'view_payroll_batch' => $viewBatch->payroll_batch_id,
+                    'batch_employee_search' => $batchEmployeeSearch ?? '',
+                    'search' => request('search'),
+                ]),
                 'body' => view('payroll.transaction._batch-employee-detail-content', [
                     'batch' => $viewBatch,
                     'detail' => $viewBatchDetail,
                     'activeTab' => $batchDetailTab ?? 'incomes',
+                    'batchEditable' => $batchEditable ?? false,
                 ])->render(),
             ])
+
+            @if (($batchEditable ?? false) && $incomeTypes->isNotEmpty())
+                @include('payroll.transaction._batch-employee-add-income-modal', [
+                    'batch' => $viewBatch,
+                    'detail' => $viewBatchDetail,
+                    'incomeTypes' => $incomeTypes,
+                    'open' => $openAddEmployeeIncome ?? false,
+                    'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
+                ])
+            @endif
+
+            @if (($batchEditable ?? false) && $deductionTypes->isNotEmpty())
+                @include('payroll.transaction._batch-employee-add-deduction-modal', [
+                    'batch' => $viewBatch,
+                    'detail' => $viewBatchDetail,
+                    'deductionTypes' => $deductionTypes,
+                    'open' => $openAddEmployeeDeduction ?? false,
+                    'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
+                ])
+            @endif
         @endif
     @endif
 

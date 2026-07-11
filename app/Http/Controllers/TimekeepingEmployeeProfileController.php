@@ -73,7 +73,6 @@ class TimekeepingEmployeeProfileController extends Controller
             'timekeeping_policy_id' => ['required', 'integer', 'exists:tbl_timekeeping_policies,timekeeping_policy_id'],
             'is_leave' => ['nullable', 'boolean'],
             'is_populate' => ['nullable', 'boolean'],
-            'timekeeping_policy_team_setting_id' => ['nullable', 'integer', 'exists:tbl_timekeeping_policy_team_settings,timekeeping_policy_team_setting_id'],
             'rest_days' => ['nullable', 'array'],
             'rest_days.*.selected' => ['nullable', 'boolean'],
             'rest_days.*.is_paid' => ['nullable', 'boolean'],
@@ -91,7 +90,6 @@ class TimekeepingEmployeeProfileController extends Controller
                     'timekeeping_policy_id' => $validated['timekeeping_policy_id'],
                     'is_leave' => (bool) ($validated['is_leave'] ?? false),
                     'is_populate' => (bool) ($validated['is_populate'] ?? false),
-                    'timekeeping_policy_team_setting_id' => $validated['timekeeping_policy_team_setting_id'] ?? null,
                 ],
             );
 
@@ -167,16 +165,50 @@ class TimekeepingEmployeeProfileController extends Controller
     {
         TimekeepingEmployeeProfile::authorize($request->user(), 'view');
 
-        $attendanceLogs = RawTimekeepingInandout::query()
+        $perPage = LiveTable::perPage($request, 10);
+        $pageName = 'attendance_page';
+
+        $query = RawTimekeepingInandout::query()
             ->where('employee_id', $employee->employee_id)
-            ->orderByDesc('dt_datetime')
-            ->orderByDesc('timekeeping_inandout_id')
-            ->limit(50)
-            ->get();
+            ->orderBy('dt_datetime')
+            ->orderBy('timekeeping_inandout_id');
+
+        $total = (clone $query)->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($lastPage, (int) $request->input($pageName, $lastPage)));
+
+        $attendanceLogs = $query->paginate($perPage, ['*'], $pageName, $page);
 
         return view('timekeeping.employee-profile._tab-attendance-view', [
             'employee' => $employee->loadMissing('timekeepingSetup'),
             'attendanceLogs' => $attendanceLogs,
+        ]);
+    }
+
+    public function employeeLoadView(Request $request, Employee $employee): View
+    {
+        TimekeepingEmployeeProfile::authorize($request->user(), 'view');
+
+        $summary = TimekeepingEmployeeProfile::employeeLoadSummary($employee);
+
+        $perPage = LiveTable::perPage($request, 10);
+        $pageName = 'employee_load_page';
+        $query = TimekeepingEmployeeProfile::employeeLoadEntriesQuery($employee);
+
+        $total = (clone $query)->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($lastPage, (int) $request->input($pageName, $lastPage)));
+
+        $employeeLoadEntries = $query->paginate($perPage, ['*'], $pageName, $page);
+
+        $employee->loadMissing('timekeepingSetup.policy');
+        $policy = $employee->timekeepingSetup?->policy;
+
+        return view('timekeeping.employee-profile._tab-employee-load-view', [
+            'employee' => $employee,
+            'employeeLoadEntries' => $employeeLoadEntries,
+            'summary' => $summary,
+            'timekeepingPolicy' => $policy,
         ]);
     }
 }

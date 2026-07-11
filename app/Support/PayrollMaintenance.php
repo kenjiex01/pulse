@@ -256,6 +256,27 @@ class PayrollMaintenance
         };
     }
 
+    public static function alwaysActiveCodeField(string $tab): ?string
+    {
+        return match ($tab) {
+            'deduction-types' => 'deduction_type_code',
+            default => null,
+        };
+    }
+
+    public static function isAlwaysActiveRecord(Model $record, string $tab): bool
+    {
+        $codeField = self::alwaysActiveCodeField($tab);
+
+        if ($codeField === null) {
+            return false;
+        }
+
+        $alwaysActiveCodes = self::config($tab)['always_active_codes'] ?? [];
+
+        return in_array((string) $record->{$codeField}, $alwaysActiveCodes, true);
+    }
+
     public static function isProtectedRecord(Model $record, string $tab): bool
     {
         $codeField = self::protectedCodeField($tab);
@@ -274,5 +295,12 @@ class PayrollMaintenance
         $name = self::config($tab)['name'] ?? 'Record';
 
         return "System default {$name} records cannot be edited, deactivated, or deleted.";
+    }
+
+    public static function alwaysActiveRecordErrorMessage(string $tab): string
+    {
+        $name = self::config($tab)['name'] ?? 'Record';
+
+        return "Government premium {$name} records must remain active and cannot be deactivated.";
     }
 }

@@ -1,0 +1,11 @@
+row_no,faculty_name,college,modality,subject,section,load_date,class_schedule,time_in,time_out,remarks,comments,verification_remarks,employee_number,skolaris_offering_id,session_date_iso
+No.,"Faculty Name",College,Modality,Subject,Section,Date,"Class Schedule","Time In","Time Out",Remarks,Comments,"Verification Remarks","Employee No.","Offering ID","Session Date (ISO)"
+1,"Maria L. Santos",CITE,ONSITE,IT101,BSIT-1A,"2-Jun-26 (MONDAY)","8:00 AM - 10:00 AM","7:55 AM","10:00 AM","On time",,OK,2026-00001,10001,2026-06-02
+2,"Maria L. Santos",CITE,ONSITE,IT101,BSIT-1A,"4-Jun-26 (WEDNESDAY)","8:00 AM - 10:00 AM","8:02 AM","10:00 AM","Late 2 minutes",Traffic,,2026-00001,10001,2026-06-04
+3,"Maria L. Santos",CITE,ONSITE,IT101,BSIT-1A,"9-Jun-26 (MONDAY)","8:00 AM - 10:00 AM","8:30 AM","10:00 AM","Late 30 minutes","Faculty meeting ran over","For late deduction",2026-00001,10001,2026-06-09
+4,"Maria L. Santos",CITE,ONSITE,IT101,BSIT-1A,"11-Jun-26 (WEDNESDAY)","8:00 AM - 10:00 AM","8:15 AM","9:45 AM","Late 15 minutes; undertime 15 minutes","Left early — approved",,2026-00001,10001,2026-06-11
+5,"Maria L. Santos",CITE,"LIMITED F2F",IT201,BSIT-2A,"3-Jun-26 (TUESDAY)","1:00 PM - 3:00 PM","1:45 PM","3:00 PM","Late 45 minutes",,Late,2026-00001,10003,2026-06-03
+6,"Maria L. Santos",CITE,"LIMITED F2F",IT201,BSIT-2A,"10-Jun-26 (TUESDAY)","1:00 PM - 3:00 PM","12:58 PM","3:05 PM","On time",,OK,2026-00001,10003,2026-06-10
+7,"test test test",CBA,ONLINE,MGT201,BSA-2B,"5-Jun-26 (THURSDAY)","1:00 PM - 3:00 PM","1:20 PM","3:00 PM","Late 20 minutes","Zoom login issue",Late,2026-00003,10002,2026-06-05
+8,"test test test",CBA,ONLINE,MGT201,BSA-2B,"12-Jun-26 (THURSDAY)","1:00 PM - 3:00 PM","12:55 PM","3:10 PM","On time",,,2026-00003,10002,2026-06-12
+9,"test test test",CBA,ONLINE,MGT201,BSA-2B,"19-Jun-26 (THURSDAY)","1:00 PM - 3:00 PM","2:05 PM","3:00 PM","Late 1 hour 5 minutes","No prior notice","For late deduction",2026-00003,10002,2026-06-19

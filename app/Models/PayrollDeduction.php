@@ -17,22 +17,26 @@ class PayrollDeduction extends Model
     protected $fillable = [
         'payroll_batch_detail_id',
         'deduction_type_id',
+        'hours',
         'employee_amount',
         'employer_amount',
         'reference_number',
         'dt_reference',
         'is_editable',
         'is_deletable',
+        'is_manual',
     ];
 
     protected function casts(): array
     {
         return [
+            'hours' => 'decimal:4',
             'employee_amount' => 'decimal:2',
             'employer_amount' => 'decimal:2',
             'dt_reference' => 'datetime',
             'is_editable' => 'boolean',
             'is_deletable' => 'boolean',
+            'is_manual' => 'boolean',
         ];
     }
 

@@ -6,7 +6,7 @@
     @include('partials.flash')
     @include('partials.page-header', [
         'title' => 'Time Logs',
-        'description' => 'Upload and manage raw time in / time out transactions from biometric or file imports.',
+        'description' => 'Upload and manage raw time in / time out and DTR timelog transactions from biometric or file imports.',
         'actionModalId' => auth()->user()?->can('time-logs.create') ? 'time-logs-upload-modal' : null,
         'actionLabel' => 'Upload',
     ])
@@ -59,11 +59,18 @@
     @can('time-logs.create')
         @include('partials.modal', [
             'id' => 'time-logs-upload-modal',
-            'title' => 'Upload Time Logs',
-            'description' => 'Select a format type and upload a tab-delimited text file.',
+            'title' => ($requiresCampus ?? false) ? 'Upload Timelogs DTR' : 'Upload Time Logs',
+            'description' => ($requiresCampus ?? false)
+                ? 'Select campus and upload the campus Excel DTR file.'
+                : 'Select a format type and upload a tab-delimited text file.',
             'open' => $openUpload ?? false,
             'panelClass' => 'max-w-2xl',
-            'body' => view('timekeeping.time-logs._upload-form', ['formats' => $formats])->render(),
+            'body' => view('timekeeping.time-logs._upload-form', [
+                'tab' => $tab,
+                'formats' => $formats,
+                'dtrCampuses' => $dtrCampuses ?? collect(),
+                'requiresCampus' => $requiresCampus ?? false,
+            ])->render(),
         ])
 
         @if ($openPreview ?? false)
@@ -74,9 +81,12 @@
                 'open' => true,
                 'panelClass' => 'max-w-4xl',
                 'body' => view('timekeeping.time-logs._upload-preview', [
+                    'tab' => $tab,
                     'staging' => $staging ?? null,
                     'stagingToken' => $stagingToken ?? null,
                     'previewFormat' => $previewFormat ?? null,
+                    'previewCampus' => $previewCampus ?? null,
+                    'isDtrStaging' => $isDtrStaging ?? false,
                 ])->render(),
             ])
         @endif

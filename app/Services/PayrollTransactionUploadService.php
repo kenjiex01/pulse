@@ -471,6 +471,10 @@ class PayrollTransactionUploadService
             $this->validateLeaveRow($parsed, $lineNumber, $errors, $hasError);
         }
 
+        if (in_array($uploadType, ['deductions', 'deduction-adjustments'], true) && ! $hasError) {
+            $this->validateDeductionHoursRow($parsed, $lineNumber, $errors, $hasError);
+        }
+
         if ($uploadType === 'resigned-employees' && ! $hasError && isset($parsed['dt_resigned'])) {
             // validated in validateFieldValue
         }
@@ -682,6 +686,41 @@ class PayrollTransactionUploadService
         }
     }
 
+    /**
+     * Hours is required only for Late (LTDE) and Undertime (UTDE) deduction uploads.
+     *
+     * @param  array<string, mixed>  $parsed
+     * @param  array<int, string>  $errors
+     */
+    private function validateDeductionHoursRow(array $parsed, int $lineNumber, array &$errors, bool &$hasError): void
+    {
+        $deductionTypeId = (int) ($parsed['deduction_type_id'] ?? 0);
+
+        if ($deductionTypeId <= 0) {
+            return;
+        }
+
+        $code = DeductionType::query()
+            ->whereKey($deductionTypeId)
+            ->value('deduction_type_code');
+
+        if (! in_array($code, ['LTDE', 'UTDE'], true)) {
+            return;
+        }
+
+        if (! array_key_exists('hours', $parsed) || $parsed['hours'] === null || $parsed['hours'] === '') {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Hours is required for Late (LTDE) and Undertime (UTDE).";
+
+            return;
+        }
+
+        if ((float) $parsed['hours'] <= 0) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Hours must be greater than 0 for Late (LTDE) and Undertime (UTDE).";
+        }
+    }
+
     private function isValidDate(string $value): bool
     {
         return preg_match(self::DATE_PATTERN, $value) === 1
@@ -708,6 +747,7 @@ class PayrollTransactionUploadService
                 'payroll_transaction_id' => $transaction->payroll_transaction_id,
                 'employee_id' => $row['employee_id'],
                 'deduction_type_id' => $row['deduction_type_id'],
+                'hours' => $row['hours'] ?? null,
                 'employee_amount' => $row['emp_amount'] ?? null,
                 'employer_amount' => $row['empr_amount'] ?? null,
                 'amount' => $row['amount'] ?? null,

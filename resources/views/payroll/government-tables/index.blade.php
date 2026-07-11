@@ -6,15 +6,16 @@
     @php
         $isWtax2023 = $tab === 'withholding-tax-2023';
         $isAnnual = $isWtax2023 && ($frequency ?? 'daily') === 'annual';
-        $openCreate = ! $isWtax2023 && (($errors->any() && old('form_context') === "create-$tab") || request()->boolean('create'));
+        $allowCreate = ($config['allow_create'] ?? true) && ! $isWtax2023;
+        $openCreate = $allowCreate && (($errors->any() && old('form_context') === "create-$tab") || request()->boolean('create'));
         $openAnnualCreate = $isAnnual && (($errors->any() && old('form_context') === 'create-wtax-annual') || request()->boolean('create'));
     @endphp
 
     @include('partials.flash')
     @include('partials.page-header', [
         'title' => 'Government Tables',
-        'description' => 'Maintain Pag-IBIG, PhilHealth, SSS, withholding tax classification, and withholding tax tables.',
-        'actionModalId' => ! $isWtax2023 && auth()->user()->can('government-tables.create') ? "government-tables-create-$tab" : ($isAnnual && auth()->user()->can('government-tables.create') ? 'government-tables-create-wtax-annual' : null),
+        'description' => 'Maintain Pag-IBIG, PhilHealth, SSS, and withholding tax tables.',
+        'actionModalId' => $allowCreate && auth()->user()->can('government-tables.create') ? "government-tables-create-$tab" : ($isAnnual && auth()->user()->can('government-tables.create') ? 'government-tables-create-wtax-annual' : null),
         'actionLabel' => $isAnnual ? 'Add Annual Range' : 'Add '.$config['name'],
         'actionIcon' => '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>',
     ])
@@ -103,6 +104,7 @@
         ])
 
         @can('government-tables.create')
+            @if ($allowCreate)
             @include('partials.modal', [
                 'id' => "government-tables-create-$tab",
                 'title' => 'Add '.$config['name'],
@@ -116,6 +118,7 @@
                     'formContext' => "create-$tab",
                 ])->render(),
             ])
+            @endif
         @endcan
     @endif
 @endsection

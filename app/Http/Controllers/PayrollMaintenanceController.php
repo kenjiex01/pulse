@@ -22,6 +22,17 @@ class PayrollMaintenanceController extends Controller
             ->with('error', PayrollMaintenance::protectedRecordErrorMessage($tab));
     }
 
+    private function rejectAlwaysActiveDeactivation(string $tab, $model): ?RedirectResponse
+    {
+        if (! PayrollMaintenance::isAlwaysActiveRecord($model, $tab)) {
+            return null;
+        }
+
+        return redirect()
+            ->route(PayrollMaintenance::routeName('tab'), ['tab' => $tab])
+            ->with('error', PayrollMaintenance::alwaysActiveRecordErrorMessage($tab));
+    }
+
     public function index(Request $request, string $tab): View
     {
         $tab = PayrollMaintenance::resolveTab($tab);
@@ -132,6 +143,10 @@ class PayrollMaintenanceController extends Controller
         $model = PayrollMaintenance::findOrFail($tab, $record);
 
         if ($redirect = $this->rejectProtectedMutation($tab, $model)) {
+            return $redirect;
+        }
+
+        if ($redirect = $this->rejectAlwaysActiveDeactivation($tab, $model)) {
             return $redirect;
         }
 

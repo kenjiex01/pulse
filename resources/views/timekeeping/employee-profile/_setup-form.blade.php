@@ -60,4 +60,18 @@
             <div class="py-6 text-center text-sm text-gray-500">Open this tab to load attendance view.</div>
         @endif
     </div>
+
+    <div
+        class="employee-tab-panel {{ $activeTab === 'employee-load' ? '' : 'hidden' }}"
+        data-employee-tab-panel="employee-load"
+        data-employee-profile-lazy-panel
+        data-lazy-url="{{ route(TimekeepingEmployeeProfile::routeName('employee-load'), $employee->employee_id) }}"
+        @if ($activeTab !== 'employee-load') data-lazy-pending="true" @endif
+    >
+        @if ($activeTab === 'employee-load')
+            <div class="py-6 text-center text-sm text-gray-500">Loading employee load…</div>
+        @else
+            <div class="py-6 text-center text-sm text-gray-500">Open this tab to load employee load.</div>
+        @endif
+    </div>
 </form>

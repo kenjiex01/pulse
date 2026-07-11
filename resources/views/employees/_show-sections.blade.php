@@ -24,7 +24,7 @@
             </div>
             <div>
                 <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Campus</p>
-                <p class="text-sm font-semibold text-gray-900">{{ $employee->displayValue($employee->campus?->campus_name ?? $employee->campus) }}</p>
+                <p class="text-sm font-semibold text-gray-900">{{ $employee->displayValue($employee->campus_name) }}</p>
             </div>
             <div>
                 <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Department / College</p>
@@ -90,7 +90,7 @@
             <div><p class="text-sm text-gray-600">Program</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->program) }}</p></div>
             <div><p class="text-sm text-gray-600">Department</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->department) }}</p></div>
             <div><p class="text-sm text-gray-600">College</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->college) }}</p></div>
-            <div><p class="text-sm text-gray-600">Campus</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->campus?->campus_name ?? $employee->campus) }}</p></div>
+            <div><p class="text-sm text-gray-600">Campus</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->campus_name) }}</p></div>
             <div>
                 <p class="text-sm text-gray-600">Employment Status</p>
                 <p class="mt-1">
@@ -126,6 +126,28 @@
             </div>
         @else
             <p class="text-sm text-gray-500">No employment information records yet.</p>
+        @endif
+
+        @if ($employee->campusAssignments->isNotEmpty())
+            <div class="space-y-4 border-t border-gray-100 pt-4">
+                <h4 class="text-sm font-semibold text-gray-900">Campus Assignments</h4>
+                @foreach ($employee->campusAssignments as $assignment)
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <p class="mb-3 text-sm font-semibold text-gray-900">
+                            {{ $assignment->campus?->campus_name ?? 'Campus' }}
+                            @if ($assignment->is_primary)
+                                <span class="ml-1 text-xs font-normal text-gray-500">(Primary)</span>
+                            @endif
+                        </p>
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div><p class="text-sm text-gray-600">Biometric ID</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($assignment->biometric_id) }}</p></div>
+                            <div><p class="text-sm text-gray-600">College</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($assignment->college) }}</p></div>
+                            <div><p class="text-sm text-gray-600">Department</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($assignment->department) }}</p></div>
+                            <div><p class="text-sm text-gray-600">Program</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($assignment->program) }}</p></div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
         @endif
     </div>
 

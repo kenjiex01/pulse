@@ -61,6 +61,7 @@
                         <th class="px-3 py-2 text-left">Employee No.</th>
                         <th class="px-3 py-2 text-left">Employee Name</th>
                         <th class="px-3 py-2 text-left">Deduction Type</th>
+                        <th class="px-3 py-2 text-right">Hours</th>
                         <th class="px-3 py-2 text-right">Employee</th>
                         <th class="px-3 py-2 text-right">Employer</th>
                         <th class="px-3 py-2 text-right">Amount</th>
@@ -104,6 +105,7 @@
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->amount !== null ? number_format((float) $record->amount, 2) : '—' }}</td>
                         @elseif (in_array($uploadType, ['deductions', 'deduction-adjustments'], true))
                             <td class="px-3 py-2 text-gray-600">{{ $record->deductionType?->deduction_type_code ?? '—' }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ $record->hours !== null ? number_format((float) $record->hours, 2) : '—' }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->employee_amount !== null ? number_format((float) $record->employee_amount, 2) : '—' }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->employer_amount !== null ? number_format((float) $record->employer_amount, 2) : '—' }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->amount !== null ? number_format((float) $record->amount, 2) : '—' }}</td>

@@ -166,6 +166,18 @@ class SubModuleSeeder extends Seeder
                     'is_active' => true,
                 ],
             );
+
+            SubModule::query()->updateOrCreate(
+                ['route_name' => 'timekeeping.employee-load.index'],
+                [
+                    'module_id' => $timekeeping->id,
+                    'name' => 'Employee Load',
+                    'route_pattern' => 'timekeeping.employee-load.*',
+                    'icon' => 'employee-load',
+                    'sort_order' => 4,
+                    'is_active' => true,
+                ],
+            );
         }
     }
 }

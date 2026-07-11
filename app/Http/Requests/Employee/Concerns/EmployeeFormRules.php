@@ -5,6 +5,7 @@ namespace App\Http\Requests\Employee\Concerns;
 use App\Models\Employee;
 use App\Models\EmployeeEmploymentInformation;
 use App\Models\PayType;
+use App\Services\EmployeeCampusAssignmentSync;
 use App\Services\EmployeeEmploymentSync;
 use App\Services\EmployeeSalarySync;
 use Illuminate\Support\Arr;
@@ -59,8 +60,14 @@ trait EmployeeFormRules
             'program' => ['nullable', 'string', 'max:150'],
             'department' => ['nullable', 'string', 'max:150'],
             'college' => ['nullable', 'string', 'max:150'],
-            'campus_id' => ['required', Rule::exists('tbl_campuses', 'campus_id')],
+            'campus_id' => ['nullable', Rule::exists('tbl_campuses', 'campus_id')],
             'campus' => ['nullable', 'string', 'max:50'],
+            'campus_assignments' => ['required', 'array', 'min:1'],
+            'campus_assignments.*.campus_id' => ['required', Rule::exists('tbl_campuses', 'campus_id')],
+            'campus_assignments.*.biometric_id' => ['required', 'string', 'max:50'],
+            'campus_assignments.*.college' => ['nullable', 'string', 'max:150'],
+            'campus_assignments.*.department' => ['nullable', 'string', 'max:150'],
+            'campus_assignments.*.program' => ['nullable', 'string', 'max:150'],
             'employment_status' => ['required', Rule::in([Employee::STATUS_ACTIVE, Employee::STATUS_INACTIVE])],
             'compliance_status' => ['nullable', Rule::in([
                 Employee::COMPLIANCE_COMPLIANT,
@@ -132,6 +139,9 @@ trait EmployeeFormRules
             $this->normalizeSalaryRecords((array) $this->input('employee_salaries', [])),
             $isHybrid,
         );
+        $campusAssignments = EmployeeCampusAssignmentSync::normalizeRecords(
+            (array) $this->input('campus_assignments', []),
+        );
 
         $extended = $this->normalizeExtendedProfile((array) $this->input('extended_profile', []));
 
@@ -142,6 +152,7 @@ trait EmployeeFormRules
             'compliance_status' => $this->input('compliance_status', Employee::COMPLIANCE_PENDING),
             'employment_informations' => $employmentInformations,
             'employee_salaries' => $employeeSalaries,
+            'campus_assignments' => $campusAssignments,
             'extended_profile' => $extended,
         ]);
     }
@@ -203,13 +214,53 @@ trait EmployeeFormRules
                     );
                 }
             }
+
+            $assignments = (array) $this->input('campus_assignments', []);
+
+            if (count($assignments) < 1) {
+                $validator->errors()->add('campus_assignments', 'Add at least one campus assignment.');
+            }
+
+            $campusIds = collect($assignments)->pluck('campus_id')->filter()->map(fn ($id) => (int) $id);
+
+            if ($campusIds->count() !== $campusIds->unique()->count()) {
+                $validator->errors()->add('campus_assignments', 'Each campus may only be assigned once per employee.');
+            }
+
+            $employeeId = $this->route('employee')?->employee_id;
+
+            foreach ($assignments as $index => $assignment) {
+                if (! is_array($assignment)) {
+                    continue;
+                }
+
+                $campusId = (int) ($assignment['campus_id'] ?? 0);
+                $biometricId = trim((string) ($assignment['biometric_id'] ?? ''));
+
+                if ($campusId <= 0 || $biometricId === '') {
+                    continue;
+                }
+
+                $duplicate = \App\Models\EmployeeCampusAssignment::query()
+                    ->where('campus_id', $campusId)
+                    ->where('biometric_id', $biometricId)
+                    ->when($employeeId, fn ($query) => $query->where('employee_id', '!=', $employeeId))
+                    ->exists();
+
+                if ($duplicate) {
+                    $validator->errors()->add(
+                        "campus_assignments.$index.biometric_id",
+                        "Biometric ID {$biometricId} is already assigned to another employee at this campus.",
+                    );
+                }
+            }
         });
     }
 
     protected function validatedEmployeeData(): array
     {
         $data = parent::validated();
-        unset($data['employment_informations'], $data['employee_salaries']);
+        unset($data['employment_informations'], $data['employee_salaries'], $data['campus_assignments']);
         $data['is_active'] = ($data['employment_status'] ?? Employee::STATUS_ACTIVE) === Employee::STATUS_ACTIVE;
 
         if (isset($data['extended_profile']) && is_array($data['extended_profile'])) {
@@ -227,6 +278,11 @@ trait EmployeeFormRules
     public function employeeSalaries(): array
     {
         return (array) $this->input('employee_salaries', []);
+    }
+
+    public function campusAssignments(): array
+    {
+        return (array) $this->input('campus_assignments', []);
     }
 
     protected function resolveEmployeeFormErrorTab(?string $fallbackTab = null): ?string
@@ -257,7 +313,7 @@ trait EmployeeFormRules
                 'height_cm', 'weight_kg', 'tin_number', 'sss_number', 'philhealth_number',
                 'pagibig_number', 'gsis_number', 'tax_status',
             ], true) => 'personal',
-            in_array($root, ['campus_id', 'college', 'department', 'program'], true) => 'assignment',
+            in_array($root, ['campus_assignments', 'campus_id', 'college', 'department', 'program'], true) => 'assignment',
             in_array($root, ['employee_number', 'compliance_status', 'employment_informations', 'is_hybrid'], true) => 'employment',
             $root === 'employee_salaries' => 'salary',
             in_array($root, [

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Campus;
 use App\Models\RawTimekeepingTransaction;
 use App\Models\SubModule;
 use App\Models\User;
@@ -10,6 +11,9 @@ use Illuminate\Database\Eloquent\Builder;
 class TimeLogs
 {
     public const SUB_MODULE_ROUTE = 'timekeeping.time-logs.index';
+
+    /** @var array<int, string> */
+    public const DTR_CAMPUS_CODES = ['SA', 'SU', 'CA'];
 
     public static function tabs(): array
     {
@@ -43,6 +47,28 @@ class TimeLogs
         }
 
         return $config;
+    }
+
+    public static function requiresCampus(string $tab): bool
+    {
+        return (bool) (self::config($tab)['requires_campus'] ?? false);
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, Campus>
+     */
+    public static function dtrCampuses()
+    {
+        return Campus::query()
+            ->whereIn('campus_code', self::DTR_CAMPUS_CODES)
+            ->where('is_active', true)
+            ->orderByRaw("FIELD(campus_code, '".implode("','", self::DTR_CAMPUS_CODES)."')")
+            ->get();
+    }
+
+    public static function transactionTypeId(string $tab): int
+    {
+        return (int) self::config($tab)['transaction_type_id'];
     }
 
     public static function routeName(string $action = 'index'): string
@@ -106,7 +132,7 @@ class TimeLogs
         $config = self::config($tab);
 
         return RawTimekeepingTransaction::query()
-            ->with('uploadedBy')
+            ->with(['uploadedBy', 'campus'])
             ->withCount('inAndOutRecords as records_count')
             ->where('timekeeping_transaction_type_id', $config['transaction_type_id']);
     }

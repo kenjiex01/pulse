@@ -2,8 +2,8 @@
 
 use App\Models\GovtTablePagibig;
 use App\Models\GovtTablePhilhealth;
+use App\Models\GovtTablePhilhealthMinimum;
 use App\Models\GovtTableSss;
-use App\Models\WithholdingTaxClass;
 
 return [
     'pag-ibig' => [
@@ -15,13 +15,13 @@ return [
         'search' => ['salary_cap'],
         'columns' => [
             ['key' => 'salary_cap', 'label' => 'Salary Not Over', 'type' => 'decimal'],
-            ['key' => 'employee_contribution', 'label' => 'Employee Contributions', 'type' => 'decimal'],
-            ['key' => 'employer_contribution', 'label' => 'Employer Contributions', 'type' => 'decimal'],
+            ['key' => 'employee_contribution', 'label' => 'Employee Amount', 'type' => 'decimal'],
+            ['key' => 'employer_contribution', 'label' => 'Employer Amount', 'type' => 'decimal'],
         ],
         'fields' => [
             ['name' => 'salary_cap', 'label' => 'Salary Not Over', 'type' => 'number', 'rules' => ['required', 'numeric', 'min:0']],
-            ['name' => 'employee_contribution', 'label' => 'Employee Contribution', 'type' => 'number', 'rules' => ['required', 'numeric', 'min:0']],
-            ['name' => 'employer_contribution', 'label' => 'Employer Contribution', 'type' => 'number', 'rules' => ['required', 'numeric', 'min:0']],
+            ['name' => 'employee_contribution', 'label' => 'Employee Amount', 'type' => 'number', 'rules' => ['required', 'numeric', 'min:0']],
+            ['name' => 'employer_contribution', 'label' => 'Employer Amount', 'type' => 'number', 'rules' => ['required', 'numeric', 'min:0']],
         ],
     ],
     'philhealth' => [
@@ -47,6 +47,24 @@ return [
             ['name' => 'employer_share', 'label' => 'Employer Share', 'type' => 'number', 'rules' => ['required', 'numeric', 'min:0']],
         ],
     ],
+    'philhealth-minimum' => [
+        'name' => 'Philhealth Minimum',
+        'model' => GovtTablePhilhealthMinimum::class,
+        'primary_key' => 'govt_table_philhealth_minimum_id',
+        'log_table' => 'tbl_govt_table_philhealth_minimum',
+        'allow_create' => false,
+        'allow_delete' => false,
+        'order' => ['govt_table_philhealth_minimum_id' => 'asc'],
+        'search' => ['employee_amount', 'employer_amount'],
+        'columns' => [
+            ['key' => 'employee_amount', 'label' => 'Employee Amount', 'type' => 'decimal'],
+            ['key' => 'employer_amount', 'label' => 'Employer Amount', 'type' => 'decimal'],
+        ],
+        'fields' => [
+            ['name' => 'employee_amount', 'label' => 'Employee Amount', 'type' => 'number', 'rules' => ['required', 'numeric', 'min:0']],
+            ['name' => 'employer_amount', 'label' => 'Employer Amount', 'type' => 'number', 'rules' => ['required', 'numeric', 'min:0']],
+        ],
+    ],
     'sss' => [
         'name' => 'SSS',
         'model' => GovtTableSss::class,
@@ -70,28 +88,6 @@ return [
             ['name' => 'employee_sss', 'label' => 'Employee SSS', 'type' => 'number', 'rules' => ['required', 'numeric', 'min:0']],
             ['name' => 'employer_sss', 'label' => 'Employer SSS', 'type' => 'number', 'rules' => ['required', 'numeric', 'min:0']],
             ['name' => 'employer_ec', 'label' => 'Employer EC', 'type' => 'number', 'rules' => ['required', 'numeric', 'min:0']],
-        ],
-    ],
-    'wtax-classification' => [
-        'name' => 'Withholding Tax Classification',
-        'model' => WithholdingTaxClass::class,
-        'primary_key' => 'withholding_tax_class_id',
-        'log_table' => 'tbl_withholding_tax_classes',
-        'order' => ['withholding_tax_class_code' => 'asc'],
-        'search' => ['withholding_tax_class_code', 'description'],
-        'columns' => [
-            ['key' => 'withholding_tax_class_code', 'label' => 'Classification Code'],
-            ['key' => 'description', 'label' => 'Description'],
-            ['key' => 'number_of_dependents', 'label' => 'No. of Dependents'],
-            ['key' => 'is_married', 'label' => 'Married', 'type' => 'check'],
-            ['key' => 'exemption_amount', 'label' => 'Exemption Amount', 'type' => 'decimal'],
-        ],
-        'fields' => [
-            ['name' => 'withholding_tax_class_code', 'label' => 'Withholding Tax Code', 'type' => 'text', 'rules' => ['required', 'string', 'min:1', 'max:4'], 'unique' => true],
-            ['name' => 'description', 'label' => 'Classification', 'type' => 'text', 'rules' => ['required', 'string', 'min:1', 'max:45']],
-            ['name' => 'number_of_dependents', 'label' => 'Number of Dependents', 'type' => 'number', 'rules' => ['nullable', 'integer', 'min:0', 'max:99']],
-            ['name' => 'is_married', 'label' => 'Married', 'type' => 'checkbox', 'rules' => ['sometimes', 'boolean']],
-            ['name' => 'exemption_amount', 'label' => 'Exemption Amount', 'type' => 'number', 'rules' => ['nullable', 'numeric', 'min:0']],
         ],
     ],
     'withholding-tax-2023' => [

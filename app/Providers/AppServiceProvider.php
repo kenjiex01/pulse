@@ -10,6 +10,7 @@ use App\Policies\PayrollCalendarPolicy;
 use App\Policies\PayrollMaintenancePolicy;
 use App\Policies\PayrollTransactionPolicy;
 use App\Policies\RateDefinitionPolicy;
+use App\Policies\TimekeepingEmployeeLoadPolicy;
 use App\Policies\TimekeepingEmployeeProfilePolicy;
 use App\Policies\TimekeepingPolicyPolicy;
 use App\Policies\TimeLogsPolicy;
@@ -39,6 +40,7 @@ class AppServiceProvider extends ServiceProvider
         $timekeepingPolicyPolicy = new TimekeepingPolicyPolicy;
         $timeLogsPolicy = new TimeLogsPolicy;
         $employeeProfilePolicy = new TimekeepingEmployeeProfilePolicy;
+        $employeeLoadPolicy = new TimekeepingEmployeeLoadPolicy;
 
         Gate::define('hr-lookup.viewAny', fn (User $user, string $lookup) => $hrLookupPolicy->viewAny($user, $lookup));
         Gate::define('hr-lookup.create', fn (User $user, string $lookup) => $hrLookupPolicy->create($user, $lookup));
@@ -84,6 +86,11 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('employee-profile.create', fn (User $user) => $employeeProfilePolicy->create($user));
         Gate::define('employee-profile.update', fn (User $user, $record = null) => $employeeProfilePolicy->update($user, $record));
         Gate::define('employee-profile.delete', fn (User $user, $record = null) => $employeeProfilePolicy->delete($user, $record));
+
+        Gate::define('employee-load.viewAny', fn (User $user) => $employeeLoadPolicy->viewAny($user));
+        Gate::define('employee-load.create', fn (User $user) => $employeeLoadPolicy->create($user));
+        Gate::define('employee-load.update', fn (User $user, $record = null) => $employeeLoadPolicy->update($user, $record));
+        Gate::define('employee-load.delete', fn (User $user, $record = null) => $employeeLoadPolicy->delete($user, $record));
 
         Paginator::defaultView('vendor.pagination.skolaris');
         Paginator::defaultSimpleView('vendor.pagination.skolaris');

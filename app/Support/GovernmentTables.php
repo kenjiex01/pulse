@@ -31,6 +31,26 @@ class GovernmentTables
         return array_values(array_filter(self::keys(), fn (string $tab) => (self::config($tab)['type'] ?? null) !== 'wtax2023'));
     }
 
+    public static function storeTabs(): array
+    {
+        return array_values(array_filter(self::crudTabs(), fn (string $tab) => self::config($tab)['allow_create'] ?? true));
+    }
+
+    public static function destroyTabs(): array
+    {
+        return array_values(array_filter(self::crudTabs(), fn (string $tab) => self::config($tab)['allow_delete'] ?? true));
+    }
+
+    public static function allowsCreate(string $tab): bool
+    {
+        return in_array($tab, self::storeTabs(), true);
+    }
+
+    public static function allowsDelete(string $tab): bool
+    {
+        return in_array($tab, self::destroyTabs(), true);
+    }
+
     public static function config(string $tab): array
     {
         $config = config("government_tables.$tab");
@@ -47,8 +67,8 @@ class GovernmentTables
         return [
             'pag-ibig' => 'Pag-IBIG',
             'philhealth' => 'PhilHealth',
+            'philhealth-minimum' => 'Philhealth Minimum',
             'sss' => 'SSS',
-            'wtax-classification' => 'Withholding Tax Classification',
             'withholding-tax-2023' => 'Withholding Tax',
         ];
     }
@@ -182,8 +202,6 @@ class GovernmentTables
 
             if ($fieldType === 'checkbox') {
                 $payload[$fieldName] = filter_var($data[$fieldName] ?? false, FILTER_VALIDATE_BOOLEAN) ?: null;
-            } elseif ($fieldType === 'text' && $fieldName === 'withholding_tax_class_code') {
-                $payload[$fieldName] = strtoupper($payload[$fieldName]);
             } elseif (($fieldType === 'number' || $fieldType === 'select') && ($payload[$fieldName] ?? '') === '') {
                 $payload[$fieldName] = null;
             }

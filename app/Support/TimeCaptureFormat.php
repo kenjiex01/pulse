@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use RuntimeException;
 
 class TimeCaptureFormat
 {
@@ -408,5 +409,61 @@ class TimeCaptureFormat
         }
 
         return false;
+    }
+
+    /**
+     * Resolve standard field roles from the format's saved column mappings.
+     *
+     * @return array{
+     *     date: string|null,
+     *     employee: string|null,
+     *     worktime: string|null,
+     *     time_in: string|null,
+     *     time_out: string|null,
+     *     indicator: string|null,
+     *     reason: string|null
+     * }
+     */
+    public static function fieldRoles(TimeCaptureFormatModel $format): array
+    {
+        $format->loadMissing('fields');
+        $byName = $format->fields->keyBy('field_name');
+
+        $dateField = null;
+        foreach (array_keys(config('time_capturing_settings.date_types', [])) as $dateType) {
+            if ($byName->has($dateType)) {
+                $dateField = $dateType;
+                break;
+            }
+        }
+
+        $employeeField = null;
+        foreach (array_keys(config('time_capturing_settings.employee_id_types', [])) as $employeeType) {
+            if ($byName->has($employeeType)) {
+                $employeeField = $employeeType;
+                break;
+            }
+        }
+
+        return [
+            'date' => $dateField,
+            'employee' => $employeeField,
+            'worktime' => $byName->has('worktime') ? 'worktime' : null,
+            'time_in' => $byName->has('time_in') ? 'time_in' : null,
+            'time_out' => $byName->has('time_out') ? 'time_out' : null,
+            'indicator' => $byName->has('indicator') ? 'indicator' : null,
+            'reason' => $byName->has('reason') ? 'reason' : null,
+        ];
+    }
+
+    public static function requireFieldRole(TimeCaptureFormatModel $format, string $role): string
+    {
+        $field = self::fieldRoles($format)[$role] ?? null;
+
+        if ($field === null || $field === '') {
+            throw new RuntimeException("The selected format has no mapped {$role} field.");
+        }
+
+        return $field;
     }
 }

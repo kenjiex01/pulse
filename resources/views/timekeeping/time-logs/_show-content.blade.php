@@ -10,8 +10,16 @@
         </div>
         <div>
             <p class="text-xs text-gray-500">Format</p>
-            <p class="mt-1 font-medium text-gray-900">{{ $transaction->timeCaptureFormat?->device_name ?? '—' }}</p>
+            <p class="mt-1 font-medium text-gray-900">
+                {{ $transaction->timeCaptureFormat?->device_name ?? ($transaction->campus ? 'Timelogs DTR' : '—') }}
+            </p>
         </div>
+        @if ($transaction->campus)
+            <div>
+                <p class="text-xs text-gray-500">Campus</p>
+                <p class="mt-1 font-medium text-gray-900">{{ $transaction->campus->campus_name }}</p>
+            </div>
+        @endif
         <div>
             <p class="text-xs text-gray-500">Uploaded By</p>
             <p class="mt-1 font-medium text-gray-900">{{ $transaction->uploadedBy?->name ?? '—' }}</p>

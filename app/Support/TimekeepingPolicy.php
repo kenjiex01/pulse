@@ -10,6 +10,8 @@ use App\Models\LeaveProcessingMode;
 use App\Models\SubModule;
 use App\Models\TimekeepingPolicy as TimekeepingPolicyModel;
 use App\Models\TimekeepingPolicyDayCode;
+use App\Models\TimekeepingPolicyTardiness;
+use App\Models\TimekeepingPolicyUndertime;
 use App\Models\TimekeepingPolicyTeamSetting;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -335,13 +337,18 @@ class TimekeepingPolicy
             ->findOrFail($id);
     }
 
-    public static function equivalentValidationRules(string $type, ?Model $record = null): array
+    public static function equivalentValidationRules(string $type, ?Model $record = null, array $data = []): array
     {
         $config = self::equivalentConfig($type);
+        $marksAbsent = ($config['supports_marks_absent'] ?? false)
+            && filter_var($data['marks_absent'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
         $rules = [
             'time_from' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,3}(\.\d{1,4})?$/'],
             'time_to' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,3}(\.\d{1,4})?$/'],
-            'equivalent' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,3}(\.\d{1,4})?$/'],
+            'equivalent' => $marksAbsent
+                ? ['nullable', 'numeric', 'min:0', 'regex:/^\d{1,3}(\.\d{1,4})?$/']
+                : ['required', 'numeric', 'min:0', 'regex:/^\d{1,3}(\.\d{1,4})?$/'],
         ];
 
         if ($config['overlap_check'] ?? false) {
@@ -352,13 +359,25 @@ class TimekeepingPolicy
             $rules['leave_type_id'] = ['required', 'integer', Rule::exists('tbl_leave_types', 'leave_type_id')];
         }
 
+        if ($config['supports_marks_absent'] ?? false) {
+            $rules['marks_absent'] = ['sometimes', 'boolean'];
+        }
+
         return $rules;
     }
 
     public static function validateEquivalent(string $type, array $data, TimekeepingPolicyModel $policy, ?Model $record = null): array
     {
         $config = self::equivalentConfig($type);
-        $validated = Validator::make($data, self::equivalentValidationRules($type, $record))->validate();
+        $validated = Validator::make($data, self::equivalentValidationRules($type, $record, $data))->validate();
+
+        if ($config['supports_marks_absent'] ?? false) {
+            $validated['marks_absent'] = filter_var($validated['marks_absent'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+            if ($validated['marks_absent']) {
+                $validated['equivalent'] = 0;
+            }
+        }
 
         if ($config['requires_leave_type'] ?? false) {
             $reserved = self::reservedLeaveTypeIds($policy);
@@ -417,15 +436,113 @@ class TimekeepingPolicy
             $fields[] = 'leave_type_id';
         }
 
+        if ($config['supports_marks_absent'] ?? false) {
+            $fields[] = 'marks_absent';
+        }
+
         return array_merge(
             ['timekeeping_policy_id' => $policy->timekeeping_policy_id],
             Arr::only($validated, $fields),
         );
     }
 
+    /**
+     * @return array{
+     *     raw_minutes: int,
+     *     equivalent_minutes: int|null,
+     *     is_absent: bool,
+     *     billable_minutes: int
+     * }
+     */
+    public static function resolveTardinessEquivalent(?int $policyId, float $rawLateMinutes): array
+    {
+        $rawMinutes = max(0, (int) round($rawLateMinutes));
+
+        $result = [
+            'raw_minutes' => $rawMinutes,
+            'equivalent_minutes' => null,
+            'is_absent' => false,
+            'billable_minutes' => 0,
+        ];
+
+        if ($policyId === null || $rawMinutes <= 0) {
+            return $result;
+        }
+
+        $record = TimekeepingPolicyTardiness::query()
+            ->where('timekeeping_policy_id', $policyId)
+            ->where('time_from', '<=', $rawMinutes)
+            ->where('time_to', '>=', $rawMinutes)
+            ->orderBy('time_from')
+            ->first();
+
+        if ($record === null) {
+            $result['billable_minutes'] = $rawMinutes;
+
+            return $result;
+        }
+
+        if ($record->marks_absent) {
+            $result['is_absent'] = true;
+
+            return $result;
+        }
+
+        $equivalent = max(0, (int) round((float) $record->equivalent));
+        $result['equivalent_minutes'] = $equivalent;
+        $result['billable_minutes'] = $equivalent;
+
+        return $result;
+    }
+
+    /**
+     * @return array{
+     *     raw_minutes: int,
+     *     equivalent_minutes: int|null,
+     *     billable_minutes: int
+     * }
+     */
+    public static function resolveUndertimeEquivalent(?int $policyId, float $rawUndertimeMinutes): array
+    {
+        $rawMinutes = max(0, (int) round($rawUndertimeMinutes));
+
+        $result = [
+            'raw_minutes' => $rawMinutes,
+            'equivalent_minutes' => null,
+            'billable_minutes' => 0,
+        ];
+
+        if ($policyId === null || $rawMinutes <= 0) {
+            return $result;
+        }
+
+        $record = TimekeepingPolicyUndertime::query()
+            ->where('timekeeping_policy_id', $policyId)
+            ->where('time_from', '<=', $rawMinutes)
+            ->where('time_to', '>=', $rawMinutes)
+            ->orderBy('time_from')
+            ->first();
+
+        if ($record === null) {
+            $result['billable_minutes'] = $rawMinutes;
+
+            return $result;
+        }
+
+        $equivalent = max(0, (int) round((float) $record->equivalent));
+        $result['equivalent_minutes'] = $equivalent;
+        $result['billable_minutes'] = $equivalent;
+
+        return $result;
+    }
+
     public static function equivalentLabel(Model $record, string $type): string
     {
-        return sprintf('>= %s and <= %s = %s', $record->time_from, $record->time_to, $record->equivalent);
+        if (($type === 'tardiness') && $record->marks_absent) {
+            return sprintf('%s–%s min = Absent', $record->time_from, $record->time_to);
+        }
+
+        return sprintf('%s–%s min = %s min', $record->time_from, $record->time_to, $record->equivalent);
     }
 
     public static function settingsValidationRules(string $tab): array

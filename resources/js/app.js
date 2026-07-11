@@ -52,6 +52,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // AJAX pagination / lazy panel fetches — do not trigger full-page loader
+        if (link.hasAttribute('data-live-table-page') || link.closest('[data-employee-profile-lazy-content]')) {
+            return;
+        }
+
         const href = link.getAttribute('href') ?? '';
 
         if (href.startsWith('#') || href.startsWith('javascript:')) {
@@ -76,7 +81,27 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('submit', (event) => {
         const form = event.target;
 
+        if (!(form instanceof HTMLFormElement)) {
+            return;
+        }
+
+        const confirmMessage = form.dataset.confirmSubmit;
+
+        if (confirmMessage && ! window.confirm(confirmMessage)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }
+    }, true);
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target;
+
         if (!(form instanceof HTMLFormElement) || form.dataset.noLoader !== undefined) {
+            return;
+        }
+
+        // Confirm cancel / validation already blocked the submit — do not leave the loader up.
+        if (event.defaultPrevented) {
             return;
         }
 
@@ -744,6 +769,169 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    const filterAssignmentRowSelects = (row, campusId) => {
+        if (!row) {
+            return;
+        }
+
+        row.querySelectorAll('[data-assignment-college-select], [data-assignment-program-select]').forEach((select) => {
+            if (!campusFilterOptionCache.has(select.id)) {
+                campusFilterOptionCache.set(
+                    select.id,
+                    Array.from(select.querySelectorAll('option')).map((option) => ({
+                        value: option.value,
+                        label: option.textContent,
+                        campusId: option.dataset.campusId ?? '',
+                        selected: option.selected,
+                    })),
+                );
+            }
+
+            const allOptions = campusFilterOptionCache.get(select.id) ?? [];
+            const currentValue = select.value;
+            let hasVisibleSelection = false;
+
+            select.replaceChildren();
+
+            allOptions.forEach((optionData) => {
+                const isPlaceholder = optionData.value === '';
+                const matchesCampus = !optionData.campusId || optionData.campusId === String(campusId);
+
+                if (!isPlaceholder && campusId && !matchesCampus) {
+                    return;
+                }
+
+                const option = document.createElement('option');
+                option.value = optionData.value;
+                option.textContent = optionData.label;
+
+                if (optionData.campusId) {
+                    option.dataset.campusId = optionData.campusId;
+                }
+
+                if (optionData.value === currentValue && (isPlaceholder || matchesCampus)) {
+                    option.selected = true;
+                    hasVisibleSelection = true;
+                }
+
+                select.appendChild(option);
+            });
+
+            if (!hasVisibleSelection) {
+                select.value = '';
+            }
+
+            select.disabled = !campusId;
+            refreshSearchableSelect(select);
+        });
+    };
+
+    const reindexCampusAssignmentRows = (root) => {
+        const rows = root.querySelectorAll('[data-campus-assignment-row]');
+
+        rows.forEach((row, index) => {
+            row.dataset.assignmentIndex = String(index);
+
+            row.querySelectorAll('[name]').forEach((field) => {
+                if (!field.name) {
+                    return;
+                }
+
+                field.name = field.name.replace(
+                    /campus_assignments\[\d+]/,
+                    `campus_assignments[${index}]`,
+                );
+
+                if (field.id && field.id.startsWith('campus_assignment_')) {
+                    field.id = field.id.replace(/campus_assignment_\d+/, `campus_assignment_${index}`);
+                }
+            });
+
+            row.querySelectorAll('label[for]').forEach((label) => {
+                if (label.htmlFor.startsWith('campus_assignment_')) {
+                    label.htmlFor = label.htmlFor.replace(/campus_assignment_\d+/, `campus_assignment_${index}`);
+                }
+            });
+
+            const removeButton = row.querySelector('[data-campus-assignment-remove]');
+
+            if (removeButton) {
+                removeButton.classList.toggle('hidden', rows.length <= 1);
+            }
+
+            const title = row.querySelector('h3');
+
+            if (title) {
+                const primaryBadge = index === 0
+                    ? '<span class="ml-1 text-xs font-normal text-gray-500">(Primary)</span>'
+                    : '';
+                title.innerHTML = `Campus Assignment ${primaryBadge}`;
+            }
+        });
+    };
+
+    const initCampusAssignmentRow = (row, root) => {
+        const campusSelect = row.querySelector('[data-assignment-campus-select]');
+
+        if (campusSelect) {
+            const syncRowFilters = () => filterAssignmentRowSelects(row, campusSelect.value);
+            syncRowFilters();
+            campusSelect.addEventListener('change', syncRowFilters);
+        } else {
+            const hiddenCampusId = row.querySelector('input[name*="[campus_id]"]')?.value;
+            filterAssignmentRowSelects(row, hiddenCampusId ?? '');
+        }
+
+        row.querySelector('[data-campus-assignment-remove]')?.addEventListener('click', () => {
+            if (root.querySelectorAll('[data-campus-assignment-row]').length <= 1) {
+                return;
+            }
+
+            row.remove();
+            reindexCampusAssignmentRows(root);
+        });
+    };
+
+    const initCampusAssignmentsRoot = (root) => {
+        if (root.dataset.campusAssignmentsBound === '1') {
+            return;
+        }
+
+        root.dataset.campusAssignmentsBound = '1';
+
+        root.querySelectorAll('[data-campus-assignment-row]').forEach((row) => {
+            initCampusAssignmentRow(row, root);
+        });
+
+        root.querySelector('[data-campus-assignment-add]')?.addEventListener('click', () => {
+            const template = root.querySelector('[data-campus-assignment-row-template]');
+            const rowsContainer = root.querySelector('[data-campus-assignment-rows]');
+
+            if (!template || !rowsContainer) {
+                return;
+            }
+
+            const nextIndex = rowsContainer.querySelectorAll('[data-campus-assignment-row]').length;
+            const html = template.innerHTML.replaceAll('__INDEX__', String(nextIndex));
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = html.trim();
+            const row = wrapper.firstElementChild;
+
+            if (!row) {
+                return;
+            }
+
+            rowsContainer.appendChild(row);
+            reindexCampusAssignmentRows(root);
+            initCampusAssignmentRow(row, root);
+            initSearchableSelects(row);
+        });
+
+        reindexCampusAssignmentRows(root);
+    };
+
+    document.querySelectorAll('[data-campus-assignments-root]').forEach(initCampusAssignmentsRoot);
+
     initSearchableSelects();
 
     const setEmploymentPanelEnabled = (panel, enabled) => {
@@ -1165,8 +1353,22 @@ document.addEventListener('DOMContentLoaded', () => {
         tabButtons.forEach((button) => {
             button.addEventListener('click', () => {
                 activateTab(button.dataset.employeeTab);
+
+                const panel = form.querySelector(
+                    `[data-employee-tab-panel="${button.dataset.employeeTab}"][data-employee-profile-lazy-panel]`,
+                );
+
+                if (panel) {
+                    loadEmployeeProfileLazyPanel(panel);
+                }
             });
         });
+
+        const activeLazyPanel = form.querySelector('[data-employee-tab-panel]:not(.hidden)[data-employee-profile-lazy-panel]');
+
+        if (activeLazyPanel?.dataset.lazyPending === 'true') {
+            loadEmployeeProfileLazyPanel(activeLazyPanel);
+        }
 
         const complianceSelect = form.querySelector('[data-compliance-status-select]');
         const complianceBanner = document.querySelector('[data-employee-compliance-banner]');
@@ -1725,6 +1927,30 @@ document.addEventListener('DOMContentLoaded', () => {
         syncCollegesRequired();
     };
 
+    const initPayrollCalendarScheduleForm = (form) => {
+        if (form.dataset.philhealthExclusiveBound === '1') {
+            return;
+        }
+
+        form.dataset.philhealthExclusiveBound = '1';
+
+        const exclusiveCheckboxes = Array.from(form.querySelectorAll('[data-philhealth-exclusive]'));
+
+        exclusiveCheckboxes.forEach((checkbox) => {
+            checkbox.addEventListener('change', () => {
+                if (!checkbox.checked) {
+                    return;
+                }
+
+                exclusiveCheckboxes.forEach((other) => {
+                    if (other !== checkbox) {
+                        other.checked = false;
+                    }
+                });
+            });
+        });
+    };
+
     const payrollBatchFormState = new WeakMap();
 
     const parsePayrollBatchFormData = (form) => {
@@ -1958,6 +2184,7 @@ document.addEventListener('DOMContentLoaded', () => {
         container.querySelectorAll('[data-timekeeping-template-form]').forEach(initTimekeepingTemplateForm);
         container.querySelectorAll('[data-holiday-group-form]').forEach(initHolidayGroupForm);
         container.querySelectorAll('[data-payroll-calendar-form]').forEach(initPayrollCalendarForm);
+        container.querySelectorAll('[data-payroll-calendar-schedule-form]').forEach(initPayrollCalendarScheduleForm);
         container.querySelectorAll('[data-payroll-batch-form]').forEach(initPayrollBatchForm);
         container.querySelectorAll('[data-dual-list-select]').forEach(initDualListSelect);
         initSearchableSelects(container);
@@ -2022,6 +2249,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.payroll-maintenance-form').forEach(initPayrollMaintenanceForm);
 
+    const syncBatchAddDeductionHours = (form) => {
+        const typeSelect = form?.querySelector('[data-batch-add-deduction-type]');
+        const hoursWrap = form?.querySelector('[data-batch-add-deduction-hours-wrap]');
+        const hoursInput = form?.querySelector('[data-batch-add-deduction-hours]');
+
+        if (!typeSelect || !hoursWrap) {
+            return;
+        }
+
+        const code = typeSelect.selectedOptions[0]?.dataset.code ?? '';
+        const needsHours = code === 'LTDE' || code === 'UTDE';
+
+        hoursWrap.classList.toggle('hidden', !needsHours);
+
+        if (hoursInput) {
+            hoursInput.required = needsHours;
+
+            if (!needsHours) {
+                hoursInput.value = '';
+            }
+        }
+    };
+
+    const initBatchAddDeductionForm = (form) => {
+        if (!form || form.dataset.batchAddDeductionInit === 'true') {
+            return;
+        }
+
+        const typeSelect = form.querySelector('[data-batch-add-deduction-type]');
+
+        if (!typeSelect) {
+            return;
+        }
+
+        form.dataset.batchAddDeductionInit = 'true';
+        typeSelect.addEventListener('change', () => syncBatchAddDeductionHours(form));
+        syncBatchAddDeductionHours(form);
+    };
+
+    document.querySelectorAll('[data-batch-add-deduction-form]').forEach(initBatchAddDeductionForm);
+
+    document.addEventListener('change', (event) => {
+        if (!(event.target instanceof Element)) {
+            return;
+        }
+
+        const typeSelect = event.target.closest('[data-batch-add-deduction-type]');
+
+        if (!typeSelect) {
+            return;
+        }
+
+        syncBatchAddDeductionHours(typeSelect.closest('[data-batch-add-deduction-form]'));
+    });
+
     document.addEventListener('click', (event) => {
         const modalOpen = event.target.closest('[data-modal-open]');
 
@@ -2036,6 +2318,15 @@ document.addEventListener('DOMContentLoaded', () => {
             modal?.querySelectorAll('.payroll-maintenance-form').forEach(initPayrollMaintenanceForm);
             modal?.querySelectorAll('[data-payroll-batch-form]').forEach(initPayrollBatchForm);
             modal?.querySelectorAll('[data-payroll-upload-form]').forEach(syncPayrollUploadTemplateLink);
+            modal?.querySelectorAll('[data-equivalent-form-tardiness]').forEach(syncMarksAbsentEquivalent);
+            modal?.querySelectorAll('[data-batch-add-deduction-form]').forEach((form) => {
+                initBatchAddDeductionForm(form);
+                syncBatchAddDeductionHours(form);
+            });
+            modal?.querySelectorAll('[data-time-logs-upload-form]').forEach((form) => {
+                syncTimeLogsTemplateLink(form);
+                syncTimeLogsDtrFileAccept(form);
+            });
             syncPayrollBatchRemoveSelection(modal ?? document);
             syncPayrollBatchAddSelection(modal ?? document);
         }, 0);
@@ -2173,6 +2464,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const pageLink = event.target.closest('[data-live-table-page]');
 
             if (!pageLink || !root.contains(pageLink)) {
+                return;
+            }
+
+            // Employee Profile modal tabs paginate via their own AJAX loader — not the list live-table.
+            if (pageLink.closest('[data-employee-profile-lazy-content]')) {
                 return;
             }
 
@@ -2391,6 +2687,37 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    const syncMarksAbsentEquivalent = (form) => {
+        if (!(form instanceof HTMLFormElement)) {
+            return;
+        }
+
+        const toggle = form.querySelector('[data-marks-absent-toggle]');
+        const field = form.querySelector('[data-equivalent-field]');
+
+        if (!toggle || !field) {
+            return;
+        }
+
+        const apply = () => {
+            if (toggle.checked) {
+                field.value = '0';
+                field.readOnly = true;
+                field.removeAttribute('required');
+            } else {
+                field.readOnly = false;
+                field.setAttribute('required', 'required');
+            }
+        };
+
+        if (!toggle.dataset.marksAbsentBound) {
+            toggle.dataset.marksAbsentBound = '1';
+            toggle.addEventListener('change', apply);
+        }
+
+        apply();
+    };
+
     const initTimekeepingPolicyRoot = (root) => {
         root.querySelectorAll('[data-timekeeping-settings]').forEach((form) => {
             syncFlexiFields(form);
@@ -2445,6 +2772,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     document.querySelectorAll('[data-timekeeping-policy-root]').forEach(initTimekeepingPolicyRoot);
+    document.querySelectorAll('[data-equivalent-form-tardiness]').forEach(syncMarksAbsentEquivalent);
 
     const reindexShiftBreakRows = (tbody) => {
         tbody.querySelectorAll('[data-shift-break-row]').forEach((row, index) => {
@@ -2529,11 +2857,50 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-timekeeping-template-form]').forEach(initTimekeepingTemplateForm);
     document.querySelectorAll('[data-holiday-group-form]').forEach(initHolidayGroupForm);
     document.querySelectorAll('[data-payroll-calendar-form]').forEach(initPayrollCalendarForm);
+    document.querySelectorAll('[data-payroll-calendar-schedule-form]').forEach(initPayrollCalendarScheduleForm);
     document.querySelectorAll('[data-payroll-batch-form]').forEach(initPayrollBatchForm);
     document.querySelectorAll('[data-modal-auto-open] [data-payroll-batch-form]').forEach(initPayrollBatchForm);
     document.querySelectorAll('[data-payroll-upload-form]').forEach(syncPayrollUploadTemplateLink);
     document.querySelectorAll('[data-modal-auto-open] [data-payroll-upload-form]').forEach(syncPayrollUploadTemplateLink);
     document.querySelectorAll('[data-dual-list-select]').forEach(initDualListSelect);
+
+    const syncTimeLogsDtrFileAccept = (form) => {
+        const campusSelect = form.querySelector('[data-time-logs-dtr-campus-select]');
+        const fileInput = form.querySelector('[data-time-logs-dtr-file-input]');
+        const hint = form.querySelector('[data-time-logs-dtr-file-hint]');
+
+        if (!campusSelect || !fileInput) {
+            return;
+        }
+
+        const update = () => {
+            const extension = campusSelect.selectedOptions[0]?.dataset.fileExtension ?? '';
+            const campusCode = campusSelect.selectedOptions[0]?.dataset.campusCode ?? '';
+
+            if (extension) {
+                fileInput.accept = `.${extension}`;
+            } else {
+                fileInput.accept = '.xls,.xlsx';
+            }
+
+            if (hint) {
+                if (!extension) {
+                    hint.textContent = 'Select a campus first. Cainta/San Mateo: .xls only. Sumulong: .xlsx only.';
+                } else if (campusCode === 'SA') {
+                    hint.textContent = 'Upload San Mateo DTR (.XLS). Only Card Report worksheets are imported; summary tabs are ignored.';
+                } else {
+                    hint.textContent = `Upload the campus DTR file (.${extension.toUpperCase()} only).`;
+                }
+            }
+        };
+
+        if (form.dataset.timeLogsDtrInit !== 'true') {
+            form.dataset.timeLogsDtrInit = 'true';
+            campusSelect.addEventListener('change', update);
+        }
+
+        update();
+    };
 
     const syncTimeLogsTemplateLink = (form) => {
         const select = form.querySelector('[data-time-logs-format-select]');
@@ -2595,8 +2962,102 @@ document.addEventListener('DOMContentLoaded', () => {
         update();
     };
 
-    document.querySelectorAll('[data-time-logs-upload-form]').forEach(syncTimeLogsTemplateLink);
+    document.querySelectorAll('[data-time-logs-upload-form]').forEach((form) => {
+        syncTimeLogsTemplateLink(form);
+        syncTimeLogsDtrFileAccept(form);
+    });
     syncTimeLogsPurgeSelection();
+
+    const updateEmployeeLoadTemplateLink = (form) => {
+        const link = form.querySelector('[data-el-template-link]');
+        const hint = form.querySelector('[data-el-template-hint]');
+        const dateFrom = form.querySelector('[data-el-date-from]');
+        const dateTo = form.querySelector('[data-el-date-to]');
+        const base = link?.dataset.elTemplateBase;
+
+        if (!link || !base) {
+            return;
+        }
+
+        const from = dateFrom?.value;
+        const to = dateTo?.value;
+        const ready = Boolean(from && to);
+
+        if (ready) {
+            const params = new URLSearchParams({
+                date_from: from,
+                date_to: to,
+            });
+            link.href = `${base}?${params.toString()}`;
+            link.dataset.disabled = 'false';
+            if (hint) {
+                hint.hidden = true;
+            }
+        } else {
+            link.href = base;
+            link.dataset.disabled = 'true';
+            if (hint) {
+                hint.hidden = false;
+            }
+        }
+    };
+
+    const initEmployeeLoadUploadForm = (form) => {
+        if (form.dataset.employeeLoadInit === '1') {
+            updateEmployeeLoadTemplateLink(form);
+
+            return;
+        }
+
+        form.dataset.employeeLoadInit = '1';
+
+        form.addEventListener('change', (event) => {
+            if (event.target.matches('[data-el-date-from], [data-el-date-to]')) {
+                updateEmployeeLoadTemplateLink(form);
+            }
+        });
+
+        updateEmployeeLoadTemplateLink(form);
+    };
+
+    const syncEmployeeLoadPurgeSelection = () => {
+        const purgeBtn = document.querySelector('[data-employee-load-purge-btn]');
+        const countLabel = document.querySelector('[data-employee-load-selected-count]');
+
+        if (!purgeBtn) {
+            return;
+        }
+
+        const update = () => {
+            const checked = document.querySelectorAll('[data-employee-load-row-select]:checked').length;
+            purgeBtn.disabled = checked === 0;
+
+            if (countLabel) {
+                countLabel.textContent = `${checked} selected`;
+            }
+        };
+
+        document.addEventListener('change', (event) => {
+            if (event.target.matches('[data-employee-load-select-all]')) {
+                document.querySelectorAll('[data-employee-load-row-select]').forEach((checkbox) => {
+                    checkbox.checked = event.target.checked;
+                });
+                update();
+
+                return;
+            }
+
+            if (event.target.matches('[data-employee-load-row-select]')) {
+                update();
+            }
+        });
+
+        update();
+    };
+
+    document.querySelectorAll('[data-employee-load-upload-form]').forEach(initEmployeeLoadUploadForm);
+    document.querySelectorAll('[data-modal-auto-open] [data-employee-load-upload-form]').forEach(initEmployeeLoadUploadForm);
+    syncEmployeeLoadPurgeSelection();
 
     const syncPayrollUploadPurgeSelection = () => {
         const purgeBtn = document.querySelector('[data-payroll-upload-purge-btn]');
@@ -2767,8 +3228,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('[data-rest-day-checkbox]').forEach(syncEmployeeProfileRestDayRow);
 
-    const loadEmployeeProfileLazyPanel = async (panel) => {
-        if (!panel || panel.dataset.loaded === 'true' || !panel.dataset.lazyUrl) {
+    const loadEmployeeProfileLazyPanel = async (panel, url = null) => {
+        const fetchUrl = url || panel?.dataset.lazyUrl;
+
+        if (!panel || !fetchUrl) {
+            return;
+        }
+
+        if (! url && panel.dataset.loaded === 'true') {
             return;
         }
 
@@ -2776,7 +3243,7 @@ document.addEventListener('DOMContentLoaded', () => {
         panel.innerHTML = '<div class="py-6 text-center text-sm text-gray-500">Loading…</div>';
 
         try {
-            const response = await fetch(panel.dataset.lazyUrl, {
+            const response = await fetch(fetchUrl, {
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
                     Accept: 'text/html',
@@ -2796,6 +3263,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    document.addEventListener('click', (event) => {
+        const pageLink = event.target.closest('[data-live-table-page]');
+
+        if (!pageLink) {
+            return;
+        }
+
+        const lazyContent = pageLink.closest('[data-employee-profile-lazy-content]');
+
+        if (!lazyContent) {
+            return;
+        }
+
+        const panel = lazyContent.closest('[data-employee-tab-panel][data-employee-profile-lazy-panel]');
+
+        if (!panel) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        loadEmployeeProfileLazyPanel(panel, pageLink.href);
+    }, true);
+
     const initEmployeeProfileSetupForm = (form) => {
         if (form.dataset.employeeProfileSetupInitialized === 'true') {
             return;
@@ -2808,25 +3299,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 field.removeAttribute('required');
             });
         });
-
-        const maybeLoadLazyTab = (tabId) => {
-            const panel = form.querySelector(`[data-employee-tab-panel="${tabId}"][data-employee-profile-lazy-panel]`);
-
-            if (panel) {
-                loadEmployeeProfileLazyPanel(panel);
-            }
-        };
-
-        form.querySelectorAll('[data-employee-tab]').forEach((button) => {
-            button.addEventListener('click', () => {
-                maybeLoadLazyTab(button.dataset.employeeTab);
-            });
-        });
-
-        const activeTabInput = form.querySelector('[data-employee-active-tab]');
-        if (activeTabInput?.value) {
-            maybeLoadLazyTab(activeTabInput.value);
-        }
     };
 
     document.querySelectorAll('[data-employee-profile-setup-form]').forEach(initEmployeeProfileSetupForm);
@@ -2901,4 +3373,117 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     syncBulkDeleteControls();
+
+    function initClientPagination(container) {
+        if (!container || container.dataset.clientPaginateInitialized === 'true') {
+            return;
+        }
+
+        container.dataset.clientPaginateInitialized = 'true';
+
+        const rows = Array.from(container.querySelectorAll('[data-paginate-row]'));
+        const controls = container.querySelector('[data-paginate-controls]');
+        const info = container.querySelector('[data-paginate-info]');
+        const prevBtn = container.querySelector('[data-paginate-prev]');
+        const nextBtn = container.querySelector('[data-paginate-next]');
+        const pagesContainer = container.querySelector('[data-paginate-pages]');
+        const pageSize = Math.max(1, parseInt(container.dataset.pageSize || '10', 10));
+        const windowSize = 5;
+
+        if (rows.length === 0) {
+            controls?.classList.add('hidden');
+            return;
+        }
+
+        const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+        let currentPage = container.dataset.paginateStart === 'last' ? totalPages : 1;
+
+        if (totalPages <= 1) {
+            controls?.classList.add('hidden');
+        }
+
+        const goToPage = (page) => {
+            currentPage = Math.min(totalPages, Math.max(1, page));
+            render();
+        };
+
+        const renderPageNumbers = () => {
+            if (!pagesContainer) {
+                return;
+            }
+
+            pagesContainer.innerHTML = '';
+
+            let windowStart = Math.max(1, currentPage - Math.floor(windowSize / 2));
+            let windowEnd = Math.min(totalPages, windowStart + windowSize - 1);
+            windowStart = Math.max(1, windowEnd - windowSize + 1);
+
+            const addEllipsis = () => {
+                const span = document.createElement('span');
+                span.className = 'px-1.5 text-xs text-gray-400';
+                span.textContent = '…';
+                pagesContainer.appendChild(span);
+            };
+
+            if (windowStart > 1) {
+                addEllipsis();
+            }
+
+            for (let page = windowStart; page <= windowEnd; page++) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = String(page);
+                btn.className = page === currentPage
+                    ? 'min-w-[1.9rem] rounded-md bg-[#0B318F] px-2 py-1.5 text-xs font-medium text-white'
+                    : 'min-w-[1.9rem] rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50';
+                btn.addEventListener('click', () => goToPage(page));
+                pagesContainer.appendChild(btn);
+            }
+
+            if (windowEnd < totalPages) {
+                addEllipsis();
+            }
+        };
+
+        const render = () => {
+            const start = (currentPage - 1) * pageSize;
+            const end = start + pageSize;
+
+            rows.forEach((row, index) => {
+                row.classList.toggle('hidden', index < start || index >= end);
+            });
+
+            if (info) {
+                info.textContent = `Showing ${start + 1}–${Math.min(end, rows.length)} of ${rows.length}`;
+            }
+
+            if (prevBtn) {
+                prevBtn.disabled = currentPage === 1;
+            }
+
+            if (nextBtn) {
+                nextBtn.disabled = currentPage === totalPages;
+            }
+
+            renderPageNumbers();
+        };
+
+        prevBtn?.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                render();
+            }
+        });
+
+        nextBtn?.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                render();
+            }
+        });
+
+        render();
+    }
+
+    document.querySelectorAll('[data-client-paginate]').forEach(initClientPagination);
 });

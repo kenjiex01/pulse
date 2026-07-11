@@ -7,19 +7,24 @@ use App\Models\LoanType;
 use App\Models\PayrollCalendar;
 use App\Models\PayrollCalendarDeduction;
 use App\Models\PayrollCalendarLoan;
+use App\Support\PhilhealthDeductionTypes;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class PayrollCalendarScheduleService
 {
     public function attachDefaultSchedule(PayrollCalendar $period): void
     {
         DB::transaction(function () use ($period): void {
-            DeductionType::query()->pluck('deduction_type_id')->each(function (int $deductionTypeId) use ($period): void {
-                PayrollCalendarDeduction::query()->firstOrCreate([
-                    'payroll_calendar_id' => $period->payroll_calendar_id,
-                    'deduction_type_id' => $deductionTypeId,
-                ]);
-            });
+            DeductionType::query()
+                ->where('deduction_type_code', '!=', PhilhealthDeductionTypes::MINIMUM)
+                ->pluck('deduction_type_id')
+                ->each(function (int $deductionTypeId) use ($period): void {
+                    PayrollCalendarDeduction::query()->firstOrCreate([
+                        'payroll_calendar_id' => $period->payroll_calendar_id,
+                        'deduction_type_id' => $deductionTypeId,
+                    ]);
+                });
 
             LoanType::query()->pluck('loan_type_id')->each(function (int $loanTypeId) use ($period): void {
                 PayrollCalendarLoan::query()->firstOrCreate([
@@ -64,5 +69,24 @@ class PayrollCalendarScheduleService
                 ]);
             }
         });
+    }
+
+    /**
+     * @param  array<int, int|string>  $deductionTypeIds
+     */
+    public function assertExclusivePhilhealth(array $deductionTypeIds): void
+    {
+        $selectedCodes = DeductionType::query()
+            ->whereIn('deduction_type_id', collect($deductionTypeIds)->map(fn ($id) => (int) $id)->filter()->all())
+            ->whereIn('deduction_type_code', PhilhealthDeductionTypes::EXCLUSIVE_CODES)
+            ->pluck('deduction_type_code')
+            ->unique()
+            ->values();
+
+        if ($selectedCodes->count() > 1) {
+            throw ValidationException::withMessages([
+                'deduction_type_ids' => 'Select only one of Philhealth Premium or Philhealth Minimum.',
+            ]);
+        }
     }
 }
