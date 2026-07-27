@@ -54,8 +54,10 @@ class ShiftCode
                     ->ignore($ignoreId, 'shift_code_id'),
             ],
             'description' => ['required', 'string', 'max:45'],
-            'time_in' => ['required', 'string', 'max:5', 'regex:'.self::TIME_PATTERN],
-            'time_out' => ['required', 'string', 'max:5', 'regex:'.self::TIME_PATTERN],
+            'is_flexi_time' => ['nullable', 'boolean'],
+            'expected_hours_per_day' => ['nullable', 'required_if:is_flexi_time,1,true', 'numeric', 'gt:0', 'lte:24', 'regex:/^\d{1,2}(\.\d{1,4})?$/'],
+            'time_in' => ['nullable', 'string', 'max:5', 'regex:'.self::TIME_PATTERN],
+            'time_out' => ['nullable', 'string', 'max:5', 'regex:'.self::TIME_PATTERN],
             'breaks' => ['nullable', 'array'],
             'breaks.*.break_minute' => ['required', 'integer', 'min:1', 'max:999'],
             'breaks.*.is_paid_break' => ['nullable', 'boolean'],
@@ -69,11 +71,15 @@ class ShiftCode
 
     public static function headerPayload(array $validated): array
     {
+        $isFlexi = filter_var($validated['is_flexi_time'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
         return [
             'shift_code' => strtoupper(trim($validated['shift_code'])),
             'description' => trim($validated['description']),
-            'time_in' => trim($validated['time_in']),
-            'time_out' => trim($validated['time_out']),
+            'time_in' => filled($validated['time_in'] ?? null) ? trim($validated['time_in']) : '00:00',
+            'time_out' => filled($validated['time_out'] ?? null) ? trim($validated['time_out']) : '00:00',
+            'is_flexi_time' => $isFlexi,
+            'expected_hours_per_day' => $isFlexi ? $validated['expected_hours_per_day'] : null,
         ];
     }
 

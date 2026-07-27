@@ -7,7 +7,6 @@ use App\Models\DeductionLoanPriority;
 use App\Models\DeductionType;
 use App\Models\LoanType;
 use App\Models\PayrollCalendar;
-use App\Models\PayrollSettingOther;
 use App\Models\PayType;
 use App\Services\PayrollCalendarGeneratorService;
 use App\Services\PayrollCalendarScheduleService;
@@ -81,47 +80,12 @@ class PayrollCalendarController extends Controller
         return view('payroll.calendar.index', $viewData);
     }
 
-    public function priority(Request $request): View
+    public function priority(Request $request): RedirectResponse
     {
-        PayrollCalendarModule::authorize($request->user(), 'view');
-
-        $search = $request->string('search')->trim()->toString();
-        $settings = PayrollSettingOther::settings();
-
-        $priorities = DeductionLoanPriority::query()
-            ->with(['deductionType', 'loanType'])
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($searchQuery) use ($search) {
-                    $searchQuery
-                        ->whereHas('deductionType', fn ($deductionQuery) => $deductionQuery->where('description', 'like', '%'.$search.'%'))
-                        ->orWhereHas('loanType', fn ($loanQuery) => $loanQuery->where('description', 'like', '%'.$search.'%'));
-                });
-            })
-            ->orderBy('priority')
-            ->paginate(LiveTable::perPage($request, 15))
-            ->withQueryString();
-
-        if (! $request->ajax()) {
-            SysLogService::record(
-                action: 'read',
-                table: 'tbl_deduction_loan_priority',
-                description: 'Viewed deduction & loan priority list ('.$priorities->total().' records)',
-            );
-        }
-
-        $viewData = [
-            'moduleTab' => 'priority',
-            'moduleTabs' => PayrollCalendarModule::MODULE_TABS,
-            'priorities' => $priorities,
-            'search' => $search,
-            'settings' => $settings,
-        ];
-
-        if ($request->ajax()) {
-            return view('payroll.calendar._priority-results', $viewData);
-        }
-
-        return view('payroll.calendar.priority', $viewData);
+        return redirect()->route(PayrollCalendarModule::routeName('pay-type'), [
+            'payType' => PayrollCalendarModule::defaultPayTypeSlug(),
+            'year' => date('Y'),
+        ]);
     }
 
     public function store(Request $request, string $payType): RedirectResponse
@@ -372,57 +336,18 @@ class PayrollCalendarController extends Controller
 
     public function movePriority(Request $request, DeductionLoanPriority $priority): RedirectResponse
     {
-        PayrollCalendarModule::authorize($request->user(), 'update');
-
-        $validated = $request->validate([
-            'direction' => ['required', Rule::in(['up', 'down'])],
+        return redirect()->route(PayrollCalendarModule::routeName('pay-type'), [
+            'payType' => PayrollCalendarModule::defaultPayTypeSlug(),
+            'year' => date('Y'),
         ]);
-
-        $currentPriority = (int) $priority->priority;
-        $maxPriority = (int) DeductionLoanPriority::query()->max('priority');
-        $targetPriority = $validated['direction'] === 'up'
-            ? max(1, $currentPriority - 1)
-            : min($maxPriority, $currentPriority + 1);
-
-        if ($targetPriority === $currentPriority) {
-            return back();
-        }
-
-        DB::transaction(function () use ($priority, $currentPriority, $targetPriority): void {
-            $swap = DeductionLoanPriority::query()->where('priority', $targetPriority)->first();
-
-            if ($swap) {
-                $swap->update(['priority' => $currentPriority]);
-            }
-
-            $priority->update(['priority' => $targetPriority]);
-        });
-
-        SysLogService::record(
-            action: 'update',
-            table: 'tbl_deduction_loan_priority',
-            recordId: $priority->deduction_loan_priority_id,
-            description: 'Updated priority of '.$priority->descriptionLabel().' to "'.$targetPriority.'"',
-        );
-
-        return back()->with('success', 'Priority updated.');
     }
 
     public function enablePriority(Request $request): RedirectResponse
     {
-        PayrollCalendarModule::authorize($request->user(), 'update');
-
-        $settings = PayrollSettingOther::settings();
-        $settings->update(['is_deduction_loan_priority_enabled' => true]);
-
-        SysLogService::record(
-            action: 'update',
-            table: 'tbl_payroll_setting_others',
-            recordId: $settings->payroll_setting_other_id,
-            description: 'Enabled deduction & loan prioritization',
-        );
-
-        return back()->with('success', 'Deduction & loan prioritization enabled.');
+        return redirect()->route(PayrollCalendarModule::routeName('pay-type'), [
+            'payType' => PayrollCalendarModule::defaultPayTypeSlug(),
+            'year' => date('Y'),
+        ]);
     }
 
     private function assertPeriodMatchesPayType(PayrollCalendar $period, int $payTypeId): void

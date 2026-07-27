@@ -64,7 +64,7 @@
         <div>
             <label for="compliance_status" class="form-label">Compliance Status</label>
             <select id="compliance_status" name="compliance_status" class="form-input" data-compliance-status-select>
-                @foreach (['pending' => 'Pending', 'compliant' => 'Compliant', 'overdue' => 'Overdue', 'withheld' => 'Withheld'] as $value => $label)
+                @foreach (\App\Models\Employee::selectableComplianceStatuses() as $value => $label)
                     <option value="{{ $value }}" @selected(($complianceStatus ?? 'pending') === $value)>{{ $label }}</option>
                 @endforeach
             </select>

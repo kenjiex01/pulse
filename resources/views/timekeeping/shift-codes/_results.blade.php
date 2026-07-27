@@ -11,8 +11,9 @@
                 <tr>
                     <th>Shift Code</th>
                     <th>Description</th>
-                    <th>Time In</th>
-                    <th>Time Out</th>
+                    <th>Type</th>
+                    <th>Break In</th>
+                    <th>Break Out</th>
                     <th class="text-right">Actions</th>
                 </tr>
             </thead>
@@ -21,8 +22,17 @@
                     <tr>
                         <td class="font-medium text-gray-900">{{ $record->shift_code }}</td>
                         <td class="text-gray-600">{{ $record->description }}</td>
-                        <td class="text-gray-600">{{ $record->time_in }}</td>
-                        <td class="text-gray-600">{{ $record->time_out }}</td>
+                        <td class="text-gray-600">
+                            @if ($record->is_flexi_time)
+                                <span class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800">
+                                    Flexi {{ rtrim(rtrim(number_format((float) ($record->expected_hours_per_day ?? 8), 2, '.', ''), '0'), '.') }}h
+                                </span>
+                            @else
+                                Fixed
+                            @endif
+                        </td>
+                        <td class="text-gray-600">{{ $record->time_in !== '00:00' ? $record->time_in : '—' }}</td>
+                        <td class="text-gray-600">{{ $record->time_out !== '00:00' ? $record->time_out : '—' }}</td>
                         <td>
                             <div class="flex items-center justify-end gap-1.5">
                                 @can('timekeeping-policy.update')
@@ -49,7 +59,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="py-12 text-center text-sm text-gray-500">No shift codes found.</td>
+                        <td colspan="6" class="py-12 text-center text-sm text-gray-500">No shift codes found.</td>
                     </tr>
                 @endforelse
             </tbody>

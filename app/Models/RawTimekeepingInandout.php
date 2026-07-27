@@ -17,6 +17,11 @@ class RawTimekeepingInandout extends Model
         'timekeeping_transaction_id',
         'employee_id',
         'dt_datetime',
+        'original_dt_datetime',
+        'original_is_in',
+        'is_edited',
+        'edited_at',
+        'edited_by_id',
         'is_in',
         'timekeeping_trantype',
         'reference_number',
@@ -26,6 +31,10 @@ class RawTimekeepingInandout extends Model
     {
         return [
             'dt_datetime' => 'datetime',
+            'original_dt_datetime' => 'datetime',
+            'original_is_in' => 'boolean',
+            'is_edited' => 'boolean',
+            'edited_at' => 'datetime',
             'is_in' => 'boolean',
         ];
     }
@@ -38,5 +47,10 @@ class RawTimekeepingInandout extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'employee_id', 'employee_id');
+    }
+
+    public function editedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'edited_by_id', 'id');
     }
 }

@@ -124,6 +124,18 @@ class SubModuleSeeder extends Seeder
                     'is_active' => true,
                 ],
             );
+
+            SubModule::query()->updateOrCreate(
+                ['route_name' => 'payroll.reports.index'],
+                [
+                    'module_id' => $payroll->id,
+                    'name' => 'Reports',
+                    'route_pattern' => 'payroll.reports.*',
+                    'icon' => 'payroll-reports',
+                    'sort_order' => 6,
+                    'is_active' => true,
+                ],
+            );
         }
 
         $timekeeping = Module::query()

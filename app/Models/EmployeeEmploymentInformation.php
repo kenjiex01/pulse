@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class EmployeeEmploymentInformation extends Model
@@ -47,7 +48,7 @@ class EmployeeEmploymentInformation extends Model
                 return;
             }
 
-            $info->salary?->delete();
+            $info->salaries()->each(fn (EmployeeSalary $salary) => $salary->delete());
         });
     }
 
@@ -56,9 +57,27 @@ class EmployeeEmploymentInformation extends Model
         return $this->belongsTo(Employee::class, 'employee_id', 'employee_id');
     }
 
+    public function salaries(): HasMany
+    {
+        return $this->hasMany(EmployeeSalary::class, 'employment_info_id', 'employment_info_id')
+            ->orderByDesc('date_effective_from')
+            ->orderByDesc('employee_salary_id');
+    }
+
     public function salary(): HasOne
     {
-        return $this->hasOne(EmployeeSalary::class, 'employment_info_id', 'employment_info_id');
+        return $this->hasOne(EmployeeSalary::class, 'employment_info_id', 'employment_info_id')
+            ->whereNull('date_effective_to')
+            ->latest('date_effective_from')
+            ->latest('employee_salary_id');
+    }
+
+    public function previousSalaries(): HasMany
+    {
+        return $this->hasMany(EmployeeSalary::class, 'employment_info_id', 'employment_info_id')
+            ->whereNotNull('date_effective_to')
+            ->orderByDesc('date_effective_from')
+            ->orderByDesc('employee_salary_id');
     }
 
     public function getUserTypeLabelAttribute(): string

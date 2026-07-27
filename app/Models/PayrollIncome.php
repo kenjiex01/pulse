@@ -17,6 +17,7 @@ class PayrollIncome extends Model
     protected $fillable = [
         'payroll_batch_detail_id',
         'income_type_id',
+        'hours',
         'taxable',
         'non_taxable',
         'is_editable',
@@ -29,6 +30,7 @@ class PayrollIncome extends Model
     protected function casts(): array
     {
         return [
+            'hours' => 'decimal:4',
             'taxable' => 'decimal:2',
             'non_taxable' => 'decimal:2',
             'orig_taxable' => 'decimal:2',

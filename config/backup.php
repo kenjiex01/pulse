@@ -11,4 +11,27 @@ return [
     |
     */
     'keep_copies' => (int) env('DB_BACKUP_KEEP_COPIES', 10),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Desktop cloud backup (S3)
+    |--------------------------------------------------------------------------
+    |
+    | Daily backup for desktop and browser. Uses DB_BACKUP_S3_* keys so
+    | credentials survive desktop packaging (nativephp strips generic AWS_*).
+    |
+    */
+    'cloud' => [
+        'enabled' => (bool) env('DB_BACKUP_CLOUD_ENABLED', false),
+        'disk' => 'backup-s3',
+        'timezone' => env('DB_BACKUP_CLOUD_TIMEZONE', 'Asia/Manila'),
+        'schedule_hour' => (int) env('DB_BACKUP_CLOUD_SCHEDULE_HOUR', 10),
+        'schedule_minute' => (int) env('DB_BACKUP_CLOUD_SCHEDULE_MINUTE', 0),
+        's3_prefix' => env('DB_BACKUP_CLOUD_S3_PREFIX', 'payroll-backups'),
+        'keep_local_gzip' => (bool) env('DB_BACKUP_CLOUD_KEEP_LOCAL_GZIP', false),
+        'key' => env('DB_BACKUP_S3_KEY'),
+        'secret' => env('DB_BACKUP_S3_SECRET'),
+        'region' => env('DB_BACKUP_S3_REGION', 'ap-southeast-1'),
+        'bucket' => env('DB_BACKUP_S3_BUCKET'),
+    ],
 ];

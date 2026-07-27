@@ -60,6 +60,17 @@ return [
             'report' => false,
         ],
 
+        'backup-s3' => [
+            'driver' => 's3',
+            'key' => env('DB_BACKUP_S3_KEY'),
+            'secret' => env('DB_BACKUP_S3_SECRET'),
+            'region' => env('DB_BACKUP_S3_REGION', 'ap-southeast-1'),
+            'bucket' => env('DB_BACKUP_S3_BUCKET'),
+            'use_path_style_endpoint' => false,
+            'throw' => true,
+            'report' => true,
+        ],
+
     ],
 
     /*

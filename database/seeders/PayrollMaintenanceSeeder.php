@@ -38,9 +38,9 @@ class PayrollMaintenanceSeeder extends Seeder
         $deductionTypes = [
             ['deduction_type_code' => 'ECOM', 'description' => 'Employee Compensation', 'employer_amount' => 10, 'is_valid_govt_deduction' => true, 'govt_table_id' => 4, 'is_active' => true],
             ['deduction_type_code' => 'PHIL', 'description' => 'Philhealth Premium', 'employer_amount' => 100, 'is_amount_percentage' => true, 'is_valid_govt_deduction' => true, 'govt_table_id' => 2, 'is_active' => true],
-            ['deduction_type_code' => 'PHIM', 'description' => 'Philhealth Minimum', 'employer_amount' => 100, 'is_amount_percentage' => true, 'is_valid_govt_deduction' => true, 'govt_table_id' => 2, 'is_active' => true],
             ['deduction_type_code' => 'PIBG', 'description' => 'Pag Ibig Premium', 'employer_amount' => 100, 'is_valid_govt_deduction' => true, 'govt_table_id' => 1, 'is_active' => true],
             ['deduction_type_code' => 'SSSP', 'description' => 'SSS Premium', 'employer_amount' => 0, 'is_valid_govt_deduction' => true, 'govt_table_id' => 3, 'is_active' => true],
+            ['deduction_type_code' => 'SSMP', 'description' => 'SSS MPF', 'employer_amount' => 0, 'is_valid_govt_deduction' => true, 'govt_table_id' => 3, 'is_active' => true],
             ['deduction_type_code' => 'WHTX', 'description' => 'Withholding Tax', 'employer_amount' => 0, 'is_valid_govt_deduction' => true, 'govt_table_id' => 5, 'is_active' => true],
             ['deduction_type_code' => 'LTDE', 'description' => 'Late', 'employer_amount' => 0, 'is_active' => true],
             ['deduction_type_code' => 'UTDE', 'description' => 'Undertime', 'employer_amount' => 0, 'is_active' => true],
@@ -53,6 +53,9 @@ class PayrollMaintenanceSeeder extends Seeder
                 $deductionType,
             );
         }
+
+        $this->call(PhilhealthMinimumDeductionTypeSeeder::class);
+        $this->call(SssMpfDeductionTypeSeeder::class);
 
         $loanTypes = [
             ['loan_type_code' => 'SCAL', 'description' => 'SSS Calamity Loan', 'loan_class_id' => 1, 'sss_loan_type' => 'C', 'is_viewable' => true, 'is_active' => true],

@@ -4,12 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Campus;
 use App\Models\RawTimekeepingTransaction;
+use App\Models\TeachingLoadPullBatch;
+use App\Models\TeachingLoadSession;
 use App\Models\TimeCaptureFormat;
 use App\Services\SysLogService;
 use App\Services\TimeLogsDtrUploadService;
+use App\Services\TeachingLoadPullService;
 use App\Services\TimeLogsUploadService;
 use App\Support\LiveTable;
 use App\Support\TimeLogs;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +27,7 @@ class TimeLogsController extends Controller
     public function __construct(
         private readonly TimeLogsUploadService $uploadService,
         private readonly TimeLogsDtrUploadService $dtrUploadService,
+        private readonly TeachingLoadPullService $teachingLoadPullService,
     ) {}
 
     public function index(Request $request, string $tab): View
@@ -32,26 +37,46 @@ class TimeLogsController extends Controller
 
         $config = TimeLogs::config($tab);
         $search = $request->string('search')->trim()->toString();
+        $isTeachingLoads = TimeLogs::isSkolarisPullTab($tab);
 
-        $records = TimeLogs::query($tab)
-            ->when($search !== '', function ($query) use ($config, $search) {
-                $query->where(function ($searchQuery) use ($config, $search) {
-                    foreach ($config['search'] as $column) {
-                        $searchQuery->orWhere($column, 'like', '%'.$search.'%');
-                    }
+        $recordsQuery = TimeLogs::query($tab);
 
-                    $searchQuery->orWhereHas('uploadedBy', function ($userQuery) use ($search) {
-                        $userQuery->where('name', 'like', '%'.$search.'%');
+        if ($isTeachingLoads) {
+            $recordsQuery = $recordsQuery
+                ->when($search !== '', function ($query) use ($search) {
+                    $query->where(function ($searchQuery) use ($search) {
+                        $searchQuery
+                            ->where('batch_no', 'like', '%'.$search.'%')
+                            ->orWhereHas('pulledBy', function ($userQuery) use ($search) {
+                                $userQuery->where('name', 'like', '%'.$search.'%');
+                            });
                     });
+                })
+                ->orderByDesc('pulled_at')
+                ->orderByDesc('teaching_load_pull_batch_id');
+        } else {
+            $recordsQuery = $recordsQuery
+                ->when($search !== '', function ($query) use ($config, $search, $tab) {
+                    $query->where(function ($searchQuery) use ($config, $search, $tab) {
+                        foreach ($config['search'] as $column) {
+                            $searchQuery->orWhere($column, 'like', '%'.$search.'%');
+                        }
 
-                    if (TimeLogs::requiresCampus($tab)) {
-                        $searchQuery->orWhereHas('campus', function ($campusQuery) use ($search) {
-                            $campusQuery->where('campus_name', 'like', '%'.$search.'%');
+                        $searchQuery->orWhereHas('uploadedBy', function ($userQuery) use ($search) {
+                            $userQuery->where('name', 'like', '%'.$search.'%');
                         });
-                    }
-                });
-            })
-            ->orderByDesc('timekeeping_transaction_id')
+
+                        if (TimeLogs::requiresCampus($tab)) {
+                            $searchQuery->orWhereHas('campus', function ($campusQuery) use ($search) {
+                                $campusQuery->where('campus_name', 'like', '%'.$search.'%');
+                            });
+                        }
+                    });
+                })
+                ->orderByDesc('timekeeping_transaction_id');
+        }
+
+        $records = $recordsQuery
             ->paginate(LiveTable::perPage($request, 15))
             ->withQueryString();
 
@@ -69,17 +94,33 @@ class TimeLogsController extends Controller
             'config' => $config,
             'records' => $records,
             'search' => $search,
+            'isTeachingLoads' => $isTeachingLoads,
+            'skolarisListError' => null,
+            'pullEmployees' => $isTeachingLoads
+                ? TimeLogs::eligiblePullEmployeesQuery($request->string('pull_search')->trim()->toString())
+                    ->limit(200)
+                    ->get()
+                : collect(),
+            'pullSearch' => $request->string('pull_search')->trim()->toString(),
             'formats' => TimeCaptureFormat::query()->orderBy('device_name')->get(),
             'dtrCampuses' => TimeLogs::dtrCampuses(),
             'requiresCampus' => TimeLogs::requiresCampus($tab),
-            'openUpload' => ($request->boolean('upload') || $request->boolean('create')) && ! $request->boolean('preview'),
-            'openPreview' => $request->boolean('preview') && session('time_logs_staging_token'),
+            'openUpload' => ! $isTeachingLoads && ($request->boolean('upload') || $request->boolean('create')) && ! $request->boolean('preview'),
+            'openPull' => $isTeachingLoads && ($request->boolean('pull') || $request->boolean('create')),
+            'openPreview' => ! $isTeachingLoads && $request->boolean('preview') && session('time_logs_staging_token'),
             'openViewId' => $request->input('view'),
+            'openPullBatchId' => $request->integer('view_pull'),
+            'openPullEmployeeId' => $request->integer('view_pull_employee'),
+            'openPullEmployeeBatchId' => $request->integer('pull_batch'),
             'stagingToken' => old('staging_token', session('time_logs_staging_token')),
             'viewTransaction' => null,
+            'viewPullBatch' => null,
+            'viewPullEmployee' => null,
+            'viewPullEmployeeRows' => collect(),
+            'viewPullEmployeeSummary' => null,
         ];
 
-        if ($viewData['openViewId']) {
+        if ($viewData['openViewId'] && ! $isTeachingLoads) {
             $viewData['viewTransaction'] = RawTimekeepingTransaction::query()
                 ->where('timekeeping_transaction_type_id', $config['transaction_type_id'])
                 ->with([
@@ -104,8 +145,28 @@ class TimeLogsController extends Controller
                 : null;
         }
 
+        if ($isTeachingLoads && $viewData['openPullBatchId']) {
+            $viewData['viewPullBatch'] = TeachingLoadPullBatch::query()
+                ->with(['pulledBy', 'sessions.employee'])
+                ->withCount('sessions as records_count')
+                ->find($viewData['openPullBatchId']);
+        }
+
+        if ($isTeachingLoads && $viewData['openPullEmployeeBatchId'] && $viewData['openPullEmployeeId']) {
+            $viewData['viewPullEmployeeRows'] = TeachingLoadSession::query()
+                ->with(['employee', 'pullBatch'])
+                ->where('teaching_load_pull_batch_id', $viewData['openPullEmployeeBatchId'])
+                ->where('employee_id', $viewData['openPullEmployeeId'])
+                ->orderBy('session_date')
+                ->orderBy('time_in')
+                ->get();
+
+            $viewData['viewPullEmployee'] = $viewData['viewPullEmployeeRows']->first()?->employee;
+            $viewData['viewPullEmployeeSummary'] = $viewData['viewPullEmployeeRows']->first()?->pullBatch;
+        }
+
         if ($request->ajax()) {
-            return view('timekeeping.time-logs._results', $viewData);
+            return view($isTeachingLoads ? 'timekeeping.time-logs._teaching-loads-results' : 'timekeeping.time-logs._results', $viewData);
         }
 
         return view('timekeeping.time-logs.index', $viewData);
@@ -262,6 +323,10 @@ class TimeLogsController extends Controller
         $tab = TimeLogs::resolveTab($tab);
         TimeLogs::authorize($request->user(), 'view');
 
+        if (TimeLogs::isSkolarisPullTab($tab)) {
+            abort(404);
+        }
+
         $config = TimeLogs::config($tab);
 
         if ((int) $transaction->timekeeping_transaction_type_id !== (int) $config['transaction_type_id']) {
@@ -286,6 +351,11 @@ class TimeLogsController extends Controller
     public function destroy(Request $request, string $tab): RedirectResponse
     {
         $tab = TimeLogs::resolveTab($tab);
+
+        if (TimeLogs::isSkolarisPullTab($tab)) {
+            abort(404);
+        }
+
         TimeLogs::authorize($request->user(), 'delete');
 
         $validated = $request->validate([
@@ -320,4 +390,58 @@ class TimeLogsController extends Controller
             ->route(TimeLogs::routeName('tab'), ['tab' => $tab])
             ->with('success', $deleted.' batch'.($deleted === 1 ? '' : 'es').' purged.');
     }
+
+
+    public function startTeachingLoadPull(Request $request): JsonResponse
+    {
+        TimeLogs::authorize($request->user(), 'add');
+
+        $validated = $request->validate([
+            'date_from' => ['required', 'date'],
+            'date_to' => ['required', 'date', 'after_or_equal:date_from'],
+            'employee_ids' => ['required', 'array', 'min:1'],
+            'employee_ids.*' => ['integer', 'exists:tbl_employees,employee_id'],
+        ]);
+
+        try {
+            $result = $this->teachingLoadPullService->startJob(
+                $request->user(),
+                $validated['date_from'],
+                $validated['date_to'],
+                $validated['employee_ids'],
+            );
+        } catch (\RuntimeException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'token' => $result['token'],
+            'total' => $result['total'],
+        ]);
+    }
+
+    public function stepTeachingLoadPull(Request $request): JsonResponse
+    {
+        TimeLogs::authorize($request->user(), 'add');
+
+        $validated = $request->validate([
+            'job_token' => ['required', 'string'],
+        ]);
+
+        try {
+            $progress = $this->teachingLoadPullService->processNext($validated['job_token']);
+        } catch (\RuntimeException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        return response()->json(array_merge(['success' => true], $progress));
+    }
+
 }

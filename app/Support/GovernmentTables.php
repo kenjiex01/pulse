@@ -182,6 +182,13 @@ class GovernmentTables
 
         if ($tab === 'philhealth') {
             $rules['salary_to'][] = 'gte:salary_from';
+            $rules['percentage'] = [
+                'nullable',
+                'numeric',
+                'min:0',
+                'max:100',
+                Rule::requiredIf(fn () => filter_var(request()->input('is_percent'), FILTER_VALIDATE_BOOLEAN)),
+            ];
         }
 
         if ($tab === 'sss') {
@@ -201,10 +208,20 @@ class GovernmentTables
             $fieldType = $field['type'] ?? 'text';
 
             if ($fieldType === 'checkbox') {
-                $payload[$fieldName] = filter_var($data[$fieldName] ?? false, FILTER_VALIDATE_BOOLEAN) ?: null;
+                $payload[$fieldName] = filter_var($data[$fieldName] ?? false, FILTER_VALIDATE_BOOLEAN);
             } elseif (($fieldType === 'number' || $fieldType === 'select') && ($payload[$fieldName] ?? '') === '') {
                 $payload[$fieldName] = null;
             }
+        }
+
+        if (($config['log_table'] ?? null) === 'tbl_govt_table_philhealth') {
+            $payload['is_percent'] = (bool) ($payload['is_percent'] ?? false);
+            $payload['is_active'] = array_key_exists('is_active', $data)
+                ? (bool) ($payload['is_active'] ?? false)
+                : true;
+            $payload['percentage'] = $payload['is_percent']
+                ? (float) ($payload['percentage'] ?? 0)
+                : 0.0;
         }
 
         return $payload;
@@ -229,6 +246,7 @@ class GovernmentTables
         return match ($type) {
             'decimal' => $value === null ? '—' : number_format((float) $value, 2),
             'check' => $value ? 'Yes' : '—',
+            'yes_no' => $value ? 'Yes' : 'No',
             default => $value,
         };
     }
@@ -243,6 +261,48 @@ class GovernmentTables
         return (string) data_get($record, $labelField, $record->getKey());
     }
 
+    public static function roundWtaxValue(float|int|string|null $value): float
+    {
+        if ($value === null || $value === '') {
+            return 0.0;
+        }
+
+        // Keep BIR table precision (e.g. 10,416.67) — do not round to whole pesos.
+        return round((float) $value, 2);
+    }
+
+    public static function formatWtaxGridValue(float|int|string|null $value): string
+    {
+        return number_format(self::roundWtaxValue($value), 2, '.', '');
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array{tax_amount: float, tax_plus: float, amount: float}
+     */
+    public static function normalizeWtaxGridColumn(array $row): array
+    {
+        return [
+            'tax_amount' => self::roundWtaxValue($row['tax_amount'] ?? 0),
+            'tax_plus' => self::roundWtaxValue($row['tax_plus'] ?? 0),
+            'amount' => self::roundWtaxValue($row['amount'] ?? 0),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, float>
+     */
+    public static function normalizeAnnualWtaxAttributes(array $attributes): array
+    {
+        return [
+            'income_from' => min(self::roundWtaxValue($attributes['income_from'] ?? 0), 99_999_999.99),
+            'income_to' => min(self::roundWtaxValue($attributes['income_to'] ?? 0), 99_999_999.99),
+            'amount_due' => self::roundWtaxValue($attributes['amount_due'] ?? 0),
+            'percentage_due' => self::roundWtaxValue($attributes['percentage_due'] ?? 0),
+        ];
+    }
+
     public static function wtax2023Grid(int $typeId): array
     {
         $rows = GovtTableWtax2023::query()
@@ -255,9 +315,9 @@ class GovernmentTables
         for ($column = 1; $column <= GovtTableWtax2023::COLUMN_COUNT; $column++) {
             $entry = $rows->get($column);
             $grid[$column] = [
-                'tax_amount' => $entry?->tax_amount ?? '',
-                'tax_plus' => $entry?->tax_plus ?? '',
-                'amount' => $entry?->amount ?? '',
+                'tax_amount' => self::formatWtaxGridValue($entry?->tax_amount ?? 0),
+                'tax_plus' => self::formatWtaxGridValue($entry?->tax_plus ?? 0),
+                'amount' => self::formatWtaxGridValue($entry?->amount ?? 0),
             ];
         }
 
@@ -275,12 +335,14 @@ class GovernmentTables
                 continue;
             }
 
+            $normalized = self::normalizeWtaxGridColumn($row);
+
             GovtTableWtax2023::query()->create([
                 'withholding_tax_table_type_id' => $typeId,
                 'column_id' => $column,
-                'tax_amount' => $row['tax_amount'] ?? 0,
-                'tax_plus' => $row['tax_plus'] ?? 0,
-                'amount' => $row['amount'] ?? 0,
+                'tax_amount' => $normalized['tax_amount'],
+                'tax_plus' => $normalized['tax_plus'],
+                'amount' => $normalized['amount'],
             ]);
         }
     }

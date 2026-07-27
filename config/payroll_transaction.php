@@ -49,5 +49,19 @@ return [
                 ['alias' => 'reference_date', 'label' => 'Reference Date', 'type' => 'date'],
             ]),
         ],
+        'hours-worked' => [
+            'label' => 'Hours Worked',
+            'description' => 'Upload day type, time type, and number of hours only. Amount is computed from the employee hourly rate when loaded to the payroll batch.',
+            'transaction_type_id' => 5,
+            'is_adjustment' => false,
+            'detail_relation' => 'hoursWorkedRecords',
+            'search' => ['batch_no', 'filename'],
+            'list_columns' => $sharedListColumns,
+            'fields' => array_merge($employeeFields, [
+                ['alias' => 'day_type', 'label' => 'Day Type Code', 'type' => 'day_type', 'required' => true],
+                ['alias' => 'time_type', 'label' => 'Time Type Code', 'type' => 'time_type', 'required' => true],
+                ['alias' => 'hours', 'label' => 'No. of Hours', 'type' => 'decimal', 'required' => true],
+            ]),
+        ],
     ],
 ];

@@ -12,6 +12,9 @@ class SanMateoCardReportParser
 {
     private const TIME_PATTERN = '/^([01]?[0-9]|2[0-3]):([0-5][0-9])(?::([0-5][0-9]))?$/';
 
+    /** Consecutive punches within this gap keep the same IN/OUT tag (e.g. double-scan). */
+    private const PUNCH_SAME_TAG_WITHIN_MINUTES = 5;
+
     /**
      * @param  array<string, mixed>  $format
      * @return array{
@@ -34,20 +37,20 @@ class SanMateoCardReportParser
         $sheetNames = $reader->listWorksheetNames($path);
         $rows = [];
         $errors = [];
-        $parsedSheets = 0;
-        $lineNumber = 0;
+        $fingerprints = [];
+        $parsedCardSheets = 0;
+        $parsedAttLogSheets = 0;
 
         foreach ($sheetNames as $sheetName) {
+            if ($this->isAttLogReportSheet($sheetName)) {
+                continue;
+            }
+
             if ($this->shouldSkipSheetByTabName($sheetName, $format)) {
                 continue;
             }
 
-            $reader->setLoadSheetsOnly([$sheetName]);
-            $spreadsheet = $reader->load($path);
-            $sheet = $spreadsheet->getActiveSheet();
-            $matrix = $sheet->toArray(null, true, true, false);
-            $spreadsheet->disconnectWorksheets();
-            unset($spreadsheet);
+            $matrix = $this->loadSheetMatrix($reader, $path, $sheetName);
 
             if ($this->shouldSkipSheet($matrix, $sheetName, $format)) {
                 continue;
@@ -57,23 +60,144 @@ class SanMateoCardReportParser
                 continue;
             }
 
-            $parsedSheets++;
+            $parsedCardSheets++;
             $sheetRows = $this->parseCardReportSheet($matrix);
 
             foreach ($sheetRows as $sheetRow) {
-                $lineNumber++;
-                $rows[] = $sheetRow;
+                $this->appendUniqueRow($rows, $fingerprints, $sheetRow);
             }
         }
 
-        if ($parsedSheets === 0) {
-            throw new RuntimeException('No Card Report worksheets found. Summary sheets are ignored.');
+        foreach ($sheetNames as $sheetName) {
+            if (! $this->isAttLogReportSheet($sheetName)) {
+                continue;
+            }
+
+            $matrix = $this->loadSheetMatrix($reader, $path, $sheetName);
+            $parsedAttLogSheets++;
+            $sheetRows = $this->parseAttLogReportSheet($matrix);
+
+            foreach ($sheetRows as $sheetRow) {
+                $this->appendUniqueRow($rows, $fingerprints, $sheetRow);
+            }
+        }
+
+        if ($parsedCardSheets === 0 && $parsedAttLogSheets === 0) {
+            throw new RuntimeException('No Card Report or Att.log report worksheets found. Summary sheets are ignored.');
         }
 
         return [
             'rows' => $rows,
             'errors' => $errors,
         ];
+    }
+
+    /**
+     * @return array<int, array<int, mixed>>
+     */
+    private function loadSheetMatrix(\PhpOffice\PhpSpreadsheet\Reader\IReader $reader, string $path, string $sheetName): array
+    {
+        $reader->setLoadSheetsOnly([$sheetName]);
+        $spreadsheet = $reader->load($path);
+        $matrix = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
+
+        return $matrix;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     * @param  array<string, true>  $fingerprints
+     * @param  array<string, mixed>  $sheetRow
+     */
+    private function appendUniqueRow(array &$rows, array &$fingerprints, array $sheetRow): void
+    {
+        if ($this->isPunchRow($sheetRow)) {
+            $fingerprint = $this->punchFingerprint($sheetRow);
+
+            if (isset($fingerprints[$fingerprint])) {
+                return;
+            }
+
+            $fingerprints[$fingerprint] = true;
+            $rows[] = $sheetRow;
+
+            return;
+        }
+
+        $fingerprint = $this->pairFingerprint($sheetRow);
+
+        if (isset($fingerprints[$fingerprint])) {
+            return;
+        }
+
+        $fingerprints[$fingerprint] = true;
+        $this->registerPairPunchFingerprints($fingerprints, $sheetRow);
+        $rows[] = $sheetRow;
+    }
+
+    /**
+     * @param  array<string, true>  $fingerprints
+     * @param  array{biometric_id: string, actual_date: string, time_in: string, time_out: string}  $sheetRow
+     */
+    private function registerPairPunchFingerprints(array &$fingerprints, array $sheetRow): void
+    {
+        $fingerprints[$this->punchFingerprint([
+            'biometric_id' => $sheetRow['biometric_id'],
+            'actual_date' => $sheetRow['actual_date'],
+            'punch_time' => $sheetRow['time_in'],
+            'is_in' => true,
+        ])] = true;
+
+        $fingerprints[$this->punchFingerprint([
+            'biometric_id' => $sheetRow['biometric_id'],
+            'actual_date' => $sheetRow['actual_date'],
+            'punch_time' => $sheetRow['time_out'],
+            'is_in' => false,
+        ])] = true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function isPunchRow(array $row): bool
+    {
+        return array_key_exists('punch_time', $row);
+    }
+
+    /**
+     * @param  array{biometric_id: string, actual_date: string, time_in: string, time_out: string}  $row
+     */
+    private function pairFingerprint(array $row): string
+    {
+        return trim((string) ($row['biometric_id'] ?? ''))
+            .'|'.($row['actual_date'] ?? '')
+            .'|'.($row['time_in'] ?? '')
+            .'|'.($row['time_out'] ?? '');
+    }
+
+    /**
+     * @param  array{biometric_id: string, actual_date: string, punch_time: string, is_in: bool}  $row
+     */
+    private function punchFingerprint(array $row): string
+    {
+        return trim((string) ($row['biometric_id'] ?? ''))
+            .'|'.($row['actual_date'] ?? '')
+            .'|'.($row['punch_time'] ?? '')
+            .'|'.(($row['is_in'] ?? false) ? '1' : '0');
+    }
+
+    private function rowFingerprint(array $row): string
+    {
+        return $this->isPunchRow($row)
+            ? $this->punchFingerprint($row)
+            : $this->pairFingerprint($row);
+    }
+
+    private function isAttLogReportSheet(string $sheetName): bool
+    {
+        return strtolower(trim($sheetName)) === 'att.log report';
     }
 
     /**
@@ -206,6 +330,252 @@ class SanMateoCardReportParser
         }
 
         return $rows;
+    }
+
+    /**
+     * @param  array<int, array<int, mixed>>  $matrix
+     * @return array<int, array{biometric_id: string, actual_date: string, punch_time: string, is_in: bool}>
+     */
+    private function parseAttLogReportSheet(array $matrix): array
+    {
+        $period = $this->extractPeriod($matrix);
+
+        if ($period === null) {
+            return [];
+        }
+
+        $headerRow = $this->findDayNumberHeaderRow($matrix);
+
+        if ($headerRow === null) {
+            return [];
+        }
+
+        $rows = [];
+        $maxRow = $matrix === [] ? 0 : max(array_keys($matrix));
+        $rowIndex = $headerRow + 1;
+
+        while ($rowIndex <= $maxRow) {
+            $idCells = array_map(fn ($cell) => $this->stringifyCell($cell), $matrix[$rowIndex] ?? []);
+
+            if (! $this->isAttLogIdRow($idCells)) {
+                $rowIndex++;
+
+                continue;
+            }
+
+            $biometricId = $this->extractAttLogBiometricId($idCells);
+
+            if ($biometricId === '') {
+                $rowIndex++;
+
+                continue;
+            }
+
+            $timeRowIndex = $rowIndex + 1;
+
+            if ($timeRowIndex > $maxRow) {
+                break;
+            }
+
+            for ($day = 1; $day <= 30; $day++) {
+                $colIndex = $day - 1;
+                $times = $this->extractTimesFromCell($matrix[$timeRowIndex][$colIndex] ?? null);
+
+                if ($times === []) {
+                    continue;
+                }
+
+                $actualDate = $this->resolveDate($day, $period);
+
+                if ($actualDate === null) {
+                    continue;
+                }
+
+                foreach ($this->assignInOutTags($times) as $taggedPunch) {
+                    $rows[] = [
+                        'biometric_id' => $biometricId,
+                        'actual_date' => $actualDate,
+                        'punch_time' => $taggedPunch['punch_time'],
+                        'is_in' => $taggedPunch['is_in'],
+                    ];
+                }
+            }
+
+            $rowIndex += 2;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<int, array<int, mixed>>  $matrix
+     */
+    private function findDayNumberHeaderRow(array $matrix): ?int
+    {
+        foreach ($matrix as $rowIndex => $cells) {
+            if ($this->rowLooksLikeDayNumberHeader($cells)) {
+                return $rowIndex;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int, mixed>  $cells
+     */
+    private function rowLooksLikeDayNumberHeader(array $cells): bool
+    {
+        for ($day = 1; $day <= 5; $day++) {
+            $value = trim($this->stringifyCell($cells[$day - 1] ?? ''));
+
+            if ($value !== (string) $day) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<int, string>  $cells
+     */
+    private function isAttLogIdRow(array $cells): bool
+    {
+        $label = strtolower(trim((string) ($cells[0] ?? '')));
+
+        return $label === 'id:' || $label === 'id';
+    }
+
+    /**
+     * @param  array<int, string>  $cells
+     */
+    private function extractAttLogBiometricId(array $cells): string
+    {
+        foreach ($cells as $colIndex => $raw) {
+            $value = trim((string) $raw);
+
+            if (preg_match('/^id\s*:\s*(.+)$/i', $value, $inlineMatch)) {
+                $id = trim($inlineMatch[1]);
+
+                if ($id !== '' && ! str_contains(strtolower($id), 'name')) {
+                    return $id;
+                }
+            }
+
+            $label = strtolower($value);
+
+            if (! in_array($label, ['id:', 'id'], true)) {
+                continue;
+            }
+
+            for ($valueCol = $colIndex + 1; $valueCol <= $colIndex + 3; $valueCol++) {
+                $id = trim((string) ($cells[$valueCol] ?? ''));
+
+                if ($id !== '' && ! str_contains(strtolower($id), 'name')) {
+                    return $id;
+                }
+            }
+        }
+
+        $fallback = trim((string) ($cells[2] ?? ''));
+
+        if ($fallback !== '' && preg_match('/^\d+$/', $fallback)) {
+            return $fallback;
+        }
+
+        return '';
+    }
+
+    /**
+     * First punch is always IN; later punches flip IN/OUT unless within 5 minutes of the previous punch.
+     *
+     * @param  array<int, string>  $times
+     * @return array<int, array{punch_time: string, is_in: bool}>
+     */
+    private function assignInOutTags(array $times): array
+    {
+        if ($times === []) {
+            return [];
+        }
+
+        $tagged = [];
+        $previousIsIn = true;
+        $previousMinutes = null;
+
+        foreach ($times as $index => $punchTime) {
+            $currentMinutes = $this->timeToMinutes($punchTime);
+
+            if ($index === 0) {
+                $previousIsIn = true;
+            } elseif ($previousMinutes !== null
+                && ($currentMinutes - $previousMinutes) <= self::PUNCH_SAME_TAG_WITHIN_MINUTES) {
+                // Keep the same tag for rapid duplicate scans.
+            } else {
+                $previousIsIn = ! $previousIsIn;
+            }
+
+            $tagged[] = [
+                'punch_time' => $punchTime,
+                'is_in' => $previousIsIn,
+            ];
+
+            $previousMinutes = $currentMinutes;
+        }
+
+        return $tagged;
+    }
+
+    private function timeToMinutes(string $time): int
+    {
+        $parts = explode(':', $time);
+
+        return ((int) ($parts[0] ?? 0) * 60) + (int) ($parts[1] ?? 0);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function extractTimesFromCell(mixed $cell): array
+    {
+        if ($cell === null || $cell === '') {
+            return [];
+        }
+
+        if (is_numeric($cell)) {
+            $numeric = (float) $cell;
+
+            if ($numeric > 0 && $numeric < 1) {
+                $normalized = $this->normalizeTime((string) $cell);
+
+                return $normalized !== '' ? [$normalized] : [];
+            }
+
+            return [];
+        }
+
+        $text = $this->stringifyCell($cell);
+
+        if ($text === '') {
+            return [];
+        }
+
+        preg_match_all('/\d{1,2}:\d{2}(?::\d{2})?/', $text, $matches);
+        $times = [];
+
+        foreach ($matches[0] as $match) {
+            $normalized = $this->normalizeTime($match);
+
+            if ($normalized === '') {
+                continue;
+            }
+
+            if (! in_array($normalized, $times, true)) {
+                $times[] = $normalized;
+            }
+        }
+
+        return $times;
     }
 
     /**

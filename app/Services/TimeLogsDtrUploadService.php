@@ -7,7 +7,10 @@ use App\Models\Employee;
 use App\Models\RawTimekeepingInandout;
 use App\Models\RawTimekeepingTransaction;
 use App\Models\User;
+use App\Services\TimeLogsDtr\CaintaTimesheetReportParser;
 use App\Services\TimeLogsDtr\SanMateoCardReportParser;
+use App\Services\TimeLogsDtr\SumulongDtrEmployeeResolver;
+use App\Services\TimeLogsDtr\SumulongDtrReportParser;
 use App\Support\TimeLogs;
 use App\Support\TimeLogsDtr;
 use Carbon\Carbon;
@@ -28,11 +31,16 @@ class TimeLogsDtrUploadService
 
     private const DATE_PATTERN_US = '/^([0]?[1-9]|1[0-2])\/([0]?[1-9]|1\d|2\d|3[01])\/(19|20)\d{2}$/';
 
+    private const DATE_PATTERN_DMY = '/^([0]?[1-9]|[1-2][0-9]|3[01])\/([0]?[1-9]|1[0-2])\/(19|20)\d{2}$/';
+
     private const TIME_PATTERN_SECONDS = '/^([01]?[0-9]|2[0-3]):([0-5][0-9])(:([0-5][0-9]))?$/';
 
     public function __construct(
         private readonly EmployeeBiometricResolver $biometricResolver,
         private readonly SanMateoCardReportParser $cardReportParser,
+        private readonly CaintaTimesheetReportParser $caintaTimesheetReportParser,
+        private readonly SumulongDtrReportParser $sumulongDtrReportParser,
+        private readonly SumulongDtrEmployeeResolver $sumulongDtrEmployeeResolver,
     ) {}
 
     /**
@@ -53,9 +61,93 @@ class TimeLogsDtrUploadService
             return $this->parseCardReportFile($file, $campus, $format);
         }
 
+        if (($format['parser'] ?? 'flat') === 'sumulong_dtr_report') {
+            return $this->parseSumulongDtrFile($file, $campus);
+        }
+
+        if (($format['parser'] ?? 'flat') === 'cainta_timesheet_report') {
+            return $this->parseCaintaTimesheetFile($file, $campus);
+        }
+
         $matrix = $this->readSpreadsheetRows($file);
 
         return $this->parseFlatRowMatrix($matrix, $campus, $format, $file->getClientOriginalName());
+    }
+
+    /**
+     * @return array{
+     *     valid: array<int, array<string, mixed>>,
+     *     errors: array<int, string>,
+     *     filename: string,
+     *     valid_count: int,
+     *     error_count: int
+     * }
+     */
+    private function parseCaintaTimesheetFile(UploadedFile $file, Campus $campus): array
+    {
+        $parsed = $this->caintaTimesheetReportParser->parse($file);
+        $valid = [];
+        $errors = $parsed['errors'];
+        $lineNumber = 0;
+
+        foreach ($parsed['rows'] as $row) {
+            $lineNumber++;
+            $validated = $this->validateBiometricPunchRow($row, $campus, $lineNumber, $errors);
+
+            if ($validated !== null) {
+                $valid[] = $validated;
+            }
+        }
+
+        if ($valid === [] && $errors === []) {
+            throw new RuntimeException('No data rows found for uploading.');
+        }
+
+        return [
+            'valid' => $valid,
+            'errors' => $errors,
+            'filename' => $file->getClientOriginalName(),
+            'valid_count' => count($valid),
+            'error_count' => count($errors),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     valid: array<int, array<string, mixed>>,
+     *     errors: array<int, string>,
+     *     filename: string,
+     *     valid_count: int,
+     *     error_count: int
+     * }
+     */
+    private function parseSumulongDtrFile(UploadedFile $file, Campus $campus): array
+    {
+        $parsed = $this->sumulongDtrReportParser->parse($file);
+        $valid = [];
+        $errors = $parsed['errors'];
+        $lineNumber = 0;
+
+        foreach ($parsed['rows'] as $row) {
+            $lineNumber++;
+            $validated = $this->validateSumulongPunchRow($row, $campus, $lineNumber, $errors);
+
+            if ($validated !== null) {
+                $valid[] = $validated;
+            }
+        }
+
+        if ($valid === [] && $errors === []) {
+            throw new RuntimeException('No data rows found for uploading.');
+        }
+
+        return [
+            'valid' => $valid,
+            'errors' => $errors,
+            'filename' => $file->getClientOriginalName(),
+            'valid_count' => count($valid),
+            'error_count' => count($errors),
+        ];
     }
 
     /**
@@ -77,7 +169,9 @@ class TimeLogsDtrUploadService
 
         foreach ($parsed['rows'] as $row) {
             $lineNumber++;
-            $validated = $this->validateBiometricRow($row, $campus, $lineNumber, $errors);
+            $validated = $this->isDtrPunchRow($row)
+                ? $this->validateBiometricPunchRow($row, $campus, $lineNumber, $errors)
+                : $this->validateBiometricRow($row, $campus, $lineNumber, $errors);
 
             if ($validated !== null) {
                 $valid[] = $validated;
@@ -270,7 +364,12 @@ class TimeLogsDtrUploadService
                 'campus_id' => $campus->campus_id,
             ]);
 
-            $persisted = $this->persistRows($rows, $transaction);
+            $format = TimeLogsDtr::campusFormat($campus);
+            $persisted = match ($format['parser'] ?? '') {
+                'sumulong_dtr_report' => $this->persistSumulongPunchRows($rows, $transaction),
+                'cainta_timesheet_report', 'san_mateo_card_report' => $this->persistSanMateoDtrRows($rows, $transaction),
+                default => $this->persistRows($rows, $transaction),
+            };
 
             if ($persisted['inserted'] === 0) {
                 throw new RuntimeException('All records are duplicates of existing time logs and were not saved.');
@@ -284,6 +383,156 @@ class TimeLogsDtrUploadService
                 'skipped_duplicates' => $persisted['skipped_duplicates'],
             ];
         });
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array{inserted: int, skipped_duplicates: int}
+     */
+    private function persistSanMateoDtrRows(array $rows, RawTimekeepingTransaction $transaction): array
+    {
+        return $this->persistSumulongPunchRows($this->expandDtrRowsToPunches($rows), $transaction);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function expandDtrRowsToPunches(array $rows): array
+    {
+        $punches = [];
+
+        foreach ($rows as $row) {
+            if ($this->isDtrPunchRow($row)) {
+                $punches[] = $row;
+
+                continue;
+            }
+
+            $punches[] = [
+                'employee_id' => $row['employee_id'],
+                'employee_number' => $row['employee_number'] ?? null,
+                'actual_date' => $row['actual_date'],
+                'punch_time' => $row['time_in'],
+                'is_in' => true,
+            ];
+
+            $punches[] = [
+                'employee_id' => $row['employee_id'],
+                'employee_number' => $row['employee_number'] ?? null,
+                'actual_date' => $row['actual_date'],
+                'punch_time' => $row['time_out'],
+                'is_in' => false,
+            ];
+        }
+
+        return $punches;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function isDtrPunchRow(array $row): bool
+    {
+        return array_key_exists('punch_time', $row);
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @param  array<int, string>  $errors
+     * @return array<string, mixed>|null
+     */
+    private function validateBiometricPunchRow(array $row, Campus $campus, int $lineNumber, array &$errors): ?array
+    {
+        $hasError = false;
+        $parsed = [];
+        $biometricId = trim((string) ($row['biometric_id'] ?? ''));
+
+        if ($biometricId === '') {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Biometric ID is required.";
+        } else {
+            $employee = $this->biometricResolver->resolve((int) $campus->campus_id, $biometricId);
+
+            if (! $employee) {
+                $hasError = true;
+                $errors[] = "Line {$lineNumber}: Invalid Biometric ID ({$biometricId}) for {$campus->campus_name}.";
+            } else {
+                $parsed['employee_id'] = $employee->employee_id;
+                $parsed['employee_number'] = $employee->employee_number;
+            }
+        }
+
+        $rawDate = $row['actual_date'] ?? '';
+        $dateValue = $this->normalizeFieldValue($rawDate, 'actual_date');
+
+        if ($dateValue === '') {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Actual Date is required.";
+        } elseif (! $this->isValidDate($dateValue)) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Invalid Actual Date ({$rawDate}).";
+        } else {
+            $parsed['actual_date'] = Carbon::parse($dateValue)->toDateString();
+        }
+
+        $rawTime = $row['punch_time'] ?? '';
+        $timeValue = $this->normalizeFieldValue($rawTime, 'punch_time');
+
+        if ($timeValue === '') {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Punch Time is required.";
+        } elseif (! preg_match(self::TIME_PATTERN_SECONDS, $timeValue)) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Invalid Punch Time ({$rawTime}).";
+        } else {
+            $parsed['punch_time'] = Carbon::parse($timeValue)->format('H:i:s');
+        }
+
+        if (! array_key_exists('is_in', $row)) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Punch direction (In/Out) is required.";
+        } else {
+            $parsed['is_in'] = filter_var($row['is_in'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        return $hasError ? null : $parsed;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array{inserted: int, skipped_duplicates: int}
+     */
+    private function persistSumulongPunchRows(array $rows, RawTimekeepingTransaction $transaction): array
+    {
+        $inOutRows = [];
+        $batchFingerprints = [];
+        $skippedDuplicates = 0;
+
+        foreach ($rows as $row) {
+            $punchAt = Carbon::parse($row['actual_date'].' '.$row['punch_time']);
+
+            $skippedDuplicates += $this->queueInOutRow(
+                $inOutRows,
+                $batchFingerprints,
+                (int) $row['employee_id'],
+                $punchAt,
+                (bool) $row['is_in'],
+                $transaction->timekeeping_transaction_id,
+            );
+        }
+
+        $filtered = $this->filterExistingInOutRows($inOutRows);
+        $skippedDuplicates += $filtered['skipped'];
+
+        foreach ($filtered['rows'] as $inOutRow) {
+            RawTimekeepingInandout::query()->create($inOutRow);
+        }
+
+        return [
+            'inserted' => count($filtered['rows']),
+            'skipped_duplicates' => $skippedDuplicates,
+        ];
     }
 
     /**
@@ -430,6 +679,74 @@ class TimeLogsDtrUploadService
      * @param  array<int, string>  $errors
      * @return array<string, mixed>|null
      */
+    private function validateSumulongPunchRow(array $row, Campus $campus, int $lineNumber, array &$errors): ?array
+    {
+        $hasError = false;
+        $parsed = [];
+        $identifier = trim((string) ($row['employee_number'] ?? ''));
+        $employeeName = trim((string) ($row['employee_name'] ?? ''));
+
+        if ($identifier === '') {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Employee number is required.";
+        } else {
+            $employee = $this->sumulongDtrEmployeeResolver->resolve(
+                (int) $campus->campus_id,
+                $identifier,
+                $employeeName,
+            );
+
+            if (! $employee) {
+                $hasError = true;
+                $label = $employeeName !== '' ? "{$employeeName} ({$identifier})" : $identifier;
+                $errors[] = "Line {$lineNumber}: Employee not found for {$label} on {$campus->campus_name}.";
+            } else {
+                $parsed['employee_id'] = $employee->employee_id;
+                $parsed['employee_number'] = $employee->employee_number;
+            }
+        }
+
+        $rawDate = $row['actual_date'] ?? '';
+        $dateValue = $this->normalizeFieldValue($rawDate, 'actual_date');
+
+        if ($dateValue === '') {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Actual Date is required.";
+        } elseif (! $this->isValidDate($dateValue)) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Invalid Actual Date ({$rawDate}).";
+        } else {
+            $parsed['actual_date'] = Carbon::parse($dateValue)->toDateString();
+        }
+
+        $rawTime = $row['punch_time'] ?? '';
+        $timeValue = $this->normalizeFieldValue($rawTime, 'punch_time');
+
+        if ($timeValue === '') {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Punch Time is required.";
+        } elseif (! preg_match(self::TIME_PATTERN_SECONDS, $timeValue)) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Invalid Punch Time ({$rawTime}).";
+        } else {
+            $parsed['punch_time'] = Carbon::parse($timeValue)->format('H:i:s');
+        }
+
+        if (! array_key_exists('is_in', $row)) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Punch direction (In/Out) is required.";
+        } else {
+            $parsed['is_in'] = filter_var($row['is_in'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        return $hasError ? null : $parsed;
+    }
+
+    /**
+     * @param  array<string, string>  $row
+     * @param  array<int, string>  $errors
+     * @return array<string, mixed>|null
+     */
     private function validateBiometricRow(array $row, Campus $campus, int $lineNumber, array &$errors): ?array
     {
         $hasError = false;
@@ -555,6 +872,10 @@ class TimeLogsDtrUploadService
                 $date = Carbon::parse($row['actual_date'])->startOfDay();
                 $times = [];
 
+                if (filled($row['punch_time'] ?? null)) {
+                    $times[] = Carbon::parse($row['actual_date'].' '.$row['punch_time']);
+                }
+
                 if (filled($row['time_in'] ?? null)) {
                     $times[] = Carbon::parse($row['actual_date'].' '.$row['time_in']);
                 }
@@ -625,7 +946,7 @@ class TimeLogsDtrUploadService
         if (is_numeric($value)) {
             $numeric = (float) $value;
 
-            if (in_array($field, ['time_in', 'time_out'], true) && $numeric >= 0 && $numeric < 1) {
+            if (in_array($field, ['time_in', 'time_out', 'punch_time'], true) && $numeric >= 0 && $numeric < 1) {
                 return gmdate('H:i:s', (int) round($numeric * 86400));
             }
 
@@ -636,7 +957,7 @@ class TimeLogsDtrUploadService
 
         if (preg_match('/^\d{5,}(\.\d+)?$/', $value)) {
             return ExcelDate::excelToDateTimeObject((float) $value)->format(
-                in_array($field, ['time_in', 'time_out'], true) ? 'H:i:s' : 'Y-m-d',
+                in_array($field, ['time_in', 'time_out', 'punch_time'], true) ? 'H:i:s' : 'Y-m-d',
             );
         }
 
@@ -660,7 +981,8 @@ class TimeLogsDtrUploadService
     private function isValidDate(string $value): bool
     {
         return preg_match(self::DATE_PATTERN, $value) === 1
-            || preg_match(self::DATE_PATTERN_US, $value) === 1;
+            || preg_match(self::DATE_PATTERN_US, $value) === 1
+            || preg_match(self::DATE_PATTERN_DMY, $value) === 1;
     }
 
     private function stagingCacheKey(int $userId, string $token): string

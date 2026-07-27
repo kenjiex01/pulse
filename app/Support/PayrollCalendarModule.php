@@ -32,7 +32,6 @@ class PayrollCalendarModule
     /** @var array<string, string> */
     public const MODULE_TABS = [
         'calendar' => 'Pay Periods',
-        'priority' => 'Deduction & Loan Priority',
     ];
 
     /** @var array<int, string> */

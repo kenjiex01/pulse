@@ -33,24 +33,13 @@
                 </div>
             </div>
 
-            <div class="max-w-md">
-                <label for="non_regular_hours_computation_basis" class="form-label">Non Regular Hours Computation Basis <span class="text-red-500">*</span></label>
-                <select id="non_regular_hours_computation_basis" name="non_regular_hours_computation_basis" class="form-input" required>
-                    <option value="">Select basis</option>
-                    @foreach ($selectOptions['non_regular_hours_bases'] as $value => $label)
-                        <option value="{{ $value }}" @selected((string) old('non_regular_hours_computation_basis', $policy->non_regular_hours_computation_basis) === (string) $value)>{{ $label }}</option>
-                    @endforeach
-                </select>
-                @error('non_regular_hours_computation_basis')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
-            </div>
-
             <label class="flex items-center gap-2 text-sm">
                 <input type="hidden" name="enable_employee_validation_for_rest_days" value="0">
                 <input type="checkbox" name="enable_employee_validation_for_rest_days" value="1" data-rest-day-toggle @checked($validateRestDays)>
                 Enable Employee Validation for Rest Days
             </label>
 
-            <div class="grid gap-4 md:grid-cols-2" data-rest-day-panel @class(['opacity-50' => ! $validateRestDays])>
+            <div class="max-w-md" data-rest-day-panel @class(['opacity-50' => ! $validateRestDays])>
                 <div>
                     <label for="max_rest_days_per_week" class="form-label">Maximum no. of rest days per week <span class="text-red-500">*</span></label>
                     <input
@@ -66,21 +55,6 @@
                         @disabled(! $validateRestDays)
                     >
                     @error('max_rest_days_per_week')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
-                </div>
-                <div>
-                    <label for="min_hours_rendered_per_week" class="form-label">Minimum no. of hours rendered per week (hours) <span class="text-red-500">*</span></label>
-                    <input
-                        id="min_hours_rendered_per_week"
-                        name="min_hours_rendered_per_week"
-                        type="number"
-                        step="0.0001"
-                        min="0"
-                        value="{{ old('min_hours_rendered_per_week', $policy->min_hours_rendered_per_week) }}"
-                        class="form-input"
-                        data-rest-day-field
-                        @disabled(! $validateRestDays)
-                    >
-                    @error('min_hours_rendered_per_week')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
             </div>
         </div>

@@ -17,7 +17,5 @@
         <option value="all" @selected($currentCompliance === 'all')>All</option>
         <option value="compliant" @selected($currentCompliance === 'compliant')>Compliant</option>
         <option value="pending" @selected($currentCompliance === 'pending')>Pending</option>
-        <option value="overdue" @selected($currentCompliance === 'overdue')>Overdue</option>
-        <option value="withheld" @selected($currentCompliance === 'withheld')>Withheld</option>
     </select>
 </div>

@@ -87,8 +87,11 @@
         class="employee-tab-panel {{ $activeTab === 'attendance' ? '' : 'hidden' }}"
         data-employee-tab-panel="attendance"
         data-employee-profile-lazy-panel
-        data-lazy-url="{{ route(TimekeepingEmployeeProfile::routeName('attendance'), $employee->employee_id) }}"
-        data-lazy-pending="true"
+        data-lazy-url="{{ route(TimekeepingEmployeeProfile::routeName('attendance'), array_filter([
+            'employee' => $employee->employee_id,
+            'attendance_page' => request('attendance_page'),
+        ])) }}"
+        @if ($activeTab === 'attendance') data-lazy-pending="true" @endif
     >
         <div class="py-6 text-center text-sm text-gray-500">
             {{ $activeTab === 'attendance' ? 'Loading attendance view…' : 'Open this tab to load attendance view.' }}
@@ -100,7 +103,7 @@
         data-employee-tab-panel="employee-load"
         data-employee-profile-lazy-panel
         data-lazy-url="{{ route(TimekeepingEmployeeProfile::routeName('employee-load'), $employee->employee_id) }}"
-        data-lazy-pending="true"
+        @if ($activeTab === 'employee-load') data-lazy-pending="true" @endif
     >
         <div class="py-6 text-center text-sm text-gray-500">
             {{ $activeTab === 'employee-load' ? 'Loading employee load…' : 'Open this tab to load employee load.' }}

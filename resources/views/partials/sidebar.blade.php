@@ -1,5 +1,10 @@
 <div id="sidebar-overlay" class="fixed inset-0 z-[55] hidden bg-black/50 lg:hidden" aria-hidden="true"></div>
 
+@php
+    $isDesktopApp = (bool) config('nativephp-internal.running', env('NATIVEPHP_RUNNING', false));
+    $desktopAppVersion = (string) config('nativephp.version', '0.0.0');
+@endphp
+
 <aside
     id="app-sidebar"
     class="fixed inset-y-0 left-0 z-[60] flex w-72 flex-col bg-[#0B318F] text-white shadow-xl transition-transform duration-300 ease-in-out"
@@ -12,7 +17,12 @@
                     <svg class="h-3.5 w-3.5 shrink-0 text-[#00A3E6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                     Pulse
                 </p>
-                <p class="truncate text-[10px] text-white/60">ISKOLARIS Desktop</p>
+                <p class="flex items-center gap-1.5 truncate text-[10px] text-white/60">
+                    <span class="truncate">ISKOLARIS Desktop</span>
+                    @if ($isDesktopApp)
+                        <span class="shrink-0 font-medium text-white/75">v{{ $desktopAppVersion }}</span>
+                    @endif
+                </p>
             </div>
         </div>
         <button id="sidebar-close" type="button" class="shrink-0 rounded-lg p-1 text-white hover:bg-white/10" aria-label="Close sidebar">

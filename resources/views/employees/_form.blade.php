@@ -21,6 +21,12 @@
     );
     $currentCountry = old('country', $employee->country ?? 'Philippines');
     $isPhilippines = strcasecmp((string) $currentCountry, 'Philippines') === 0;
+    $noMiddleNameChecked = (bool) old(
+        'no_middle_name',
+        request()->has('no_middle_name')
+            ? request()->boolean('no_middle_name')
+            : ($isEdit && blank($employee->middle_name ?? null)),
+    );
 @endphp
 
 @if (! $wizardMode)
@@ -68,8 +74,34 @@
                     @error('last_name')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div>
-                    <label for="middle_name" class="form-label">Middle Name</label>
-                    <input id="middle_name" name="middle_name" type="text" value="{{ old('middle_name', $employee->middle_name ?? '') }}" class="form-input">
+                    <label for="middle_name" class="form-label">
+                        Middle Name
+                        <span
+                            class="text-red-500 {{ $noMiddleNameChecked ? 'hidden' : '' }}"
+                            data-middle-name-required-marker
+                        >*</span>
+                    </label>
+                    <input
+                        id="middle_name"
+                        name="middle_name"
+                        type="text"
+                        value="{{ old('middle_name', $employee->middle_name ?? '') }}"
+                        class="form-input"
+                        data-middle-name-input
+                        @disabled($noMiddleNameChecked)
+                    >
+                    <label class="mt-2 flex cursor-pointer items-center gap-2">
+                        <input
+                            type="checkbox"
+                            name="no_middle_name"
+                            value="1"
+                            class="rounded border-gray-300 text-[#00A3E6] focus:ring-[#00A3E6]"
+                            data-no-middle-name-toggle
+                            @checked($noMiddleNameChecked)
+                        >
+                        <span class="text-sm text-gray-700">No middle name</span>
+                    </label>
+                    @error('middle_name')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div>
                     <label for="suffix" class="form-label">Suffix</label>
@@ -125,12 +157,40 @@
 
             <h3 class="mb-3 mt-6 text-sm font-semibold text-gray-800">Statutory IDs</h3>
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                @foreach (['tin_number' => 'TIN', 'sss_number' => 'SSS', 'philhealth_number' => 'PhilHealth', 'pagibig_number' => 'Pag-IBIG', 'gsis_number' => 'GSIS'] as $field => $label)
+                @php
+                    $govIdFields = [
+                        'tin_number' => ['label' => 'TIN', 'type' => \App\Support\GovernmentIdNumbers::TYPE_TIN],
+                        'sss_number' => ['label' => 'SSS', 'type' => \App\Support\GovernmentIdNumbers::TYPE_SSS],
+                        'philhealth_number' => ['label' => 'PhilHealth', 'type' => \App\Support\GovernmentIdNumbers::TYPE_PHILHEALTH],
+                        'pagibig_number' => ['label' => 'Pag-IBIG', 'type' => \App\Support\GovernmentIdNumbers::TYPE_PAGIBIG],
+                    ];
+                @endphp
+                @foreach ($govIdFields as $field => $meta)
+                    @php
+                        $rawGovIdValue = old($field, $employee->{$field} ?? '');
+                        $displayGovIdValue = filled($rawGovIdValue)
+                            ? \App\Support\GovernmentIdNumbers::format($rawGovIdValue, $meta['type'])
+                            : '';
+                    @endphp
                     <div>
-                        <label for="{{ $field }}" class="form-label">{{ $label }}</label>
-                        <input id="{{ $field }}" name="{{ $field }}" type="text" value="{{ old($field, $employee->{$field} ?? '') }}" class="form-input">
+                        <label for="{{ $field }}" class="form-label">{{ $meta['label'] }}</label>
+                        <input
+                            id="{{ $field }}"
+                            name="{{ $field }}"
+                            type="text"
+                            value="{{ $displayGovIdValue }}"
+                            class="form-input"
+                            inputmode="numeric"
+                            autocomplete="off"
+                            data-gov-id-input
+                            data-gov-id-type="{{ $meta['type'] }}"
+                        >
                     </div>
                 @endforeach
+                <div>
+                    <label for="gsis_number" class="form-label">GSIS</label>
+                    <input id="gsis_number" name="gsis_number" type="text" value="{{ old('gsis_number', $employee->gsis_number ?? '') }}" class="form-input">
+                </div>
                 <div>
                     <label for="tax_status" class="form-label">Tax Status</label>
                     <input id="tax_status" name="tax_status" type="text" value="{{ old('tax_status', $employee->tax_status ?? '') }}" class="form-input">

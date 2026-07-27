@@ -19,29 +19,22 @@ return [
             'skip_sheet_titles' => [
                 'Schedule Information Report',
                 'Statistical Report of Attendance',
-                'Attendance Record Report',
                 'Exception Statistic Report',
             ],
             'skip_sheet_names' => [
                 'Schedule Infor',
                 'Att Stat',
-                'Att log report',
+                'Att.log report_orig',
                 'Exception Stat',
             ],
         ],
         'SU' => [
             'file_extension' => 'xlsx',
-            'parser' => 'flat',
-            'columns' => ['employee_number', 'actual_date', 'time_in', 'time_out'],
-            'labels' => ['Employee Number', 'Actual Date', 'Time In', 'Time Out'],
-            'header_rows' => 2,
+            'parser' => 'sumulong_dtr_report',
         ],
         'CA' => [
             'file_extension' => 'xls',
-            'parser' => 'flat',
-            'columns' => ['employee_number', 'actual_date', 'time_in', 'time_out'],
-            'labels' => ['Employee Number', 'Actual Date', 'Time In', 'Time Out'],
-            'header_rows' => 2,
+            'parser' => 'cainta_timesheet_report',
         ],
     ],
 ];

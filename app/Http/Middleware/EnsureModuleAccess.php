@@ -9,6 +9,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 class EnsureModuleAccess
 {
+    /** @var array<string, SubModule|null> */
+    private static array $subModuleByRoute = [];
+
     public function handle(Request $request, Closure $next, string $routeName): Response
     {
         $user = $request->user();
@@ -17,10 +20,11 @@ class EnsureModuleAccess
             abort(403, 'You do not have permission to access this page.');
         }
 
-        $subModule = SubModule::query()
-            ->where('route_name', $routeName)
-            ->where('is_active', true)
-            ->first();
+        $subModule = self::$subModuleByRoute[$routeName]
+            ??= SubModule::query()
+                ->where('route_name', $routeName)
+                ->where('is_active', true)
+                ->first();
 
         if (! $subModule || ! $user->hasSubModuleAccess($subModule)) {
             abort(403, 'You do not have permission to access this page.');

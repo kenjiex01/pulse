@@ -25,7 +25,7 @@ class DashboardController extends Controller
             'user' => $user,
             'userCount' => $user->isAdmin() ? User::query()->count() : null,
             'roleCount' => $user->isAdmin() ? Role::query()->count() : null,
-            'databaseBackupPath' => $user->isSuperAdmin() ? route('system.database-backup') : null,
+            'databaseBackupPath' => $user->isAdmin() ? route('database.index') : null,
         ]);
     }
 }

@@ -17,7 +17,8 @@ class EmployeeSalary extends Model
 
     protected $fillable = [
         'employment_info_id',
-        'date_effective',
+        'date_effective_from',
+        'date_effective_to',
         'basic_computation_id',
         'pay_type_id',
         'days_per_period',
@@ -31,7 +32,8 @@ class EmployeeSalary extends Model
     protected function casts(): array
     {
         return [
-            'date_effective' => 'date',
+            'date_effective_from' => 'date',
+            'date_effective_to' => 'date',
             'days_per_period' => 'decimal:5',
             'hours_per_day' => 'decimal:2',
             'use_basic_income_as_hourly_rate' => 'boolean',

@@ -47,9 +47,17 @@
 >
     <input type="hidden" name="employee_salaries[{{ $salaryIndex }}][employment_index]" value="{{ $salaryIndex }}">
 
-    <h3 class="mb-4 text-sm font-semibold text-gray-900">{{ $panelTitle }}</h3>
+    @if (($panelTitle ?? '') !== 'Salary')
+        <h3 class="mb-4 text-sm font-semibold text-gray-900">{{ $panelTitle }}</h3>
+    @endif
 
-    <div class="mb-4 flex flex-wrap gap-2 border-b border-gray-200" data-salary-subtabs>
+    <div class="employee-salary-tab-bar" data-salary-scope-tabs>
+        <button type="button" class="employee-salary-subtab-btn employee-salary-subtab-btn-active" data-salary-scope-tab="current">Current Salary</button>
+        <button type="button" class="employee-salary-subtab-btn" data-salary-scope-tab="previous">Previous Salary</button>
+    </div>
+
+    <div data-salary-scope-panel="current">
+    <div class="employee-salary-tab-bar" data-salary-subtabs>
         <button type="button" class="employee-salary-subtab-btn employee-salary-subtab-btn-active" data-salary-subtab="income">Income</button>
         <button type="button" class="employee-salary-subtab-btn" data-salary-subtab="deduction">Deduction</button>
     </div>
@@ -117,8 +125,13 @@
         <h4 class="mb-3 text-sm font-semibold text-gray-900">General</h4>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-                <label class="form-label">Date Effective <span class="text-red-500">*</span></label>
-                <input type="date" name="employee_salaries[{{ $salaryIndex }}][date_effective]" value="{{ old("employee_salaries.$salaryIndex.date_effective", $salary['date_effective'] ?? now()->format('Y-m-d')) }}" class="form-input" required>
+                <label class="form-label">Effectivity From <span class="text-red-500">*</span></label>
+                <input type="date" name="employee_salaries[{{ $salaryIndex }}][date_effective_from]" value="{{ old("employee_salaries.$salaryIndex.date_effective_from", $salary['date_effective_from'] ?? $salary['date_effective'] ?? now()->format('Y-m-d')) }}" class="form-input" required>
+            </div>
+            <div>
+                <label class="form-label">Effectivity To</label>
+                <input type="text" value="Present" readonly class="form-input bg-gray-50" tabindex="-1">
+                <p class="mt-1 text-xs text-gray-500">Auto-closed when a new salary with a later effectivity date is saved.</p>
             </div>
             <div>
                 <label class="form-label">Pay Type <span class="text-red-500">*</span></label>
@@ -238,4 +251,12 @@
             'formOptions' => $formOptions,
         ])
     </template>
+    </div>
+
+    <div class="hidden" data-salary-scope-panel="previous">
+        @include('employees.partials._employee-salary-previous', [
+            'previousSalaries' => $previousSalaries ?? collect(),
+            'formOptions' => $formOptions,
+        ])
+    </div>
 </div>

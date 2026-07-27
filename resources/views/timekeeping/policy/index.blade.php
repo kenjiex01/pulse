@@ -95,20 +95,11 @@
                 @case('breaks')
                     @include('timekeeping.policy._settings-breaks')
                     @break
-                @case('leaves-absences')
-                    @include('timekeeping.policy._settings-leaves-absences')
-                    @break
                 @case('night-differential')
                     @include('timekeeping.policy._settings-night-differential')
                     @break
                 @case('general')
                     @include('timekeeping.policy._settings-general')
-                    @break
-                @case('team-settings')
-                    @include('timekeeping.policy._settings-team-settings')
-                    @break
-                @case('logs-tagging')
-                    @include('timekeeping.policy._settings-logs-tagging')
                     @break
                 @default
                     @abort(404)

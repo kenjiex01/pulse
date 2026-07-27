@@ -1,14 +1,17 @@
 <?php
 
 use App\Http\Controllers\DatabaseBackupController;
+use App\Http\Controllers\DatabaseController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeLookupController;
+use App\Http\Controllers\EmployeeUploadController;
 use App\Http\Controllers\HrLookupController;
 use App\Http\Controllers\GovernmentTablesController;
 use App\Http\Controllers\PayrollCalendarController;
 use App\Http\Controllers\PayrollMaintenanceController;
+use App\Http\Controllers\PayrollReportsController;
 use App\Http\Controllers\PayrollTransactionController;
 use App\Http\Controllers\RateDefinitionController;
 use App\Http\Controllers\RoleController;
@@ -37,10 +40,15 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
-    Route::get('system/database-backup', DatabaseBackupController::class)->name('system.database-backup');
     Route::post('logout', [LoginController::class, 'destroy'])->name('logout');
 
     Route::middleware('role:admin')->group(function () {
+        Route::get('database', [DatabaseController::class, 'index'])->name('database.index');
+        Route::post('database/cloud-backup/reset-marker', [DatabaseController::class, 'resetCloudBackupMarker'])
+            ->name('database.cloud-backup.reset-marker');
+        Route::post('database/upload-sql', [DatabaseController::class, 'uploadSql'])
+            ->name('database.upload-sql');
+        Route::get('database/download', DatabaseBackupController::class)->name('database.download');
         Route::resource('users', UserController::class);
         Route::resource('roles', RoleController::class);
     });
@@ -51,6 +59,10 @@ Route::middleware('auth')->group(function () {
         Route::post('employees/create/cancel', [EmployeeController::class, 'wizardCancel'])->name('employees.wizard.cancel');
         Route::post('employees/create/campus', [EmployeeController::class, 'wizardCampus'])->name('employees.wizard.campus');
         Route::post('employees/create/details', [EmployeeController::class, 'wizardDetails'])->name('employees.wizard.details');
+        Route::get('employees/upload/template', [EmployeeUploadController::class, 'downloadTemplate'])->name('employees.upload.template');
+        Route::post('employees/upload/process', [EmployeeUploadController::class, 'processUpload'])->name('employees.upload.process');
+        Route::post('employees/upload/commit', [EmployeeUploadController::class, 'commitUpload'])->name('employees.upload.commit');
+        Route::post('employees/upload/discard', [EmployeeUploadController::class, 'discardStaging'])->name('employees.upload.discard');
         Route::resource('employees', EmployeeController::class)->only([
             'index', 'create', 'store', 'show', 'edit', 'update', 'destroy',
         ]);
@@ -258,6 +270,18 @@ Route::middleware('auth')->group(function () {
             ->name('payroll.transaction.upload.destroy');
     });
 
+    Route::middleware('module:payroll.reports.index')->group(function () {
+        Route::get('payroll/reports', [PayrollReportsController::class, 'index'])
+            ->name('payroll.reports.index');
+
+        Route::get('payroll/reports/{report}/options', [PayrollReportsController::class, 'options'])
+            ->whereNumber('report')
+            ->name('payroll.reports.options');
+
+        Route::post('payroll/reports/generate', [PayrollReportsController::class, 'generate'])
+            ->name('payroll.reports.generate');
+    });
+
     Route::middleware('module:payroll.government-tables.index')->group(function () {
         $tabs = 'pag-ibig|philhealth|philhealth-minimum|sss|withholding-tax-2023';
         $frequencies = 'daily|weekly|semi-monthly|monthly';
@@ -455,6 +479,13 @@ Route::middleware('auth')->group(function () {
             ->where('tab', implode('|', array_keys(\App\Support\TimeLogs::tabs())))
             ->name('timekeeping.time-logs.show');
 
+
+        Route::post('timekeeping/time-logs/teaching-loads/pull/start', [TimeLogsController::class, 'startTeachingLoadPull'])
+            ->name('timekeeping.time-logs.pull.start');
+
+        Route::post('timekeeping/time-logs/teaching-loads/pull/step', [TimeLogsController::class, 'stepTeachingLoadPull'])
+            ->name('timekeeping.time-logs.pull.step');
+
         Route::get('timekeeping/time-logs/{tab}', [TimeLogsController::class, 'index'])
             ->where('tab', implode('|', array_keys(\App\Support\TimeLogs::tabs())))
             ->name('timekeeping.time-logs.tab');
@@ -484,6 +515,11 @@ Route::middleware('auth')->group(function () {
             ->whereNumber('employee')
             ->name('timekeeping.employee-profile.attendance');
 
+        Route::put('timekeeping/employee-profile/{employee}/attendance-logs/{attendanceLog}', [TimekeepingEmployeeProfileController::class, 'updateAttendanceLog'])
+            ->whereNumber('employee')
+            ->whereNumber('attendanceLog')
+            ->name('timekeeping.employee-profile.attendance-update');
+
         Route::get('timekeeping/employee-profile/{employee}/employee-load', [TimekeepingEmployeeProfileController::class, 'employeeLoadView'])
             ->whereNumber('employee')
             ->name('timekeeping.employee-profile.employee-load');
@@ -504,6 +540,9 @@ Route::middleware('auth')->group(function () {
 
         Route::post('timekeeping/employee-load/upload/discard', [TimekeepingEmployeeLoadController::class, 'discardStaging'])
             ->name('timekeeping.employee-load.upload.discard');
+
+        Route::put('timekeeping/employee-load/entries/{entry}', [TimekeepingEmployeeLoadController::class, 'updateEntry'])
+            ->name('timekeeping.employee-load.entries.update');
 
         Route::delete('timekeeping/employee-load/purge', [TimekeepingEmployeeLoadController::class, 'destroy'])
             ->name('timekeeping.employee-load.destroy');

@@ -6,13 +6,13 @@ use App\Models\LeaveType;
 use App\Models\LuExcessHour;
 use App\Models\LuNonRegularOt;
 use App\Models\LuRounding;
-use App\Models\LeaveProcessingMode;
 use App\Models\SubModule;
 use App\Models\TimekeepingPolicy as TimekeepingPolicyModel;
 use App\Models\TimekeepingPolicyDayCode;
+use App\Models\TimekeepingPolicyBreak;
+use App\Models\TimekeepingPolicyOvertime;
 use App\Models\TimekeepingPolicyTardiness;
 use App\Models\TimekeepingPolicyUndertime;
-use App\Models\TimekeepingPolicyTeamSetting;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -26,6 +26,12 @@ class TimekeepingPolicy
     public const SUB_MODULE_ROUTE = 'timekeeping.policy.index';
 
     public const EXCESS_HOUR_DISREGARD = 1;
+
+    public const EXCESS_HOUR_CONSIDER_OT = 2;
+
+    public const BREAK_COMPUTATION_SCHEDULED = 1;
+
+    public const BREAK_COMPUTATION_ACTUAL = 2;
 
     public static function moduleTabs(): array
     {
@@ -282,15 +288,6 @@ class TimekeepingPolicy
                 ->orderBy('non_regular_ot_id')
                 ->pluck('description', 'non_regular_ot_id')
                 ->all(),
-            'leave_processing_modes' => LeaveProcessingMode::query()
-                ->orderBy('leave_processing_mode_id')
-                ->pluck('mode_label', 'leave_processing_mode_id')
-                ->all(),
-            'non_regular_hours_bases' => config('timekeeping_policy.non_regular_hours_bases', []),
-            'team_settings' => TimekeepingPolicyTeamSetting::query()
-                ->orderBy('limit')
-                ->pluck('description', 'timekeeping_policy_team_setting_id')
-                ->all(),
         ];
     }
 
@@ -302,17 +299,6 @@ class TimekeepingPolicy
             $policy->break_tardiness_leave_type_id,
             $policy->awol_leave_type_id,
         ]));
-    }
-
-    public static function availableLeaveTypesForEquivalents(TimekeepingPolicyModel $policy): array
-    {
-        $reserved = self::reservedLeaveTypeIds($policy);
-
-        return LeaveType::query()
-            ->when($reserved !== [], fn ($query) => $query->whereNotIn('leave_type_id', $reserved))
-            ->orderBy('description')
-            ->pluck('description', 'leave_type_id')
-            ->all();
     }
 
     public static function modelQuery(string $type, TimekeepingPolicyModel $policy)
@@ -536,6 +522,123 @@ class TimekeepingPolicy
         return $result;
     }
 
+    /**
+     * @return array{
+     *     raw_minutes: int,
+     *     equivalent_minutes: int|null,
+     *     billable_minutes: int
+     * }
+     */
+    public static function resolveBreakTardinessEquivalent(?int $policyId, float $rawBreakLateMinutes): array
+    {
+        $rawMinutes = max(0, (int) round($rawBreakLateMinutes));
+
+        $result = [
+            'raw_minutes' => $rawMinutes,
+            'equivalent_minutes' => null,
+            'billable_minutes' => 0,
+        ];
+
+        if ($policyId === null || $rawMinutes <= 0) {
+            return $result;
+        }
+
+        $record = TimekeepingPolicyBreak::query()
+            ->where('timekeeping_policy_id', $policyId)
+            ->where('time_from', '<=', $rawMinutes)
+            ->where('time_to', '>=', $rawMinutes)
+            ->orderBy('time_from')
+            ->first();
+
+        if ($record === null) {
+            $result['billable_minutes'] = $rawMinutes;
+
+            return $result;
+        }
+
+        $equivalent = max(0, (int) round((float) $record->equivalent));
+        $result['equivalent_minutes'] = $equivalent;
+        $result['billable_minutes'] = $equivalent;
+
+        return $result;
+    }
+
+    public static function resolveOvertimeEquivalent(?int $policyId, float $rawOvertimeMinutes): array
+    {
+        $rawMinutes = max(0, (int) round($rawOvertimeMinutes));
+
+        $result = [
+            'raw_minutes' => $rawMinutes,
+            'equivalent_minutes' => null,
+            'billable_minutes' => 0,
+        ];
+
+        if ($policyId === null || $rawMinutes <= 0) {
+            return $result;
+        }
+
+        $record = TimekeepingPolicyOvertime::query()
+            ->where('timekeeping_policy_id', $policyId)
+            ->where('time_from', '<=', $rawMinutes)
+            ->where('time_to', '>=', $rawMinutes)
+            ->orderBy('time_from')
+            ->first();
+
+        if ($record === null) {
+            $result['billable_minutes'] = $rawMinutes;
+
+            return $result;
+        }
+
+        $equivalent = max(0, (int) round((float) $record->equivalent));
+        $result['equivalent_minutes'] = $equivalent;
+        $result['billable_minutes'] = $equivalent;
+
+        return $result;
+    }
+
+    public static function applyRoundingMinutes(int $minutes, ?int $roundingId): int
+    {
+        if ($minutes <= 0 || $roundingId === null) {
+            return max(0, $minutes);
+        }
+
+        $hours = $minutes / 60;
+
+        $roundedHours = match ($roundingId) {
+            1 => (int) round($hours),
+            2 => (int) ceil($hours),
+            default => $hours,
+        };
+
+        return max(0, (int) round($roundedHours * 60));
+    }
+
+    /**
+     * Break tardiness is billed in minutes (e.g. 9 min over a 60-min break), not whole hours.
+     */
+    public static function applyBreakTardinessRoundingMinutes(int $minutes, ?int $roundingId): int
+    {
+        if ($minutes <= 0 || $roundingId === null) {
+            return max(0, $minutes);
+        }
+
+        return match ($roundingId) {
+            1 => (int) round($minutes),
+            2 => (int) ceil($minutes),
+            default => $minutes,
+        };
+    }
+
+    public static function considersExcessAsOvertime(?TimekeepingPolicyModel $policy): bool
+    {
+        if ($policy === null) {
+            return false;
+        }
+
+        return (int) $policy->excess_hour_id === self::EXCESS_HOUR_CONSIDER_OT;
+    }
+
     public static function equivalentLabel(Model $record, string $type): string
     {
         if (($type === 'tardiness') && $record->marks_absent) {
@@ -552,11 +655,8 @@ class TimekeepingPolicy
             'tardiness-undertime' => self::tardinessUndertimeRules(),
             'overtime' => self::overtimeRules(),
             'breaks' => self::breaksRules(),
-            'leaves-absences' => self::leavesAbsencesRules(),
             'night-differential' => self::nightDifferentialRules(),
-            'team-settings' => self::teamSettingsRules(),
             'toil-settings' => self::toilSettingsRules(),
-            'logs-tagging' => self::logsTaggingRules(),
             default => abort(404),
         };
     }
@@ -575,10 +675,6 @@ class TimekeepingPolicy
 
                 if (! is_numeric($data['max_rest_days_per_week'] ?? null)) {
                     $validator->errors()->add('max_rest_days_per_week', 'Maximum rest days per week is required.');
-                }
-
-                if (! is_numeric($data['min_hours_rendered_per_week'] ?? null) || (float) ($data['min_hours_rendered_per_week'] ?? 0) <= 0) {
-                    $validator->errors()->add('min_hours_rendered_per_week', 'Minimum hours rendered per week must be greater than zero.');
                 }
             });
         }
@@ -681,28 +777,6 @@ class TimekeepingPolicy
             });
         }
 
-        if ($tab === 'logs-tagging') {
-            $validator->after(function ($validator) use ($data) {
-                if (! filter_var($data['enable_logs_tagging'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
-                    return;
-                }
-
-                foreach (config('timekeeping_policy.logs_tagging_fields', []) as $field => $label) {
-                    $value = trim((string) ($data[$field] ?? ''));
-
-                    if ($value === '') {
-                        $validator->errors()->add($field, $label.' is required.');
-
-                        continue;
-                    }
-
-                    if (str_ends_with($field, '_tag') && ! preg_match('/^[A-Za-z]$/', $value)) {
-                        $validator->errors()->add($field, $label.' must be a single character.');
-                    }
-                }
-            });
-        }
-
         return $validator->validate();
     }
 
@@ -713,11 +787,8 @@ class TimekeepingPolicy
             'tardiness-undertime' => self::tardinessUndertimePayload($validated),
             'overtime' => self::overtimePayload($validated),
             'breaks' => self::breaksPayload($validated),
-            'leaves-absences' => self::leavesAbsencesPayload($validated),
             'night-differential' => self::nightDifferentialPayload($validated),
-            'team-settings' => self::teamSettingsPayload($validated),
             'toil-settings' => self::toilSettingsPayload($validated),
-            'logs-tagging' => self::logsTaggingPayload($validated),
             default => abort(404),
         };
     }
@@ -728,10 +799,8 @@ class TimekeepingPolicy
             'enable_attendance_approval' => ['nullable', 'boolean'],
             'buffer_time_in' => ['required', 'numeric', 'gt:0'],
             'buffer_time_out' => ['required', 'numeric', 'gt:0'],
-            'non_regular_hours_computation_basis' => ['required', 'integer', Rule::in(array_keys(config('timekeeping_policy.non_regular_hours_bases', [])))],
             'enable_employee_validation_for_rest_days' => ['nullable', 'boolean'],
             'max_rest_days_per_week' => ['nullable', 'integer', 'min:0', 'max:7'],
-            'min_hours_rendered_per_week' => ['nullable', 'numeric', 'gt:0', 'regex:/^\d{1,3}(\.\d{1,4})?$/'],
         ];
     }
 
@@ -743,13 +812,9 @@ class TimekeepingPolicy
             'enable_attendance_approval' => filter_var($validated['enable_attendance_approval'] ?? false, FILTER_VALIDATE_BOOLEAN) ?: null,
             'buffer_time_in' => $validated['buffer_time_in'],
             'buffer_time_out' => $validated['buffer_time_out'],
-            'non_regular_hours_computation_basis' => $validated['non_regular_hours_computation_basis'],
             'enable_employee_validation_for_rest_days' => $validateRestDays ?: null,
             'max_rest_days_per_week' => $validateRestDays && filled($validated['max_rest_days_per_week'] ?? null)
                 ? $validated['max_rest_days_per_week']
-                : null,
-            'min_hours_rendered_per_week' => $validateRestDays && filled($validated['min_hours_rendered_per_week'] ?? null)
-                ? $validated['min_hours_rendered_per_week']
                 : null,
         ];
     }
@@ -835,7 +900,6 @@ class TimekeepingPolicy
     {
         return [
             'break_computation' => ['required', 'integer', Rule::in([1, 2])],
-            'is_fix_break' => ['nullable', 'boolean'],
             'break_deduct_tardiness' => ['nullable', 'boolean'],
             'break_grace_period' => ['nullable', 'numeric', 'gt:0', 'regex:/^\d{1,3}(\.\d{1,4})?$/'],
             'is_break_deduct_grace_period' => ['nullable', 'boolean'],
@@ -850,36 +914,11 @@ class TimekeepingPolicy
 
         return [
             'break_computation' => $validated['break_computation'],
-            'is_fix_break' => filter_var($validated['is_fix_break'] ?? false, FILTER_VALIDATE_BOOLEAN) ?: null,
             'break_deduct_tardiness' => $deductBreakTardiness ?: null,
             'break_grace_period' => $deductBreakTardiness && filled($validated['break_grace_period'] ?? null) ? $validated['break_grace_period'] : null,
             'is_break_deduct_grace_period' => $deductBreakTardiness && filter_var($validated['is_break_deduct_grace_period'] ?? false, FILTER_VALIDATE_BOOLEAN) ? true : null,
             'break_tardiness_leave_type_id' => $deductBreakTardiness && filled($validated['break_tardiness_leave_type_id'] ?? null) ? $validated['break_tardiness_leave_type_id'] : null,
             'break_tardiness_rounding_id' => $deductBreakTardiness && filled($validated['break_tardiness_rounding_id'] ?? null) ? $validated['break_tardiness_rounding_id'] : null,
-        ];
-    }
-
-    private static function leavesAbsencesRules(): array
-    {
-        return [
-            'hide_negative_leaves' => ['nullable', 'boolean'],
-            'enable_notification' => ['nullable', 'boolean'],
-            'notif_for_process' => ['nullable', 'string', 'max:500'],
-            'awol_leave_type_id' => ['required', 'integer', Rule::exists('tbl_leave_types', 'leave_type_id')],
-            'leave_processing_mode' => ['required', 'integer', Rule::exists('tbl_leave_processing_modes', 'leave_processing_mode_id')],
-            'validity_of_late_file' => ['required', 'integer', 'min:0'],
-        ];
-    }
-
-    private static function leavesAbsencesPayload(array $validated): array
-    {
-        return [
-            'hide_negative_leaves' => filter_var($validated['hide_negative_leaves'] ?? false, FILTER_VALIDATE_BOOLEAN) ?: null,
-            'enable_notification' => filter_var($validated['enable_notification'] ?? false, FILTER_VALIDATE_BOOLEAN) ?: null,
-            'notif_for_process' => filled($validated['notif_for_process'] ?? null) ? $validated['notif_for_process'] : null,
-            'awol_leave_type_id' => $validated['awol_leave_type_id'],
-            'leave_processing_mode' => $validated['leave_processing_mode'],
-            'validity_of_late_file' => $validated['validity_of_late_file'],
         ];
     }
 
@@ -901,24 +940,6 @@ class TimekeepingPolicy
             'night_diff_start' => $computeNightDiff ? trim((string) ($validated['night_diff_start'] ?? '')) : null,
             'night_diff_end' => $computeNightDiff ? trim((string) ($validated['night_diff_end'] ?? '')) : null,
             'nd_deduct_break' => filter_var($validated['nd_deduct_break'] ?? false, FILTER_VALIDATE_BOOLEAN) ?: null,
-        ];
-    }
-
-    private static function teamSettingsRules(): array
-    {
-        return [
-            'timekeeping_policy_team_setting_id' => [
-                'required',
-                'integer',
-                Rule::exists('tbl_timekeeping_policy_team_settings', 'timekeeping_policy_team_setting_id'),
-            ],
-        ];
-    }
-
-    private static function teamSettingsPayload(array $validated): array
-    {
-        return [
-            'timekeeping_policy_team_setting_id' => $validated['timekeeping_policy_team_setting_id'],
         ];
     }
 
@@ -951,38 +972,6 @@ class TimekeepingPolicy
             'min_toil_hours' => $validated['min_toil_hours'],
             'max_toil_hours' => $validated['max_toil_hours'],
         ];
-    }
-
-    private static function logsTaggingRules(): array
-    {
-        $rules = [
-            'enable_logs_tagging' => ['nullable', 'boolean'],
-        ];
-
-        foreach (array_keys(config('timekeeping_policy.logs_tagging_fields', [])) as $field) {
-            $rules[$field] = ['nullable', 'string', 'max:45'];
-        }
-
-        return $rules;
-    }
-
-    private static function logsTaggingPayload(array $validated): array
-    {
-        $enabled = filter_var($validated['enable_logs_tagging'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        $payload = ['enable_logs_tagging' => $enabled ?: null];
-
-        foreach (array_keys(config('timekeeping_policy.logs_tagging_fields', [])) as $field) {
-            if (! $enabled) {
-                $payload[$field] = null;
-
-                continue;
-            }
-
-            $value = trim((string) ($validated[$field] ?? ''));
-            $payload[$field] = str_ends_with($field, '_tag') ? strtoupper($value) : $value;
-        }
-
-        return $payload;
     }
 
     public static function dayCodesRules(): array

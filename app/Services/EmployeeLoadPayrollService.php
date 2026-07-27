@@ -85,6 +85,120 @@ class EmployeeLoadPayrollService
         ];
     }
 
+    /**
+     * @param  Collection<int, EmployeeSalary>  $salaries
+     * @return array{
+     *     worked_days: int,
+     *     basic_taxable: float,
+     *     basic_non_taxable: float,
+     *     late_minutes: int,
+     *     late_deduction: float,
+     *     undertime_minutes: int,
+     *     undertime_deduction: float,
+     *     absent_sessions: int
+     * }
+     */
+    public function computeForPeriodWithSalaries(
+        Collection $salaries,
+        EmployeeSalaryResolverService $resolver,
+        int $employeeId,
+        ?string $employeeNumber,
+        CarbonInterface $from,
+        CarbonInterface $to,
+        ?TimekeepingPolicy $policy = null,
+    ): array {
+        if ($salaries->isEmpty()) {
+            return $this->computeForPeriod(new EmployeeSalary, $employeeId, $employeeNumber, $from, $to, $policy);
+        }
+
+        if ($salaries->count() === 1) {
+            return $this->computeForPeriod($salaries->first(), $employeeId, $employeeNumber, $from, $to, $policy);
+        }
+
+        $primary = $salaries->last();
+
+        if ((int) $primary->basic_computation_id !== BasicComputation::TIME_IN_OUT) {
+            return $this->computeForPeriod($primary, $employeeId, $employeeNumber, $from, $to, $policy);
+        }
+
+        $entries = $this->entriesForEmployeeInPeriod($employeeId, $employeeNumber, $from, $to);
+
+        if ($entries->isEmpty()) {
+            return $this->computeForPeriod($primary, $employeeId, $employeeNumber, $from, $to, $policy);
+        }
+
+        $workedDays = 0;
+        $basicTaxable = 0.0;
+        $lateMinutes = 0;
+        $lateDeduction = 0.0;
+        $undertimeMinutes = 0;
+        $undertimeDeduction = 0.0;
+        $absentSessions = 0;
+
+        foreach ($entries->groupBy(fn (RawEmployeeLoadEntry $entry) => $entry->session_date?->toDateString()) as $date => $dayEntries) {
+            if ($date === null || $date === '') {
+                continue;
+            }
+
+            $salary = $resolver->salaryEffectiveOnDate($salaries, CarbonImmutable::parse($date));
+
+            if ($salary === null) {
+                continue;
+            }
+
+            $workedThisDay = false;
+
+            foreach ($dayEntries as $entry) {
+                $resolvedLate = $this->resolvedLateForEntry($entry, $policy);
+
+                if ($resolvedLate['is_absent']) {
+                    $absentSessions++;
+                } elseif ($entry->time_in !== null && $entry->time_in !== '') {
+                    $workedThisDay = true;
+                    $lateMinutes += $resolvedLate['billable_minutes'];
+                }
+
+                $undertimeMinutes += $this->resolvedUndertimeForEntry($entry, $policy)['billable_minutes'];
+            }
+
+            if ($workedThisDay) {
+                $dailyRate = $this->dailyRate($salary);
+
+                if ($dailyRate !== null) {
+                    $basicTaxable += $dailyRate;
+                    $workedDays++;
+                }
+            }
+
+            $hourlyRate = $salary->hourlyRate();
+
+            if ($hourlyRate === null) {
+                continue;
+            }
+
+            foreach ($dayEntries as $entry) {
+                $resolvedLate = $this->resolvedLateForEntry($entry, $policy);
+
+                if (! $resolvedLate['is_absent']) {
+                    $lateDeduction += ($resolvedLate['billable_minutes'] / 60) * $hourlyRate;
+                }
+
+                $undertimeDeduction += ($this->resolvedUndertimeForEntry($entry, $policy)['billable_minutes'] / 60) * $hourlyRate;
+            }
+        }
+
+        return [
+            'worked_days' => $workedDays,
+            'basic_taxable' => round($basicTaxable, 2),
+            'basic_non_taxable' => 0.0,
+            'late_minutes' => $lateMinutes,
+            'late_deduction' => round($lateDeduction, 2),
+            'undertime_minutes' => $undertimeMinutes,
+            'undertime_deduction' => round($undertimeDeduction, 2),
+            'absent_sessions' => $absentSessions,
+        ];
+    }
+
     public function usesEmployeeLoad(EmployeeSalary $salary): bool
     {
         return (int) $salary->basic_computation_id === BasicComputation::TIME_IN_OUT;
@@ -99,8 +213,23 @@ class EmployeeLoadPayrollService
         CarbonInterface $from,
         CarbonInterface $to,
     ): Collection {
+        return $this->allEntriesForEmployeeInPeriod($employeeId, $employeeNumber, $from, $to)
+            ->filter(fn (RawEmployeeLoadEntry $entry) => $entry->time_in !== null && $entry->time_in !== '')
+            ->values();
+    }
+
+    /**
+     * All load rows in period (including rows without matched Time In yet).
+     *
+     * @return Collection<int, RawEmployeeLoadEntry>
+     */
+    public function allEntriesForEmployeeInPeriod(
+        int $employeeId,
+        ?string $employeeNumber,
+        CarbonInterface $from,
+        CarbonInterface $to,
+    ): Collection {
         return RawEmployeeLoadEntry::query()
-            ->whereNotNull('time_in')
             ->whereBetween('session_date', [$from->toDateString(), $to->toDateString()])
             ->where(function ($query) use ($employeeId, $employeeNumber) {
                 $query->where('employee_id', $employeeId);
@@ -116,6 +245,113 @@ class EmployeeLoadPayrollService
             ->orderBy('session_date')
             ->orderBy('employee_load_entry_id')
             ->get();
+    }
+
+    /**
+     * Prefer Time In → Time Out. When late is waived, credit back the late gap
+     * so late does not reduce class hours. Fall back to total_hours / schedule.
+     */
+    public function hoursForEntry(RawEmployeeLoadEntry $entry): float
+    {
+        $punchHours = $this->punchHoursForEntry($entry);
+
+        if ($punchHours !== null) {
+            if ($entry->late_waived) {
+                $lateGapHours = $this->clockLateMinutesForEntry($entry) / 60;
+
+                return round(max(0.0, $punchHours + $lateGapHours), 4);
+            }
+
+            return $punchHours;
+        }
+
+        if ($entry->total_hours !== null && (float) $entry->total_hours > 0) {
+            return round((float) $entry->total_hours, 4);
+        }
+
+        return $this->scheduleHoursForEntry($entry);
+    }
+
+    /**
+     * Hours from Time In to Time Out, or null when either punch is missing.
+     */
+    public function punchHoursForEntry(RawEmployeeLoadEntry $entry): ?float
+    {
+        if (
+            $entry->session_date === null
+            || $entry->time_in === null || $entry->time_in === ''
+            || $entry->time_out === null || $entry->time_out === ''
+        ) {
+            return null;
+        }
+
+        try {
+            $sessionDate = CarbonImmutable::parse($entry->session_date->toDateString());
+            $inAt = $sessionDate->setTimeFromTimeString($entry->time_in);
+            $outAt = $sessionDate->setTimeFromTimeString($entry->time_out);
+
+            if ($outAt->lessThanOrEqualTo($inAt)) {
+                $outAt = $outAt->addDay();
+            }
+
+            return max(0.0, round(((int) $inAt->diffInMinutes($outAt)) / 60, 4));
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    public function scheduleHoursForEntry(RawEmployeeLoadEntry $entry): float
+    {
+        $start = $this->parseScheduleStart($entry->class_schedule);
+        $end = $this->parseScheduleEnd($entry->class_schedule);
+
+        if ($start === null || $end === null || $entry->session_date === null) {
+            return 0.0;
+        }
+
+        try {
+            $sessionDate = CarbonImmutable::parse($entry->session_date->toDateString());
+            $startAt = $sessionDate->setTimeFromTimeString($start);
+            $endAt = $sessionDate->setTimeFromTimeString($end);
+
+            if ($endAt->lessThanOrEqualTo($startAt)) {
+                $endAt = $endAt->addDay();
+            }
+
+            return max(0.0, round(((int) $startAt->diffInMinutes($endAt)) / 60, 4));
+        } catch (\Throwable) {
+            return 0.0;
+        }
+    }
+
+    /**
+     * Raw clock minutes late vs class schedule start (ignores policy grace / waive).
+     */
+    public function clockLateMinutesForEntry(RawEmployeeLoadEntry $entry): int
+    {
+        if ($entry->session_date === null || $entry->time_in === null || $entry->time_in === '') {
+            return 0;
+        }
+
+        $scheduleStart = $this->parseScheduleStart($entry->class_schedule);
+
+        if ($scheduleStart === null) {
+            return 0;
+        }
+
+        try {
+            $sessionDate = CarbonImmutable::parse($entry->session_date->toDateString());
+            $scheduledAt = $sessionDate->setTimeFromTimeString($scheduleStart);
+            $timeInAt = $sessionDate->setTimeFromTimeString($entry->time_in);
+
+            if ($timeInAt->lessThanOrEqualTo($scheduledAt)) {
+                return 0;
+            }
+
+            return max(0, (int) $scheduledAt->diffInMinutes($timeInAt));
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 
     /**
@@ -257,6 +493,10 @@ class EmployeeLoadPayrollService
 
     public function lateRawMinutesForEntry(RawEmployeeLoadEntry $entry, ?TimekeepingPolicy $policy = null): int
     {
+        if ($entry->late_waived) {
+            return 0;
+        }
+
         if ($entry->session_date === null || $entry->time_in === null || $entry->time_in === '') {
             return 0;
         }
@@ -363,12 +603,18 @@ class EmployeeLoadPayrollService
     public function attendanceMetricsForEntry(RawEmployeeLoadEntry $entry, ?TimekeepingPolicy $policy = null): array
     {
         $resolved = $this->resolvedLateForEntry($entry, $policy);
+        $lateWaived = (bool) $entry->late_waived;
+        $hadLate = $this->clockLateMinutesForEntry($entry) > 0;
 
         return [
             'late_minutes' => $resolved['billable_minutes'],
             'late_raw_minutes' => $resolved['raw_minutes'],
             'late_is_absent' => $resolved['is_absent'],
-            'late_display' => $this->formatLateDisplay($resolved),
+            'late_waived' => $lateWaived,
+            'late_display' => ($lateWaived && $hadLate)
+                ? 'Waived'
+                : $this->formatLateDisplay($resolved),
+            'hours' => $this->hoursForEntry($entry),
             'undertime_minutes' => $this->undertimeMinutesForEntry($entry),
             'overtime_minutes' => $this->overtimeMinutesForEntry($entry),
         ];

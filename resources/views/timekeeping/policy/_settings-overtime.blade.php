@@ -9,10 +9,6 @@
 
     <p class="text-sm text-gray-500">Set a default policy for Overtime and Special Overtime.</p>
 
-    @php
-        $disregardExcess = (int) old('excess_hour_id', $policy->excess_hour_id) === \App\Support\TimekeepingPolicy::EXCESS_HOUR_DISREGARD;
-    @endphp
-
     <div class="grid gap-4 md:grid-cols-2">
         <div>
             <label for="excess_hour_id" class="form-label">Treatment of Excess Hours <span class="text-red-500">*</span></label>
@@ -24,7 +20,7 @@
             </select>
             @error('excess_hour_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
-        <div data-ot-field @class(['opacity-50' => $disregardExcess])>
+        <div data-ot-field>
             <span class="form-label">Non-Regular Days</span>
             <div class="mt-2 space-y-2">
                 @foreach ($selectOptions['non_regular_ot'] as $value => $label)
@@ -34,7 +30,7 @@
                             name="is_ot_form_required"
                             value="{{ $value }}"
                             @checked((string) old('is_ot_form_required', $policy->is_ot_form_required ?? 0) === (string) $value)
-                            @disabled($disregardExcess)
+                            data-ot-input
                         >
                         <span>{{ $label }}</span>
                     </label>
@@ -43,32 +39,32 @@
         </div>
     </div>
 
-    <div data-ot-field @class(['opacity-50' => $disregardExcess])>
+    <div data-ot-field>
         <span class="form-label">Consider as OT</span>
         <div class="mt-2 flex flex-wrap gap-4">
             <label class="inline-flex items-center gap-2 text-sm">
                 <input type="hidden" name="is_consider_before_time" value="0">
-                <input type="checkbox" name="is_consider_before_time" value="1" @checked(old('is_consider_before_time', $policy->is_consider_before_time)) @disabled($disregardExcess)>
+                <input type="checkbox" name="is_consider_before_time" value="1" @checked(old('is_consider_before_time', $policy->is_consider_before_time)) data-ot-input>
                 Before time schedule
             </label>
             <label class="inline-flex items-center gap-2 text-sm">
                 <input type="hidden" name="is_consider_after_time" value="0">
-                <input type="checkbox" name="is_consider_after_time" value="1" @checked(old('is_consider_after_time', $policy->is_consider_after_time)) @disabled($disregardExcess)>
+                <input type="checkbox" name="is_consider_after_time" value="1" @checked(old('is_consider_after_time', $policy->is_consider_after_time)) data-ot-input>
                 After time schedule
             </label>
         </div>
         @error('is_consider_before_time')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
     </div>
 
-    <div class="grid gap-4 md:grid-cols-3" data-ot-field @class(['opacity-50' => $disregardExcess])>
+    <div class="grid gap-4 md:grid-cols-3" data-ot-field>
         <div>
             <label for="min_minutes" class="form-label">Minimum no. of Minutes</label>
-            <input id="min_minutes" name="min_minutes" type="number" step="0.0001" min="0" value="{{ old('min_minutes', $policy->min_minutes) }}" class="form-input" @disabled($disregardExcess)>
+            <input id="min_minutes" name="min_minutes" type="number" step="0.0001" min="0" value="{{ old('min_minutes', $policy->min_minutes) }}" class="form-input" data-ot-input>
             @error('min_minutes')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
         <div>
             <label for="overtime_rounding_id" class="form-label">Rounding Rule</label>
-            <select id="overtime_rounding_id" name="overtime_rounding_id" class="form-input" @disabled($disregardExcess)>
+            <select id="overtime_rounding_id" name="overtime_rounding_id" class="form-input" data-ot-input>
                 <option value="">Select rounding</option>
                 @foreach ($selectOptions['rounding'] as $value => $label)
                     <option value="{{ $value }}" @selected((string) old('overtime_rounding_id', $policy->overtime_rounding_id) === (string) $value)>{{ $label }}</option>
@@ -77,12 +73,12 @@
         </div>
         <div>
             <label for="special_ot_start" class="form-label">Special OT Start (HH:MM)</label>
-            <input id="special_ot_start" name="special_ot_start" type="text" maxlength="5" placeholder="22:00" value="{{ old('special_ot_start', $policy->special_ot_start) }}" class="form-input" @disabled($disregardExcess)>
+            <input id="special_ot_start" name="special_ot_start" type="text" maxlength="5" placeholder="22:00" value="{{ old('special_ot_start', $policy->special_ot_start) }}" class="form-input" data-ot-input>
             @error('special_ot_start')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
         <div>
             <label for="special_ot_min_minutes" class="form-label">Special OT Min. Minutes</label>
-            <input id="special_ot_min_minutes" name="special_ot_min_minutes" type="number" step="0.0001" min="0" value="{{ old('special_ot_min_minutes', $policy->special_ot_min_minutes) }}" class="form-input" @disabled($disregardExcess)>
+            <input id="special_ot_min_minutes" name="special_ot_min_minutes" type="number" step="0.0001" min="0" value="{{ old('special_ot_min_minutes', $policy->special_ot_min_minutes) }}" class="form-input" data-ot-input>
             @error('special_ot_min_minutes')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
     </div>

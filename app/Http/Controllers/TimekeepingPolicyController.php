@@ -148,14 +148,6 @@ class TimekeepingPolicyController extends Controller
             $equivalentRecords[$type] = TimekeepingPolicySupport::modelQuery($type, $policyModel)->get();
         }
 
-        $leaveEquivalentsByType = [];
-        if ($tab === 'leaves-absences') {
-            $selectedLeaveTypeId = (int) ($request->input('leave_type_id') ?: array_key_first(TimekeepingPolicySupport::availableLeaveTypesForEquivalents($policyModel)));
-            $leaveEquivalentsByType = TimekeepingPolicySupport::modelQuery('leave', $policyModel)
-                ->when($selectedLeaveTypeId, fn ($query) => $query->where('leave_type_id', $selectedLeaveTypeId))
-                ->get();
-        }
-
         SysLogService::record(
             action: 'read',
             table: 'tbl_timekeeping_policies',
@@ -171,9 +163,6 @@ class TimekeepingPolicyController extends Controller
             'selectOptions' => $selectOptions,
             'equivalents' => $equivalents,
             'equivalentRecords' => $equivalentRecords,
-            'availableLeaveTypes' => TimekeepingPolicySupport::availableLeaveTypesForEquivalents($policyModel),
-            'selectedLeaveTypeId' => $selectedLeaveTypeId ?? null,
-            'leaveEquivalents' => $leaveEquivalentsByType,
             'openEditEquivalent' => [
                 'type' => $request->input('edit_equivalent'),
                 'id' => $request->input('edit_record_id'),
@@ -293,10 +282,6 @@ class TimekeepingPolicyController extends Controller
             'policy' => $policyModel->timekeeping_policy_id,
             'tab' => $tab,
         ];
-
-        if ($type === 'leave' && $leaveTypeId) {
-            $params['leave_type_id'] = $leaveTypeId;
-        }
 
         return redirect()->route(TimekeepingPolicySupport::routeName('tab'), $params);
     }

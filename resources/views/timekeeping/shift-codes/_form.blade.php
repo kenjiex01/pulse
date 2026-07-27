@@ -2,6 +2,8 @@
     use App\Support\ShiftCode as ShiftCodeSupport;
 
     $breakRows = old('breaks', ShiftCodeSupport::breakRowsForForm($record ?? null));
+    $flexiEnabled = filter_var(old('is_flexi_time', $record?->is_flexi_time ?? false), FILTER_VALIDATE_BOOLEAN);
+    $expectedHoursValue = old('expected_hours_per_day', $record?->expected_hours_per_day ?? 8);
 @endphp
 
 <form
@@ -21,7 +23,49 @@
         Please fill out all required fields. Time must be in 24-hour format (hh:mm).
     </p>
 
-    <div class="grid gap-4 sm:grid-cols-2">
+    <div class="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+        <label class="flex items-start gap-2 text-sm text-gray-800">
+            <input type="hidden" name="is_flexi_time" value="0">
+            <input
+                type="checkbox"
+                name="is_flexi_time"
+                value="1"
+                class="mt-0.5 rounded border-gray-300 text-[#0B318F] focus:ring-[#0B318F]"
+                data-flexi-shift-toggle
+                @checked($flexiEnabled)
+            >
+            <span>
+                <span class="font-medium">Flexi-time Shift</span>
+                <span class="mt-1 block text-xs text-gray-600">
+                    Employee may arrive anytime. Pay is based on actual rendered hours (first IN to last OUT, minus breaks).
+                    No late or undertime. Overtime applies when rendered hours exceed the expected hours per day.
+                </span>
+            </span>
+        </label>
+        @error('is_flexi_time')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+    </div>
+
+    <div data-flexi-expected-panel @class(['grid gap-4 sm:grid-cols-2' => true, 'hidden' => ! $flexiEnabled])>
+        <div>
+            <label for="expected_hours_per_day_{{ $formContext }}" class="form-label">Expected Hours Per Day <span class="text-red-500">*</span></label>
+            <input
+                id="expected_hours_per_day_{{ $formContext }}"
+                name="expected_hours_per_day"
+                type="number"
+                step="0.25"
+                min="0.25"
+                max="24"
+                value="{{ $expectedHoursValue }}"
+                class="form-input max-w-[10rem]"
+                data-flexi-expected-field
+                @disabled(! $flexiEnabled)
+            >
+            <p class="mt-1 text-xs text-gray-500">Hal. 8 — basic pay caps here; excess becomes overtime.</p>
+            @error('expected_hours_per_day')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+        </div>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2" data-flexi-schedule-panel>
         <div>
             <label for="shift_code_{{ $formContext }}" class="form-label">Shift Code <span class="text-red-500">*</span></label>
             <input
@@ -49,7 +93,7 @@
             @error('description')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
         <div>
-            <label for="time_in_{{ $formContext }}" class="form-label">Time In <span class="text-red-500">*</span></label>
+            <label for="time_in_{{ $formContext }}" class="form-label">Break In</label>
             <input
                 id="time_in_{{ $formContext }}"
                 name="time_in"
@@ -58,12 +102,11 @@
                 placeholder="06:00"
                 value="{{ old('time_in', $record?->time_in) }}"
                 class="form-input"
-                required
             >
             @error('time_in')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
         <div>
-            <label for="time_out_{{ $formContext }}" class="form-label">Time Out <span class="text-red-500">*</span></label>
+            <label for="time_out_{{ $formContext }}" class="form-label">Break Out</label>
             <input
                 id="time_out_{{ $formContext }}"
                 name="time_out"
@@ -72,7 +115,6 @@
                 placeholder="15:00"
                 value="{{ old('time_out', $record?->time_out) }}"
                 class="form-input"
-                required
             >
             @error('time_out')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>

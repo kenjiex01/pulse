@@ -74,6 +74,7 @@
             'panelClass' => 'max-w-6xl',
             'body' => view('timekeeping.employee-load._show-content', [
                 'transaction' => $viewTransaction,
+                'editEntry' => $editEntry ?? null,
             ])->render(),
         ])
     @endif

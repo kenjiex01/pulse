@@ -52,37 +52,39 @@
         @if (! empty($staging['valid']))
             <div>
                 <h3 class="mb-2 text-sm font-semibold text-gray-900">Valid Records Preview</h3>
-                <div class="max-h-72 overflow-auto rounded-lg border border-gray-200">
-                    <table class="table-skolaris min-w-full text-sm">
-                        <thead>
-                            <tr>
-                                <th class="px-3 py-2 text-left">#</th>
-                                <th class="px-3 py-2 text-left">Faculty</th>
-                                <th class="px-3 py-2 text-left">Subject</th>
-                                <th class="px-3 py-2 text-left">Section</th>
-                                <th class="px-3 py-2 text-left">Date</th>
-                                <th class="px-3 py-2 text-left">Time In</th>
-                                <th class="px-3 py-2 text-left">Time Out</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (array_slice($staging['valid'], 0, 25) as $index => $row)
+                <div data-client-paginate data-page-size="20">
+                    <div class="max-h-72 overflow-auto rounded-lg border border-gray-200">
+                        <table class="table-skolaris min-w-full text-sm">
+                            <thead>
                                 <tr>
-                                    <td class="px-3 py-2 text-gray-600">{{ $index + 1 }}</td>
-                                    <td class="px-3 py-2 text-gray-900">{{ $row['faculty_name'] ?? '—' }}</td>
-                                    <td class="px-3 py-2 text-gray-600">{{ $row['subject'] ?? '—' }}</td>
-                                    <td class="px-3 py-2 text-gray-600">{{ $row['section'] ?? '—' }}</td>
-                                    <td class="px-3 py-2 text-gray-600">{{ $row['load_date'] ?? '—' }}</td>
-                                    <td class="px-3 py-2 text-gray-600">{{ $row['time_in'] ?? '—' }}</td>
-                                    <td class="px-3 py-2 text-gray-600">{{ $row['time_out'] ?? '—' }}</td>
+                                    <th class="px-3 py-2 text-left">#</th>
+                                    <th class="px-3 py-2 text-left">Faculty</th>
+                                    <th class="px-3 py-2 text-left">Subject</th>
+                                    <th class="px-3 py-2 text-left">Section</th>
+                                    <th class="px-3 py-2 text-left">Date</th>
+                                    <th class="px-3 py-2 text-left">Time In</th>
+                                    <th class="px-3 py-2 text-left">Time Out</th>
                                 </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @foreach ($staging['valid'] as $index => $row)
+                                    <tr data-paginate-row>
+                                        <td class="px-3 py-2 text-gray-600">{{ $index + 1 }}</td>
+                                        <td class="px-3 py-2 text-gray-900">{{ $row['faculty_name'] ?? '—' }}</td>
+                                        <td class="px-3 py-2 text-gray-600">{{ $row['subject'] ?? '—' }}</td>
+                                        <td class="px-3 py-2 text-gray-600">{{ $row['section'] ?? '—' }}</td>
+                                        <td class="px-3 py-2 text-gray-600">{{ $row['load_date'] ?? '—' }}</td>
+                                        <td class="px-3 py-2 text-gray-600">{{ $row['time_in'] ?? '—' }}</td>
+                                        <td class="px-3 py-2 text-gray-600">{{ $row['time_out'] ?? '—' }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (count($staging['valid']) > 1)
+                        @include('partials.client-pagination-controls', ['defaultPageSize' => 20])
+                    @endif
                 </div>
-                @if (($staging['valid_count'] ?? 0) > 25)
-                    <p class="mt-2 text-xs text-gray-500">Showing first 25 of {{ $staging['valid_count'] }} valid rows.</p>
-                @endif
             </div>
         @endif
 

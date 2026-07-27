@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\RawEmployeeLoadEntry;
 use App\Models\RawEmployeeLoadTransaction;
 use App\Services\EmployeeLoadTemplateService;
 use App\Services\EmployeeLoadUploadService;
 use App\Services\SysLogService;
 use App\Support\LiveTable;
 use App\Support\TimekeepingEmployeeLoad;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +65,19 @@ class TimekeepingEmployeeLoadController extends Controller
                 ->find($request->integer('view'));
         }
 
+        $editEntry = null;
+
+        if ($request->filled('edit_entry') || old('edit_employee_load_entry_id')) {
+            $editEntryId = (int) ($request->input('edit_entry') ?: old('edit_employee_load_entry_id'));
+            $editEntry = RawEmployeeLoadEntry::query()->find($editEntryId);
+
+            if ($editEntry && $viewTransaction === null) {
+                $viewTransaction = RawEmployeeLoadTransaction::query()
+                    ->with(['uploadedBy', 'entries' => fn ($q) => $q->orderBy('session_date')->orderBy('employee_load_entry_id')])
+                    ->find($editEntry->employee_load_transaction_id);
+            }
+        }
+
         $viewData = [
             'records' => $records,
             'search' => $search,
@@ -72,6 +87,7 @@ class TimekeepingEmployeeLoadController extends Controller
             'staging' => $staging,
             'stagingToken' => $stagingToken,
             'viewTransaction' => $viewTransaction,
+            'editEntry' => $editEntry,
         ];
 
         if ($request->ajax()) {
@@ -195,6 +211,66 @@ class TimekeepingEmployeeLoadController extends Controller
             ->with('success', 'Upload cancelled.');
     }
 
+    public function updateEntry(Request $request, RawEmployeeLoadEntry $entry): RedirectResponse
+    {
+        TimekeepingEmployeeLoad::authorize($request->user(), 'update');
+
+        $validator = validator($request->all(), [
+            'time_in' => ['nullable', 'date_format:H:i'],
+            'time_out' => ['nullable', 'date_format:H:i'],
+            'late_waived' => ['nullable', 'boolean'],
+            'remarks' => ['nullable', 'string', 'max:255'],
+            'comments' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()
+                ->route(TimekeepingEmployeeLoad::routeName('index'), [
+                    'view' => $entry->employee_load_transaction_id,
+                    'edit_entry' => $entry->employee_load_entry_id,
+                ])
+                ->withInput()
+                ->withErrors($validator);
+        }
+
+        $validated = $validator->validated();
+
+        $timeIn = $this->normalizeStoredTime($validated['time_in'] ?? null);
+        $timeOut = $this->normalizeStoredTime($validated['time_out'] ?? null);
+        $lateWaived = $request->boolean('late_waived');
+
+        $before = [
+            'time_in' => $entry->time_in,
+            'time_out' => $entry->time_out,
+            'late_waived' => (bool) $entry->late_waived,
+        ];
+
+        $entry->update([
+            'time_in' => $timeIn,
+            'time_out' => $timeOut,
+            'late_waived' => $lateWaived,
+            'remarks' => $validated['remarks'] ?? null,
+            'comments' => $validated['comments'] ?? null,
+        ]);
+
+        SysLogService::record(
+            action: 'update',
+            table: 'raw_employee_load_entries',
+            recordId: $entry->employee_load_entry_id,
+            description: 'Updated employee load entry #'.$entry->employee_load_entry_id
+                .' ('.$entry->faculty_name.', '.$entry->session_date?->toDateString().')'
+                .' time_in '.$before['time_in'].'→'.$timeIn
+                .' time_out '.$before['time_out'].'→'.$timeOut
+                .' late_waived '.((int) $before['late_waived']).'→'.((int) $lateWaived),
+        );
+
+        return redirect()
+            ->route(TimekeepingEmployeeLoad::routeName('index'), [
+                'view' => $entry->employee_load_transaction_id,
+            ])
+            ->with('success', 'Employee load entry updated.');
+    }
+
     public function destroy(Request $request): RedirectResponse
     {
         TimekeepingEmployeeLoad::authorize($request->user(), 'delete');
@@ -229,9 +305,6 @@ class TimekeepingEmployeeLoadController extends Controller
     }
 
     /**
-     * Resolve the enrollment period for a date range without failing the upload
-     * if resolution is not possible (the period is stored for reference only).
-     *
      * @return array{id?: int, label?: string}
      */
     private function resolvePeriodQuietly(string $dateFrom, string $dateTo): array
@@ -240,6 +313,23 @@ class TimekeepingEmployeeLoadController extends Controller
             return $this->templateService->resolvePeriodForRange($dateFrom, $dateTo);
         } catch (RuntimeException) {
             return [];
+        }
+    }
+
+    private function normalizeStoredTime(?string $value): ?string
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return CarbonImmutable::createFromFormat('H:i', trim($value))->format('H:i:s');
+        } catch (\Throwable) {
+            try {
+                return CarbonImmutable::parse($value)->format('H:i:s');
+            } catch (\Throwable) {
+                return null;
+            }
         }
     }
 }

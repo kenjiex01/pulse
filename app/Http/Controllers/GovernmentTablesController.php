@@ -213,7 +213,9 @@ class GovernmentTablesController extends Controller
             'columns.*.amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        GovernmentTables::syncWtax2023Grid($typeId, $validated['columns']);
+        GovernmentTables::syncWtax2023Grid($typeId, collect($validated['columns'])
+            ->map(fn (array $row) => GovernmentTables::normalizeWtaxGridColumn($row))
+            ->all());
 
         SysLogService::record(
             action: 'update',
@@ -234,7 +236,9 @@ class GovernmentTablesController extends Controller
         GovernmentTables::authorize($request->user(), 'add');
 
         $validated = $request->validate(GovernmentTables::annualValidationRules());
-        $record = GovtTableWtaxAnnual2023::query()->create($validated);
+        $record = GovtTableWtaxAnnual2023::query()->create(
+            GovernmentTables::normalizeAnnualWtaxAttributes($validated),
+        );
 
         SysLogService::record(
             action: 'create',
@@ -260,7 +264,7 @@ class GovernmentTablesController extends Controller
         $oldValues = $model->toArray();
 
         $validated = $request->validate(GovernmentTables::annualValidationRules($model));
-        $model->update($validated);
+        $model->update(GovernmentTables::normalizeAnnualWtaxAttributes($validated));
 
         SysLogService::record(
             action: 'update',

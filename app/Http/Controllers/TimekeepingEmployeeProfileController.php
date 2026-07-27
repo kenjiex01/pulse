@@ -6,10 +6,14 @@ use App\Models\Employee;
 use App\Models\RawTimekeepingInandout;
 use App\Models\TimekeepingEmployeeRestDay;
 use App\Models\TimekeepingEmployeeSetup;
+use App\Services\EmployeeAttendanceLogService;
 use App\Services\SysLogService;
+use App\Services\EmployeeLoadAttendanceMatcher;
 use App\Support\LiveTable;
 use App\Support\EmployeeApprovalSettings;
 use App\Support\TimekeepingEmployeeProfile;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +21,10 @@ use Illuminate\View\View;
 
 class TimekeepingEmployeeProfileController extends Controller
 {
+    public function __construct(
+        private readonly EmployeeAttendanceLogService $attendanceLogService,
+    ) {}
+
     public function index(Request $request): View
     {
         TimekeepingEmployeeProfile::authorize($request->user(), 'view');
@@ -26,7 +34,7 @@ class TimekeepingEmployeeProfileController extends Controller
 
         $employees = TimekeepingEmployeeProfile::query()
             ->search($search)
-            ->paginate(LiveTable::perPage($request, 15))
+            ->paginate(LiveTable::perPage($request))
             ->withQueryString();
 
         if (! $request->ajax()) {
@@ -185,21 +193,28 @@ class TimekeepingEmployeeProfileController extends Controller
         ]);
     }
 
-    public function employeeLoadView(Request $request, Employee $employee): View
+    public function employeeLoadView(Request $request, Employee $employee, EmployeeLoadAttendanceMatcher $attendanceMatcher): View
     {
         TimekeepingEmployeeProfile::authorize($request->user(), 'view');
 
+        $employeeLoadEntries = TimekeepingEmployeeProfile::employeeLoadEntriesQuery($employee)
+            ->with('transaction')
+            ->get();
+
+        // Skolaris-pulled loads keep schedule only; Time In/Out are resolved from attendance logs.
+        $skolarisEntries = $employeeLoadEntries->filter(function ($entry) {
+            return str_starts_with((string) ($entry->transaction?->filename ?? ''), 'Skolaris Pull')
+                || ($entry->verification_remarks === 'Pulled from Skolaris');
+        });
+
+        if ($skolarisEntries->isNotEmpty()) {
+            $attendanceMatcher->applyToEntries($employee, $skolarisEntries);
+            $employeeLoadEntries = TimekeepingEmployeeProfile::employeeLoadEntriesQuery($employee)
+                ->with('transaction')
+                ->get();
+        }
+
         $summary = TimekeepingEmployeeProfile::employeeLoadSummary($employee);
-
-        $perPage = LiveTable::perPage($request, 10);
-        $pageName = 'employee_load_page';
-        $query = TimekeepingEmployeeProfile::employeeLoadEntriesQuery($employee);
-
-        $total = (clone $query)->count();
-        $lastPage = max(1, (int) ceil($total / $perPage));
-        $page = max(1, min($lastPage, (int) $request->input($pageName, $lastPage)));
-
-        $employeeLoadEntries = $query->paginate($perPage, ['*'], $pageName, $page);
 
         $employee->loadMissing('timekeepingSetup.policy');
         $policy = $employee->timekeepingSetup?->policy;
@@ -210,5 +225,65 @@ class TimekeepingEmployeeProfileController extends Controller
             'summary' => $summary,
             'timekeepingPolicy' => $policy,
         ]);
+    }
+
+    public function updateAttendanceLog(
+        Request $request,
+        Employee $employee,
+        RawTimekeepingInandout $attendanceLog,
+    ): RedirectResponse {
+        TimekeepingEmployeeProfile::authorize($request->user(), 'update');
+
+        if ((int) $attendanceLog->employee_id !== (int) $employee->employee_id) {
+            abort(404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'log_date' => ['required', 'date'],
+            'log_time' => ['required', 'date_format:H:i'],
+            'is_in' => ['required', 'boolean'],
+            'attendance_page' => ['nullable', 'integer', 'min:1'],
+            'form_context' => ['required', 'string'],
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()
+                ->route(TimekeepingEmployeeProfile::routeName('index'), $this->employeeProfileRedirectParams($request, $employee, [
+                    'view_tab' => 'attendance',
+                    'attendance_page' => $request->input('attendance_page'),
+                ]))
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        $validated = $validator->validated();
+        $dateTime = Carbon::parse($validated['log_date'].' '.$validated['log_time'].':00');
+
+        $this->attendanceLogService->update(
+            $attendanceLog,
+            $dateTime,
+            (bool) $validated['is_in'],
+            (int) $request->user()->id,
+        );
+
+        return redirect()
+            ->route(TimekeepingEmployeeProfile::routeName('index'), $this->employeeProfileRedirectParams($request, $employee, [
+                'view_tab' => 'attendance',
+                'attendance_page' => $validated['attendance_page'] ?? $request->input('attendance_page'),
+            ]))
+            ->with('success', 'Attendance log updated successfully.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $extra
+     * @return array<string, mixed>
+     */
+    private function employeeProfileRedirectParams(Request $request, Employee $employee, array $extra = []): array
+    {
+        return array_merge([
+            'view_employee' => $employee->employee_id,
+            'search' => $request->input('search'),
+            'page' => $request->input('page'),
+        ], $extra);
     }
 }

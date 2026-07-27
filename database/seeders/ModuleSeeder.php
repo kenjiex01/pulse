@@ -38,6 +38,15 @@ class ModuleSeeder extends Seeder
                 'sort_order' => 3,
             ],
             [
+                'name' => 'Database',
+                'route_name' => 'database.index',
+                'route_pattern' => 'database.*',
+                'icon' => 'database',
+                'section' => 'Administration',
+                'admin_only' => true,
+                'sort_order' => 4,
+            ],
+            [
                 'name' => 'Human Resource',
                 'route_name' => null,
                 'route_pattern' => null,

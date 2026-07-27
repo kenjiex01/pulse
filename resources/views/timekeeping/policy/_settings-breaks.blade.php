@@ -1,5 +1,7 @@
 @php
-    $deductBreakTardiness = (bool) old('break_deduct_tardiness', $policy->break_deduct_tardiness);
+    $deductBreakTardiness = old('break_deduct_tardiness') !== null
+        ? filter_var(old('break_deduct_tardiness'), FILTER_VALIDATE_BOOLEAN)
+        : (bool) $policy->break_deduct_tardiness;
 @endphp
 
 <form
@@ -26,30 +28,25 @@
                 @error('break_computation')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
             <label class="flex items-center gap-2 text-sm">
-                <input type="hidden" name="is_fix_break" value="0">
-                <input type="checkbox" name="is_fix_break" value="1" @checked(old('is_fix_break', $policy->is_fix_break))>
-                Fix Break Schedule
-            </label>
-            <label class="flex items-center gap-2 text-sm">
                 <input type="hidden" name="break_deduct_tardiness" value="0">
                 <input type="checkbox" name="break_deduct_tardiness" value="1" data-break-tardiness-toggle @checked($deductBreakTardiness)>
                 Deduct Tardiness in Breaks
             </label>
-            <div class="rounded-lg border border-gray-200 p-4" data-break-tardiness-panel @class(['opacity-50' => ! $deductBreakTardiness])>
+            <div class="rounded-lg border border-gray-200 p-4" data-break-tardiness-panel>
                 <div class="grid gap-4 md:grid-cols-2">
                     <div>
                         <label for="break_grace_period" class="form-label">Grace Period (minutes)</label>
-                        <input id="break_grace_period" name="break_grace_period" type="number" step="0.0001" min="0" value="{{ old('break_grace_period', $policy->break_grace_period) }}" class="form-input" data-break-tardiness-field @disabled(! $deductBreakTardiness)>
+                        <input id="break_grace_period" name="break_grace_period" type="number" step="0.0001" min="0" value="{{ old('break_grace_period', $policy->break_grace_period) }}" class="form-input" data-break-tardiness-field>
                         <label class="mt-2 flex items-center gap-2 text-sm">
                             <input type="hidden" name="is_break_deduct_grace_period" value="0">
-                            <input type="checkbox" name="is_break_deduct_grace_period" value="1" @checked(old('is_break_deduct_grace_period', $policy->is_break_deduct_grace_period)) data-break-tardiness-field @disabled(! $deductBreakTardiness)>
+                            <input type="checkbox" name="is_break_deduct_grace_period" value="1" @checked(old('is_break_deduct_grace_period', $policy->is_break_deduct_grace_period)) data-break-tardiness-field>
                             Actual Late less Grace Period
                         </label>
                         @error('break_grace_period')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label for="break_tardiness_rounding_id" class="form-label">Rounding Rule</label>
-                        <select id="break_tardiness_rounding_id" name="break_tardiness_rounding_id" class="form-input" data-break-tardiness-field @disabled(! $deductBreakTardiness)>
+                        <select id="break_tardiness_rounding_id" name="break_tardiness_rounding_id" class="form-input" data-break-tardiness-field>
                             <option value="">Select rounding</option>
                             @foreach ($selectOptions['rounding'] as $value => $label)
                                 <option value="{{ $value }}" @selected((string) old('break_tardiness_rounding_id', $policy->break_tardiness_rounding_id) === (string) $value)>{{ $label }}</option>
@@ -58,7 +55,7 @@
                     </div>
                     <div>
                         <label for="break_tardiness_leave_type_id" class="form-label">Leave Type</label>
-                        <select id="break_tardiness_leave_type_id" name="break_tardiness_leave_type_id" class="form-input" data-break-tardiness-field @disabled(! $deductBreakTardiness)>
+                        <select id="break_tardiness_leave_type_id" name="break_tardiness_leave_type_id" class="form-input" data-break-tardiness-field>
                             <option value="">Select leave type</option>
                             @foreach ($selectOptions['leave_types'] as $value => $label)
                                 <option value="{{ $value }}" @selected((string) old('break_tardiness_leave_type_id', $policy->break_tardiness_leave_type_id) === (string) $value)>{{ $label }}</option>

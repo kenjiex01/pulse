@@ -5,7 +5,9 @@ namespace App\Http\Requests\Employee\Concerns;
 use App\Models\Employee;
 use App\Models\EmployeeEmploymentInformation;
 use App\Models\PayType;
+use App\Rules\GovernmentIdNumber;
 use App\Services\EmployeeCampusAssignmentSync;
+use App\Support\GovernmentIdNumbers;
 use App\Services\EmployeeEmploymentSync;
 use App\Services\EmployeeSalarySync;
 use Illuminate\Support\Arr;
@@ -19,7 +21,13 @@ trait EmployeeFormRules
         return [
             'employee_number' => $this->employeeNumberRules($employee),
             'first_name' => ['required', 'string', 'max:100'],
-            'middle_name' => ['nullable', 'string', 'max:100'],
+            'no_middle_name' => ['sometimes', 'boolean'],
+            'middle_name' => [
+                Rule::requiredIf(fn () => ! $this->boolean('no_middle_name')),
+                'nullable',
+                'string',
+                'max:100',
+            ],
             'last_name' => ['required', 'string', 'max:100'],
             'suffix' => ['nullable', 'string', 'max:20'],
             'is_hybrid' => ['sometimes', 'boolean'],
@@ -36,7 +44,8 @@ trait EmployeeFormRules
             'employment_informations.*.hire_date' => ['nullable', 'date'],
             'employee_salaries' => ['required', 'array', 'min:1', 'max:2'],
             'employee_salaries.*.employment_index' => ['nullable', 'integer', 'min:0', 'max:1'],
-            'employee_salaries.*.date_effective' => ['required', 'date'],
+            'employee_salaries.*.date_effective_from' => ['required', 'date'],
+            'employee_salaries.*.date_effective_to' => ['nullable', 'date'],
             'employee_salaries.*.basic_computation_id' => ['required', Rule::exists('lu_basic_computations', 'basic_computation_id')],
             'employee_salaries.*.pay_type_id' => ['required', Rule::exists('lu_pay_types', 'pay_type_id')],
             'employee_salaries.*.rate_group_id' => ['required', Rule::exists('tbl_rate_groups', 'rate_group_id')],
@@ -69,12 +78,7 @@ trait EmployeeFormRules
             'campus_assignments.*.department' => ['nullable', 'string', 'max:150'],
             'campus_assignments.*.program' => ['nullable', 'string', 'max:150'],
             'employment_status' => ['required', Rule::in([Employee::STATUS_ACTIVE, Employee::STATUS_INACTIVE])],
-            'compliance_status' => ['nullable', Rule::in([
-                Employee::COMPLIANCE_COMPLIANT,
-                Employee::COMPLIANCE_PENDING,
-                Employee::COMPLIANCE_OVERDUE,
-                Employee::COMPLIANCE_WITHHELD,
-            ])],
+            'compliance_status' => ['nullable', Rule::in(array_keys(Employee::selectableComplianceStatuses()))],
             'hire_date' => ['prohibited'],
             'birth_date' => ['nullable', 'date'],
             'place_of_birth' => ['nullable', 'string', 'max:150'],
@@ -85,10 +89,10 @@ trait EmployeeFormRules
             'language_dialect' => ['nullable', 'string', 'max:100'],
             'height_cm' => ['nullable', 'numeric', 'min:0', 'max:300'],
             'weight_kg' => ['nullable', 'numeric', 'min:0', 'max:500'],
-            'tin_number' => ['nullable', 'string', 'max:30'],
-            'sss_number' => ['nullable', 'string', 'max:30'],
-            'philhealth_number' => ['nullable', 'string', 'max:30'],
-            'pagibig_number' => ['nullable', 'string', 'max:30'],
+            'tin_number' => ['nullable', 'string', 'max:30', new GovernmentIdNumber(GovernmentIdNumbers::TYPE_TIN)],
+            'sss_number' => ['nullable', 'string', 'max:30', new GovernmentIdNumber(GovernmentIdNumbers::TYPE_SSS)],
+            'philhealth_number' => ['nullable', 'string', 'max:30', new GovernmentIdNumber(GovernmentIdNumbers::TYPE_PHILHEALTH)],
+            'pagibig_number' => ['nullable', 'string', 'max:30', new GovernmentIdNumber(GovernmentIdNumbers::TYPE_PAGIBIG)],
             'gsis_number' => ['nullable', 'string', 'max:30'],
             'tax_status' => ['nullable', 'string', 'max:50'],
             'emergency_contact_name' => ['nullable', 'string', 'max:150'],
@@ -125,6 +129,7 @@ trait EmployeeFormRules
         return [
             'employee_number.required' => 'Employee number is required.',
             'employee_number.unique' => 'This employee number is already assigned to another employee.',
+            'middle_name.required' => 'Middle name is required unless No middle name is selected.',
         ];
     }
 
@@ -144,9 +149,12 @@ trait EmployeeFormRules
         );
 
         $extended = $this->normalizeExtendedProfile((array) $this->input('extended_profile', []));
+        $noMiddleName = $this->boolean('no_middle_name');
 
         $this->merge([
             'employee_number' => trim((string) $this->input('employee_number', '')),
+            'no_middle_name' => $noMiddleName,
+            'middle_name' => $noMiddleName ? null : trim((string) $this->input('middle_name', '')),
             'is_hybrid' => $isHybrid,
             'is_confidential' => $this->boolean('is_confidential'),
             'compliance_status' => $this->input('compliance_status', Employee::COMPLIANCE_PENDING),
@@ -154,6 +162,10 @@ trait EmployeeFormRules
             'employee_salaries' => $employeeSalaries,
             'campus_assignments' => $campusAssignments,
             'extended_profile' => $extended,
+            'tin_number' => GovernmentIdNumbers::normalize($this->input('tin_number')),
+            'sss_number' => GovernmentIdNumbers::normalize($this->input('sss_number')),
+            'philhealth_number' => GovernmentIdNumbers::normalize($this->input('philhealth_number')),
+            'pagibig_number' => GovernmentIdNumbers::normalize($this->input('pagibig_number')),
         ]);
     }
 
@@ -260,7 +272,12 @@ trait EmployeeFormRules
     protected function validatedEmployeeData(): array
     {
         $data = parent::validated();
-        unset($data['employment_informations'], $data['employee_salaries'], $data['campus_assignments']);
+        unset(
+            $data['employment_informations'],
+            $data['employee_salaries'],
+            $data['campus_assignments'],
+            $data['no_middle_name'],
+        );
         $data['is_active'] = ($data['employment_status'] ?? Employee::STATUS_ACTIVE) === Employee::STATUS_ACTIVE;
 
         if (isset($data['extended_profile']) && is_array($data['extended_profile'])) {

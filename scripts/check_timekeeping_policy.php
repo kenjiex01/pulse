@@ -29,7 +29,6 @@ if (! $user) {
 Auth::login($user);
 
 $leaveTypeId = LeaveType::query()->value('leave_type_id');
-$teamSettingId = Support::selectOptions()['team_settings'] ? array_key_first(Support::selectOptions()['team_settings']) : null;
 
 $payloads = [
     'tardiness-undertime' => [
@@ -49,15 +48,7 @@ $payloads = [
     ],
     'breaks' => [
         'break_computation' => '1',
-        'is_fix_break' => '0',
         'break_deduct_tardiness' => '0',
-    ],
-    'leaves-absences' => [
-        'hide_negative_leaves' => '0',
-        'enable_notification' => '0',
-        'awol_leave_type_id' => $leaveTypeId,
-        'leave_processing_mode' => '1',
-        'validity_of_late_file' => '30',
     ],
     'night-differential' => [
         'compute_night_diff' => '1',
@@ -69,11 +60,7 @@ $payloads = [
         'enable_attendance_approval' => '1',
         'buffer_time_in' => '4',
         'buffer_time_out' => '10',
-        'non_regular_hours_computation_basis' => '2',
         'enable_employee_validation_for_rest_days' => '0',
-    ],
-    'team-settings' => [
-        'timekeeping_policy_team_setting_id' => $teamSettingId,
     ],
     'toil-settings' => [
         'enable_toil' => '1',
@@ -81,28 +68,9 @@ $payloads = [
         'min_toil_hours' => '1',
         'max_toil_hours' => '8',
     ],
-    'logs-tagging' => [
-        'enable_logs_tagging' => '1',
-        'raw_logs_tag' => 'R',
-        'raw_logs_desc' => 'Raw',
-        'edited_logs_tag' => 'E',
-        'edited_logs_desc' => 'Edited',
-        'filed_logs_tag' => 'F',
-        'filed_logs_desc' => 'Filed',
-        'auto_logs_tag' => 'A',
-        'auto_logs_desc' => 'Auto',
-        'default_shift_tag' => 'D',
-        'default_shift_desc' => 'Default',
-        'planned_shift_tag' => 'P',
-        'planned_shift_desc' => 'Planned',
-        'filed_shift_tag' => 'S',
-        'filed_shift_desc' => 'Filed Shift',
-        'edited_shift_tag' => 'T',
-        'edited_shift_desc' => 'Edited Shift',
-    ],
 ];
 
-echo "Policy #{$policy->timekeeping_policy_id} | Leave types: ".LeaveType::query()->count()." | Team settings: ".count(Support::selectOptions()['team_settings'])."\n\n";
+echo "Policy #{$policy->timekeeping_policy_id} | Leave types: ".LeaveType::query()->count()."\n\n";
 
 $failed = 0;
 

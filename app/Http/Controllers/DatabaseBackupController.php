@@ -11,9 +11,7 @@ class DatabaseBackupController extends Controller
 {
     public function __invoke(DatabaseBackupService $backupService): BinaryFileResponse|Response
     {
-        $user = auth()->user();
-
-        if (! $user?->isSuperAdmin()) {
+        if (! auth()->user()?->isAdmin()) {
             abort(403);
         }
 

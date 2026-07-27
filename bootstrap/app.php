@@ -13,9 +13,23 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
+        $schedule->command('backup:upload-cloud')
+            ->dailyAt(sprintf(
+                '%02d:%02d',
+                (int) config('backup.cloud.schedule_hour', 10),
+                (int) config('backup.cloud.schedule_minute', 0),
+            ))
+            ->timezone((string) config('backup.cloud.timezone', 'Asia/Manila'))
+            ->when(fn () => (bool) config('backup.cloud.enabled', false));
+    })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo('/login');
         $middleware->redirectUsersTo('/dashboard');
+        $middleware->web(append: [
+            \App\Http\Middleware\PrepareAuthenticatedUser::class,
+            \App\Http\Middleware\EnsureDesktopCloudBackup::class,
+        ]);
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureRole::class,
             'module' => \App\Http\Middleware\EnsureModuleAccess::class,

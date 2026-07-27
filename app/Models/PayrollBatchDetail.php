@@ -22,6 +22,7 @@ class PayrollBatchDetail extends Model
         static::deleting(function (PayrollBatchDetail $detail) {
             $detail->incomes()->withTrashed()->each(fn (PayrollIncome $income) => $income->forceDelete());
             $detail->deductions()->withTrashed()->each(fn (PayrollDeduction $deduction) => $deduction->forceDelete());
+            $detail->leaves()->withTrashed()->each(fn (PayrollLeave $leave) => $leave->forceDelete());
         });
     }
 
@@ -43,5 +44,10 @@ class PayrollBatchDetail extends Model
     public function deductions(): HasMany
     {
         return $this->hasMany(PayrollDeduction::class, 'payroll_batch_detail_id', 'payroll_batch_detail_id');
+    }
+
+    public function leaves(): HasMany
+    {
+        return $this->hasMany(PayrollLeave::class, 'payroll_batch_detail_id', 'payroll_batch_detail_id');
     }
 }

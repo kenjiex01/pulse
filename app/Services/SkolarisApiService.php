@@ -95,6 +95,191 @@ class SkolarisApiService
         return $results;
     }
 
+
+    /**
+     * Fetch teaching load / daily schedule breakdown for a date range.
+     *
+     * @param  array<int, string>  $employeeNumbers
+     * @return array<int, array<string, mixed>>
+     */
+    public function dailyLoads(string $dateFrom, string $dateTo, array $employeeNumbers = []): array
+    {
+        $params = [
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+        ];
+
+        if ($employeeNumbers !== []) {
+            $params['employee_numbers'] = implode(',', array_values(array_unique(array_map('strval', $employeeNumbers))));
+        }
+
+        if ($this->usesPulseApiKey()) {
+            $response = $this->pulseApiRequest('get', '/timekeeping/daily-loads', $params);
+        } else {
+            $response = $this->request('get', '/employees/timekeeping/daily-loads', $params);
+        }
+
+        $rows = $response->json('data') ?? [];
+
+        return is_array($rows) ? array_values($rows) : [];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function listEmployeeNumbers(): array
+    {
+        return Cache::remember('skolaris:employee_numbers', now()->addHours(6), function () {
+            return $this->fetchAllEmployeeNumbers();
+        });
+    }
+
+    public function forgetEmployeeNumberCache(): void
+    {
+        Cache::forget('skolaris:employee_numbers');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function fetchAllEmployeeNumbers(): array
+    {
+        $numbers = [];
+
+        if ($this->usesPulseApiKey()) {
+            $numbers = array_merge($numbers, $this->fetchPulseEmployeeNumbersByMonth((int) now()->year));
+
+            // Include prior year through current month for employees whose load spans terms.
+            if (now()->month <= 6) {
+                $numbers = array_merge($numbers, $this->fetchPulseEmployeeNumbersByMonth((int) now()->year - 1));
+            }
+        } else {
+            $this->assertConfigured();
+            $page = 1;
+
+            do {
+                $response = $this->request('get', '/employees', [
+                    'status' => 'active',
+                    'page' => $page,
+                    'per_page' => 200,
+                ]);
+
+                $payload = $response->json();
+                $rows = $payload['data'] ?? $payload;
+
+                if (isset($rows['data']) && is_array($rows['data'])) {
+                    $rows = $rows['data'];
+                }
+
+                if (! is_array($rows)) {
+                    break;
+                }
+
+                foreach ($rows as $row) {
+                    if (! is_array($row)) {
+                        continue;
+                    }
+
+                    $number = trim((string) ($row['employee_number'] ?? ''));
+
+                    if ($number !== '') {
+                        $numbers[] = $number;
+                    }
+                }
+
+                $pagination = $payload['pagination'] ?? [];
+                $hasMore = is_array($pagination)
+                    ? (($pagination['current_page'] ?? $page) < ($pagination['last_page'] ?? $page))
+                    : count($rows) === 200;
+                $page++;
+            } while ($hasMore && $page <= 500);
+        }
+
+        $numbers = array_values(array_unique($numbers));
+
+        if ($numbers === []) {
+            throw new RuntimeException('No employee numbers returned from Skolaris. Check API credentials.');
+        }
+
+        return $numbers;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function fetchPulseEmployeeNumbersByMonth(int $year): array
+    {
+        $numbers = [];
+
+        for ($month = 1; $month <= 12; $month++) {
+            $monthKey = sprintf('%04d-%02d', $year, $month);
+
+            try {
+                $response = $this->pulseApiRequest('get', '/timekeeping/daily-loads', [
+                    'month' => $monthKey,
+                ]);
+            } catch (RuntimeException $exception) {
+                Log::warning('Skolaris monthly daily-loads skipped', [
+                    'month' => $monthKey,
+                    'message' => $exception->getMessage(),
+                ]);
+
+                continue;
+            }
+
+            foreach ($response->json('data') ?? [] as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+
+                $number = trim((string) ($row['employee_number'] ?? ''));
+
+                if ($number !== '') {
+                    $numbers[] = $number;
+                }
+            }
+        }
+
+        return array_values(array_unique($numbers));
+    }
+
+    private function usesPulseApiKey(): bool
+    {
+        return filled(config('skolaris.pulse_api_key'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $params
+     */
+    private function pulseApiRequest(string $method, string $uri, array $params = []): Response
+    {
+        $apiKey = (string) config('skolaris.pulse_api_key');
+        $baseUrl = (string) config('skolaris.pulse_api_base_url');
+
+        if ($apiKey === '' || $baseUrl === '') {
+            throw new RuntimeException('Skolaris Pulse API key is not configured. Set SKOLARIS_PULSE_API_KEY and SKOLARIS_PULSE_API_BASE_URL.');
+        }
+
+        $client = Http::baseUrl($baseUrl)
+            ->acceptJson()
+            ->timeout((int) config('skolaris.timeout', 60))
+            ->withHeaders(['X-API-Key' => $apiKey]);
+
+        if ($method !== 'get') {
+            $client = $client->asJson();
+        }
+
+        $response = $method === 'get'
+            ? $client->get($uri, $params)
+            : $client->post($uri, $params);
+
+        if ($response->failed()) {
+            $this->throwForResponse($uri, $response, 'Skolaris Pulse API request failed.');
+        }
+
+        return $response;
+    }
+
     /**
      * Perform an authenticated request, retrying once on a 401 after refreshing.
      *

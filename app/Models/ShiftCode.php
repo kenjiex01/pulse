@@ -19,7 +19,17 @@ class ShiftCode extends Model
         'description',
         'time_in',
         'time_out',
+        'is_flexi_time',
+        'expected_hours_per_day',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_flexi_time' => 'boolean',
+            'expected_hours_per_day' => 'decimal:4',
+        ];
+    }
 
     protected static function booted(): void
     {

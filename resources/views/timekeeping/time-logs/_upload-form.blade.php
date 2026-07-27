@@ -61,8 +61,11 @@
                 <li>Select the campus that provided the DTR file.</li>
                 <li>Upload the campus Excel file as provided (no conversion needed).</li>
                 <li>Cainta Main and San Mateo use <strong>.xls</strong>; Sumulong uses <strong>.xlsx</strong>.</li>
+                <li>Cainta Main: <strong>Timesheet Report</strong> export with <code>Employee: NAME (biometric ID)</code> blocks and In/Out columns.</li>
                 <li>San Mateo workbooks may include multiple tabs; only <strong>Card Report</strong> sheets are imported.</li>
-                <li>Card Report employee IDs must match the employee&apos;s <strong>Biometric ID</strong> on that campus (Assignment tab).</li>
+                <li>Sumulong uploads the campus <strong>DTR Report</strong> export — employee name plus ID number in parentheses.</li>
+                <li>Sumulong matches employees by ID number in <strong>( )</strong>, then by name on that campus if needed.</li>
+                <li>San Mateo Card Report IDs must match the employee&apos;s <strong>Biometric ID</strong> on that campus (Assignment tab).</li>
             @else
                 <li>Select a format type, then download the template.</li>
                 <li>Open the template in Excel, fill in your data, remove instruction rows.</li>
@@ -88,7 +91,7 @@
         >
         <p class="mt-1 text-xs text-gray-500" @if ($requiresCampus ?? false) data-time-logs-dtr-file-hint @endif>
             @if ($requiresCampus ?? false)
-                Select a campus first. Cainta/San Mateo: .xls only. Sumulong: .xlsx only. San Mateo: Card Report tabs only.
+                Select a campus first. Cainta: .xls Timesheet Report. San Mateo: .xls Card Report tabs only. Sumulong: .xlsx DTR Report.
             @else
                 Tab-delimited text (.txt) or CSV only — not Excel workbooks.
             @endif

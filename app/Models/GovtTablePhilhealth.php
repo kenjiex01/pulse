@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class GovtTablePhilhealth extends Model
 {
@@ -18,9 +18,11 @@ class GovtTablePhilhealth extends Model
     protected $fillable = [
         'salary_from',
         'salary_to',
-        'contribution_base',
+        'is_percent',
+        'percentage',
         'employee_share',
         'employer_share',
+        'is_active',
     ];
 
     protected function casts(): array
@@ -28,9 +30,11 @@ class GovtTablePhilhealth extends Model
         return [
             'salary_from' => 'decimal:2',
             'salary_to' => 'decimal:2',
-            'contribution_base' => 'decimal:2',
+            'is_percent' => 'boolean',
+            'percentage' => 'decimal:2',
             'employee_share' => 'decimal:2',
             'employer_share' => 'decimal:2',
+            'is_active' => 'boolean',
         ];
     }
 }

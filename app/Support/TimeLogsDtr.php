@@ -25,6 +25,10 @@ class TimeLogsDtr
             throw new RuntimeException('DTR upload format is not configured for '.$campus->campus_name.'.');
         }
 
+        if ($parser === 'sumulong_dtr_report' || $parser === 'cainta_timesheet_report') {
+            return $format;
+        }
+
         if (blank($format['file_extension'] ?? null)) {
             throw new RuntimeException('DTR upload format is not configured for '.$campus->campus_name.'.');
         }

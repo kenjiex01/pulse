@@ -49,7 +49,7 @@ return [
         'AZURE_*',
         'GITHUB_*',
         'DO_SPACES_*',
-        '*_SECRET',
+        // Do not use *_SECRET — it strips DB_BACKUP_S3_SECRET and disables desktop cloud backup.
         'ZEPHPYR_*',
         'NATIVEPHP_UPDATER_PATH',
         'NATIVEPHP_APPLE_ID',

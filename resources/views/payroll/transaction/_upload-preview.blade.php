@@ -39,31 +39,33 @@
         @if (! empty($staging['valid']))
             <div>
                 <h3 class="mb-2 text-sm font-semibold text-gray-900">Valid Records Preview</h3>
-                <div class="max-h-56 overflow-auto rounded-lg border border-gray-200">
-                    <table class="table-skolaris min-w-full text-sm">
-                        <thead>
-                            <tr>
-                                <th class="px-3 py-2 text-left">#</th>
-                                <th class="px-3 py-2 text-left">Employee ID</th>
-                                <th class="px-3 py-2 text-left">Details</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (array_slice($staging['valid'], 0, 20) as $index => $row)
+                <div data-client-paginate data-page-size="20">
+                    <div class="max-h-56 overflow-auto rounded-lg border border-gray-200">
+                        <table class="table-skolaris min-w-full text-sm">
+                            <thead>
                                 <tr>
-                                    <td class="px-3 py-2 text-gray-600">{{ $index + 1 }}</td>
-                                    <td class="px-3 py-2 text-gray-900">{{ $row['employee_id'] ?? '—' }}</td>
-                                    <td class="px-3 py-2 text-gray-600">
-                                        {{ collect($row)->except(['employee_id'])->map(fn ($value, $key) => $key.': '.$value)->implode(', ') }}
-                                    </td>
+                                    <th class="px-3 py-2 text-left">#</th>
+                                    <th class="px-3 py-2 text-left">Employee ID</th>
+                                    <th class="px-3 py-2 text-left">Details</th>
                                 </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @foreach ($staging['valid'] as $index => $row)
+                                    <tr data-paginate-row>
+                                        <td class="px-3 py-2 text-gray-600">{{ $index + 1 }}</td>
+                                        <td class="px-3 py-2 text-gray-900">{{ $row['employee_id'] ?? '—' }}</td>
+                                        <td class="px-3 py-2 text-gray-600">
+                                            {{ collect($row)->except(['employee_id'])->map(fn ($value, $key) => $key.': '.$value)->implode(', ') }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (count($staging['valid']) > 1)
+                        @include('partials.client-pagination-controls', ['defaultPageSize' => 20])
+                    @endif
                 </div>
-                @if (($staging['valid_count'] ?? 0) > 20)
-                    <p class="mt-2 text-xs text-gray-500">Showing first 20 of {{ $staging['valid_count'] }} valid rows.</p>
-                @endif
             </div>
         @endif
 

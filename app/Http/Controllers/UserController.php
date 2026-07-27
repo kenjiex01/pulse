@@ -6,6 +6,7 @@ use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\SidebarNavigationService;
 use App\Services\SysLogService;
 use App\Support\LiveTable;
 use Illuminate\Http\RedirectResponse;
@@ -75,6 +76,7 @@ class UserController extends Controller
         $data = $request->safe()->except('role_ids');
         $user = User::query()->create($data);
         $user->roles()->sync($request->input('role_ids', []));
+        SidebarNavigationService::forgetForUser($user->id);
 
         SysLogService::record(
             action: 'create',
@@ -143,6 +145,7 @@ class UserController extends Controller
 
         $user->update($data);
         $user->roles()->sync($newRoleIds);
+        SidebarNavigationService::forgetForUser($user->id);
 
         SysLogService::record(
             action: 'update',

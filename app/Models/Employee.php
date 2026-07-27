@@ -25,6 +25,17 @@ class Employee extends Model
 
     public const COMPLIANCE_WITHHELD = 'withheld';
 
+    /**
+     * @return array<string, string>
+     */
+    public static function selectableComplianceStatuses(): array
+    {
+        return [
+            self::COMPLIANCE_PENDING => 'Pending',
+            self::COMPLIANCE_COMPLIANT => 'Compliant',
+        ];
+    }
+
     protected $table = 'tbl_employees';
 
     protected $primaryKey = 'employee_id';
@@ -161,6 +172,16 @@ class Employee extends Model
         return $this->hasMany(TimekeepingEmployeeRestDay::class, 'employee_id', 'employee_id');
     }
 
+    public function teachingLoadSyncStatus(): HasOne
+    {
+        return $this->hasOne(TeachingLoadSyncStatus::class, 'employee_id', 'employee_id');
+    }
+
+    public function teachingLoadSessions(): HasMany
+    {
+        return $this->hasMany(TeachingLoadSession::class, 'employee_id', 'employee_id');
+    }
+
     public function hasTimekeepingSetup(): bool
     {
         return $this->relationLoaded('timekeepingSetup')
@@ -191,6 +212,26 @@ class Employee extends Model
                         ->orWhere('designation', 'like', $term);
                 });
         });
+    }
+
+    public function scopeFacultyEligible(Builder $query): Builder
+    {
+        return $query->whereHas('employmentInformations', function (Builder $employmentQuery) {
+            $employmentQuery->where('user_type', EmployeeEmploymentInformation::TYPE_FACULTY);
+        });
+    }
+
+    public function isFaculty(): bool
+    {
+        if ($this->relationLoaded('employmentInformations')) {
+            return $this->employmentInformations->contains(
+                fn (EmployeeEmploymentInformation $employment) => $employment->user_type === EmployeeEmploymentInformation::TYPE_FACULTY
+            );
+        }
+
+        return $this->employmentInformations()
+            ->where('user_type', EmployeeEmploymentInformation::TYPE_FACULTY)
+            ->exists();
     }
 
     public function getFullNameAttribute(): string

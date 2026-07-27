@@ -15,6 +15,7 @@ class TimeLogsPayrollService
 {
     public function __construct(
         private readonly EmployeeLoadPayrollService $employeeLoadPayroll,
+        private readonly PayrollBreakService $breakPayroll,
     ) {}
 
     public function usesTimeLogs(EmployeeSalary $salary): bool
@@ -75,6 +76,7 @@ class TimeLogsPayrollService
         ?TimekeepingPolicy $policy = null,
         ?string $scheduleStart = null,
         ?string $scheduleEnd = null,
+        ?\App\Models\ShiftCode $shiftCode = null,
     ): array {
         $empty = [
             'worked_days' => 0,
@@ -95,6 +97,25 @@ class TimeLogsPayrollService
 
         if ($sessions->isEmpty()) {
             return $empty;
+        }
+
+        $isFlexiShift = $shiftCode !== null && (bool) $shiftCode->is_flexi_time;
+
+        if ($isFlexiShift) {
+            $workedDays = $sessions
+                ->filter(fn (array $session) => $session['time_in'] !== null && $session['time_in'] !== '')
+                ->count();
+
+            return [
+                'worked_days' => $workedDays,
+                'basic_taxable' => 0.0,
+                'basic_non_taxable' => 0.0,
+                'late_minutes' => 0,
+                'late_deduction' => 0.0,
+                'undertime_minutes' => 0,
+                'undertime_deduction' => 0.0,
+                'absent_sessions' => 0,
+            ];
         }
 
         $workedDays = $this->countWorkedDays($sessions, $policy, $scheduleStart);
@@ -127,6 +148,116 @@ class TimeLogsPayrollService
     }
 
     /**
+     * @param  Collection<int, EmployeeSalary>  $salaries
+     * @return array{
+     *     worked_days: int,
+     *     basic_taxable: float,
+     *     basic_non_taxable: float,
+     *     late_minutes: int,
+     *     late_deduction: float,
+     *     undertime_minutes: int,
+     *     undertime_deduction: float,
+     *     absent_sessions: int
+     * }
+     */
+    public function computeForPeriodWithSalaries(
+        Collection $salaries,
+        EmployeeSalaryResolverService $resolver,
+        int $employeeId,
+        CarbonInterface $from,
+        CarbonInterface $to,
+        ?TimekeepingPolicy $policy = null,
+        ?string $scheduleStart = null,
+        ?string $scheduleEnd = null,
+        ?\App\Models\ShiftCode $shiftCode = null,
+    ): array {
+        if ($salaries->isEmpty()) {
+            return $this->computeForPeriod(new EmployeeSalary, $employeeId, $from, $to, $policy, $scheduleStart, $scheduleEnd, $shiftCode);
+        }
+
+        if ($salaries->count() === 1) {
+            return $this->computeForPeriod($salaries->first(), $employeeId, $from, $to, $policy, $scheduleStart, $scheduleEnd, $shiftCode);
+        }
+
+        $primary = $salaries->last();
+
+        if ((int) $primary->basic_computation_id !== BasicComputation::TIME_IN_OUT) {
+            return $this->computeForPeriod($primary, $employeeId, $from, $to, $policy, $scheduleStart, $scheduleEnd, $shiftCode);
+        }
+
+        $sessions = $this->daySessionsForPeriod($employeeId, $from, $to);
+
+        if ($sessions->isEmpty()) {
+            return $this->computeForPeriod($primary, $employeeId, $from, $to, $policy, $scheduleStart, $scheduleEnd, $shiftCode);
+        }
+
+        if ($shiftCode !== null && (bool) $shiftCode->is_flexi_time) {
+            return $this->computeForPeriod($primary, $employeeId, $from, $to, $policy, $scheduleStart, $scheduleEnd, $shiftCode);
+        }
+
+        $workedDays = 0;
+        $basicTaxable = 0.0;
+        $lateMinutes = 0;
+        $lateDeduction = 0.0;
+        $undertimeMinutes = 0;
+        $undertimeDeduction = 0.0;
+        $absentSessions = 0;
+
+        foreach ($sessions as $session) {
+            $salary = $resolver->salaryEffectiveOnDate($salaries, $session['date']);
+
+            if ($salary === null) {
+                continue;
+            }
+
+            $resolvedLate = $this->resolvedLateForSession($session, $policy, $scheduleStart);
+            $resolvedUndertime = $this->resolvedUndertimeForSession($session, $policy, $scheduleEnd);
+
+            if ($session['time_in'] !== null && $session['time_in'] !== '') {
+                if (! $resolvedLate['is_absent']) {
+                    $workedDays++;
+                    $dailyRate = $this->employeeLoadPayroll->dailyRate($salary);
+
+                    if ($dailyRate !== null) {
+                        $basicTaxable += $dailyRate;
+                    }
+
+                    $lateMinutes += $resolvedLate['billable_minutes'];
+                } else {
+                    $absentSessions++;
+                }
+            }
+
+            $undertimeMinutes += $resolvedUndertime['billable_minutes'];
+            $hourlyRate = $salary->hourlyRate();
+
+            if ($hourlyRate === null) {
+                continue;
+            }
+
+            if (! $resolvedLate['is_absent']) {
+                $lateDeduction += ($resolvedLate['billable_minutes'] / 60) * $hourlyRate;
+            }
+
+            $undertimeDeduction += ($resolvedUndertime['billable_minutes'] / 60) * $hourlyRate;
+        }
+
+        return [
+            'worked_days' => $workedDays,
+            'basic_taxable' => round($basicTaxable, 2),
+            'basic_non_taxable' => 0.0,
+            'late_minutes' => $lateMinutes,
+            'late_deduction' => round($lateDeduction, 2),
+            'undertime_minutes' => $undertimeMinutes,
+            'undertime_deduction' => round($undertimeDeduction, 2),
+            'absent_sessions' => $absentSessions,
+        ];
+    }
+
+    /**
+     * Daily work sessions for payroll: first IN and last OUT per calendar day.
+     * Middle punches on the same day are interpreted as break logs (see PayrollBreakService).
+     *
      * @return Collection<int, array{date: CarbonImmutable, time_in: string|null, time_out: string|null}>
      */
     public function daySessionsForPeriod(
@@ -138,13 +269,12 @@ class TimeLogsPayrollService
             ->groupBy(fn (RawTimekeepingInandout $punch) => $punch->dt_datetime?->toDateString())
             ->filter(fn ($group, $date) => $date !== null && $date !== '')
             ->map(function (Collection $dayPunches, string $date) {
-                $timeInPunch = $dayPunches->first(fn (RawTimekeepingInandout $punch) => (bool) $punch->is_in);
-                $timeOutPunch = $dayPunches->last(fn (RawTimekeepingInandout $punch) => ! (bool) $punch->is_in);
+                $session = $this->breakPayroll->payrollSessionFromPunches($dayPunches);
 
                 return [
                     'date' => CarbonImmutable::parse($date),
-                    'time_in' => $timeInPunch?->dt_datetime?->format('H:i:s'),
-                    'time_out' => $timeOutPunch?->dt_datetime?->format('H:i:s'),
+                    'time_in' => $session['time_in'],
+                    'time_out' => $session['time_out'],
                 ];
             })
             ->values();
@@ -342,5 +472,49 @@ class TimeLogsPayrollService
     public function undertimeDeductionTypeId(): ?int
     {
         return $this->employeeLoadPayroll->undertimeDeductionTypeId();
+    }
+
+    /**
+     * @return Collection<string, Collection<int, RawTimekeepingInandout>>
+     */
+    public function dayPunchesForPeriod(
+        int $employeeId,
+        CarbonInterface $from,
+        CarbonInterface $to,
+    ): Collection {
+        return $this->punchesForEmployeeInPeriod($employeeId, $from, $to)
+            ->groupBy(fn (RawTimekeepingInandout $punch) => $punch->dt_datetime?->toDateString())
+            ->filter(fn ($group, $date) => $date !== null && $date !== '');
+    }
+
+    public function totalBreakLateMinutes(
+        int $employeeId,
+        CarbonInterface $from,
+        CarbonInterface $to,
+        ?TimekeepingPolicy $policy,
+        ?\App\Models\ShiftCode $shiftCode,
+    ): int {
+        if ($policy === null || ! $this->breakPayroll->deductsBreakTardiness($policy)) {
+            return 0;
+        }
+
+        $scheduledMinutes = $this->breakPayroll->scheduledBreakMinutes($shiftCode);
+        $total = 0;
+
+        foreach ($this->dayPunchesForPeriod($employeeId, $from, $to) as $dayPunches) {
+            $actualMinutes = $this->breakPayroll->actualBreakMinutesFromPunches($dayPunches);
+
+            if ($actualMinutes <= 0) {
+                continue;
+            }
+
+            $total += $this->breakPayroll->resolvedBreakLateMinutes(
+                $policy,
+                $actualMinutes,
+                $scheduledMinutes,
+            )['billable_minutes'];
+        }
+
+        return $total;
     }
 }

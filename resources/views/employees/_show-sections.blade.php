@@ -73,10 +73,10 @@
             <div><p class="text-sm text-gray-600">Language / Dialect</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->language_dialect) }}</p></div>
             <div><p class="text-sm text-gray-600">Height (cm)</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->height_cm) }}</p></div>
             <div><p class="text-sm text-gray-600">Weight (kg)</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->weight_kg) }}</p></div>
-            <div><p class="text-sm text-gray-600">TIN</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->tin_number) }}</p></div>
-            <div><p class="text-sm text-gray-600">SSS</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->sss_number) }}</p></div>
-            <div><p class="text-sm text-gray-600">PhilHealth</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->philhealth_number) }}</p></div>
-            <div><p class="text-sm text-gray-600">Pag-IBIG</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->pagibig_number) }}</p></div>
+            <div><p class="text-sm text-gray-600">TIN</p><p class="mt-1 font-medium text-gray-900">{{ filled($employee->tin_number) ? \App\Support\GovernmentIdNumbers::format($employee->tin_number, \App\Support\GovernmentIdNumbers::TYPE_TIN) : $employee->displayValue($employee->tin_number) }}</p></div>
+            <div><p class="text-sm text-gray-600">SSS</p><p class="mt-1 font-medium text-gray-900">{{ filled($employee->sss_number) ? \App\Support\GovernmentIdNumbers::format($employee->sss_number, \App\Support\GovernmentIdNumbers::TYPE_SSS) : $employee->displayValue($employee->sss_number) }}</p></div>
+            <div><p class="text-sm text-gray-600">PhilHealth</p><p class="mt-1 font-medium text-gray-900">{{ filled($employee->philhealth_number) ? \App\Support\GovernmentIdNumbers::format($employee->philhealth_number, \App\Support\GovernmentIdNumbers::TYPE_PHILHEALTH) : $employee->displayValue($employee->philhealth_number) }}</p></div>
+            <div><p class="text-sm text-gray-600">Pag-IBIG</p><p class="mt-1 font-medium text-gray-900">{{ filled($employee->pagibig_number) ? \App\Support\GovernmentIdNumbers::format($employee->pagibig_number, \App\Support\GovernmentIdNumbers::TYPE_PAGIBIG) : $employee->displayValue($employee->pagibig_number) }}</p></div>
             <div><p class="text-sm text-gray-600">GSIS</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->gsis_number) }}</p></div>
             <div><p class="text-sm text-gray-600">Tax Status</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->tax_status) }}</p></div>
         </div>
@@ -162,7 +162,8 @@
                             {{ $employee->is_hybrid ? $employmentInfo->user_type_label.' Salary' : 'Current Salary' }}
                         </h4>
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                            <div><p class="text-sm text-gray-600">Date Effective</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->salary->date_effective?->format('M d, Y') ?: '—' }}</p></div>
+                            <div><p class="text-sm text-gray-600">Effectivity From</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->salary->date_effective_from?->format('M d, Y') ?: '—' }}</p></div>
+                            <div><p class="text-sm text-gray-600">Effectivity To</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->salary->date_effective_to?->format('M d, Y') ?: 'Present' }}</p></div>
                             <div><p class="text-sm text-gray-600">Pay Type</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employmentInfo->salary->payType?->pay_type) }}</p></div>
                             <div><p class="text-sm text-gray-600">Basic Computation</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employmentInfo->salary->basicComputation?->basic_computation) }}</p></div>
                             <div><p class="text-sm text-gray-600">Rate Group</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employmentInfo->salary->rateGroup?->description) }}</p></div>

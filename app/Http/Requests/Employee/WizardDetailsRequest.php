@@ -44,6 +44,7 @@ class WizardDetailsRequest extends FormRequest
         $data = array_merge($this->validatedEmployeeData(), [
             'employment_informations' => $this->employmentInformations(),
             'employee_salaries' => $this->employeeSalaries(),
+            'campus_assignments' => $this->campusAssignments(),
         ]);
 
         if ($key !== null) {

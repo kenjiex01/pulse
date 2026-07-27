@@ -60,6 +60,7 @@ class TimekeepingEmployeeProfile
             'approval' => 'timekeeping.employee-profile.approval',
             'approval-routes' => 'timekeeping.employee-profile.approval-routes',
             'attendance' => 'timekeeping.employee-profile.attendance',
+            'attendance-update' => 'timekeeping.employee-profile.attendance-update',
             'employee-load' => 'timekeeping.employee-profile.employee-load',
             default => "timekeeping.employee-profile.$action",
         };

@@ -2,12 +2,17 @@
 
 namespace App\Providers;
 
-use App\Models\Module;
 use App\Models\User;
 use App\Policies\HrLookupPolicy;
+use App\Services\DesktopBootstrapService;
+use App\Services\DesktopCloudBackupService;
+use App\Services\GovernmentTablesBootstrapService;
+use App\Services\ReferenceDataBootstrapService;
+use App\Services\SidebarNavigationService;
 use App\Policies\GovernmentTablesPolicy;
 use App\Policies\PayrollCalendarPolicy;
 use App\Policies\PayrollMaintenancePolicy;
+use App\Policies\PayrollReportsPolicy;
 use App\Policies\PayrollTransactionPolicy;
 use App\Policies\RateDefinitionPolicy;
 use App\Policies\TimekeepingEmployeeLoadPolicy;
@@ -24,6 +29,8 @@ use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
+    private static bool $desktopDatabaseEnsured = false;
+
     public function register(): void
     {
         //
@@ -35,6 +42,7 @@ class AppServiceProvider extends ServiceProvider
         $payrollMaintenancePolicy = new PayrollMaintenancePolicy;
         $payrollCalendarPolicy = new PayrollCalendarPolicy;
         $payrollTransactionPolicy = new PayrollTransactionPolicy;
+        $payrollReportsPolicy = new PayrollReportsPolicy;
         $rateDefinitionPolicy = new RateDefinitionPolicy;
         $governmentTablesPolicy = new GovernmentTablesPolicy;
         $timekeepingPolicyPolicy = new TimekeepingPolicyPolicy;
@@ -61,6 +69,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('payroll-transaction.create', fn (User $user) => $payrollTransactionPolicy->create($user));
         Gate::define('payroll-transaction.update', fn (User $user) => $payrollTransactionPolicy->update($user));
         Gate::define('payroll-transaction.delete', fn (User $user) => $payrollTransactionPolicy->delete($user));
+
+        Gate::define('payroll-reports.viewAny', fn (User $user) => $payrollReportsPolicy->viewAny($user));
+        Gate::define('payroll-reports.create', fn (User $user) => $payrollReportsPolicy->create($user));
 
         Gate::define('rate-definition.viewAny', fn (User $user) => $rateDefinitionPolicy->viewAny($user));
         Gate::define('rate-definition.create', fn (User $user) => $rateDefinitionPolicy->create($user));
@@ -100,68 +111,10 @@ class AppServiceProvider extends ServiceProvider
                 return;
             }
 
-            $user = auth()->user();
-            $userRoleIds = $user->roles()->pluck('roles.id');
-
-            $sidebarModules = Module::query()
-                ->with(['subModules' => fn ($query) => $query->where('is_active', true)])
-                ->where('is_active', true)
-                ->where(function ($moduleQuery) use ($userRoleIds) {
-                    $moduleQuery
-                        ->where(function ($directModuleQuery) use ($userRoleIds) {
-                            $directModuleQuery
-                                ->whereNotNull('route_name')
-                                ->whereHas('roles', function ($roleQuery) use ($userRoleIds) {
-                                    $roleQuery
-                                        ->whereIn('roles.id', $userRoleIds)
-                                        ->where(function ($permissionQuery) {
-                                            $permissionQuery->where('tbl_role_modules.full_control', true)
-                                                ->orWhere('tbl_role_modules.can_add', true)
-                                                ->orWhere('tbl_role_modules.can_edit', true)
-                                                ->orWhere('tbl_role_modules.can_update', true)
-                                                ->orWhere('tbl_role_modules.can_delete', true);
-                                        });
-                                });
-                        })
-                        ->orWhereHas('subModules', function ($subModuleQuery) use ($userRoleIds) {
-                            $subModuleQuery
-                                ->where('is_active', true)
-                                ->whereHas('roles', function ($roleQuery) use ($userRoleIds) {
-                                    $roleQuery
-                                        ->whereIn('roles.id', $userRoleIds)
-                                        ->where(function ($permissionQuery) {
-                                            $permissionQuery->where('tbl_role_sub_modules.full_control', true)
-                                                ->orWhere('tbl_role_sub_modules.can_add', true)
-                                                ->orWhere('tbl_role_sub_modules.can_edit', true)
-                                                ->orWhere('tbl_role_sub_modules.can_update', true)
-                                                ->orWhere('tbl_role_sub_modules.can_delete', true);
-                                        });
-                                });
-                        });
-                })
-                ->orderBy('sort_order')
-                ->orderBy('name')
-                ->get()
-                ->map(function (Module $module) use ($user) {
-                    if ($module->subModules->isNotEmpty()) {
-                        $module->setRelation(
-                            'subModules',
-                            $module->subModules->filter(fn ($subModule) => $user->hasSubModuleAccess($subModule)),
-                        );
-                    }
-
-                    return $module;
-                })
-                ->filter(function (Module $module) {
-                    if ($module->subModules->isNotEmpty()) {
-                        return $module->subModules->isNotEmpty();
-                    }
-
-                    return filled($module->route_name);
-                })
-                ->groupBy('section');
-
-            $view->with('sidebarModules', $sidebarModules);
+            $view->with(
+                'sidebarModules',
+                app(SidebarNavigationService::class)->groupedModulesFor(auth()->user()),
+            );
         });
 
         if ($this->app->runningInConsole() && ! $this->isNativeDesktop()) {
@@ -178,16 +131,23 @@ class AppServiceProvider extends ServiceProvider
 
     private function ensureDesktopDatabase(): void
     {
-        if (! $this->isNativeDesktop()) {
+        if (! $this->isNativeDesktop() || self::$desktopDatabaseEnsured) {
             return;
         }
 
+        self::$desktopDatabaseEnsured = true;
+
         $databasePath = storage_path('app/pulse.sqlite');
         $isFirstLaunch = ! File::exists($databasePath);
+        $versionMarkerPath = storage_path('app/.desktop-bootstrap-version');
 
         if ($isFirstLaunch) {
             File::ensureDirectoryExists(dirname($databasePath));
             File::put($databasePath, '');
+
+            if (File::exists($versionMarkerPath)) {
+                File::delete($versionMarkerPath);
+            }
         }
 
         config([
@@ -195,10 +155,33 @@ class AppServiceProvider extends ServiceProvider
             'database.connections.sqlite.database' => $databasePath,
         ]);
 
-        Artisan::call('migrate', ['--force' => true]);
+        try {
+            if ($this->hasPendingMigrations()) {
+                Artisan::call('migrate', ['--force' => true]);
+            }
 
-        if ($isFirstLaunch || ! User::query()->exists()) {
-            Artisan::call('db:seed', ['--force' => true]);
+            if ($isFirstLaunch || ! User::query()->exists()) {
+                Artisan::call('db:seed', ['--force' => true]);
+            }
+
+            app(ReferenceDataBootstrapService::class)->ensureCriticalLookups();
+            app(DesktopBootstrapService::class)->syncIfNeeded();
+            app(GovernmentTablesBootstrapService::class)->enforceOfficialSchedules();
+
+            if (! $isFirstLaunch) {
+                app(DesktopCloudBackupService::class)->backupIfNeeded();
+            }
+        } catch (\Throwable $exception) {
+            report($exception);
         }
+    }
+
+    private function hasPendingMigrations(): bool
+    {
+        $migrator = app('migrator');
+        $files = $migrator->getMigrationFiles([database_path('migrations')]);
+        $ran = app('migration.repository')->getRan();
+
+        return count(array_diff(array_keys($files), $ran)) > 0;
     }
 }

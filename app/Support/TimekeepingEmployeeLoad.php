@@ -14,6 +14,7 @@ class TimekeepingEmployeeLoad
     {
         return match ($action) {
             'index' => 'timekeeping.employee-load.index',
+            'update-entry' => 'timekeeping.employee-load.entries.update',
             default => "timekeeping.employee-load.$action",
         };
     }

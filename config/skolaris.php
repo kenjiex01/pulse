@@ -29,4 +29,12 @@ return [
     // Cache TTL (minutes) for the access token. Skolaris access tokens live
     // for 1 hour; keep a small safety margin.
     'token_ttl_minutes' => (int) env('SKOLARIS_API_TOKEN_TTL', 55),
+
+    /*
+    | Desktop / Pulse app calls the Skolaris backend Pulse API directly (not the
+    | Skolaris frontend /pulse/api bridge, which returns HTML for non-browser clients).
+    */
+    'pulse_api_base_url' => rtrim((string) env('SKOLARIS_PULSE_API_BASE_URL', 'https://api-skolaris.icct.edu.ph/api/v1/pulse-api/v1'), '/'),
+
+    'pulse_api_key' => env('SKOLARIS_PULSE_API_KEY'),
 ];

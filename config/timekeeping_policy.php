@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\TimekeepingPolicyBreak;
-use App\Models\TimekeepingPolicyLeave;
 use App\Models\TimekeepingPolicyNd;
 use App\Models\TimekeepingPolicyOvertime;
 use App\Models\TimekeepingPolicyTardiness;
@@ -31,11 +30,8 @@ return [
         'tardiness-undertime' => 'Tardiness and Undertime',
         'overtime' => 'Overtime',
         'breaks' => 'Breaks',
-        'leaves-absences' => 'Leaves and Absences',
         'night-differential' => 'Night Differential',
         'general' => 'General',
-        'team-settings' => 'Team Settings',
-        'logs-tagging' => 'Logs Tagging',
     ],
 
     'equivalents' => [
@@ -89,16 +85,6 @@ return [
             'order' => ['time_from' => 'asc'],
             'overlap_check' => true,
             'requires_leave_type' => false,
-        ],
-        'leave' => [
-            'name' => 'Leave Equivalent',
-            'tab' => 'leaves-absences',
-            'model' => TimekeepingPolicyLeave::class,
-            'primary_key' => 'timekeeping_policy_leave_id',
-            'log_table' => 'tbl_timekeeping_policy_leave',
-            'order' => ['time_from' => 'asc'],
-            'overlap_check' => true,
-            'requires_leave_type' => true,
         ],
     ],
 

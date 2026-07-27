@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pulse — User Guide</title>
+    <style>
+        :root {
+            --pulse-navy: #0B318F;
+            --pulse-blue: #00A3E6;
+            --pulse-dark: #060d24;
+            --text: #1f2937;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --accent-light: #e0f4fd;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: 16px;
+            line-height: 1.65;
+            color: var(--text);
+            background: var(--bg);
+        }
+
+        /* Header */
+        .site-header {
+            background: linear-gradient(135deg, var(--pulse-dark) 0%, var(--pulse-navy) 55%, #123a7a 100%);
+            color: #fff;
+            padding: 2.5rem 2rem 3rem;
+        }
+
+        .site-header-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .site-header .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.85);
+            margin-bottom: 0.75rem;
+        }
+
+        .site-header h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+        }
+
+        .site-header p {
+            font-size: 1.05rem;
+            color: rgba(255,255,255,0.88);
+            max-width: 640px;
+        }
+
+        .site-header .meta {
+            margin-top: 1.25rem;
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.65);
+        }
+
+        /* Layout */
+        .layout {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 2.5rem;
+            align-items: start;
+        }
+
+        /* Sidebar TOC */
+        .toc {
+            position: sticky;
+            top: 1.5rem;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+
+        .toc h2 {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .toc ol {
+            list-style: none;
+            counter-reset: toc;
+        }
+
+        .toc li {
+            counter-increment: toc;
+            margin-bottom: 0.35rem;
+        }
+
+        .toc a {
+            display: block;
+            padding: 0.3rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            color: var(--pulse-navy);
+            text-decoration: none;
+            transition: background 0.15s;
+        }
+
+        .toc a:hover {
+            background: var(--accent-light);
+            color: var(--pulse-blue);
+        }
+
+        /* Main content */
+        .content section {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 2rem 2.25rem;
+            margin-bottom: 1.75rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .content h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--pulse-navy);
+            margin-bottom: 1rem;
+            padding-bottom: 0.6rem;
+            border-bottom: 3px solid var(--pulse-blue);
+        }
+
+        .content h3 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--pulse-navy);
+            margin: 1.75rem 0 0.75rem;
+        }
+
+        .content h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #374151;
+            margin: 1.25rem 0 0.5rem;
+        }
+
+        .field-section {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px dashed var(--border);
+        }
+
+        .field-section:first-of-type { border-top: none; padding-top: 0; }
+
+        table.field-table th:first-child { width: 20%; }
+        table.field-table th:nth-child(2) { width: 24%; }
+        table.field-table th:nth-child(3) { width: 34%; }
+        table.field-table th:nth-child(4) { width: 22%; }
+
+        .guide-intro {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 10px;
+            padding: 1rem 1.2rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.92rem;
+        }
+
+        .sub-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 1rem 0 1.5rem;
+        }
+
+        .sub-nav a {
+            font-size: 0.8rem;
+            padding: 0.35rem 0.7rem;
+            border-radius: 999px;
+            background: #eef2ff;
+            color: var(--pulse-navy);
+            text-decoration: none;
+            border: 1px solid #c7d2fe;
+        }
+
+        .sub-nav a:hover { background: var(--accent-light); }
+
+        .content p { margin-bottom: 0.85rem; }
+
+        .content ul, .content ol {
+            margin: 0.5rem 0 1rem 1.5rem;
+        }
+
+        .content li { margin-bottom: 0.35rem; }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0 1.25rem;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.85rem;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #f1f5f9;
+            font-weight: 600;
+            color: var(--pulse-navy);
+        }
+
+        tr:nth-child(even) td { background: #fafbfc; }
+
+        /* Screenshots */
+        figure {
+            margin: 1.25rem 0 1.5rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            background: #f9fafb;
+        }
+
+        figure img {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        figcaption {
+            padding: 0.6rem 1rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            background: #f1f5f9;
+            border-top: 1px solid var(--border);
+        }
+
+        /* Callouts */
+        .callout {
+            border-left: 4px solid var(--pulse-blue);
+            background: var(--accent-light);
+            padding: 0.85rem 1.1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-size: 0.92rem;
+        }
+
+        .callout strong { color: var(--pulse-navy); }
+
+        .workflow {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            font-family: "SF Mono", "Fira Code", Consolas, monospace;
+            font-size: 0.9rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+
+        code {
+            background: #f1f5f9;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.88em;
+            color: #0f172a;
+        }
+
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            margin: 1rem 0;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        /* Footer */
+        .site-footer {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem 3rem;
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Print */
+        @media print {
+            .toc { display: none; }
+            .layout { display: block; padding: 0; }
+            .content section { break-inside: avoid; box-shadow: none; }
+            .site-header { padding: 1.5rem; }
+            figure { break-inside: avoid; }
+        }
+
+        @media (max-width: 860px) {
+            .layout {
+                grid-template-columns: 1fr;
+                padding: 1rem;
+            }
+            .toc { position: static; }
+            .content section { padding: 1.25rem; }
+            .site-header h1 { font-size: 1.75rem; }
+        }
+    </style>
+</head>
+<body>
+
+<header class="site-header">
+    <div class="site-header-inner">
+        <div class="badge">&#9679; Skolaris Pulse</div>
+        <h1>Pulse User Guide</h1>
+        <p>Field-by-field reference para sa lahat ng forms sa Pulse — may screenshot at paliwanag kung <strong>ano ang field</strong> at <strong>para saan ito ginagamit</strong>.</p>
+        <p class="meta">Last updated: July 15, 2026 &nbsp;·&nbsp; Skolaris Pulse (ISKOLARIS Desktop)</p>
+    </div>
+</header>
+
+<div class="layout">
+
+    <nav class="toc" aria-label="Table of contents">
+        <h2>Contents</h2>
+        <ol>
+            <li><a href="#getting-started">Getting Started</a></li>
+            <li><a href="#signing-in">Signing In</a></li>
+            <li><a href="#navigation">Navigation</a></li>
+            <li><a href="#dashboard">Dashboard</a></li>
+            <li><a href="#administration">Administration</a></li>
+            <li><a href="#human-resource">Human Resource</a></li>
+            <li><a href="#timekeeping">Timekeeping</a></li>
+            <li><a href="#payroll">Payroll</a></li>
+            <li><a href="#common-tasks">Common Tasks</a></li>
+            <li><a href="#tips">Tips &amp; Troubleshooting</a></li>
+        </ol>
+    </nav>
+
+    <main class="content">
+
+        <div class="guide-intro">
+            <strong>Format ng field tables:</strong>
+            <strong>Field</strong> = label sa screen &nbsp;·&nbsp;
+            <strong>Ano ito</strong> = definition &nbsp;·&nbsp;
+            <strong>Para saan (Gamit)</strong> = business purpose sa payroll/timekeeping/HR &nbsp;·&nbsp;
+            <strong>Notes</strong> = validation, defaults, o tips
+        </div>
+
+        <!-- 1. Getting Started -->
+        <section id="getting-started">
+            <h2>1. Getting Started</h2>
+
+            <h3>Desktop app (client deployment)</h3>
+            <p>Pulse ships as a <strong>single installer</strong> — no separate PHP, MySQL, or web server setup.</p>
+
+            <table>
+                <thead><tr><th>Platform</th><th>Installer</th></tr></thead>
+                <tbody>
+                    <tr><td>macOS (Apple Silicon)</td><td><code>Pulse-&lt;version&gt;-arm64.dmg</code></td></tr>
+                    <tr><td>Windows</td><td><code>Pulse-&lt;version&gt;-setup.exe</code></td></tr>
+                </tbody>
+            </table>
+
+            <h4>First launch</h4>
+            <ol>
+                <li>Double-click the Pulse app icon.</li>
+                <li>The app creates its local database automatically (SQLite).</li>
+                <li>Migrations and reference data run in the background.</li>
+                <li>The login screen opens when ready.</li>
+            </ol>
+
+            <div class="callout">
+                <strong>macOS unsigned builds:</strong> If the app is blocked, right-click → <strong>Open</strong>, or allow it in <strong>System Settings → Privacy &amp; Security</strong>.
+            </div>
+
+            <h3>Development / browser access</h3>
+            <p>For internal testing, developers can run <code>php artisan serve</code> and open <code>http://127.0.0.1:8000</code>.</p>
+        </section>
+
+        <!-- 2. Signing In -->
+        <section id="signing-in">
+            <h2>2. Signing In</h2>
+            <p>Open Pulse and enter your credentials on the sign-in screen.</p>
+
+            <figure>
+                <img src="images/01-login.png" alt="Pulse login screen" loading="lazy">
+                <figcaption>Figure 1 — Sign-in screen</figcaption>
+            </figure>
+
+            <table class="field-table">
+                <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Email</strong></td><td>Login email address ng user account</td><td>Authentication — sino ang nagla-login</td><td>Desktop default: <code>superadmin@icct.edu.ph</code></td></tr>
+                    <tr><td><strong>Password</strong></td><td>Account password</td><td>Security — verify na authorized ang user</td><td>Desktop default: <code>Password123!</code></td></tr>
+                    <tr><td><strong>Remember me</strong></td><td>Checkbox para manatiling naka-login</td><td>Hindi na kailangan mag-login ulit sa same machine</td><td>Optional</td></tr>
+                    <tr><td><strong>SHOW</strong></td><td>Toggle visibility ng password</td><td>Tulong sa pag-type; hindi nagbabago ng value</td><td>UI button lang</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- 3. Navigation -->
+        <section id="navigation">
+            <h2>3. Navigation</h2>
+            <p>After login, the <strong>sidebar</strong> on the left lists all modules you are allowed to access.</p>
+
+            <figure>
+                <img src="images/02-dashboard.png" alt="Dashboard with sidebar navigation" loading="lazy">
+                <figcaption>Figure 2 — Sidebar navigation and Dashboard</figcaption>
+            </figure>
+
+            <table>
+                <thead><tr><th>Area</th><th>What you see</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Search modules</strong></td><td>Filter the sidebar by module name</td></tr>
+                    <tr><td><strong>Administration</strong></td><td>Dashboard, User Management, Role Management, Database</td></tr>
+                    <tr><td><strong>Human Resource</strong></td><td>Employees and HR lookup tables (expand the section)</td></tr>
+                    <tr><td><strong>Timekeeping</strong></td><td>Policy, Time Logs, Employee Profile, Employee Load</td></tr>
+                    <tr><td><strong>Payroll</strong></td><td>Rate Definition, Maintenance Table, Government Tables, Calendar, Transaction</td></tr>
+                    <tr><td><strong>User footer</strong></td><td>Your name, role, and <strong>Log out</strong></td></tr>
+                </tbody>
+            </table>
+
+            <h3>Modal-based actions</h3>
+            <p>Most <strong>Add</strong>, <strong>Edit</strong>, and <strong>View</strong> actions open a <strong>modal dialog</strong> on the same page — the app does not navigate to a separate full-page form. Look for buttons such as <strong>Add Employee</strong>, <strong>Upload</strong>, or row <strong>View / Edit</strong> icons.</p>
+
+            <h3>Search and tables (common list UI)</h3>
+            <table class="field-table">
+                <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Search modules</strong></td><td>Sidebar filter box</td><td>Mabilis na hanap ng module sa menu</td><td>Top of sidebar</td></tr>
+                    <tr><td><strong>Search box</strong></td><td>List page text filter</td><td>Filter table rows (name, code, batch no., etc.)</td><td>Live search</td></tr>
+                    <tr><td><strong>Show: N per page</strong></td><td>Pagination size</td><td>Control ilang rows per page</td><td>Dropdown</td></tr>
+                    <tr><td><strong>View / Edit / Delete</strong></td><td>Row action buttons</td><td>Open modal o delete record</td><td>Depends on role permissions</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- 4. Dashboard -->
+        <section id="dashboard">
+            <h2>4. Dashboard</h2>
+            <p>The Dashboard is your home screen after login.</p>
+
+            <figure>
+                <img src="images/02-dashboard.png" alt="Pulse Dashboard" loading="lazy">
+                <figcaption>Figure 3 — Dashboard summary cards and quick access</figcaption>
+            </figure>
+
+            <p><strong>Summary cards</strong> show:</p>
+            <ul>
+                <li>Signed-in user and email</li>
+                <li>Assigned role(s)</li>
+                <li>Total users and roles (administrators only)</li>
+            </ul>
+            <p><strong>Quick access</strong> (administrators) links to User Management, Role Management, and Database backup.</p>
+        </section>
+
+        <!-- 5. Administration -->
+        <section id="administration">
+            <h2>5. Administration</h2>
+            <div class="callout">Available to <strong>Administrator</strong> role by default.</div>
+
+            <nav class="sub-nav">
+                <a href="#adm-users">User Management</a>
+                <a href="#adm-roles">Role Management</a>
+                <a href="#adm-database">Database</a>
+            </nav>
+
+            <div class="field-section" id="adm-users">
+                <h3>5.1 User Management — Create / Edit User</h3>
+                <figure>
+                    <img src="images/14-users.png" alt="User Management screen" loading="lazy">
+                    <figcaption>Figure 4 — User Management list</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/49-users-create.png" alt="New User modal" loading="lazy">
+                    <figcaption>Figure 19 — New User modal (Add)</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Name</strong></td><td>Display name ng user</td><td>Makikita sa audit logs, dashboard, at uploaded-by columns</td><td>Required</td></tr>
+                        <tr><td><strong>Email</strong></td><td>Login email</td><td>Unique identifier para mag-sign in</td><td>Required; unique</td></tr>
+                        <tr><td><strong>Roles</strong></td><td>Checkbox list ng roles</td><td>Determines kung anong modules ang accessible</td><td>Min 1 role required</td></tr>
+                        <tr><td><strong>Password</strong></td><td>Bagong password</td><td>Account security</td><td>Create: required min 8; Edit: optional</td></tr>
+                        <tr><td><strong>Confirm Password</strong></td><td>Ulitin ang password</td><td>Prevent typo sa password</td><td>Must match kapag may password</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="field-section" id="adm-roles">
+                <h3>5.2 Role Management — Create / Edit Role</h3>
+                <figure>
+                    <img src="images/15-roles.png" alt="Role Management screen" loading="lazy">
+                    <figcaption>Figure 5 — Role Management list</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/50-roles-create.png" alt="New Role modal" loading="lazy">
+                    <figcaption>Figure 20 — New Role modal (Add)</figcaption>
+                </figure>
+
+                <h4>Basic info</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Name</strong></td><td>Role display name (hal. "Payroll Staff")</td><td>Label sa UI at user assignment</td><td>Required</td></tr>
+                        <tr><td><strong>Slug</strong></td><td>Machine ID (hal. <code>payroll-staff</code>)</td><td>Internal access control key</td><td>Create only; auto from name</td></tr>
+                        <tr><td><strong>Description</strong></td><td>Role summary</td><td>Documentation para sa admins</td><td>Optional</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Module permissions (per module / sub-module)</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Add</strong></td><td>Create permission</td><td>Pwede mag-Add / Upload / Create</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Edit</strong></td><td>Open edit UI</td><td>Makikita ang Edit button sa rows</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Update</strong></td><td>Save changes</td><td>Pwede mag-save ng edits</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Delete</strong></td><td>Remove records</td><td>Pwede mag-delete (soft delete)</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Full Control</strong></td><td>All CRUD permissions</td><td>Shortcut — grants lahat ng permissions</td><td>Disables individual checkboxes</td></tr>
+                        <tr><td><strong>Role Members</strong></td><td>Users assigned to role</td><td>Sino ang may access level na ito</td><td>Add/remove users sa role</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>Built-in roles:</strong> Administrator (full access), Staff (daily modules), Viewer (read-only).</p>
+            </div>
+
+            <div class="field-section" id="adm-database">
+                <h3>5.3 Database</h3>
+                <figure>
+                    <img src="images/16-database.png" alt="Database backup screen" loading="lazy">
+                    <figcaption>Figure 6 — Database backup</figcaption>
+                </figure>
+                <p><strong>Walang input fields.</strong> Read-only display ng database driver + <strong>Download Backup</strong> button para kumuha ng full <code>.sql</code> dump bago reinstall o data migration.</p>
+            </div>
+        </section>
+
+        <!-- 6. Human Resource -->
+        <section id="human-resource">
+            <h2>6. Human Resource</h2>
+
+            <nav class="sub-nav">
+                <a href="#hr-wizard">Employee Wizard</a>
+                <a href="#hr-salary">Employee Salary</a>
+                <a href="#hr-upload">Bulk Upload</a>
+                <a href="#hr-filters">List Filters</a>
+                <a href="#hr-lookups">HR Lookups</a>
+            </nav>
+
+            <div class="field-section" id="hr-wizard">
+                <h3>6.1 Employee Wizard / Edit Form</h3>
+                <figure>
+                    <img src="images/03-employees.png" alt="Employee Management screen" loading="lazy">
+                    <figcaption>Figure 7 — Employee Management list</figcaption>
+                </figure>
+
+                <h4>Step 0 — Campus Selection</h4>
+                <figure>
+                    <img src="images/18-employee-wizard-campus.png" alt="Employee wizard — campus selection" loading="lazy">
+                    <figcaption>Figure 21 — Add Employee wizard — Step 0 (Select Campus)</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Campus</strong></td><td>Primary work campus</td><td>Sets default campus sa wizard; affects college/program dropdowns</td><td>Required; card selection</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Personal Information</h4>
+                <figure>
+                    <img src="images/51-employee-wizard-details.png" alt="Employee wizard — personal information form" loading="lazy">
+                    <figcaption>Figure 22 — Add Employee wizard — Step 1 (Personal &amp; employment form)</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>First / Last Name</strong></td><td>Legal name</td><td>Employee identity sa lahat ng modules</td><td>Required</td></tr>
+                        <tr><td><strong>Middle Name / Suffix</strong></td><td>Additional name parts</td><td>Complete legal name</td><td>Optional</td></tr>
+                        <tr><td><strong>Birth Date / Place of Birth</strong></td><td>Personal demographics</td><td>HR records, reports</td><td>Optional</td></tr>
+                        <tr><td><strong>Sex / Civil Status</strong></td><td>Demographics</td><td>HR master data</td><td>Select dropdowns</td></tr>
+                        <tr><td><strong>Nationality / Religion / Language</strong></td><td>Background info</td><td>HR profile</td><td>Optional</td></tr>
+                        <tr><td><strong>Height / Weight</strong></td><td>Physical stats</td><td>HR profile</td><td>Numbers</td></tr>
+                        <tr><td><strong>TIN / SSS / PhilHealth / Pag-IBIG / GSIS</strong></td><td>Government IDs</td><td>Govt deduction computation sa payroll; compliance</td><td>Important para sa SSS/PH/PI/WHT</td></tr>
+                        <tr><td><strong>Tax Status</strong></td><td>Withholding tax status</td><td>BIR tax computation context</td><td>Optional text</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Assignment &amp; Organization (per campus row)</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Campus</strong></td><td>Work location</td><td>DTR scope, campus-specific biometric matching</td><td>Required; pwede multiple campuses</td></tr>
+                        <tr><td><strong>Biometric ID</strong></td><td>Device punch ID sa campus</td><td>Match ng time logs / DTR uploads sa tamang employee</td><td>Required; unique per campus</td></tr>
+                        <tr><td><strong>College / Department / Program</strong></td><td>Org unit assignment</td><td>Payroll calendar filtering, faculty load, reports</td><td>College/program filtered by campus</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Employment Information</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Hybrid</strong></td><td>Faculty + Staff dual role</td><td>Gumagawa ng 2 employment records (faculty at staff)</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Employee Number</strong></td><td>Unique HR ID</td><td>Payroll batches, uploads, time logs reference</td><td>Required; auto-generated kung blank</td></tr>
+                        <tr><td><strong>Compliance Status</strong></td><td>Document compliance state</td><td>Track kung complete ang requirements</td><td>pending / compliant</td></tr>
+                        <tr><td><strong>Category (User Type)</strong></td><td>faculty, staff, o admin</td><td>Payroll calendar category filter; employment type</td><td>Required per employment row</td></tr>
+                        <tr><td><strong>Position / Designation / Rank</strong></td><td>Job classification</td><td>HR records, org structure</td><td>From lookup tables</td></tr>
+                        <tr><td><strong>Employment Type</strong></td><td>Regular, contractual, etc.</td><td>Employment classification</td><td>From lookup</td></tr>
+                        <tr><td><strong>Hire Date</strong></td><td>Start date</td><td>Tenure, eligibility rules</td><td>Date field</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Contact Information</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Email</strong></td><td>Primary email</td><td>Contact; pwede rin system account</td><td>Required</td></tr>
+                        <tr><td><strong>Primary Phone</strong></td><td>Main contact number</td><td>Emergency reach</td><td>Required</td></tr>
+                        <tr><td><strong>Home / Work / Fax</strong></td><td>Additional phones</td><td>Contact records</td><td>Optional</td></tr>
+                        <tr><td><strong>Emergency Contact</strong></td><td>Name, relationship, phone, email, address</td><td>Emergency situations</td><td>Optional group</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Home Address</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Country</strong></td><td>PH o international</td><td>Toggle cascading PH address fields</td><td>Select</td></tr>
+                        <tr><td><strong>No./Street</strong></td><td>Street address</td><td>HR mailing/contact</td><td>Text</td></tr>
+                        <tr><td><strong>Region / Province / City</strong></td><td>PH geographic hierarchy</td><td>Standardized address; auto postal code sa PH cities</td><td>Cascading selects</td></tr>
+                        <tr><td><strong>Barangay / Postal Code</strong></td><td>Local area + zip</td><td>Complete address</td><td>Optional</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Extended Profile (optional sections)</h4>
+                <table class="field-table">
+                    <thead><tr><th>Section</th><th>Fields</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Family Background</strong></td><td>Parents, spouse, children info</td><td>Complete HR biodata</td><td>Text fields</td></tr>
+                        <tr><td><strong>Family Members</strong></td><td>Brothers/sisters/children rows</td><td>Dependents record</td><td>Repeatable rows</td></tr>
+                        <tr><td><strong>Employment History</strong></td><td>From, To, Company, Position, Salary</td><td>Previous work experience</td><td>Repeatable</td></tr>
+                        <tr><td><strong>Exams / Seminars / Awards</strong></td><td>Credentials at trainings</td><td>Qualifications tracking</td><td>Repeatable</td></tr>
+                        <tr><td><strong>References</strong></td><td>Name, Company, Contact</td><td>Background check contacts</td><td>Repeatable</td></tr>
+                        <tr><td><strong>Skills Profile</strong></td><td>Computer, technical, talents, other</td><td>Skills inventory</td><td>Comma-separated or text</td></tr>
+                        <tr><td><strong>General Information</strong></td><td>Health/disability, relative in ICCT, cases, etc.</td><td>HR screening declarations</td><td>Checkboxes + text</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Account Access &amp; Review Step</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Account Status</strong></td><td>active / inactive</td><td>Kung counted ang employee sa operations</td><td>Required</td></tr>
+                        <tr><td><strong>Confidential Record</strong></td><td>Restrict visibility</td><td>Limit sino makakakita ng record</td><td>Checkbox</td></tr>
+                        <tr><td><strong>System Role</strong></td><td>App permission role</td><td>Kung may login access ang employee sa Pulse</td><td>Required sa final wizard submit</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="field-section" id="hr-salary">
+                <h3>6.2 Employee Salary (per employment)</h3>
+                <figure>
+                    <img src="images/19-employee-salary.png" alt="Employee salary tab" loading="lazy">
+                    <figcaption>Figure 23 — Employee Edit → Salary tab</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Income rows</strong></td><td>Income type + Taxable + Non-Taxable</td><td>Define pay components (BASC, allowances, etc.)</td><td>Repeatable; BASC usually primary</td></tr>
+                        <tr><td><strong>Deduction rows</strong></td><td>Deduction type + Employee + Employer amounts</td><td>Fixed recurring deductions sa employee</td><td>Repeatable</td></tr>
+                        <tr><td><strong>Date Effective</strong></td><td>When salary takes effect</td><td>Salary history tracking</td><td>Required</td></tr>
+                        <tr><td><strong>Pay Type</strong></td><td>Daily / Weekly / Semi-Monthly / Monthly</td><td>Determines pay period at payroll calendar at batch</td><td>Required</td></tr>
+                        <tr><td><strong>Basic Computation</strong></td><td>Time-In/Time-Out o Leaves</td><td>Paano kino-compute ang basic pay</td><td>Required</td></tr>
+                        <tr><td><strong>Days Per Period</strong></td><td>Working days per pay period</td><td>Hourly rate calculation</td><td>Auto=1 for Daily</td></tr>
+                        <tr><td><strong>Rate Group</strong></td><td>OT/holiday rate multiplier group</td><td>Hours worked at special day types sa payroll</td><td>Required</td></tr>
+                        <tr><td><strong>Hours Per Day</strong></td><td>Standard hours per day</td><td>Hourly rate = basic ÷ days ÷ hours</td><td>Default 8.00</td></tr>
+                        <tr><td><strong>Night Diff. Rate Group</strong></td><td>ND rate group</td><td>Night differential pay computation</td><td>Optional</td></tr>
+                        <tr><td><strong>Use Basic Income as Hourly Rate</strong></td><td>Direct hourly rate mode</td><td>Kapag basic amount na mismo ang hourly rate</td><td>Skips days/hours formula</td></tr>
+                        <tr><td><strong>Hourly Rate</strong></td><td>Computed rate (display)</td><td>Used sa hours-worked payroll computation</td><td>Read-only; auto-calculated</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="field-section" id="hr-upload">
+                <h3>6.3 Employee Bulk Upload</h3>
+                <figure>
+                    <img src="images/20-employee-upload.png" alt="Employee bulk upload modal" loading="lazy">
+                    <figcaption>Figure 24 — Employee Bulk Upload modal</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Upload File</strong></td><td>CSV/XLSX employee template</td><td>Mass import ng employee master data</td><td>.xlsx/.csv/.txt; max 15 MB</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>Key template columns:</strong></p>
+                <table class="field-table">
+                    <thead><tr><th>Column group</th><th>Key columns</th><th>Para saan (Gamit)</th><th>Required</th></tr></thead>
+                    <tbody>
+                        <tr><td>Identity</td><td>employee_number, first_name, last_name, email, phone</td><td>Core employee record</td><td>name + email + phone</td></tr>
+                        <tr><td>Campus</td><td>campus_code, biometric_id, college, department, program</td><td>Assignment at time log matching</td><td>campus_code, biometric_id</td></tr>
+                        <tr><td>Employment</td><td>user_type, position, designation, rank, employment_type, hire_date, is_hybrid</td><td>Job classification</td><td>user_type</td></tr>
+                        <tr><td>Salary</td><td>salary_pay_type, salary_basic_computation, salary_rate_group, salary_days_per_period, salary_basic_taxable, salary_incomes, salary_deductions</td><td>Payroll setup</td><td>date_effective, pay_type, basic_computation, rate_group</td></tr>
+                        <tr><td>Govt IDs</td><td>tin_number, sss_number, philhealth_number, pagibig_number</td><td>Government deductions</td><td>Recommended</td></tr>
+                        <tr><td>Account</td><td>employment_status, role</td><td>Active status at system access</td><td>role</td></tr>
+                    </tbody>
+                </table>
+                <p>Sample: <code>docs/samples/employee-upload-sample.csv</code></p>
+            </div>
+
+            <div class="field-section" id="hr-filters">
+                <h3>6.4 Employee List Filters</h3>
+                <figure>
+                    <img src="images/21-employee-filters.png" alt="Employee list with filters" loading="lazy">
+                    <figcaption>Figure 25 — Employee list filters (Status, Compliance, Search)</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Status</strong></td><td>all / active / inactive</td><td>Filter employee list by employment status</td><td>Dropdown</td></tr>
+                        <tr><td><strong>Compliance</strong></td><td>all / compliant / pending</td><td>Filter by document compliance</td><td>Dropdown</td></tr>
+                        <tr><td><strong>Search</strong></td><td>Free text</td><td>Name, email, employee #, position</td><td>Live search</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="field-section" id="hr-lookups">
+                <h3>6.5 HR Lookup Tables</h3>
+                <figure>
+                    <img src="images/04-hr-campuses.png" alt="Campuses lookup screen" loading="lazy">
+                    <figcaption>Figure 8 — HR lookup tables (Campuses example)</figcaption>
+                </figure>
+
+                <h4>Campuses</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Campus Code / Name</strong></td><td>Short code at full name</td><td>Employee assignment, DTR campus, upload matching</td><td>Code required, unique</td></tr>
+                        <tr><td><strong>Address / Phone / Email / Website</strong></td><td>Campus contact info</td><td>Reference data</td><td>Optional</td></tr>
+                        <tr><td><strong>Active</strong></td><td>Status flag</td><td>Hide inactive campuses sa dropdowns</td><td>Checkbox</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Designations / Positions / Ranks</h4>
+                <figure>
+                    <img src="images/22-hr-designations.png" alt="Designations lookup with create modal" loading="lazy">
+                    <figcaption>Figure 26 — Designations lookup (Add modal)</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/23-hr-positions.png" alt="Positions lookup with create modal" loading="lazy">
+                    <figcaption>Figure 27 — Positions lookup (Add modal)</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Name</strong></td><td>Job title / designation / rank</td><td>Employee employment classification</td><td>Required, unique</td></tr>
+                        <tr><td><strong>Active</strong></td><td>Status</td><td>Available sa employee forms</td><td>Checkbox</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Employment Types</h4>
+                <figure>
+                    <img src="images/24-hr-employment-types.png" alt="Employment Types lookup" loading="lazy">
+                    <figcaption>Figure 28 — Employment Types lookup</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Type Code / Name</strong></td><td>Employment classification</td><td>Regular, contractual, part-time, etc.</td><td>Name required</td></tr>
+                        <tr><td><strong>Description / Sort Order</strong></td><td>Details at display order</td><td>Dropdown ordering</td><td>Optional</td></tr>
+                        <tr><td><strong>Active</strong></td><td>Status</td><td>Dropdown availability</td><td>Checkbox</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Employee Departments</h4>
+                <figure>
+                    <img src="images/52-hr-employee-departments.png" alt="Employee Departments lookup" loading="lazy">
+                    <figcaption>Figure 53 — Employee Departments lookup</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Department Code / Name</strong></td><td>Org unit</td><td>Employee department assignment</td><td>Name required</td></tr>
+                        <tr><td><strong>Description / Sort Order / Active</strong></td><td>Metadata</td><td>Display at filtering</td><td>Optional</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Colleges / Programs</h4>
+                <figure>
+                    <img src="images/25-hr-colleges.png" alt="Colleges lookup" loading="lazy">
+                    <figcaption>Figure 29 — Colleges lookup (Programs use same layout)</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Campus</strong></td><td>Parent campus</td><td>Scope college/program to campus</td><td>Required</td></tr>
+                        <tr><td><strong>Code / Name</strong></td><td>College or program identifier</td><td>Faculty assignment, payroll calendar college filter</td><td>Required</td></tr>
+                        <tr><td><strong>Description / Active</strong></td><td>Details at status</td><td>Colleges only for description</td><td>Optional</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 7. Timekeeping -->
+        <section id="timekeeping">
+            <h2>7. Timekeeping</h2>
+            <p>Ang Timekeeping module ang nagde-define kung paano basahin ang attendance — mula sa policy setup, shift, holiday, hanggang sa upload ng time logs at faculty load.</p>
+
+            <nav class="sub-nav" aria-label="Timekeeping subsections">
+                <a href="#tk-policy">Policy</a>
+                <a href="#tk-shift">Shift Code</a>
+                <a href="#tk-capture">Time Capturing</a>
+                <a href="#tk-holiday">Holiday Settings</a>
+                <a href="#tk-tardiness">Tardiness &amp; UT</a>
+                <a href="#tk-time-logs">Time Logs</a>
+                <a href="#tk-employee-profile">Employee Profile</a>
+                <a href="#tk-employee-load">Employee Load</a>
+            </nav>
+
+            <figure>
+                <img src="images/10-timekeeping-policy.png" alt="Timekeeping Policy screen" loading="lazy">
+                <figcaption>Figure 9 — Timekeeping Policy (overview)</figcaption>
+            </figure>
+
+            <!-- POLICY TAB -->
+            <div class="field-section" id="tk-policy">
+                <h3>7.1 Policy — Create / Edit Policy</h3>
+                <figure>
+                    <img src="images/29-policy-create.png" alt="Create Policy modal" loading="lazy">
+                    <figcaption>Figure 30 — Create Policy modal</figcaption>
+                </figure>
+                <p>Gumagawa ng policy group na ia-assign sa employees. Bawat policy may sariling tardiness, OT, breaks, at ND rules.</p>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Policy Code</strong></td><td>Maikling unique code ng policy (hal. <code>STAFF</code>)</td><td>Unique identifier ng policy group sa employee assignment</td><td>Required; auto-uppercase; hindi na pwedeng baguhin pag edit</td></tr>
+                        <tr><td><strong>Policy Name</strong></td><td>Pangalan na makikita sa dropdowns</td><td>Display name sa Employee Profile dropdown</td><td>Required</td></tr>
+                        <tr><td><strong>Description</strong></td><td>Opsyonal na paliwanag</td><td>Documentation / label sa lists</td><td>Max 250 characters</td></tr>
+                        <tr><td><strong>Active</strong></td><td>Kung available ang policy para i-assign</td><td>Control kung selectable pa ang record</td><td>Default: checked (active)</td></tr>
+                    </tbody>
+                </table>
+                <div class="callout"><strong>Bagong policy defaults:</strong> Buffer Time In = 4 hrs, Buffer Time Out = 10 hrs, Excess Hours = Disregard, Break Computation = Scheduled breaks, Attendance Approval = On, Max Rest Days = 2.</div>
+            </div>
+
+            <!-- SHIFT CODE -->
+            <div class="field-section" id="tk-shift">
+                <h3>7.2 Shift Code — Create / Edit Shift</h3>
+                <figure>
+                    <img src="images/26-shift-codes.png" alt="Shift Code screen with create modal" loading="lazy">
+                    <figcaption>Figure 31 — Shift Code (Add modal)</figcaption>
+                </figure>
+                <p>Narito ang regular na oras ng pasok, uwian, at break schedule ng employee.</p>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Shift Code</strong></td><td>Maikling code (hal. <code>AM</code>, <code>FLXI</code>)</td><td>Required; max 4 chars; unique</td></tr>
+                        <tr><td><strong>Description</strong></td><td>Label ng shift (hal. "Morning Shift")</td><td>Documentation / label sa lists</td><td>Required</td></tr>
+                        <tr><td><strong>Flexi-time Shift</strong></td><td>Checkbox — actual hours rendered ang base ng pay</td><td>Kahit anong oras pumasok; walang late/UT; OT kapag lampas sa expected hours/day</td><td>Default off; shows Expected Hours Per Day (hal. 8)</td></tr>
+                        <tr><td><strong>Expected Hours Per Day</strong></td><td>Target hours per day para sa flexi shift</td><td>Basic pay cap; excess = OT</td><td>Required kapag Flexi-time = on</td></tr>
+                        <tr><td><strong>Time In</strong></td><td>Scheduled na oras ng pasok</td><td>Format <code>HH:MM</code> (24-hour, hal. <code>08:00</code>)</td><td>Fixed shift only; naka-gray out kapag flexi</td></tr>
+                        <tr><td><strong>Time Out</strong></td><td>Scheduled na oras ng uwian</td><td>Format <code>HH:MM</code></td><td>Fixed shift only; naka-gray out kapag flexi</td></tr>
+                        <tr><td><strong>Break Minute</strong></td><td>Tagal ng break sa minuto</td><td>Expected break duration sa payroll break logic</td><td>Pwede mag-add ng multiple breaks; required per break row</td></tr>
+                        <tr><td><strong>Paid Break?</strong></td><td>Kung counted ang break bilang paid time</td><td>Kung counted ang break sa paid hours</td><td>Checkbox; default off</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- TIME CAPTURING -->
+            <div class="field-section" id="tk-capture">
+                <h3>7.3 Time Capturing Settings — Device Format</h3>
+                <figure>
+                    <img src="images/27-time-capturing-settings.png" alt="Time Capturing Settings with create modal" loading="lazy">
+                    <figcaption>Figure 32 — Time Capturing Settings (Add modal)</figcaption>
+                </figure>
+                <p>Sinasabi kung aling column sa upload file ang employee ID, date, time in/out, at iba pa. Kailangan ito bago mag-upload sa <strong>Time In / Time Out</strong> tab.</p>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Device Name</strong></td><td>Pangalan ng biometric/device format</td><td>Piliin sa Time Logs upload Format Type dropdown</td><td>Required; unique; uppercase</td></tr>
+                        <tr><td><strong>Description</strong></td><td>Paliwanag ng format</td><td>Documentation / label sa lists</td><td>Required</td></tr>
+                        <tr><td><strong>Employee ID (type)</strong></td><td>Anong ID ang ginagamit</td><td><code>employee_number</code> o <code>biometric_id</code></td></tr>
+                        <tr><td><strong>Employee ID (column)</strong></td><td>Column number ng ID sa file</td><td>Parse correct column sa upload file</td><td>Number 1–99</td></tr>
+                        <tr><td><strong>Date (type)</strong></td><td>Uri ng date field</td><td><code>actual_date</code>, <code>date_out</code>, o <code>workdate</code></td></tr>
+                        <tr><td><strong>Date (column)</strong></td><td>Column number ng date</td><td>Locate date sa upload file</td><td>Required</td></tr>
+                        <tr><td><strong>Time In (type / column)</strong></td><td>Column para sa time in</td><td>Parse time-in punches from file</td><td>Disabled kapag biometric mode</td></tr>
+                        <tr><td><strong>Time Out</strong></td><td>May separate time-out column ba?</td><td>Parse time-out punches from file</td><td>Checkbox + column number; default on</td></tr>
+                        <tr><td><strong>Same column for Time In / Time Out</strong></td><td>Biometric mode — isang column lang para sa punch</td><td>Biometric punch-per-row parsing</td><td>Kapag on: kailangan ng Indicator Column</td></tr>
+                        <tr><td><strong>Time Column</strong></td><td>Shared punch time column</td><td>Single punch time column sa biometric files</td><td>Biometric mode only</td></tr>
+                        <tr><td><strong>Indicator Column</strong></td><td>Column na nagsasabi kung IN o OUT ang punch</td><td>Distinguish IN vs OUT punches</td><td>Biometric mode only</td></tr>
+                        <tr><td><strong>Time In Identifier</strong></td><td>Character/value na meaning "IN"</td><td>Hal. <code>1</code></td></tr>
+                        <tr><td><strong>Time Out Identifier</strong></td><td>Character/value na meaning "OUT"</td><td>Hal. <code>0</code>; dapat iba sa IN</td></tr>
+                        <tr><td><strong>Logout Reason</strong></td><td>May column ba para sa logout reason?</td><td>Optional reason code from device export</td><td>Optional checkbox + column</td></tr>
+                        <tr><td><strong>Custom Fields</strong></td><td>Extra mapped columns</td><td>Extra data columns from device export</td><td>Field name + column + description; hindi pwedeng duplicate columns</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- HOLIDAY SETTINGS -->
+            <div class="field-section" id="tk-holiday">
+                <h3>7.4 Holiday Settings</h3>
+                <figure>
+                    <img src="images/28-holiday-settings.png" alt="Holiday Settings screen" loading="lazy">
+                    <figcaption>Figure 33 — Holiday Settings (Holidays / Groups / Year tabs)</figcaption>
+                </figure>
+                <p>May tatlong sub-tabs: <strong>Holidays</strong>, <strong>Groups</strong>, at <strong>Year</strong>.</p>
+
+                <h4>Holidays — Add / Edit Holiday</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Holiday Code</strong></td><td>Maikling code (hal. <code>NY</code>)</td><td>Reference code sa holiday groups at year entries</td><td>Required; unique; uppercase</td></tr>
+                        <tr><td><strong>Recurring</strong></td><td>Auto-copy sa bagong years</td><td>Auto-include sa new holiday years</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Description</strong></td><td>Buong pangalan ng holiday</td><td>Documentation / label sa lists</td><td>Required</td></tr>
+                        <tr><td><strong>Short Description</strong></td><td>Maikling label</td><td>Abbreviated label sa reports</td><td>Optional</td></tr>
+                        <tr><td><strong>Date</strong></td><td>Petsa ng holiday</td><td>When holiday applies</td><td>Required</td></tr>
+                        <tr><td><strong>Legal / Special</strong></td><td>Legal holiday o special non-working holiday</td><td>Legal vs special holiday pay rules</td><td>Radio; default Legal</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Groups — Add / Edit Holiday Group</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Holiday Group Code</strong></td><td>Code ng grupo (hal. <code>MAIN</code>)</td><td>Assign sa Employee Profile Holiday Group</td><td>Required; unique</td></tr>
+                        <tr><td><strong>Description</strong></td><td>Pangalan ng grupo</td><td>Documentation / label sa lists</td><td>Required</td></tr>
+                        <tr><td><strong>Select Holidays</strong></td><td>Mga holiday na kasama sa grupo</td><td>Define which holidays belong to group</td><td>Dual-list; minimum 1 holiday</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Year — Add Year / Manage Entries</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Year</strong></td><td>Calendar year (hal. 2026)</td><td>Manage holidays per calendar year</td><td>Required; unique; auto-seeds recurring holidays</td></tr>
+                        <tr><td><strong>Holiday</strong> (add entry)</td><td>Master holiday na idadagdag sa year</td><td>Dropdown; unassigned holidays lang</td></tr>
+                        <tr><td><strong>Date</strong> (edit entry)</td><td>Actual date ng holiday sa year na ito</td><td>Pwede mag-iba yearly</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- POLICY SETTINGS TABS -->
+            <div class="field-section" id="tk-settings">
+                <h3>7.5 Policy Settings (inside a policy)</h3>
+                <p>Pag nag-click ka ng policy sa list, may settings tabs: <strong>Tardiness and Undertime</strong>, <strong>Overtime</strong>, <strong>Breaks</strong>, <strong>Night Differential</strong>, <strong>General</strong>.</p>
+
+                <h4 id="tk-tardiness">Tardiness and Undertime</h4>
+                <figure>
+                    <img src="images/17-tardiness-undertime-policy.png" alt="Tardiness and Undertime policy settings — Default Policy" loading="lazy">
+                    <figcaption>Figure 18 — Policy → Default Policy → Tardiness and Undertime tab (actual Pulse screen)</figcaption>
+                </figure>
+                <div class="callout"><strong>Paano mapunta dito:</strong> Timekeeping → Timekeeping Policy → i-click ang policy (hal. Default Policy) → tab na <strong>Tardiness and Undertime</strong>. I-assign ang policy sa employee via <strong>Employee Profile → Policy Group</strong>.</div>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Allow Flexi-time</strong></td><td>Pwede bang mag-flexible ang oras ng pasok?</td><td>Kapag Yes, may allowance bago ma-count ang late; kapag No, fixed schedule ang base</td><td>Required; default <strong>No</strong></td></tr>
+                        <tr><td><strong>Max. Flexi-time (minutes)</strong></td><td>Pinakamataas na flexi allowance sa minuto</td><td>Cap ng flexi window — lampas dito, late na</td><td>Enabled lang kapag Flexi-time = Yes (grayed out kapag No)</td></tr>
+                        <tr><td><strong>Grace Period (minutes)</strong></td><td>Minutong late na hindi pa binibilang</td><td>Hal. 15 min — hindi pa penalty ang employee</td><td>Optional number field</td></tr>
+                        <tr><td><strong>Actual Late less Grace Period</strong></td><td>Checkbox sa ilalim ng Grace Period</td><td>Kapag checked, ibabawas muna ang grace bago bilangin ang late</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Rounding Rule</strong> (Tardiness)</td><td>Paano i-round ang late minutes</td><td>Bago pumasok sa payroll LTDE — Round Off o Round Up</td><td>Optional; "Select rounding" kung walang rule</td></tr>
+                        <tr><td><strong>Leave Type</strong> (Tardiness)</td><td>Dropdown — hal. <strong>Late</strong></td><td>Sa payroll <strong>Process</strong>, late minutes → leave tag + <strong>LTDE</strong> deduction</td><td>Required (*)</td></tr>
+                        <tr><td><strong>Rounding Rule</strong> (Undertime)</td><td>Paano i-round ang undertime minutes</td><td>Bago pumasok sa payroll UTDE</td><td>Same options as tardiness</td></tr>
+                        <tr><td><strong>Leave Type</strong> (Undertime)</td><td>Dropdown — hal. <strong>Undertime</strong></td><td>Sa payroll <strong>Process</strong>, undertime → leave tag + <strong>UTDE</strong> deduction</td><td>Required (*)</td></tr>
+                        <tr><td><strong>Save Settings</strong></td><td>Button sa baba ng form</td><td>I-save ang policy settings pagkatapos mag-edit</td><td>Bottom-right ng card</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Tardiness Equivalent table</h4>
+                <p>Ito ang range mapping — hal. 1–5 min late = 5 min billable, 16+ min = absent.</p>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>From (min)</strong></td><td>Simula ng late range sa minuto</td><td>Start of equivalent minute range</td><td>Hal. 1</td></tr>
+                        <tr><td><strong>To (min)</strong></td><td>Dulo ng range</td><td>End of equivalent minute range</td><td>Hal. 5; dapat ≥ From</td></tr>
+                        <tr><td><strong>Equivalent (min)</strong></td><td>Ilang minuto ang ibi-bill</td><td>Billable minutes for payroll LTDE/deductions</td><td>Hal. 5 min late → 5 min equivalent</td></tr>
+                        <tr><td><strong>Mark as absent</strong></td><td>Ituturing na absent, hindi minute deduction</td><td>Treat range as absence not minutes</td><td>Tardiness only; equivalent = 0</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Overtime</h4>
+                <figure>
+                    <img src="images/30-policy-overtime.png" alt="Overtime policy settings tab" loading="lazy">
+                    <figcaption>Figure 34 — Policy Settings → Overtime tab</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Treatment of Excess Hours</strong></td><td>Ano gagawin sa sobrang oras beyond schedule</td><td>Drive OT income (OVRT) sa payroll batch</td><td>See options below</td></tr>
+                        <tr><td><strong>Non-Regular Days</strong></td><td>OT form rules sa rest day / holiday</td><td>OT form rules on rest days/holidays</td><td>Lumalabas kapag excess ≠ Disregard</td></tr>
+                        <tr><td><strong>Before time schedule</strong></td><td>Maagang pasok = OT?</td><td>Early arrival OT computation</td><td>Checkbox; at least one "consider" required</td></tr>
+                        <tr><td><strong>After time schedule</strong></td><td>Late stay = OT?</td><td>Late stay OT computation</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Minimum no. of Minutes</strong></td><td>Minimum OT para mabilang</td><td>Threshold before OT is billable</td><td>Hal. 30 min; per segment (before/after)</td></tr>
+                        <tr><td><strong>Rounding Rule</strong></td><td>Paano i-round ang OT minutes</td><td>Round computed minutes before payroll</td><td>Round Off / Round Up</td></tr>
+                        <tr><td><strong>Special OT Start</strong></td><td>Simula ng special/night OT window</td><td>Format <code>HH:MM</code></td></tr>
+                        <tr><td><strong>Special OT Min. Minutes</strong></td><td>Minimum minutes sa special window</td><td>Min minutes in special OT window</td><td>Required kapag may Special OT Start</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>Excess Hours options:</strong></p>
+                <ol>
+                    <li><strong>Disregard excess hours</strong> — default; hindi binibilang ang OT</li>
+                    <li><strong>Consider excess hours as OT</strong> — auto-add OVRT sa payroll</li>
+                    <li><strong>Offset late with excess hours and disregard remainder</strong></li>
+                    <li><strong>Offset late with excess hours and consider remainder</strong></li>
+                </ol>
+
+                <h4>Breaks</h4>
+                <figure>
+                    <img src="images/31-policy-breaks.png" alt="Breaks policy settings tab" loading="lazy">
+                    <figcaption>Figure 35 — Policy Settings → Breaks tab</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Break computation</strong></td><td>Paano kukunin ang break time</td><td><strong>Scheduled</strong> (mula shift) o <strong>Actual</strong> (mula punches)</td></tr>
+                        <tr><td><strong>Deduct Tardiness in Breaks</strong></td><td>May penalty kapag late sa break?</td><td>Enable break-late LTDE at payroll</td><td>Checkbox; enables fields below</td></tr>
+                        <tr><td><strong>Grace Period (minutes)</strong></td><td>Grace bago ma-count ang break late</td><td>Late minutes ignored before penalty</td><td>Required > 0 kapag enabled</td></tr>
+                        <tr><td><strong>Actual Late less Grace Period</strong></td><td>I-subtract ang grace sa break late</td><td>Reduce counted late by grace</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Rounding Rule</strong></td><td>Break tardiness rounding</td><td>Round computed minutes before payroll</td><td>Round Off / Round Up</td></tr>
+                        <tr><td><strong>Leave Type</strong></td><td>Leave type para sa break tardiness</td><td>Tag leave records at payroll process</td><td>Required kapag deduct enabled</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Night Differential</h4>
+                <figure>
+                    <img src="images/32-policy-night-differential.png" alt="Night Differential policy settings tab" loading="lazy">
+                    <figcaption>Figure 36 — Policy Settings → Night Differential tab</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Compute Night Differential</strong></td><td>I-enable ang ND computation</td><td>Enable NDIF income at payroll</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Start Time</strong></td><td>Simula ng ND period</td><td>Default hint: <code>22:00</code></td></tr>
+                        <tr><td><strong>End Time</strong></td><td>End ng ND period</td><td>Default hint: <code>06:00</code></td></tr>
+                    </tbody>
+                </table>
+
+                <h4>General</h4>
+                <figure>
+                    <img src="images/33-policy-general.png" alt="General policy settings tab" loading="lazy">
+                    <figcaption>Figure 37 — Policy Settings → General tab</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Enable Employee Attendance Approval</strong></td><td>Kailangan ng approval bago ma-finalize ang attendance</td><td>Require approval workflow</td><td>Default on</td></tr>
+                        <tr><td><strong>Buffer time for Time In (hours)</strong></td><td>Gaano kaaga pwedeng mag-punch in</td><td>Valid early punch window</td><td>Default 4 hrs bago shift</td></tr>
+                        <tr><td><strong>Buffer Time for Time Out (hours)</strong></td><td>Gaano kalate pwedeng mag-punch out</td><td>Valid late punch window</td><td>Default 10 hrs after shift</td></tr>
+                        <tr><td><strong>Enable Employee Validation for Rest Days</strong></td><td>I-enforce ang rest day rules</td><td>Enforce weekly rest day cap</td><td>Default on</td></tr>
+                        <tr><td><strong>Maximum no. of rest days per week</strong></td><td>Pinakamaraming rest day kada linggo</td><td>Max rest days allowed</td><td>Default 2; range 0–7</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- TIME LOGS -->
+            <div class="field-section" id="tk-time-logs">
+                <h3>7.6 Time Logs — Upload Fields</h3>
+                <figure>
+                    <img src="images/11-time-logs.png" alt="Time Logs screen" loading="lazy">
+                    <figcaption>Figure 10 — Time Logs</figcaption>
+                </figure>
+
+                <h4>Tab: Time In / Time Out</h4>
+                <figure>
+                    <img src="images/34-time-logs-upload.png" alt="Time In Time Out upload modal" loading="lazy">
+                    <figcaption>Figure 38 — Time Logs → Time In / Time Out upload modal</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Format Type</strong></td><td>Device format na ginamit sa export</td><td>Select column mapping for upload parse</td><td>Required; pili mula sa Time Capturing Settings</td></tr>
+                        <tr><td><strong>Upload File</strong></td><td>Tab-delimited <code>.txt</code> o <code>.csv</code></td><td>Hindi Excel workbook; max 15 MB</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>Flow:</strong> Piliin ang format → download template → fill data → save as .txt/.csv → upload → preview → Commit.</p>
+
+                <h4>Tab: Timelogs DTR</h4>
+                <figure>
+                    <img src="images/35-time-logs-dtr.png" alt="Timelogs DTR tab" loading="lazy">
+                    <figcaption>Figure 39 — Time Logs → Timelogs DTR tab</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Campus</strong></td><td>Saan galing ang DTR file</td><td>Scope DTR parse rules at campus</td><td>Required; SA, SU, o CA</td></tr>
+                        <tr><td><strong>Upload File</strong></td><td>Campus Excel DTR export</td><td>Cainta/San Mateo: <code>.xls</code>; Sumulong: <code>.xlsx</code></td></tr>
+                    </tbody>
+                </table>
+                <ul>
+                    <li><strong>San Mateo:</strong> Card Report tabs + <code>Att.log report</code> sheet; match by Biometric ID</li>
+                    <li><strong>Sumulong:</strong> DTR Report export; match by ID sa parentheses o by name</li>
+                    <li><strong>Cainta Main:</strong> <code>.xls</code> Timesheet Report — <code>Employee: NAME (biometric ID)</code> blocks; In 1/Out 1 … In 5 columns per day</li>
+                </ul>
+
+                <h4>San Mateo DTR — paano basahin ang punches</h4>
+                <div class="callout">
+                    <strong>Import:</strong> Lahat ng individual punches mula sa <code>Att.log report</code> (hal. <code>07:24</code>, <code>11:51</code>, <code>13:00</code>, <code>16:33</code>).
+                    Magkakalapit na scans (≤ 5 min) ay parehong tag — hal. <code>08:02</code> IN at <code>08:04</code> IN.
+                </div>
+                <table class="field-table">
+                    <thead><tr><th>Layer</th><th>Rule</th><th>Halimbawa (Apr 17)</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Stored punches</strong></td><td>Bawat oras = isang In o Out record</td><td>07:24 IN, 11:51 OUT, 13:00 IN, 16:33 OUT</td></tr>
+                        <tr><td><strong>Payroll session</strong></td><td><strong>First IN</strong> at <strong>Last OUT</strong> = work window</td><td>07:24 → 16:33</td></tr>
+                        <tr><td><strong>Break logs</strong></td><td>Mga punch <em>between</em> first IN at last OUT (OUT → IN pairs)</td><td>11:51 OUT → 13:00 IN = lunch break (69 min)</td></tr>
+                        <tr><td><strong>Late / Undertime / OT</strong></td><td>Gamit ang first IN at last OUT vs shift schedule</td><td>Late kung late ang 07:24; undertime kung maaga ang 16:33</td></tr>
+                        <tr><td><strong>Break tardiness</strong></td><td>Kapag naka-enable sa Policy → Breaks; actual break vs scheduled break</td><td>69 min actual vs shift break allowance</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- EMPLOYEE PROFILE -->
+            <div class="field-section" id="tk-employee-profile">
+                <h3>7.7 Employee Profile — Setup Fields</h3>
+                <figure>
+                    <img src="images/12-employee-profile.png" alt="Employee Profile screen" loading="lazy">
+                    <figcaption>Figure 11 — Employee Profile</figcaption>
+                </figure>
+                <p>I-click ang <strong>Setup</strong> sa employee row → tab <strong>Timekeeping Settings</strong>.</p>
+                <figure>
+                    <img src="images/36-employee-profile-setup.png" alt="Employee Profile setup modal" loading="lazy">
+                    <figcaption>Figure 40 — Employee Profile → Setup modal (Timekeeping Settings)</figcaption>
+                </figure>
+
+                <h4>Rest Days table</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Day checkbox</strong></td><td>Mark kung rest day ang araw (Sun–Sat)</td><td>Define employee weekly rest days</td><td>Pwede multiple days</td></tr>
+                        <tr><td><strong>Paid?</strong></td><td>Bayad ba ang rest day?</td><td>Whether rest day is paid</td><td>Enabled lang kapag naka-check ang day</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Assignment fields</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Holiday Group</strong></td><td>Anong holiday calendar ang applicable</td><td>Which holidays apply to employee</td><td>Required</td></tr>
+                        <tr><td><strong>Shift Code</strong></td><td>Default work schedule ng employee</td><td>I-assign sa Employee Profile bilang work schedule</td><td>Required; shows shift description</td></tr>
+                        <tr><td><strong>Policy Group</strong></td><td>Tardiness / OT / breaks / ND rules</td><td>Apply tardiness/OT/break/ND rules</td><td>Required; shows policy name</td></tr>
+                        <tr><td><strong>Enable cancellation of leaves</strong></td><td>Pwede bang i-cancel ang filed leaves</td><td>Allow leave cancellation feature</td><td>Checkbox; default off</td></tr>
+                        <tr><td><strong>Auto populate attendance</strong></td><td>Auto-fill attendance records</td><td>Auto-generate attendance from schedule</td><td>Checkbox; default off</td></tr>
+                    </tbody>
+                </table>
+                <div class="callout"><strong>Important:</strong> Dapat naka-setup ang employee dito bago mag-process ng payroll batch — dito nanggagaling ang shift, policy, holiday group, at rest days.</div>
+            </div>
+
+            <!-- EMPLOYEE LOAD -->
+            <div class="field-section" id="tk-employee-load">
+                <h3>7.8 Employee Load — Upload Fields</h3>
+                <figure>
+                    <img src="images/13-employee-load.png" alt="Employee Load screen" loading="lazy">
+                    <figcaption>Figure 12 — Employee Load</figcaption>
+                </figure>
+
+                <h4>Upload modal</h4>
+                <figure>
+                    <img src="images/37-employee-load-upload.png" alt="Employee Load upload modal" loading="lazy">
+                    <figcaption>Figure 41 — Employee Load upload modal</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Date From</strong></td><td>Simula ng load period</td><td>Start of faculty load export period</td><td>Required; kailangan bago ma-download ang template</td></tr>
+                        <tr><td><strong>Date To</strong></td><td>End ng load period</td><td>End of faculty load export period</td><td>Required; dapat ≥ Date From</td></tr>
+                        <tr><td><strong>Upload File</strong></td><td>Filled CSV template</td><td><code>.csv</code> o <code>.txt</code>; max 15 MB</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Template columns (user-editable)</h4>
+                <table class="field-table">
+                    <thead><tr><th>Column</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Time In</strong></td><td>Actual na oras ng pasok sa class</td><td><strong>Fill in</strong></td></tr>
+                        <tr><td><strong>Time Out</strong></td><td>Actual na oras ng uwian</td><td><strong>Fill in</strong></td></tr>
+                        <tr><td><strong>Remarks</strong></td><td>User notes</td><td>User notes on load row</td><td>Optional; max 255 chars</td></tr>
+                        <tr><td><strong>Comments</strong></td><td>Additional comments</td><td>Additional user notes</td><td>Optional</td></tr>
+                        <tr><td><strong>Verification Remarks</strong></td><td>Verification notes</td><td>Verifier notes on load row</td><td>Optional</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Pre-filled columns (do not edit)</h4>
+                <table class="field-table">
+                    <thead><tr><th>Column</th><th>Ano ito</th><th>Para saan (Gamit)</th></tr></thead>
+                    <tbody>
+                        <tr><td>No., Faculty Name, College, Modality, Subject, Section</td><td>Load details mula sa system</td></tr>
+                        <tr><td>Date, Class Schedule</td><td>Scheduled session info</td></tr>
+                        <tr><td>Employee No., Offering ID, Session Date (ISO)</td><td>Hidden matching keys — huwag baguhin</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 8. Payroll -->
+        <section id="payroll">
+            <h2>8. Payroll</h2>
+            <p>Field-by-field reference para sa payroll setup at processing.</p>
+
+            <nav class="sub-nav">
+                <a href="#pr-rate">Rate Definition</a>
+                <a href="#pr-maint">Maintenance Table</a>
+                <a href="#pr-govt">Government Tables</a>
+                <a href="#pr-calendar">Payroll Calendar</a>
+                <a href="#pr-transaction">Payroll Transaction</a>
+            </nav>
+
+            <div class="field-section" id="pr-rate">
+                <h3>8.1 Rate Definition</h3>
+                <figure>
+                    <img src="images/05-payroll-rate-definitions.png" alt="Rate Definition screen" loading="lazy">
+                    <figcaption>Figure 13 — Rate Definition</figcaption>
+                </figure>
+
+                <h4>Rate Groups — Create / Edit</h4>
+                <figure>
+                    <img src="images/38-rate-group-create.png" alt="Create Rate Group form" loading="lazy">
+                    <figcaption>Figure 42 — Rate Groups → Create form</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Rate Group Code</strong></td><td>Maikling code (hal. <code>RG01</code>)</td><td>I-assign sa Employee Salary → Rate Group</td><td>Required; max 4 chars; unique</td></tr>
+                        <tr><td><strong>Description</strong></td><td>Label ng rate group</td><td>Display sa dropdowns</td><td>Required</td></tr>
+                        <tr><td><strong>Rate Basis</strong></td><td>Fixed amount/hour o multiplier</td><td>Determines kung rate o fixed amount ang grid</td><td>Required</td></tr>
+                        <tr><td><strong>Rates grid</strong></td><td>Per day type × time type cells</td><td>Compute pay kapag may hours worked sa special day/time</td><td>Computation Basis, Income Type, Taxable, Rate</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Night Diff. Rate Groups — Create / Edit</h4>
+                <figure>
+                    <img src="images/39-nd-rate-groups.png" alt="Night Diff Rate Groups tab" loading="lazy">
+                    <figcaption>Figure 43 — Night Diff. Rate Groups tab</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>ND Rate Group Code</strong></td><td>Night diff group code</td><td>I-assign sa Employee Salary → ND Rate Group</td><td>Required; unique</td></tr>
+                        <tr><td><strong>Description</strong></td><td>Label</td><td>Dropdown display</td><td>Required</td></tr>
+                        <tr><td><strong>Rate Basis</strong></td><td>Computation method</td><td>ND rate calculation type</td><td>Required</td></tr>
+                        <tr><td><strong>Time (start / end)</strong></td><td>ND window (hal. 22:00–06:00)</td><td>Identify ND hours from time logs</td><td>Required; HH:MM</td></tr>
+                        <tr><td><strong>Rates grid</strong></td><td>ND rates per day/time type</td><td>NDIF income sa payroll batch</td><td>Same grid structure</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Day Types — Create / Edit</h4>
+                <figure>
+                    <img src="images/40-day-types.png" alt="Day Types tab with create modal" loading="lazy">
+                    <figcaption>Figure 44 — Day Types tab (Add modal)</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Day Type Code</strong></td><td>Code (hal. <code>REGU</code>, <code>REST</code>)</td><td>Hours worked upload at rate group matching</td><td>Locked if in use</td></tr>
+                        <tr><td><strong>Description</strong></td><td>Full name</td><td>Display label</td><td>Required</td></tr>
+                        <tr><td><strong>Restday</strong></td><td>Rest day flag</td><td>Rest day pay rules</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Special / Legal Holiday</strong></td><td>Holiday type flags</td><td>Holiday pay multipliers</td><td>Checkboxes</td></tr>
+                        <tr><td><strong>Day of the Week</strong></td><td>Specific weekday o Any Day</td><td>Match day-specific rates</td><td>Optional select</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="field-section" id="pr-maint">
+                <h3>8.2 Maintenance Table</h3>
+                <figure>
+                    <img src="images/06-payroll-maintenance.png" alt="Maintenance Table screen" loading="lazy">
+                    <figcaption>Figure 14 — Maintenance Table</figcaption>
+                </figure>
+
+                <h4>Income Types</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Income Type Code</strong></td><td>Code (hal. <code>BASC</code>, <code>OVRT</code>)</td><td>Upload adjustments, batch incomes, rate groups</td><td>Max 4 chars; unique</td></tr>
+                        <tr><td><strong>Description</strong></td><td>Label</td><td>Display sa payroll lines</td><td>Required</td></tr>
+                        <tr><td><strong>Income Classification</strong></td><td>Category ng income</td><td>Reporting grouping</td><td>Select</td></tr>
+                        <tr><td><strong>Allow Non-Taxable</strong></td><td>May non-taxable portion ba?</td><td>Split taxable/non-taxable sa batch</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Include in Compensation Limit</strong></td><td>Compensation cap flag</td><td>Compensation limit reports</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Monthly Breakdown in YTD</strong></td><td>Show in YTD report</td><td>Year-to-date reporting</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Default Basic Income</strong></td><td>Use as default basic</td><td>Cost center allocation default</td><td>Checkbox</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Deduction Types</h4>
+                <figure>
+                    <img src="images/41-deduction-types.png" alt="Deduction Types with create modal" loading="lazy">
+                    <figcaption>Figure 45 — Deduction Types (Add modal)</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Deduction Type Code</strong></td><td>Code (hal. <code>SSS</code>, <code>LTDE</code>)</td><td>Batch deductions, uploads</td><td>Required</td></tr>
+                        <tr><td><strong>Description</strong></td><td>Label</td><td>Payroll display</td><td>Required</td></tr>
+                        <tr><td><strong>Employer Amount</strong></td><td>Default employer share</td><td>Employer contribution lines</td><td>Number</td></tr>
+                        <tr><td><strong>Amount is Percentage</strong></td><td>% vs fixed amount</td><td>Computation method</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Valid as Government Deduction</strong></td><td>Govt premium flag</td><td>Links to govt table auto-compute</td><td>Shows govt table select</td></tr>
+                        <tr><td><strong>Use Government Table</strong></td><td>Which govt table</td><td>Auto SSS/PH/PI/WHT sa process</td><td>Depends on govt flag</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Loan Types</h4>
+                <figure>
+                    <img src="images/53-loan-types.png" alt="Loan Types tab" loading="lazy">
+                    <figcaption>Figure 54 — Loan Types tab</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Loan Type Code</strong></td><td>Loan identifier</td><td>Loan deductions sa batch/calendar schedule</td><td>Required</td></tr>
+                        <tr><td><strong>Description</strong></td><td>Label</td><td>Display</td><td>Required</td></tr>
+                        <tr><td><strong>Loan Classification</strong></td><td>Loan category</td><td>Grouping</td><td>Select</td></tr>
+                        <tr><td><strong>SSS Loan Type</strong></td><td>SSS loan code</td><td>SSS loan reporting</td><td>When loan class = 1</td></tr>
+                        <tr><td><strong>Is Viewable in Payslip</strong></td><td>Show on payslip</td><td>Employee visibility</td><td>Default true</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Leave Types</h4>
+                <figure>
+                    <img src="images/42-leave-types.png" alt="Leave Types tab" loading="lazy">
+                    <figcaption>Figure 46 — Leave Types tab</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Leave Type Code</strong></td><td>Code (hal. <code>VL</code>, tardiness leave)</td><td>Policy leave tagging, payroll leaves</td><td>Required</td></tr>
+                        <tr><td><strong>Description</strong></td><td>Label</td><td>Display</td><td>Required</td></tr>
+                        <tr><td><strong>Computation Basis</strong></td><td>How leave is computed</td><td>Leave pay calculation</td><td>Required</td></tr>
+                        <tr><td><strong>Apply To</strong></td><td>Scope ng leave</td><td>Eligibility rules</td><td>Select</td></tr>
+                        <tr><td><strong>Is Late/Undertime Leave?</strong></td><td>LT/UT leave marker</td><td>Link sa tardiness policy leave types</td><td>Select</td></tr>
+                        <tr><td><strong>Valid as Earned Leave</strong></td><td>Earned leave flag</td><td>Leave balance tracking</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Valid for Adjustment</strong></td><td>Adjustment eligible</td><td>Payroll adjustments</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Convertible to Cash</strong></td><td>Monetization allowed</td><td>Leave conversion pay</td><td>Shows hours non-taxable</td></tr>
+                        <tr><td><strong>Hours Non-Taxable</strong></td><td>Non-taxable hours limit</td><td>Tax treatment sa conversion</td><td>When convertible</td></tr>
+                        <tr><td><strong>Is Active</strong></td><td>Status</td><td>Dropdown availability</td><td>Default true</td></tr>
+                    </tbody>
+                </table>
+                <div class="callout">System default records (BASC, SSS, PhilHealth, Pag-IBIG, etc.) cannot be deleted or deactivated.</div>
+            </div>
+
+            <div class="field-section" id="pr-govt">
+                <h3>8.3 Government Tables</h3>
+                <figure>
+                    <img src="images/07-payroll-government-tables.png" alt="Government Tables screen" loading="lazy">
+                    <figcaption>Figure 15 — Government Tables</figcaption>
+                </figure>
+
+                <h4>Pag-IBIG</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Salary Cap</strong></td><td>Salary bracket ceiling</td><td>Determine Pag-IBIG contribution tier</td><td>Required ≥ 0</td></tr>
+                        <tr><td><strong>Employee / Employer Contribution</strong></td><td>Contribution amounts</td><td>Auto PI deduction sa batch process</td><td>Required ≥ 0</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>PhilHealth</h4>
+                <figure>
+                    <img src="images/43-philhealth.png" alt="PhilHealth government table" loading="lazy">
+                    <figcaption>Figure 47 — Government Tables → PhilHealth</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Salary From / To</strong></td><td>Income bracket range</td><td>Match employee compensation</td><td>Required</td></tr>
+                        <tr><td><strong>Contribution Base</strong></td><td>Basis amount</td><td>PhilHealth premium calculation</td><td>Required</td></tr>
+                        <tr><td><strong>Employee / Employer Share</strong></td><td>Premium split</td><td>PH deduction lines sa batch</td><td>Required</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>PhilHealth Minimum</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Employee / Employer Amount</strong></td><td>Minimum premium</td><td>Floor PH deduction kahit mababa ang pay</td><td>Edit only</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>SSS</h4>
+                <figure>
+                    <img src="images/44-sss.png" alt="SSS government table" loading="lazy">
+                    <figcaption>Figure 48 — Government Tables → SSS</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Compensation From / To</strong></td><td>Salary credit range</td><td>Bracket lookup</td><td>Required</td></tr>
+                        <tr><td><strong>Salary Credit</strong></td><td>SSS salary credit</td><td>Contribution basis</td><td>Required</td></tr>
+                        <tr><td><strong>Employee SSS / Employer SSS / EC</strong></td><td>Contribution amounts</td><td>SSS deduction lines sa batch</td><td>Required</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Withholding Tax 2023</h4>
+                <figure>
+                    <img src="images/45-withholding-tax.png" alt="Withholding Tax 2023 table" loading="lazy">
+                    <figcaption>Figure 49 — Government Tables → Withholding Tax 2023</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Tax Amount / Plus (%) / over</strong></td><td>WHT grid columns per frequency</td><td>Auto WHT deduction sa batch process</td><td>Daily/Weekly/Semi-Monthly/Monthly grids</td></tr>
+                        <tr><td><strong>Income From / To</strong></td><td>Annual income bracket</td><td>Annualized WHT</td><td>Annual tab</td></tr>
+                        <tr><td><strong>Tax Amount Due / Percentage Due</strong></td><td>Tax due per bracket</td><td>Annual tax computation</td><td>Annual tab</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="field-section" id="pr-calendar">
+                <h3>8.4 Payroll Calendar</h3>
+                <figure>
+                    <img src="images/08-payroll-calendar.png" alt="Payroll Calendar screen" loading="lazy">
+                    <figcaption>Figure 16 — Payroll Calendar (Daily pay type)</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/46-calendar-semi-monthly.png" alt="Payroll Calendar semi-monthly" loading="lazy">
+                    <figcaption>Figure 50 — Payroll Calendar (Semi-Monthly pay type)</figcaption>
+                </figure>
+
+                <h4>Create / Edit Pay Period</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Pay Year</strong></td><td>Calendar year</td><td>Organize periods by year</td><td>Required</td></tr>
+                        <tr><td><strong>Pay Period</strong></td><td>Period number (hal. 001)</td><td>Identify batch pay period</td><td>1–999</td></tr>
+                        <tr><td><strong>Date From / Date To</strong></td><td>Period date range</td><td>Time log filtering, hours worked scope</td><td>Required</td></tr>
+                        <tr><td><strong>Calendar Month</strong></td><td>Month assignment</td><td>Reporting month</td><td>Empty = auto-assign</td></tr>
+                        <tr><td><strong>Regular Period</strong></td><td>Regular vs adjustment period</td><td>Batch type selection</td><td>Default true</td></tr>
+                        <tr><td><strong>Category (User Type)</strong></td><td>faculty / staff / admin</td><td>Filter eligible employees sa batch</td><td>Dual-list; required</td></tr>
+                        <tr><td><strong>Colleges</strong></td><td>College codes</td><td>Further filter faculty employees</td><td>Required when applicable</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Pay Period Schedule (per period)</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Deduction Types</strong></td><td>Scheduled deductions</td><td>Auto-apply deductions sa batch process</td><td>Checkbox list</td></tr>
+                        <tr><td><strong>Loan Types</strong></td><td>Scheduled loans</td><td>Auto-apply loan deductions</td><td>Checkbox list; PHIL/PHIM exclusive</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Autofill Pay Periods</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Every Week on / Frequency days</strong></td><td>Recurrence pattern</td><td>Auto-generate multiple periods</td><td>Depends on pay type</td></tr>
+                        <tr><td><strong>Pay Year / Date From / Date To</strong></td><td>Generation range</td><td>Scope ng autofill</td><td>Required</td></tr>
+                        <tr><td><strong>Occurrences</strong></td><td>Number of periods</td><td>Alternative to date-to range</td><td>Daily or range mode</td></tr>
+                        <tr><td><strong>Regular Period</strong></td><td>Regular flag</td><td>Mark generated periods as regular</td><td>Checkbox</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="field-section" id="pr-transaction">
+                <h3>8.5 Payroll Transaction</h3>
+                <figure>
+                    <img src="images/09-payroll-transaction.png" alt="Payroll Transaction screen" loading="lazy">
+                    <figcaption>Figure 17 — Payroll Transaction</figcaption>
+                </figure>
+
+                <h4>Create Payroll Batch</h4>
+                <figure>
+                    <img src="images/47-payroll-batch-create.png" alt="Create Payroll Batch modal" loading="lazy">
+                    <figcaption>Figure 51 — Create Payroll Batch modal</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Batch No.</strong></td><td>Payroll run number</td><td>Unique identifier ng batch</td><td>Required; auto-suggested</td></tr>
+                        <tr><td><strong>Pay Type</strong></td><td>Daily/Weekly/Semi-Monthly/Monthly</td><td>Filter calendar periods at employees</td><td>Required</td></tr>
+                        <tr><td><strong>Pay Year</strong></td><td>Year</td><td>Filter pay periods</td><td>Required</td></tr>
+                        <tr><td><strong>Pay Period</strong></td><td>Calendar period</td><td>Defines date range at payroll scope</td><td>Unposted periods only</td></tr>
+                        <tr><td><strong>Tax Computation</strong></td><td>WHT method</td><td>How withholding tax is computed</td><td>Radio; required</td></tr>
+                        <tr><td><strong>Include all employees</strong></td><td>Auto-add eligible employees</td><td>Skip manual employee selection</td><td>Checkbox</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Add Employees to Batch</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Search</strong></td><td>Filter employee list</td><td>Find employees to add</td><td>Live search</td></tr>
+                        <tr><td><strong>Include all eligible</strong></td><td>Bulk select</td><td>Add all matching employees</td><td>Checkbox</td></tr>
+                        <tr><td><strong>Employee checkboxes</strong></td><td>Individual selection</td><td>Choose sino kasama sa batch</td><td><code>employee_ids[]</code></td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Employee Detail — Add Income</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Income Type</strong></td><td>Pay component</td><td>Manual income line sa batch</td><td>Required</td></tr>
+                        <tr><td><strong>Taxable / Non-Taxable</strong></td><td>Amount split</td><td>Tax treatment; triggers govt recalc</td><td>At least one > 0</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Employee Detail — Add Deduction</h4>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Deduction Type</strong></td><td>Deduction code</td><td>Manual deduction line</td><td>Govt deductions blocked (auto-computed)</td></tr>
+                        <tr><td><strong>Hours</strong></td><td>Late/undertime hours</td><td>LTDE/UTDE amount computation</td><td>Required for LTDE/UTDE</td></tr>
+                        <tr><td><strong>Employee / Employer Amount</strong></td><td>Deduction amounts</td><td>Split deduction lines</td><td>Numbers</td></tr>
+                        <tr><td><strong>Reference Number / Date</strong></td><td>External reference</td><td>Audit trail for deduction</td><td>Optional</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Upload Adjustments (Incomes / Deductions / Hours Worked)</h4>
+                <figure>
+                    <img src="images/48-upload-transactions.png" alt="Upload Adjustments tab with upload modal" loading="lazy">
+                    <figcaption>Figure 52 — Upload Adjustments tab (upload modal)</figcaption>
+                </figure>
+                <table class="field-table">
+                    <thead><tr><th>Field</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Pay Type / Year / Period</strong></td><td>Target pay calendar</td><td>Link upload sa tamang pay period</td><td>Required</td></tr>
+                        <tr><td><strong>Upload File</strong></td><td>CSV/TXT template</td><td>Bulk import adjustments</td><td>.csv/.txt; max 15 MB</td></tr>
+                    </tbody>
+                </table>
+
+                <p><strong>Template columns by upload type:</strong></p>
+                <table class="field-table">
+                    <thead><tr><th>Upload type</th><th>Columns</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Incomes</strong></td><td>Employee No., Income Type Code, Taxable, Non-Taxable, Amount</td><td>Extra income lines bago/during batch</td><td>Income type code required</td></tr>
+                        <tr><td><strong>Deductions</strong></td><td>Employee No., Deduction Type Code, Hours, Emp Amount, Empr Amount, Amount, Ref No., Ref Date</td><td>Extra deductions (LTDE/UTDE need hours)</td><td>Hours required for LTDE/UTDE</td></tr>
+                        <tr><td><strong>Hours Worked</strong></td><td>Employee No., Day Type Code, Time Type Code, No. of Hours</td><td>Primary hours source sa payroll process (merge din sa time logs kapag may upload na)</td><td>See Figure 55 sa Common Tasks</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Batch actions (buttons)</h4>
+                <table class="field-table">
+                    <thead><tr><th>Action</th><th>Ano ito</th><th>Para saan (Gamit)</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Process</strong></td><td>Run payroll computation</td><td>Compute incomes, deductions, govt premiums, WHT mula sa logs/uploads/policy</td><td>First-time compute</td></tr>
+                        <tr><td><strong>Reprocess</strong></td><td>Re-run computation</td><td>Pick up bagong uploads o manual changes</td><td>After edits</td></tr>
+                        <tr><td><strong>Post</strong></td><td>Finalize batch</td><td>Lock batch as official payroll</td><td>Cannot edit after post</td></tr>
+                        <tr><td><strong>Unpost</strong></td><td>Reverse posted batch</td><td>Allow corrections</td><td>Unpost Batches tab</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 9. Common Tasks -->
+        <section id="common-tasks">
+            <h2>9. Common Tasks</h2>
+
+            <h3>Run semi-monthly payroll (typical flow)</h3>
+            <div class="callout"><strong>Sa ngayon:</strong> Hindi pa ginagamit ang <strong>Time Logs</strong> upload. Ang hours para sa payroll ay mula sa <strong>Upload Adjustments → Hours Worked</strong>.</div>
+            <ol>
+                <li><strong>Employee Profile</strong> — confirm shift, policy, holiday group, and rest days per employee (one-time o kapag may bagong hire).</li>
+                <li><strong>Payroll Transaction → Upload Adjustments → Hours Worked</strong> — upload hours per employee para sa pay period (Day Type, Time Type, No. of Hours). Tingnan ang sample sa ibaba.</li>
+                <li><strong>Payroll Transaction → Payroll Batches</strong> — create batch para sa tamang semi-monthly period (Pay Type = Semi-Monthly, Pay Year, Pay Period).</li>
+                <li>Add employees → <strong>Process</strong> → review <strong>Net Pay</strong> per employee (Incomes tab shows hours at amounts).</li>
+                <li><strong>Reprocess</strong> kung may bagong Hours Worked upload o manual adjustment.</li>
+                <li><strong>Post</strong> when totals are correct.</li>
+            </ol>
+            <figure>
+                <img src="images/54-hours-worked-upload-sample.png" alt="Hours Worked upload sample for employee 2026-00003" loading="lazy">
+                <figcaption>Figure 55 — Sample Hours Worked upload (.csv / .txt) — employee <code>2026-00003</code>: REGU/BP 40h, REGU/OT 4h, REGU/NDIF 2h</figcaption>
+            </figure>
+            <p><strong>Kapag naka-enable na ang Time Logs:</strong> I-upload muna ang punches sa pay period; ang hours mula logs ay i-merge sa uploaded Hours Worked sa <strong>Process</strong>.</p>
+
+            <h3>Add a new employee manually</h3>
+            <ol>
+                <li><strong>Human Resource → Employees → Add Employee</strong>.</li>
+                <li>Complete campus and employee details in the wizard.</li>
+                <li>Go to <strong>Timekeeping → Employee Profile</strong> and run <strong>Setup</strong> for that employee.</li>
+            </ol>
+
+            <h3>Grant a staff user access to Payroll only</h3>
+            <ol>
+                <li><strong>Role Management → Edit</strong> (or create a role).</li>
+                <li>Enable <strong>Payroll</strong> sub-modules (view/create/update as needed).</li>
+                <li><strong>User Management → Edit</strong> user → assign the role.</li>
+            </ol>
+
+            <h3>Back up before desktop reinstall</h3>
+            <ol>
+                <li><strong>Database → Download Backup</strong>.</li>
+                <li>Install the new Pulse version.</li>
+                <li>Restore data per your IT procedure (or contact support).</li>
+            </ol>
+        </section>
+
+        <!-- 10. Tips -->
+        <section id="tips">
+            <h2>10. Tips &amp; Troubleshooting</h2>
+
+            <table>
+                <thead><tr><th>Issue</th><th>What to try</th></tr></thead>
+                <tbody>
+                    <tr><td>Empty pay type dropdown</td><td>Restart the desktop app — reference data auto-repairs on launch</td></tr>
+                    <tr><td>Upload preview shows errors</td><td>Check campus codes, employee numbers, and type codes against lookup tables</td></tr>
+                    <tr><td>Batch shows wrong hours/amount</td><td>Re-upload adjustments, then <strong>Reprocess</strong> the batch</td></tr>
+                    <tr><td>Module missing from sidebar</td><td>Ask admin to check <strong>Role Management</strong> permissions</td></tr>
+                    <tr><td>macOS blocks the app</td><td>Right-click app → <strong>Open</strong> once, then allow in Privacy &amp; Security</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Audit trail</h3>
+            <p>All create, update, and delete actions are recorded in the system audit log (<code>sys_logs</code>) for accountability.</p>
+        </section>
+
+    </main>
+</div>
+
+<footer class="site-footer">
+    <p>ICCT Colleges Foundation Inc. — Skolaris Pulse &nbsp;·&nbsp; ISKOLARIS Desktop</p>
+    <p style="margin-top:0.35rem;">Screenshots captured from live Pulse UI &nbsp;·&nbsp; July 15, 2026</p>
+</footer>
+
+</body>
+</html>

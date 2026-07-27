@@ -2,6 +2,7 @@
     $incomeLines = $incomes
         ->map(fn ($income) => [
             'label' => $income->incomeType?->description ?? $income->incomeType?->income_type_code ?? 'Income',
+            'hours' => $income->hours !== null ? (float) $income->hours : null,
             'amount' => (float) $income->taxable + (float) $income->non_taxable,
         ])
         ->filter(fn (array $line) => $line['amount'] !== 0.0)
@@ -10,6 +11,7 @@
     $deductionLines = $deductionRows
         ->map(fn (array $deduction) => [
             'label' => $deduction['description'] ?? $deduction['code'] ?? 'Deduction',
+            'hours' => ($deduction['show_hours'] ?? false) ? (float) ($deduction['hours'] ?? 0) : null,
             'amount' => (float) $deduction['employee_amount'],
         ])
         ->filter(fn (array $line) => $line['amount'] !== 0.0)
@@ -22,7 +24,12 @@
             @forelse ($incomeLines as $line)
                 <div class="flex items-baseline justify-between gap-4 text-sm">
                     <span class="text-gray-700">{{ $line['label'] }}:</span>
-                    <span class="shrink-0 tabular-nums text-gray-900">{{ number_format($line['amount'], 2) }}</span>
+                    <div class="flex shrink-0 items-baseline gap-3 tabular-nums text-gray-900">
+                        @if ($line['hours'] !== null)
+                            <span class="text-gray-500">{{ number_format($line['hours'], 2) }} hrs</span>
+                        @endif
+                        <span>{{ number_format($line['amount'], 2) }}</span>
+                    </div>
                 </div>
             @empty
                 <p class="text-sm text-gray-500">No income lines yet.</p>
@@ -41,7 +48,12 @@
             @forelse ($deductionLines as $line)
                 <div class="flex items-baseline justify-between gap-4 text-sm">
                     <span class="text-gray-700">{{ $line['label'] }}:</span>
-                    <span class="shrink-0 tabular-nums text-gray-900">-{{ number_format($line['amount'], 2) }}</span>
+                    <div class="flex shrink-0 items-baseline gap-3 tabular-nums text-gray-900">
+                        @if ($line['hours'] !== null)
+                            <span class="text-gray-500">{{ number_format($line['hours'], 2) }} hrs</span>
+                        @endif
+                        <span>-{{ number_format($line['amount'], 2) }}</span>
+                    </div>
                 </div>
             @empty
                 <p class="text-sm text-gray-500">No deduction lines yet.</p>

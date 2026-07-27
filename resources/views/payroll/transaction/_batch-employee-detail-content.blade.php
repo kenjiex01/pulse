@@ -27,6 +27,9 @@
         ->values();
     $taxableTotal = $incomes->sum(fn ($income) => (float) $income->taxable);
     $nonTaxableTotal = $incomes->sum(fn ($income) => (float) $income->non_taxable);
+    $hoursTotal = $incomes->contains(fn ($income) => $income->hours !== null)
+        ? $incomes->sum(fn ($income) => (float) ($income->hours ?? 0))
+        : null;
     $employeeShareTotal = $deductionRows->sum(fn (array $row) => $row['employee_amount']);
     $employerShareTotal = $deductionRows->sum(fn (array $row) => $row['employer_amount']);
     $grossIncomeTotal = $taxableTotal + $nonTaxableTotal;
@@ -88,6 +91,7 @@
                     <tr>
                         <th class="px-3 py-2 text-left">Income Type Code</th>
                         <th class="px-3 py-2 text-left">Description</th>
+                        <th class="px-3 py-2 text-right">Hours</th>
                         <th class="px-3 py-2 text-right">Taxable</th>
                         <th class="px-3 py-2 text-right">Non-Taxable</th>
                     </tr>
@@ -97,12 +101,15 @@
                         <tr>
                             <td class="px-3 py-2 font-medium text-gray-900">{{ $income->incomeType?->income_type_code ?? '—' }}</td>
                             <td class="px-3 py-2 text-gray-600">{{ $income->incomeType?->description ?? '—' }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">
+                                {{ $income->hours !== null ? number_format((float) $income->hours, 2) : '—' }}
+                            </td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ number_format((float) $income->taxable, 2) }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ number_format((float) $income->non_taxable, 2) }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="px-3 py-8 text-center text-gray-500">
+                            <td colspan="5" class="px-3 py-8 text-center text-gray-500">
                                 No income records for this employee yet.
                             </td>
                         </tr>
@@ -112,6 +119,9 @@
                     <tfoot>
                         <tr class="bg-gray-50 font-semibold">
                             <td class="px-3 py-2 text-gray-900" colspan="2">Total</td>
+                            <td class="px-3 py-2 text-right text-gray-900">
+                                {{ $hoursTotal !== null ? number_format($hoursTotal, 2) : '—' }}
+                            </td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ number_format($taxableTotal, 2) }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ number_format($nonTaxableTotal, 2) }}</td>
                         </tr>

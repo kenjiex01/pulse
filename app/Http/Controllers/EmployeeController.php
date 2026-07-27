@@ -13,6 +13,7 @@ use App\Models\Role;
 use App\Services\EmployeeCampusAssignmentSync;
 use App\Services\EmployeeEmploymentSync;
 use App\Services\EmployeeSalarySync;
+use App\Services\EmployeeUploadService;
 use App\Services\EmployeeWizardSession;
 use App\Services\SysLogService;
 use App\Support\LiveTable;
@@ -26,6 +27,8 @@ use Illuminate\View\View;
 
 class EmployeeController extends Controller
 {
+    public function __construct(private readonly EmployeeUploadService $uploadService) {}
+
     public function index(Request $request): View
     {
         $this->authorize('viewAny', Employee::class);
@@ -43,6 +46,12 @@ class EmployeeController extends Controller
                 'employmentInformations.salary.ndRateGroup',
                 'employmentInformations.salary.incomes.incomeType',
                 'employmentInformations.salary.deductions.deductionType',
+                'employmentInformations.previousSalaries.payType',
+                'employmentInformations.previousSalaries.basicComputation',
+                'employmentInformations.previousSalaries.rateGroup',
+                'employmentInformations.previousSalaries.ndRateGroup',
+                'employmentInformations.previousSalaries.incomes.incomeType',
+                'employmentInformations.previousSalaries.deductions.deductionType',
             ])
             ->search($search)
             ->when($status !== '' && $status !== 'all', fn ($query) => $query->where('employment_status', $status))
@@ -70,6 +79,15 @@ class EmployeeController extends Controller
         }
 
         $viewData = compact('employees', 'stats', 'search', 'status', 'compliance');
+
+        $stagingToken = (string) session('employee_upload_staging_token', '');
+        $openPreview = $request->boolean('preview') && $stagingToken !== '';
+        $viewData['openUpload'] = $request->boolean('upload');
+        $viewData['openPreview'] = $openPreview;
+        $viewData['stagingToken'] = $stagingToken;
+        $viewData['staging'] = $openPreview && $request->user()
+            ? $this->uploadService->getStaging($request->user(), $stagingToken)
+            : null;
 
         if ($request->ajax()) {
             return view('employees._results', $viewData);
@@ -276,6 +294,12 @@ class EmployeeController extends Controller
             'employmentInformations.salary.ndRateGroup',
             'employmentInformations.salary.incomes.incomeType',
             'employmentInformations.salary.deductions.deductionType',
+            'employmentInformations.previousSalaries.payType',
+            'employmentInformations.previousSalaries.basicComputation',
+            'employmentInformations.previousSalaries.rateGroup',
+            'employmentInformations.previousSalaries.ndRateGroup',
+            'employmentInformations.previousSalaries.incomes.incomeType',
+            'employmentInformations.previousSalaries.deductions.deductionType',
         ]);
 
         SysLogService::record(
@@ -300,6 +324,12 @@ class EmployeeController extends Controller
             'employmentInformations.salary.ndRateGroup',
             'employmentInformations.salary.incomes.incomeType',
             'employmentInformations.salary.deductions.deductionType',
+            'employmentInformations.previousSalaries.payType',
+            'employmentInformations.previousSalaries.basicComputation',
+            'employmentInformations.previousSalaries.rateGroup',
+            'employmentInformations.previousSalaries.ndRateGroup',
+            'employmentInformations.previousSalaries.incomes.incomeType',
+            'employmentInformations.previousSalaries.deductions.deductionType',
         ]);
 
         SysLogService::record(

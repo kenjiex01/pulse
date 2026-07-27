@@ -1,4 +1,5 @@
 import { initSearchableSelects, refreshSearchableSelect } from './searchable-select.js';
+import { initGovernmentIdInputs } from './government-id-format.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const loader = document.getElementById('pulse-full-screen-loader');
@@ -406,6 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         modal.classList.add('hidden');
+        modal.classList.remove('modal-overlay-nested');
 
         if (!document.querySelector('.modal-overlay:not(.hidden)')) {
             document.body.classList.remove('modal-open');
@@ -423,6 +425,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     closeModal(openModalEl);
                 }
             });
+            modal.classList.remove('modal-overlay-nested');
+        } else {
+            modal.classList.add('modal-overlay-nested');
         }
 
         modal.classList.remove('hidden');
@@ -433,7 +438,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const openTrigger = event.target.closest('[data-modal-open]');
 
         if (openTrigger) {
-            openModal(document.getElementById(openTrigger.dataset.modalOpen));
+            const modal = document.getElementById(openTrigger.dataset.modalOpen);
+            const shouldStack = openTrigger.hasAttribute('data-modal-stack')
+                || Boolean(document.querySelector('.modal-overlay:not(.hidden)'));
+
+            openModal(modal, { stack: shouldStack });
 
             return;
         }
@@ -443,10 +452,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (closeTrigger) {
             closeModal(closeTrigger.closest('.modal-overlay'));
         }
-    });
-
-    document.querySelectorAll('[data-modal-auto-open]').forEach((modal) => {
-        openModal(modal);
     });
 
     document.addEventListener('keydown', (event) => {
@@ -932,6 +937,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('[data-campus-assignments-root]').forEach(initCampusAssignmentsRoot);
 
+    const syncMiddleNameField = (form) => {
+        const toggle = form.querySelector('[data-no-middle-name-toggle]');
+        const input = form.querySelector('[data-middle-name-input]');
+        const requiredMarker = form.querySelector('[data-middle-name-required-marker]');
+
+        if (!toggle || !input) {
+            return;
+        }
+
+        const noMiddleName = toggle.checked;
+
+        input.disabled = noMiddleName;
+        input.removeAttribute('required');
+
+        requiredMarker?.classList.toggle('hidden', noMiddleName);
+
+        if (noMiddleName) {
+            input.value = '';
+        }
+    };
+
+    document.querySelectorAll('[data-employee-wizard-form], [data-employee-form]').forEach((form) => {
+        const middleNameToggle = form.querySelector('[data-no-middle-name-toggle]');
+
+        if (middleNameToggle) {
+            middleNameToggle.addEventListener('change', () => syncMiddleNameField(form));
+            syncMiddleNameField(form);
+        }
+
+        form.addEventListener('submit', () => {
+            form.querySelectorAll('[data-campus-assignment-row] select:disabled, [data-campus-assignment-row] input:disabled')
+                .forEach((field) => {
+                    field.disabled = false;
+                });
+        });
+    });
+
     initSearchableSelects();
 
     const setEmploymentPanelEnabled = (panel, enabled) => {
@@ -1063,6 +1105,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const prepareEmployeeFormForSubmit = (form) => {
+        syncMiddleNameField(form);
         enableEmployeeFormPanelsForSubmit(form);
 
         form.querySelectorAll('[data-employee-tab-panel].hidden [required]').forEach((field) => {
@@ -1129,7 +1172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    document.querySelectorAll('#employee-form, [data-employee-form]').forEach(bindEmployeeFormSubmitPrep);
+    document.querySelectorAll('#employee-form, [data-employee-form], [data-employee-wizard-form]').forEach(bindEmployeeFormSubmitPrep);
 
     const formatHourlyRate = (value) => {
         if (value === null || Number.isNaN(value)) {
@@ -1221,7 +1264,109 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const activateEmployeeSalaryScopeTab = (button) => {
+        const container = button.closest('[data-employee-salary-panel]');
+
+        if (!container) {
+            return;
+        }
+
+        const tabId = button.dataset.salaryScopeTab;
+
+        container.querySelectorAll('[data-salary-scope-tab]').forEach((item) => {
+            item.classList.toggle('employee-salary-subtab-btn-active', item === button);
+        });
+
+        container.querySelectorAll('[data-salary-scope-panel]').forEach((tabPanel) => {
+            tabPanel.classList.toggle('hidden', tabPanel.dataset.salaryScopePanel !== tabId);
+        });
+    };
+
+    if (document.body.dataset.employeeSalaryScopeTabsBound !== 'true') {
+        document.body.dataset.employeeSalaryScopeTabsBound = 'true';
+
+        document.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-salary-scope-tab]');
+
+            if (!button) {
+                return;
+            }
+
+            event.preventDefault();
+            activateEmployeeSalaryScopeTab(button);
+        });
+    }
+
+    const initEmployeeSalaryPreviousPanel = (panel) => {
+        const previousScope = panel.querySelector('[data-salary-scope-panel="previous"]');
+
+        if (!previousScope || previousScope.dataset.previousSalaryInitialized === 'true') {
+            return;
+        }
+
+        previousScope.dataset.previousSalaryInitialized = 'true';
+
+        const rows = previousScope.querySelectorAll('[data-previous-salary-select]');
+        const details = previousScope.querySelectorAll('[data-previous-salary-detail]');
+
+        const selectPreviousSalary = (salaryId) => {
+            rows.forEach((row) => {
+                row.classList.toggle(
+                    'employee-salary-previous-row-selected',
+                    row.dataset.previousSalarySelect === salaryId,
+                );
+            });
+
+            details.forEach((detail) => {
+                detail.classList.toggle('hidden', detail.dataset.previousSalaryDetail !== salaryId);
+            });
+        };
+
+        rows.forEach((row) => {
+            row.addEventListener('click', () => {
+                selectPreviousSalary(row.dataset.previousSalarySelect);
+            });
+
+            row.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    selectPreviousSalary(row.dataset.previousSalarySelect);
+                }
+            });
+        });
+
+        if (rows[0]) {
+            selectPreviousSalary(rows[0].dataset.previousSalarySelect);
+        }
+
+        previousScope.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-previous-salary-subtab]');
+
+            if (!button) {
+                return;
+            }
+
+            const detailId = button.dataset.previousSalaryDetailId;
+            const tabId = button.dataset.previousSalarySubtab;
+            const detail = previousScope.querySelector(`[data-previous-salary-detail="${detailId}"]`);
+
+            if (!detail) {
+                return;
+            }
+
+            detail.querySelectorAll('[data-previous-salary-subtab]').forEach((item) => {
+                item.classList.toggle('employee-salary-subtab-btn-active', item === button);
+            });
+
+            detail.querySelectorAll('[data-previous-salary-subtab-panel]').forEach((tabPanel) => {
+                tabPanel.classList.toggle('hidden', tabPanel.dataset.previousSalarySubtabPanel !== tabId);
+            });
+        });
+    };
+
     const initEmployeeSalaryPanel = (panel) => {
+        initEmployeeSalaryPreviousPanel(panel);
+
         panel.querySelectorAll('[data-salary-subtabs]').forEach((tabBar) => {
             const buttons = tabBar.querySelectorAll('[data-salary-subtab]');
             const container = tabBar.closest('[data-employee-salary-panel]');
@@ -1329,78 +1474,157 @@ document.addEventListener('DOMContentLoaded', () => {
         initEmployeeSalaryPanel(panel);
     });
 
-    document.querySelectorAll('[data-employee-form-tabs]').forEach((form) => {
-        const activeTabInput = form.querySelector('[data-employee-active-tab]');
-        const tabButtons = form.querySelectorAll('[data-employee-tab]');
-        const tabPanels = form.querySelectorAll('[data-employee-tab-panel]');
+    const loadEmployeeProfileLazyPanel = async (panel, url = null) => {
+        const fetchUrl = url || panel?.dataset.lazyUrl;
 
-        const activateTab = (tabId) => {
-            tabButtons.forEach((button) => {
-                const isActive = button.dataset.employeeTab === tabId;
-                button.classList.toggle('employee-tab-btn-active', isActive);
-                button.setAttribute('aria-selected', isActive ? 'true' : 'false');
-            });
-
-            tabPanels.forEach((panel) => {
-                panel.classList.toggle('hidden', panel.dataset.employeeTabPanel !== tabId);
-            });
-
-            if (activeTabInput) {
-                activeTabInput.value = tabId;
-            }
-        };
-
-        tabButtons.forEach((button) => {
-            button.addEventListener('click', () => {
-                activateTab(button.dataset.employeeTab);
-
-                const panel = form.querySelector(
-                    `[data-employee-tab-panel="${button.dataset.employeeTab}"][data-employee-profile-lazy-panel]`,
-                );
-
-                if (panel) {
-                    loadEmployeeProfileLazyPanel(panel);
-                }
-            });
-        });
-
-        const activeLazyPanel = form.querySelector('[data-employee-tab-panel]:not(.hidden)[data-employee-profile-lazy-panel]');
-
-        if (activeLazyPanel?.dataset.lazyPending === 'true') {
-            loadEmployeeProfileLazyPanel(activeLazyPanel);
+        if (!panel || !fetchUrl) {
+            return;
         }
 
-        const complianceSelect = form.querySelector('[data-compliance-status-select]');
-        const complianceBanner = document.querySelector('[data-employee-compliance-banner]');
+        if (!url && panel.dataset.loaded === 'true') {
+            return;
+        }
 
-        const syncComplianceBanner = () => {
-            if (!complianceSelect || !complianceBanner) {
+        panel.dataset.loaded = 'loading';
+        panel.innerHTML = '<div class="py-6 text-center text-sm text-gray-500">Loading…</div>';
+
+        try {
+            const response = await fetch(fetchUrl, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    Accept: 'text/html',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to load tab content.');
+            }
+
+            panel.innerHTML = await response.text();
+            panel.dataset.loaded = 'true';
+            delete panel.dataset.lazyPending;
+            panel.querySelectorAll('[data-client-paginate]').forEach(initClientPagination);
+        } catch {
+            panel.innerHTML = '<div class="py-6 text-center text-sm text-red-600">Failed to load tab content.</div>';
+            panel.dataset.loaded = 'false';
+        }
+    };
+
+    const initEmployeeProfileFormTabs = (root = document) => {
+        root.querySelectorAll('[data-employee-form-tabs]').forEach((form) => {
+            const activeLazyPanel = form.querySelector('[data-employee-tab-panel]:not(.hidden)[data-employee-profile-lazy-panel]');
+
+            if (form.dataset.employeeFormTabsInitialized === 'true') {
+                if (activeLazyPanel?.dataset.lazyPending === 'true') {
+                    loadEmployeeProfileLazyPanel(activeLazyPanel);
+                }
+
                 return;
             }
 
-            const status = complianceSelect.value || 'pending';
-            const label = complianceBanner.querySelector('[data-compliance-status-label]');
+            form.dataset.employeeFormTabsInitialized = 'true';
 
-            complianceBanner.classList.remove(
-                'border-green-200', 'bg-green-50', 'text-green-700',
-                'border-red-200', 'bg-red-50', 'text-red-700',
-                'border-amber-200', 'bg-amber-50', 'text-amber-800',
-            );
+            const activeTabInput = form.querySelector('[data-employee-active-tab]');
+            const tabButtons = form.querySelectorAll('[data-employee-tab]');
+            const tabPanels = form.querySelectorAll('[data-employee-tab-panel]');
 
-            if (status === 'compliant') {
-                complianceBanner.classList.add('border-green-200', 'bg-green-50', 'text-green-700');
-            } else if (status === 'withheld') {
-                complianceBanner.classList.add('border-red-200', 'bg-red-50', 'text-red-700');
-            } else {
-                complianceBanner.classList.add('border-amber-200', 'bg-amber-50', 'text-amber-800');
+            const activateTab = (tabId) => {
+                tabButtons.forEach((button) => {
+                    const isActive = button.dataset.employeeTab === tabId;
+                    button.classList.toggle('employee-tab-btn-active', isActive);
+                    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                });
+
+                tabPanels.forEach((panel) => {
+                    panel.classList.toggle('hidden', panel.dataset.employeeTabPanel !== tabId);
+                });
+
+                if (activeTabInput) {
+                    activeTabInput.value = tabId;
+                }
+            };
+
+            tabButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    activateTab(button.dataset.employeeTab);
+
+                    const panel = form.querySelector(
+                        `[data-employee-tab-panel="${button.dataset.employeeTab}"][data-employee-profile-lazy-panel]`,
+                    );
+
+                    if (panel) {
+                        loadEmployeeProfileLazyPanel(panel);
+                    }
+                });
+            });
+
+            if (activeLazyPanel?.dataset.lazyPending === 'true') {
+                loadEmployeeProfileLazyPanel(activeLazyPanel);
             }
 
-            if (label) {
-                label.textContent = `Compliance Status: ${status.toUpperCase()}`;
-            }
-        };
+            const complianceSelect = form.querySelector('[data-compliance-status-select]');
+            const complianceBanner = document.querySelector('[data-employee-compliance-banner]');
 
-        complianceSelect?.addEventListener('change', syncComplianceBanner);
+            const syncComplianceBanner = () => {
+                if (!complianceSelect || !complianceBanner) {
+                    return;
+                }
+
+                const status = complianceSelect.value || 'pending';
+                const label = complianceBanner.querySelector('[data-compliance-status-label]');
+
+                complianceBanner.classList.remove(
+                    'border-green-200', 'bg-green-50', 'text-green-700',
+                    'border-red-200', 'bg-red-50', 'text-red-700',
+                    'border-amber-200', 'bg-amber-50', 'text-amber-800',
+                );
+
+                if (status === 'compliant') {
+                    complianceBanner.classList.add('border-green-200', 'bg-green-50', 'text-green-700');
+                } else if (status === 'withheld') {
+                    complianceBanner.classList.add('border-red-200', 'bg-red-50', 'text-red-700');
+                } else {
+                    complianceBanner.classList.add('border-amber-200', 'bg-amber-50', 'text-amber-800');
+                }
+
+                if (label) {
+                    label.textContent = `Compliance Status: ${status.toUpperCase()}`;
+                }
+            };
+
+            complianceSelect?.addEventListener('change', syncComplianceBanner);
+        });
+    };
+
+    const initEmployeeProfileSetupForm = (form) => {
+        if (form.dataset.employeeProfileSetupInitialized === 'true') {
+            return;
+        }
+
+        form.dataset.employeeProfileSetupInitialized = 'true';
+
+        form.addEventListener('submit', () => {
+            form.querySelectorAll('input[name="_method"]').forEach((field) => {
+                field.remove();
+            });
+
+            form.querySelectorAll('[data-employee-tab-panel].hidden [required]').forEach((field) => {
+                field.removeAttribute('required');
+            });
+        });
+    };
+
+    const initEmployeeProfileSetupRoots = (root = document) => {
+        root.querySelectorAll('[data-employee-profile-setup-form]').forEach(initEmployeeProfileSetupForm);
+    };
+
+    initEmployeeProfileFormTabs();
+    initEmployeeProfileSetupRoots();
+
+    document.querySelectorAll('[data-modal-auto-open]').forEach((modal) => {
+        openModal(modal);
+        initEmployeeProfileFormTabs(modal);
+        initEmployeeProfileSetupRoots(modal);
     });
 
     const initRoleMembersRoot = (root) => {
@@ -2188,6 +2412,8 @@ document.addEventListener('DOMContentLoaded', () => {
         container.querySelectorAll('[data-payroll-batch-form]').forEach(initPayrollBatchForm);
         container.querySelectorAll('[data-dual-list-select]').forEach(initDualListSelect);
         initSearchableSelects(container);
+        initEmployeeProfileFormTabs(container);
+        initEmployeeProfileSetupRoots(container);
     };
 
     const getPayrollMaintenanceFieldValue = (form, fieldName) => {
@@ -2329,6 +2555,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             syncPayrollBatchRemoveSelection(modal ?? document);
             syncPayrollBatchAddSelection(modal ?? document);
+            initEmployeeProfileFormTabs(modal ?? document);
+            initEmployeeProfileSetupRoots(modal ?? document);
         }, 0);
     });
 
@@ -2610,21 +2838,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         form.querySelectorAll('[data-ot-field]').forEach((wrap) => {
             wrap.classList.toggle('opacity-50', disabled);
-            wrap.querySelectorAll('input, select, textarea').forEach((field) => {
-                field.disabled = disabled;
-            });
+        });
+
+        form.querySelectorAll('[data-ot-input]').forEach((field) => {
+            if (disabled) {
+                field.setAttribute('disabled', 'disabled');
+            } else {
+                field.removeAttribute('disabled');
+            }
         });
     };
 
     const syncBreakTardinessFields = (form) => {
-        const enabled = form.querySelector('[data-break-tardiness-toggle]')?.checked ?? false;
+        const toggle = form.querySelector('[data-break-tardiness-toggle]');
+        const enabled = toggle?.checked ?? false;
 
         form.querySelectorAll('[data-break-tardiness-panel]').forEach((panel) => {
             panel.classList.toggle('opacity-50', !enabled);
         });
 
         form.querySelectorAll('[data-break-tardiness-field]').forEach((field) => {
-            field.disabled = !enabled;
+            if (enabled) {
+                field.removeAttribute('disabled');
+            } else {
+                field.setAttribute('disabled', 'disabled');
+            }
         });
     };
 
@@ -2636,14 +2874,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         form.querySelectorAll('[data-rest-day-field]').forEach((field) => {
-            field.disabled = !enabled;
-        });
-    };
-
-    const syncNotificationFields = (form) => {
-        const enabled = form.querySelector('[data-notification-toggle]')?.checked ?? false;
-
-        form.querySelectorAll('[data-notification-field]').forEach((field) => {
             field.disabled = !enabled;
         });
     };
@@ -2672,18 +2902,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!enabled) {
                 field.value = '';
             }
-        });
-    };
-
-    const syncLogsTaggingFields = (form) => {
-        const enabled = form.querySelector('[data-logs-tagging-toggle]')?.checked ?? false;
-
-        form.querySelectorAll('[data-logs-tagging-panel]').forEach((panel) => {
-            panel.classList.toggle('opacity-50', !enabled);
-        });
-
-        form.querySelectorAll('[data-logs-tagging-field]').forEach((field) => {
-            field.disabled = !enabled;
         });
     };
 
@@ -2723,10 +2941,8 @@ document.addEventListener('DOMContentLoaded', () => {
             syncFlexiFields(form);
             syncExcessHourFields(form);
             syncBreakTardinessFields(form);
-            syncNotificationFields(form);
             syncRestDayFields(form);
             syncToilFields(form);
-            syncLogsTaggingFields(form);
             syncNightDiffFields(form);
 
             form.addEventListener('change', (event) => {
@@ -2748,20 +2964,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     syncBreakTardinessFields(form);
                 }
 
-                if (target.matches('[data-notification-toggle]')) {
-                    syncNotificationFields(form);
-                }
-
                 if (target.matches('[data-rest-day-toggle]')) {
                     syncRestDayFields(form);
                 }
 
                 if (target.matches('[data-toil-toggle]')) {
                     syncToilFields(form);
-                }
-
-                if (target.matches('[data-logs-tagging-toggle]')) {
-                    syncLogsTaggingFields(form);
                 }
 
                 if (target.matches('[data-nd-compute-toggle]')) {
@@ -2798,6 +3006,34 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!tbody || !template) {
             return;
         }
+
+        const syncFlexiShiftFields = () => {
+            const enabled = form.querySelector('[data-flexi-shift-toggle]')?.checked ?? false;
+            const expectedPanel = form.querySelector('[data-flexi-expected-panel]');
+
+            if (expectedPanel) {
+                expectedPanel.classList.toggle('hidden', !enabled);
+            }
+
+            form.querySelectorAll('[data-flexi-expected-field]').forEach((field) => {
+                field.disabled = !enabled;
+                if (!enabled) {
+                    field.removeAttribute('required');
+                } else {
+                    field.setAttribute('required', 'required');
+                }
+            });
+        };
+
+        form.querySelector('[data-flexi-shift-toggle]')?.addEventListener('change', syncFlexiShiftFields);
+        syncFlexiShiftFields();
+
+        form.addEventListener('submit', () => {
+            form.querySelectorAll('[data-flexi-expected-field]:disabled')
+                .forEach((field) => {
+                    field.disabled = false;
+                });
+        });
 
         form.querySelector('[data-shift-break-add]')?.addEventListener('click', () => {
             const index = tbody.querySelectorAll('[data-shift-break-row]').length;
@@ -3057,6 +3293,103 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('[data-employee-load-upload-form]').forEach(initEmployeeLoadUploadForm);
     document.querySelectorAll('[data-modal-auto-open] [data-employee-load-upload-form]').forEach(initEmployeeLoadUploadForm);
+
+    const initSssBatchMonthYearGuard = (root) => {
+        const select = root.querySelector('[data-sss-batch-select]');
+
+        if (!select || select.dataset.sssGuardBound === '1') {
+            return;
+        }
+
+        select.dataset.sssGuardBound = '1';
+
+        select.addEventListener('change', () => {
+            const selected = Array.from(select.selectedOptions);
+
+            if (selected.length <= 1) {
+                return;
+            }
+
+            const anchor = selected[0];
+            const payYear = anchor.dataset.payYear ?? '';
+            const calendarMonth = anchor.dataset.calendarMonth ?? '';
+            let removed = false;
+
+            selected.slice(1).forEach((option) => {
+                if (
+                    (option.dataset.payYear ?? '') !== payYear
+                    || (option.dataset.calendarMonth ?? '') !== calendarMonth
+                ) {
+                    option.selected = false;
+                    removed = true;
+                }
+            });
+
+            if (removed) {
+                window.alert('SSS report batches must share the same pay month and pay year.');
+            }
+        });
+    };
+
+    const initPayrollReportsRoot = (root) => {
+        const classificationSelect = root.querySelector('[data-payroll-report-classification]');
+        const reportSelect = root.querySelector('[data-payroll-report-select]');
+        const optionsPanel = root.querySelector('[data-payroll-report-options-panel]');
+        const form = root.querySelector('[data-payroll-reports-form]');
+
+        initSssBatchMonthYearGuard(root);
+
+        form?.addEventListener('submit', () => {
+            const outputFormat = form.querySelector('[name="output_format"]')?.value ?? 'html';
+
+            if (outputFormat === 'html') {
+                form.target = '_blank';
+            } else {
+                form.removeAttribute('target');
+            }
+        });
+
+        classificationSelect?.addEventListener('change', () => {
+            const url = new URL(window.location.href);
+            url.searchParams.set('classification', classificationSelect.value);
+            url.searchParams.delete('report_id');
+            window.location.href = url.toString();
+        });
+
+        reportSelect?.addEventListener('change', async () => {
+            const reportId = reportSelect.value;
+
+            if (!reportId || !optionsPanel) {
+                return;
+            }
+
+            const templateUrl = reportSelect.dataset.optionsUrl ?? '';
+            const optionsUrl = templateUrl.replace('__REPORT__', reportId);
+            const classification = classificationSelect?.value ?? 'payroll';
+            const url = `${optionsUrl}?classification=${encodeURIComponent(classification)}`;
+
+            optionsPanel.innerHTML = '<p class="text-sm text-gray-500">Loading report options...</p>';
+
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load report options.');
+                }
+
+                optionsPanel.innerHTML = await response.text();
+                initSssBatchMonthYearGuard(optionsPanel);
+            } catch {
+                optionsPanel.innerHTML = '<p class="text-sm text-red-600">Unable to load report options.</p>';
+            }
+        });
+    };
+
+    document.querySelectorAll('[data-payroll-reports-root]').forEach(initPayrollReportsRoot);
     syncEmployeeLoadPurgeSelection();
 
     const syncPayrollUploadPurgeSelection = () => {
@@ -3228,41 +3561,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('[data-rest-day-checkbox]').forEach(syncEmployeeProfileRestDayRow);
 
-    const loadEmployeeProfileLazyPanel = async (panel, url = null) => {
-        const fetchUrl = url || panel?.dataset.lazyUrl;
-
-        if (!panel || !fetchUrl) {
-            return;
-        }
-
-        if (! url && panel.dataset.loaded === 'true') {
-            return;
-        }
-
-        panel.dataset.loaded = 'loading';
-        panel.innerHTML = '<div class="py-6 text-center text-sm text-gray-500">Loading…</div>';
-
-        try {
-            const response = await fetch(fetchUrl, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    Accept: 'text/html',
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to load tab content.');
-            }
-
-            panel.innerHTML = await response.text();
-            panel.dataset.loaded = 'true';
-            delete panel.dataset.lazyPending;
-        } catch {
-            panel.innerHTML = '<div class="py-6 text-center text-sm text-red-600">Failed to load tab content.</div>';
-            panel.dataset.loaded = 'false';
-        }
-    };
-
     document.addEventListener('click', (event) => {
         const pageLink = event.target.closest('[data-live-table-page]');
 
@@ -3286,22 +3584,6 @@ document.addEventListener('DOMContentLoaded', () => {
         event.stopPropagation();
         loadEmployeeProfileLazyPanel(panel, pageLink.href);
     }, true);
-
-    const initEmployeeProfileSetupForm = (form) => {
-        if (form.dataset.employeeProfileSetupInitialized === 'true') {
-            return;
-        }
-
-        form.dataset.employeeProfileSetupInitialized = 'true';
-
-        form.addEventListener('submit', () => {
-            form.querySelectorAll('[data-employee-tab-panel].hidden [required]').forEach((field) => {
-                field.removeAttribute('required');
-            });
-        });
-    };
-
-    document.querySelectorAll('[data-employee-profile-setup-form]').forEach(initEmployeeProfileSetupForm);
 
     const loadEmployeeProfileApprovalRoutes = async (select) => {
         const root = select.closest('[data-employee-profile-approval-root]');
@@ -3387,7 +3669,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const prevBtn = container.querySelector('[data-paginate-prev]');
         const nextBtn = container.querySelector('[data-paginate-next]');
         const pagesContainer = container.querySelector('[data-paginate-pages]');
-        const pageSize = Math.max(1, parseInt(container.dataset.pageSize || '10', 10));
+        const perPageSelect = container.querySelector('[data-paginate-per-page]');
+        const perPageWrap = container.querySelector('[data-paginate-per-page-wrap]');
+        const showAllBtn = container.querySelector('[data-paginate-show-all]');
+        const nav = container.querySelector('[data-paginate-nav]');
+        const defaultPageSize = Math.max(1, parseInt(container.dataset.pageSize || '20', 10));
         const windowSize = 5;
 
         if (rows.length === 0) {
@@ -3395,27 +3681,48 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
-        let currentPage = container.dataset.paginateStart === 'last' ? totalPages : 1;
+        let pageSize = defaultPageSize;
+        let showingAll = false;
+        let currentPage = container.dataset.paginateStart === 'last'
+            ? Math.max(1, Math.ceil(rows.length / pageSize))
+            : 1;
 
-        if (totalPages <= 1) {
-            controls?.classList.add('hidden');
-        }
+        const totalPages = () => Math.max(1, Math.ceil(rows.length / pageSize));
+
+        const syncShowAllButton = () => {
+            if (!showAllBtn) {
+                return;
+            }
+
+            showAllBtn.textContent = showingAll ? 'Show pages' : 'Show all';
+        };
+
+        const syncNavVisibility = () => {
+            const hideNav = showingAll || totalPages() <= 1;
+
+            nav?.classList.toggle('hidden', hideNav);
+            perPageWrap?.classList.toggle('hidden', showingAll);
+
+            if (controls) {
+                controls.classList.toggle('hidden', rows.length <= 1 && !showingAll);
+            }
+        };
 
         const goToPage = (page) => {
-            currentPage = Math.min(totalPages, Math.max(1, page));
+            currentPage = Math.min(totalPages(), Math.max(1, page));
             render();
         };
 
         const renderPageNumbers = () => {
-            if (!pagesContainer) {
+            if (!pagesContainer || showingAll) {
                 return;
             }
 
             pagesContainer.innerHTML = '';
 
+            const lastPage = totalPages();
             let windowStart = Math.max(1, currentPage - Math.floor(windowSize / 2));
-            let windowEnd = Math.min(totalPages, windowStart + windowSize - 1);
+            let windowEnd = Math.min(lastPage, windowStart + windowSize - 1);
             windowStart = Math.max(1, windowEnd - windowSize + 1);
 
             const addEllipsis = () => {
@@ -3440,7 +3747,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 pagesContainer.appendChild(btn);
             }
 
-            if (windowEnd < totalPages) {
+            if (windowEnd < lastPage) {
                 addEllipsis();
             }
         };
@@ -3454,29 +3761,58 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (info) {
-                info.textContent = `Showing ${start + 1}–${Math.min(end, rows.length)} of ${rows.length}`;
+                if (showingAll) {
+                    info.textContent = `Showing all ${rows.length} row${rows.length === 1 ? '' : 's'}`;
+                } else if (rows.length <= pageSize) {
+                    info.textContent = `Showing all ${rows.length} row${rows.length === 1 ? '' : 's'}`;
+                } else {
+                    info.textContent = `Showing ${start + 1}–${Math.min(end, rows.length)} of ${rows.length}`;
+                }
             }
 
             if (prevBtn) {
-                prevBtn.disabled = currentPage === 1;
+                prevBtn.disabled = showingAll || currentPage === 1;
             }
 
             if (nextBtn) {
-                nextBtn.disabled = currentPage === totalPages;
+                nextBtn.disabled = showingAll || currentPage === totalPages();
             }
 
+            syncNavVisibility();
+            syncShowAllButton();
             renderPageNumbers();
         };
 
+        perPageSelect?.addEventListener('change', () => {
+            showingAll = false;
+            pageSize = Math.max(1, parseInt(perPageSelect.value || String(defaultPageSize), 10));
+            currentPage = 1;
+            render();
+        });
+
+        showAllBtn?.addEventListener('click', () => {
+            if (showingAll) {
+                showingAll = false;
+                pageSize = Math.max(1, parseInt(perPageSelect?.value || String(defaultPageSize), 10));
+                currentPage = 1;
+            } else {
+                showingAll = true;
+                pageSize = rows.length;
+                currentPage = 1;
+            }
+
+            render();
+        });
+
         prevBtn?.addEventListener('click', () => {
-            if (currentPage > 1) {
+            if (!showingAll && currentPage > 1) {
                 currentPage--;
                 render();
             }
         });
 
         nextBtn?.addEventListener('click', () => {
-            if (currentPage < totalPages) {
+            if (!showingAll && currentPage < totalPages()) {
                 currentPage++;
                 render();
             }
@@ -3486,4 +3822,337 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.querySelectorAll('[data-client-paginate]').forEach(initClientPagination);
+
+    const initTeachingLoadPull = (root) => {
+        const startUrl = root.dataset.tlPullStartUrl;
+        const stepUrl = root.dataset.tlPullStepUrl;
+        const reloadUrl = root.dataset.tlReloadUrl;
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+        const startBtn = root.querySelector('[data-tl-start-pull]');
+        const cancelBtn = root.querySelector('[data-tl-cancel-btn]');
+        const progressPanel = root.querySelector('[data-tl-progress-panel]');
+        const progressBar = root.querySelector('[data-tl-progress-bar]');
+        const progressLabel = root.querySelector('[data-tl-progress-label]');
+        const progressDetail = root.querySelector('[data-tl-progress-detail]');
+        const errorLabel = root.querySelector('[data-tl-pull-error]');
+        const selectedCount = root.querySelector('[data-tl-selected-count]');
+        const selectAll = root.querySelector('[data-tl-select-all]');
+        const dateFrom = root.querySelector('[data-tl-date-from]');
+        const dateTo = root.querySelector('[data-tl-date-to]');
+        const searchInput = root.querySelector('[data-tl-employee-search]');
+
+        const updateSelectedCount = () => {
+            const checked = root.querySelectorAll('[data-tl-employee-row]:checked').length;
+            if (selectedCount) {
+                selectedCount.textContent = `${checked} selected`;
+            }
+            return checked;
+        };
+
+        root.querySelectorAll('[data-tl-employee-row]').forEach((checkbox) => {
+            checkbox.addEventListener('change', updateSelectedCount);
+        });
+
+        selectAll?.addEventListener('change', () => {
+            root.querySelectorAll('[data-tl-employee-item]:not([hidden]) [data-tl-employee-row]').forEach((checkbox) => {
+                checkbox.checked = selectAll.checked;
+            });
+            updateSelectedCount();
+        });
+
+        searchInput?.addEventListener('input', () => {
+            const term = (searchInput.value || '').trim().toLowerCase();
+
+            root.querySelectorAll('[data-tl-employee-item]').forEach((item) => {
+                const haystack = item.dataset.tlSearchText || '';
+                item.hidden = term !== '' && !haystack.includes(term);
+            });
+
+            if (selectAll) {
+                selectAll.checked = false;
+            }
+            updateSelectedCount();
+        });
+
+        updateSelectedCount();
+
+        const showError = (message) => {
+            if (!errorLabel) {
+                return;
+            }
+
+            errorLabel.textContent = message;
+            errorLabel.classList.remove('hidden');
+        };
+
+        const clearError = () => {
+            errorLabel?.classList.add('hidden');
+            if (errorLabel) {
+                errorLabel.textContent = '';
+            }
+        };
+
+        const setPulling = (pulling) => {
+            if (startBtn) {
+                startBtn.disabled = pulling;
+            }
+            if (cancelBtn) {
+                cancelBtn.disabled = pulling;
+            }
+
+            // Do not disable/clear date fields during pull — values must stay visible.
+            // Only lock selection controls and actions.
+            root.querySelectorAll('[data-tl-employee-row], [data-tl-select-all], [data-tl-employee-search]').forEach((el) => {
+                el.disabled = pulling;
+            });
+        };
+
+        const resetPullForm = () => {
+            if (dateFrom) {
+                dateFrom.value = '';
+            }
+            if (dateTo) {
+                dateTo.value = '';
+            }
+            if (searchInput) {
+                searchInput.value = '';
+                searchInput.disabled = false;
+            }
+
+            root.querySelectorAll('[data-tl-employee-item]').forEach((item) => {
+                item.hidden = false;
+            });
+            root.querySelectorAll('[data-tl-employee-row]').forEach((checkbox) => {
+                checkbox.checked = false;
+                checkbox.disabled = false;
+            });
+            if (selectAll) {
+                selectAll.checked = false;
+                selectAll.disabled = false;
+            }
+
+            progressPanel?.classList.add('hidden');
+            if (progressBar) {
+                progressBar.style.width = '0%';
+            }
+            if (progressLabel) {
+                progressLabel.textContent = '0 / 0';
+            }
+            if (progressDetail) {
+                progressDetail.textContent = '';
+            }
+
+            clearError();
+            setPulling(false);
+            updateSelectedCount();
+        };
+
+        const modal = root.closest('.modal-overlay');
+
+        if (modal) {
+            const observer = new MutationObserver(() => {
+                if (modal.classList.contains('hidden')) {
+                    resetPullForm();
+                }
+            });
+            observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
+        }
+
+        startBtn?.addEventListener('click', async () => {
+            clearError();
+
+            const employeeIds = [...root.querySelectorAll('[data-tl-employee-row]:checked')].map((el) => el.value);
+
+            if (!dateFrom?.value || !dateTo?.value) {
+                showError('Date From and Date To are required.');
+                return;
+            }
+
+            if (dateFrom.value > dateTo.value) {
+                showError('Date From must be on or before Date To.');
+                return;
+            }
+
+            if (employeeIds.length === 0) {
+                showError('Select at least one employee.');
+                return;
+            }
+
+            setPulling(true);
+            progressPanel?.classList.remove('hidden');
+
+            try {
+                const startResponse = await fetch(startUrl, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrf,
+                    },
+                    body: JSON.stringify({
+                        date_from: dateFrom.value,
+                        date_to: dateTo.value,
+                        employee_ids: employeeIds,
+                    }),
+                });
+
+                const startPayload = await startResponse.json();
+
+                if (!startResponse.ok || !startPayload.success) {
+                    throw new Error(startPayload.message ?? 'Unable to start pull.');
+                }
+
+                let done = false;
+
+                while (!done) {
+                    const stepResponse = await fetch(stepUrl, {
+                        method: 'POST',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrf,
+                        },
+                        body: JSON.stringify({ job_token: startPayload.token }),
+                    });
+
+                    const stepPayload = await stepResponse.json();
+
+                    if (!stepResponse.ok || !stepPayload.success) {
+                        throw new Error(stepPayload.message ?? 'Pull step failed.');
+                    }
+
+                    const current = stepPayload.current ?? 0;
+                    const total = stepPayload.total ?? startPayload.total ?? 0;
+                    const percent = stepPayload.percent ?? 0;
+
+                    if (progressBar) {
+                        progressBar.style.width = `${percent}%`;
+                    }
+                    if (progressLabel) {
+                        progressLabel.textContent = `${current} / ${total}`;
+                    }
+                    if (progressDetail) {
+                        const parts = [];
+                        if (stepPayload.employee_number) {
+                            parts.push(stepPayload.employee_number);
+                        }
+                        if (stepPayload.sync_status === 'unchanged') {
+                            parts.push('unchanged — skipped');
+                        } else if (stepPayload.sync_status === 'updated') {
+                            parts.push(`updated — ${stepPayload.records_count ?? 0} session(s)`);
+                        } else if (typeof stepPayload.records_count === 'number') {
+                            parts.push(`${stepPayload.records_count} session(s)`);
+                        }
+                        if (stepPayload.error) {
+                            parts.push(stepPayload.error);
+                        }
+                        progressDetail.textContent = parts.join(' — ');
+                    }
+
+                    done = Boolean(stepPayload.done);
+                }
+
+                window.location.href = reloadUrl;
+            } catch (error) {
+                showError(error.message ?? 'Teaching load pull failed.');
+                setPulling(false);
+            }
+        });
+    };
+
+    document.querySelectorAll('[data-teaching-load-pull-root]').forEach(initTeachingLoadPull);
+    document.querySelectorAll('[data-modal-auto-open] [data-teaching-load-pull-root]').forEach(initTeachingLoadPull);
+
+    const printReportFromSource = (sourceId) => {
+        const source = document.getElementById(sourceId);
+
+        if (! source) {
+            window.print();
+
+            return;
+        }
+
+        pulseLoader.hide();
+
+        const iframe = document.createElement('iframe');
+        iframe.setAttribute('title', 'Print report');
+        iframe.setAttribute('aria-hidden', 'true');
+        iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+        document.body.appendChild(iframe);
+
+        const frameWindow = iframe.contentWindow;
+        const frameDocument = frameWindow?.document;
+
+        if (! frameDocument) {
+            iframe.remove();
+            window.print();
+
+            return;
+        }
+
+        const title = document.title.replace(/</g, '');
+        frameDocument.open();
+        frameDocument.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${title}</title>
+<style>
+@page { margin: 12mm; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: #111;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+body { padding: 0; }
+table { width: 100%; border-collapse: collapse; }
+th, td { color: #111 !important; background: #fff !important; }
+thead { display: table-header-group; }
+tr { page-break-inside: avoid; }
+</style>
+</head>
+<body>${source.innerHTML}</body>
+</html>`);
+        frameDocument.close();
+
+        const cleanup = () => {
+            setTimeout(() => iframe.remove(), 500);
+        };
+
+        const triggerPrint = () => {
+            try {
+                frameWindow.focus();
+                frameWindow.print();
+            } finally {
+                cleanup();
+            }
+        };
+
+        // Safari needs the iframe document fully ready before print.
+        if (frameDocument.readyState === 'complete') {
+            setTimeout(triggerPrint, 50);
+        } else {
+            iframe.addEventListener('load', () => setTimeout(triggerPrint, 50), { once: true });
+            setTimeout(triggerPrint, 300);
+        }
+    };
+
+    window.printReportFromSource = printReportFromSource;
+
+    document.querySelectorAll('[data-report-print]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const sourceId = button.getAttribute('data-report-print-source') || 'report-print-document';
+            printReportFromSource(sourceId);
+        });
+    });
+
+    window.addEventListener('beforeprint', () => {
+        pulseLoader.hide();
+    });
+
+    initGovernmentIdInputs();
 });

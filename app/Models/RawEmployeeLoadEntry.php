@@ -14,6 +14,11 @@ class RawEmployeeLoadEntry extends Model
 
     protected $primaryKey = 'employee_load_entry_id';
 
+    public function getRouteKeyName(): string
+    {
+        return 'employee_load_entry_id';
+    }
+
     protected $fillable = [
         'employee_load_transaction_id',
         'employee_id',
@@ -27,8 +32,10 @@ class RawEmployeeLoadEntry extends Model
         'load_date',
         'session_date',
         'class_schedule',
+        'total_hours',
         'time_in',
         'time_out',
+        'late_waived',
         'remarks',
         'comments',
         'verification_remarks',
@@ -41,6 +48,8 @@ class RawEmployeeLoadEntry extends Model
             'employee_id' => 'integer',
             'skolaris_offering_id' => 'integer',
             'session_date' => 'date',
+            'total_hours' => 'decimal:2',
+            'late_waived' => 'boolean',
         ];
     }
 

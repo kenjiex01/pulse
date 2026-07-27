@@ -5,20 +5,24 @@
         'is_hybrid',
         request()->has('is_hybrid') ? request()->boolean('is_hybrid') : ($employee->is_hybrid ?? false),
     );
+    $employmentInfos = $employee->employmentInformations->sortBy('sort_order')->values();
     $salaryRecords = old('employee_salaries');
 
     if ($salaryRecords === null) {
-        $salaryRecords = $employee->employmentInformations
-            ->map(function ($employmentInfo) {
-                $salary = $employmentInfo->salary;
+        $salaryRecords = $employmentInfos
+            ->map(function ($employmentInfo, $index) {
+                $salary = $employmentInfo->salary
+                    ?? $employmentInfo->salaries->first();
 
                 if (! $salary) {
                     return null;
                 }
 
                 return [
-                    'employment_index' => $employmentInfo->sort_order,
-                    'date_effective' => optional($salary->date_effective)->format('Y-m-d'),
+                    'employment_index' => $index,
+                    'employee_salary_id' => $salary->employee_salary_id,
+                    'date_effective_from' => optional($salary->date_effective_from)->format('Y-m-d'),
+                    'date_effective_to' => optional($salary->date_effective_to)->format('Y-m-d'),
                     'basic_computation_id' => $salary->basic_computation_id,
                     'pay_type_id' => $salary->pay_type_id,
                     'days_per_period' => $salary->days_per_period !== null
@@ -55,7 +59,7 @@
 <section class="employee-tab-section" data-employee-salary-root>
     <h2 class="mb-2 text-lg font-semibold text-gray-900">Employee Salary</h2>
     <p class="mb-4 text-sm text-gray-600">
-        Configure salary per employment record. Hybrid employees require separate Faculty and Staff salary setups.
+        Configure salary per employment record. Salary changes with a new effectivity date are kept as previous salary history and applied in payroll by date.
     </p>
 
     @error('employee_salaries')<p class="mb-4 text-sm text-red-600">{{ $message }}</p>@enderror
@@ -70,12 +74,14 @@
                     'salary' => $salaryRecords[0] ?? [],
                     'panelTitle' => 'Faculty Salary',
                     'formOptions' => $formOptions,
+                    'previousSalaries' => $employmentInfos->get(0)?->previousSalaries ?? collect(),
                 ])
                 @include('employees.partials._employee-salary-panel', [
                     'salaryIndex' => 1,
                     'salary' => $salaryRecords[1] ?? [],
                     'panelTitle' => 'Staff Salary',
                     'formOptions' => $formOptions,
+                    'previousSalaries' => $employmentInfos->get(1)?->previousSalaries ?? collect(),
                 ])
             </div>
         @else
@@ -85,6 +91,7 @@
                     'salary' => $salaryRecords[0] ?? [],
                     'panelTitle' => 'Salary',
                     'formOptions' => $formOptions,
+                    'previousSalaries' => $employmentInfos->first()?->previousSalaries ?? collect(),
                 ])
             </div>
         @endif

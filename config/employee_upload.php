@@ -1,0 +1,227 @@
+<?php
+
+return [
+    'columns' => [
+        // Personal
+        ['alias' => 'employee_number', 'label' => 'Employee Number'],
+        ['alias' => 'first_name', 'label' => 'First Name', 'required' => true],
+        ['alias' => 'middle_name', 'label' => 'Middle Name'],
+        ['alias' => 'last_name', 'label' => 'Last Name', 'required' => true],
+        ['alias' => 'suffix', 'label' => 'Suffix'],
+        ['alias' => 'birth_date', 'label' => 'Birth Date (YYYY-MM-DD or M/D/YYYY)'],
+        ['alias' => 'place_of_birth', 'label' => 'Place of Birth'],
+        ['alias' => 'gender', 'label' => 'Sex (male/female/other)'],
+        ['alias' => 'civil_status', 'label' => 'Civil Status (single/married/widowed/separated/divorced)'],
+        ['alias' => 'nationality', 'label' => 'Nationality'],
+        ['alias' => 'religion', 'label' => 'Religion'],
+        ['alias' => 'language_dialect', 'label' => 'Language / Dialect'],
+        ['alias' => 'height_cm', 'label' => 'Height (cm)'],
+        ['alias' => 'weight_kg', 'label' => 'Weight (kg)'],
+        ['alias' => 'tin_number', 'label' => 'TIN'],
+        ['alias' => 'sss_number', 'label' => 'SSS'],
+        ['alias' => 'philhealth_number', 'label' => 'PhilHealth'],
+        ['alias' => 'pagibig_number', 'label' => 'Pag-IBIG'],
+        ['alias' => 'gsis_number', 'label' => 'GSIS'],
+        ['alias' => 'tax_status', 'label' => 'Tax Status'],
+
+        // Campus assignment (primary)
+        ['alias' => 'campus_code', 'label' => 'Campus Code', 'required' => true],
+        ['alias' => 'biometric_id', 'label' => 'Biometric ID', 'required' => true],
+        ['alias' => 'college', 'label' => 'Department / College'],
+        ['alias' => 'department', 'label' => 'Employee Department'],
+        ['alias' => 'program', 'label' => 'Program'],
+
+        // Campus assignment (secondary — optional)
+        ['alias' => 'campus2_code', 'label' => 'Campus Code 2'],
+        ['alias' => 'campus2_biometric_id', 'label' => 'Biometric ID 2'],
+        ['alias' => 'campus2_college', 'label' => 'Department / College 2'],
+        ['alias' => 'campus2_department', 'label' => 'Employee Department 2'],
+        ['alias' => 'campus2_program', 'label' => 'Program 2'],
+
+        // Employment
+        ['alias' => 'is_hybrid', 'label' => 'Hybrid (yes/no)'],
+        ['alias' => 'compliance_status', 'label' => 'Compliance (pending/compliant)'],
+        ['alias' => 'user_type', 'label' => 'User Type (faculty/staff/admin)', 'required' => true],
+        ['alias' => 'position', 'label' => 'Position'],
+        ['alias' => 'designation', 'label' => 'Designation'],
+        ['alias' => 'rank', 'label' => 'Rank'],
+        ['alias' => 'employment_type', 'label' => 'Employment Type'],
+        ['alias' => 'hire_date', 'label' => 'Hire Date (YYYY-MM-DD or M/D/YYYY)'],
+
+        // Employment 2 (hybrid staff record)
+        ['alias' => 'emp2_user_type', 'label' => 'User Type 2 (faculty/staff/admin)'],
+        ['alias' => 'emp2_position', 'label' => 'Position 2'],
+        ['alias' => 'emp2_designation', 'label' => 'Designation 2'],
+        ['alias' => 'emp2_rank', 'label' => 'Rank 2'],
+        ['alias' => 'emp2_employment_type', 'label' => 'Employment Type 2'],
+        ['alias' => 'emp2_hire_date', 'label' => 'Hire Date 2 (YYYY-MM-DD or M/D/YYYY)'],
+
+        // Salary (primary employment)
+        ['alias' => 'salary_date_effective_from', 'label' => 'Salary Effectivity From (YYYY-MM-DD or M/D/YYYY)', 'required' => true],
+        ['alias' => 'salary_date_effective_to', 'label' => 'Salary Effectivity To (YYYY-MM-DD or M/D/YYYY)'],
+        ['alias' => 'salary_pay_type', 'label' => 'Pay Type (ID or Daily/Weekly/Semi-Monthly/Monthly)', 'required' => true],
+        ['alias' => 'salary_basic_computation', 'label' => 'Basic Computation (ID or Time-In/Time-Out/Leaves)', 'required' => true],
+        ['alias' => 'salary_rate_group', 'label' => 'Rate Group (ID or description)', 'required' => true],
+        ['alias' => 'salary_nd_rate_group', 'label' => 'Night Diff. Rate Group (ID or description)'],
+        ['alias' => 'salary_days_per_period', 'label' => 'Days Per Period'],
+        ['alias' => 'salary_hours_per_day', 'label' => 'Hours Per Day'],
+        ['alias' => 'salary_use_basic_income_as_hourly_rate', 'label' => 'Use Basic Income as Hourly Rate (yes/no)'],
+        ['alias' => 'salary_basic_taxable', 'label' => 'Basic Income Taxable'],
+        ['alias' => 'salary_basic_non_taxable', 'label' => 'Basic Income Non-Taxable'],
+        ['alias' => 'salary_incomes', 'label' => 'Other Incomes (CODE|taxable|non_taxable;...)'],
+        ['alias' => 'salary_deductions', 'label' => 'Deductions (CODE|employee|employer;...)'],
+
+        // Salary 2 (hybrid staff record)
+        ['alias' => 'salary2_date_effective_from', 'label' => 'Salary 2 Effectivity From (YYYY-MM-DD or M/D/YYYY)'],
+        ['alias' => 'salary2_date_effective_to', 'label' => 'Salary 2 Effectivity To (YYYY-MM-DD or M/D/YYYY)'],
+        ['alias' => 'salary2_pay_type', 'label' => 'Pay Type 2'],
+        ['alias' => 'salary2_basic_computation', 'label' => 'Basic Computation 2'],
+        ['alias' => 'salary2_rate_group', 'label' => 'Rate Group 2'],
+        ['alias' => 'salary2_nd_rate_group', 'label' => 'Night Diff. Rate Group 2'],
+        ['alias' => 'salary2_days_per_period', 'label' => 'Days Per Period 2'],
+        ['alias' => 'salary2_hours_per_day', 'label' => 'Hours Per Day 2'],
+        ['alias' => 'salary2_use_basic_income_as_hourly_rate', 'label' => 'Use Basic Income as Hourly Rate 2 (yes/no)'],
+        ['alias' => 'salary2_basic_taxable', 'label' => 'Basic Income Taxable 2'],
+        ['alias' => 'salary2_basic_non_taxable', 'label' => 'Basic Income Non-Taxable 2'],
+        ['alias' => 'salary2_incomes', 'label' => 'Other Incomes 2 (CODE|taxable|non_taxable;...)'],
+        ['alias' => 'salary2_deductions', 'label' => 'Deductions 2 (CODE|employee|employer;...)'],
+
+        // Contact
+        ['alias' => 'email', 'label' => 'Email', 'required' => true],
+        ['alias' => 'phone', 'label' => 'Primary Phone', 'required' => true],
+        ['alias' => 'home_phone', 'label' => 'Home Phone'],
+        ['alias' => 'work_phone', 'label' => 'Work Phone'],
+        ['alias' => 'fax_number', 'label' => 'Fax Number'],
+        ['alias' => 'emergency_contact_name', 'label' => 'Emergency Contact Name'],
+        ['alias' => 'emergency_contact_relationship', 'label' => 'Emergency Contact Relationship'],
+        ['alias' => 'emergency_contact_phone', 'label' => 'Emergency Contact Phone'],
+        ['alias' => 'emergency_contact_email', 'label' => 'Emergency Contact Email'],
+        ['alias' => 'emergency_contact_address', 'label' => 'Emergency Contact Address'],
+
+        // Home address
+        ['alias' => 'country', 'label' => 'Country'],
+        ['alias' => 'address_line', 'label' => 'No./Street'],
+        ['alias' => 'region', 'label' => 'Region'],
+        ['alias' => 'province', 'label' => 'Province'],
+        ['alias' => 'city_municipality', 'label' => 'City / Municipality'],
+        ['alias' => 'barangay', 'label' => 'Barangay'],
+        ['alias' => 'postal_code', 'label' => 'Postal Code'],
+
+        // Account access
+        ['alias' => 'employment_status', 'label' => 'Account Status (active/inactive)'],
+        ['alias' => 'is_confidential', 'label' => 'Confidential Record (yes/no)'],
+        ['alias' => 'role', 'label' => 'System Role (ID, slug, or name)', 'required' => true],
+
+        // Extended — family background
+        ['alias' => 'fb_father_name', 'label' => "Father's Name"],
+        ['alias' => 'fb_mother_name', 'label' => "Mother's Name"],
+        ['alias' => 'fb_father_company', 'label' => 'Father Company'],
+        ['alias' => 'fb_mother_company', 'label' => 'Mother Company'],
+        ['alias' => 'fb_father_occupation', 'label' => 'Father Occupation'],
+        ['alias' => 'fb_mother_occupation', 'label' => 'Mother Occupation'],
+        ['alias' => 'fb_parents_address', 'label' => "Parent's Address"],
+        ['alias' => 'fb_spouse_last_name', 'label' => 'Spouse Last Name'],
+        ['alias' => 'fb_spouse_first_name', 'label' => 'Spouse First Name'],
+        ['alias' => 'fb_spouse_middle_name', 'label' => 'Spouse Middle Name'],
+        ['alias' => 'fb_spouse_occupation', 'label' => 'Spouse Occupation'],
+        ['alias' => 'fb_spouse_company', 'label' => 'Spouse Company'],
+        ['alias' => 'fb_date_married', 'label' => 'Date Married (YYYY-MM-DD or M/D/YYYY)'],
+        ['alias' => 'fb_number_of_children', 'label' => 'Number of Children'],
+
+        // Extended — skills
+        ['alias' => 'sk_computer', 'label' => 'Computer Skills (comma-separated)'],
+        ['alias' => 'sk_technical', 'label' => 'Technical Skills (comma-separated)'],
+        ['alias' => 'sk_talents', 'label' => 'Talents (comma-separated)'],
+        ['alias' => 'sk_other_skills', 'label' => 'Other Skills'],
+
+        // Extended — general information
+        ['alias' => 'gi_has_physical_defect_or_disability', 'label' => 'Physical Defect/Disability (yes/no)'],
+        ['alias' => 'gi_has_major_operations_or_illness', 'label' => 'Major Operations/Illness (yes/no)'],
+        ['alias' => 'gi_has_nervous_disorder', 'label' => 'Nervous Disorder (yes/no)'],
+        ['alias' => 'gi_has_relative_in_icct', 'label' => 'Relative in ICCT (yes/no)'],
+        ['alias' => 'gi_has_been_suspended_or_discharged', 'label' => 'Suspended/Discharged (yes/no)'],
+        ['alias' => 'gi_has_labor_union_participation', 'label' => 'Labor Union Participation (yes/no)'],
+        ['alias' => 'gi_has_administrative_civil_criminal_case', 'label' => 'Admin/Civil/Criminal Case (yes/no)'],
+        ['alias' => 'gi_relative_in_icct_name', 'label' => 'Relative Name'],
+        ['alias' => 'gi_relative_in_icct_relationship', 'label' => 'Relative Relationship'],
+        ['alias' => 'gi_organization_memberships', 'label' => 'Organization Memberships'],
+
+        // Extended — repeatable collections (JSON arrays)
+        ['alias' => 'json_family_members', 'label' => 'Family Members JSON'],
+        ['alias' => 'json_employment_history', 'label' => 'Employment History JSON'],
+        ['alias' => 'json_exams', 'label' => 'Exams JSON'],
+        ['alias' => 'json_seminars', 'label' => 'Seminars JSON'],
+        ['alias' => 'json_awards', 'label' => 'Awards JSON'],
+        ['alias' => 'json_references', 'label' => 'References JSON'],
+    ],
+
+    'family_background_map' => [
+        'fb_father_name' => 'father_name',
+        'fb_mother_name' => 'mother_name',
+        'fb_father_company' => 'father_company',
+        'fb_mother_company' => 'mother_company',
+        'fb_father_occupation' => 'father_occupation',
+        'fb_mother_occupation' => 'mother_occupation',
+        'fb_parents_address' => 'parents_address',
+        'fb_spouse_last_name' => 'spouse_last_name',
+        'fb_spouse_first_name' => 'spouse_first_name',
+        'fb_spouse_middle_name' => 'spouse_middle_name',
+        'fb_spouse_occupation' => 'spouse_occupation',
+        'fb_spouse_company' => 'spouse_company',
+        'fb_date_married' => 'date_married',
+        'fb_number_of_children' => 'number_of_children',
+    ],
+
+    'general_information_map' => [
+        'gi_has_physical_defect_or_disability' => 'has_physical_defect_or_disability',
+        'gi_has_major_operations_or_illness' => 'has_major_operations_or_illness',
+        'gi_has_nervous_disorder' => 'has_nervous_disorder',
+        'gi_has_relative_in_icct' => 'has_relative_in_icct',
+        'gi_has_been_suspended_or_discharged' => 'has_been_suspended_or_discharged',
+        'gi_has_labor_union_participation' => 'has_labor_union_participation',
+        'gi_has_administrative_civil_criminal_case' => 'has_administrative_civil_criminal_case',
+        'gi_relative_in_icct_name' => 'relative_in_icct_name',
+        'gi_relative_in_icct_relationship' => 'relative_in_icct_relationship',
+        'gi_organization_memberships' => 'organization_memberships',
+    ],
+
+    'json_collection_map' => [
+        'json_family_members' => 'family_members',
+        'json_employment_history' => 'employment_history',
+        'json_exams' => 'exams',
+        'json_seminars' => 'seminars',
+        'json_awards' => 'awards',
+        'json_references' => 'references',
+    ],
+
+    /**
+     * Static sample row for the upload template (no DB lookups).
+     *
+     * @var array<string, string>
+     */
+    'sample_row' => [
+        'employee_number' => '2026-00099',
+        'first_name' => 'Juan',
+        'middle_name' => 'M.',
+        'last_name' => 'Dela Cruz',
+        'email' => 'juan.delacruz@icct.edu.ph',
+        'phone' => '09171234567',
+        'campus_code' => 'AG',
+        'biometric_id' => '1001',
+        'user_type' => 'staff',
+        'position' => 'HR Officer',
+        'department' => 'Human Resource',
+        'college' => 'Human Resource',
+        'employment_status' => 'active',
+        'compliance_status' => 'pending',
+        'is_hybrid' => 'no',
+        'salary_date_effective_from' => '2026-01-01',
+        'salary_pay_type' => 'Daily',
+        'salary_basic_computation' => 'Time-In/Time-Out',
+        'salary_rate_group' => '1',
+        'salary_hours_per_day' => '8',
+        'salary_basic_taxable' => '25000',
+        'role' => '2',
+        'country' => 'Philippines',
+    ],
+];

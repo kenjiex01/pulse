@@ -14,6 +14,8 @@ use App\Models\PayrollDeduction;
 use App\Models\PayrollIncome;
 use App\Models\PayType;
 use App\Support\PhilhealthDeductionTypes;
+use App\Support\SssDeductionTypes;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 class GovernmentDeductionPayrollService
@@ -48,7 +50,7 @@ class GovernmentDeductionPayrollService
         $periodGrossTaxable = (float) $detail->incomes()->sum('taxable');
         $monthlyGrossTaxable = $this->monthlyGrossTaxable($detail, $batch);
 
-        // Period gross drives Pag-IBIG bracket; SSS / PhilHealth / WHT use whole-month gross.
+        // Period gross drives WHT; SSS / PhilHealth / Pag-IBIG use whole-month gross (true-up).
         if ($periodGrossTaxable <= 0 && $monthlyGrossTaxable <= 0) {
             return collect();
         }
@@ -120,19 +122,198 @@ class GovernmentDeductionPayrollService
         float $statutoryEmployeeTotal,
     ): ?array {
         return match ($deductionType->deduction_type_code) {
-            PhilhealthDeductionTypes::MINIMUM => $this->computePhilhealthMinimum(),
-            PhilhealthDeductionTypes::PREMIUM => $this->computePhilhealthPremium($detail, $batch, $monthlyGrossTaxable),
-            default => $this->computeAmounts(
-                (int) $deductionType->govt_table_id,
-                in_array((int) $deductionType->govt_table_id, [
-                    self::GOVT_PHIC,
-                    self::GOVT_SSS,
-                    self::GOVT_WTAX,
-                ], true) ? $monthlyGrossTaxable : $periodGrossTaxable,
-                $statutoryEmployeeTotal,
+            PhilhealthDeductionTypes::MINIMUM => $this->netOfPriorDeductions(
+                $this->computePhilhealthMinimum(),
+                $detail,
                 $batch,
+                (int) $deductionType->deduction_type_id,
+            ),
+            PhilhealthDeductionTypes::PREMIUM => $this->netOfPriorDeductions(
+                $this->computePhilhealthPremium($detail, $batch),
+                $detail,
+                $batch,
+                (int) $deductionType->deduction_type_id,
+            ),
+            SssDeductionTypes::PREMIUM => $this->netOfPriorDeductions(
+                $this->computeSssRegular($monthlyGrossTaxable),
+                $detail,
+                $batch,
+                (int) $deductionType->deduction_type_id,
+            ),
+            SssDeductionTypes::MPF => $this->netOfPriorDeductions(
+                $this->computeSssMpf($monthlyGrossTaxable),
+                $detail,
+                $batch,
+                (int) $deductionType->deduction_type_id,
+            ),
+            default => $this->netOfPriorForMonthlyGovt(
+                $this->computeAmounts(
+                    (int) $deductionType->govt_table_id,
+                    match ((int) $deductionType->govt_table_id) {
+                        // WHT: this period only + pay-type frequency table.
+                        self::GOVT_WTAX => $periodGrossTaxable,
+                        // Pag-IBIG / PhilHealth fallback: whole-month base (true-up vs prior periods).
+                        self::GOVT_HDMF => $monthlyGrossTaxable,
+                        self::GOVT_PHIC => $this->philhealthContributionBase($detail, $batch),
+                        self::GOVT_SSS => $monthlyGrossTaxable,
+                        default => $periodGrossTaxable,
+                    },
+                    $statutoryEmployeeTotal,
+                    $batch,
+                ),
+                $detail,
+                $batch,
+                $deductionType,
             ),
         };
+    }
+
+    /**
+     * Apply prior-period lessing for monthly statutory tables; leave WHT / non-govt untouched.
+     *
+     * @param  array{employee_amount: float, employer_amount: float}|null  $amounts
+     * @return array{employee_amount: float, employer_amount: float}|null
+     */
+    private function netOfPriorForMonthlyGovt(
+        ?array $amounts,
+        PayrollBatchDetail $detail,
+        PayrollBatch $batch,
+        DeductionType $deductionType,
+    ): ?array {
+        if ($amounts === null) {
+            return null;
+        }
+
+        $govtTableId = (int) $deductionType->govt_table_id;
+
+        if (! in_array($govtTableId, [self::GOVT_HDMF, self::GOVT_PHIC, self::GOVT_SSS], true)) {
+            return $amounts;
+        }
+
+        return $this->netOfPriorDeductions(
+            $amounts,
+            $detail,
+            $batch,
+            (int) $deductionType->deduction_type_id,
+        );
+    }
+
+    /**
+     * Monthly contribution due minus amounts already withheld in earlier pay periods
+     * of the same calendar month / year for this employee and deduction type.
+     *
+     * @param  array{employee_amount: float, employer_amount: float}  $due
+     * @return array{employee_amount: float, employer_amount: float}
+     */
+    public function netOfPriorDeductions(
+        array $due,
+        PayrollBatchDetail $detail,
+        PayrollBatch $batch,
+        int $deductionTypeId,
+    ): array {
+        $prior = $this->priorDeductionAmounts($detail, $batch, $deductionTypeId);
+
+        return [
+            'employee_amount' => round(max(0, $due['employee_amount'] - $prior['employee_amount']), 2),
+            'employer_amount' => round(max(0, $due['employer_amount'] - $prior['employer_amount']), 2),
+        ];
+    }
+
+    /**
+     * Sum of a deduction type from earlier pay periods in the same calendar month/year.
+     *
+     * @return array{employee_amount: float, employer_amount: float}
+     */
+    public function priorDeductionAmounts(
+        PayrollBatchDetail $detail,
+        PayrollBatch $batch,
+        int $deductionTypeId,
+    ): array {
+        $batch->loadMissing('payrollCalendar');
+        $calendar = $batch->payrollCalendar;
+
+        if ($calendar === null || $calendar->calendar_month === null || $calendar->pay_year === null) {
+            return ['employee_amount' => 0.0, 'employer_amount' => 0.0];
+        }
+
+        $totals = PayrollDeduction::query()
+            ->where('deduction_type_id', $deductionTypeId)
+            ->whereHas('payrollBatchDetail', function ($detailQuery) use ($detail, $calendar) {
+                $detailQuery
+                    ->where('employee_id', $detail->employee_id)
+                    ->whereHas('payrollBatch.payrollCalendar', function ($calendarQuery) use ($calendar) {
+                        $calendarQuery
+                            ->where('pay_year', (int) $calendar->pay_year)
+                            ->where('calendar_month', (int) $calendar->calendar_month)
+                            ->where('pay_period', '<', (int) $calendar->pay_period);
+                    });
+            })
+            ->selectRaw('COALESCE(SUM(employee_amount), 0) as employee_total')
+            ->selectRaw('COALESCE(SUM(employer_amount), 0) as employer_total')
+            ->first();
+
+        return [
+            'employee_amount' => (float) ($totals->employee_total ?? 0),
+            'employer_amount' => (float) ($totals->employer_total ?? 0),
+        ];
+    }
+
+    /**
+     * PhilHealth contribution base: Basic Salary (excludes Overtime) − Tardiness.
+     */
+    public function philhealthContributionBase(PayrollBatchDetail $detail, PayrollBatch $batch): float
+    {
+        $basic = $this->monthlyBasicSalaryExcludingOvertime($detail, $batch);
+        $tardiness = $this->monthlyTardinessAmount($detail, $batch);
+
+        return round(max(0, $basic - $tardiness), 2);
+    }
+
+    /**
+     * Monthly Basic (BASC / default basic) taxable + non-taxable, excluding OVRT.
+     */
+    public function monthlyBasicSalaryExcludingOvertime(PayrollBatchDetail $detail, PayrollBatch $batch): float
+    {
+        $total = (float) $this->monthlyIncomesQuery($detail, $batch)
+            ->whereHas('incomeType', function (Builder $typeQuery) {
+                $typeQuery
+                    ->where(function (Builder $basicQuery) {
+                        $basicQuery
+                            ->where('is_default_basic', true)
+                            ->orWhere('income_type_code', 'BASC');
+                    })
+                    ->where(function (Builder $notOt) {
+                        $notOt
+                            ->whereNull('income_type_code')
+                            ->orWhere('income_type_code', '!=', 'OVRT');
+                    });
+            })
+            ->get(['taxable', 'non_taxable'])
+            ->sum(fn (PayrollIncome $income) => (float) $income->taxable + (float) $income->non_taxable);
+
+        return round($total, 2);
+    }
+
+    /**
+     * Monthly tardiness (late) deduction amounts for the employee.
+     */
+    public function monthlyTardinessAmount(PayrollBatchDetail $detail, PayrollBatch $batch): float
+    {
+        $lateTypeIds = DeductionType::query()
+            ->whereIn('deduction_type_code', ['LTDE'])
+            ->pluck('deduction_type_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($lateTypeIds === []) {
+            return 0.0;
+        }
+
+        $total = (float) $this->monthlyDeductionsQuery($detail, $batch)
+            ->whereIn('deduction_type_id', $lateTypeIds)
+            ->sum('employee_amount');
+
+        return round($total, 2);
     }
 
     /**
@@ -141,14 +322,21 @@ class GovernmentDeductionPayrollService
      */
     public function monthlyGrossTaxable(PayrollBatchDetail $detail, PayrollBatch $batch): float
     {
+        $total = (float) $this->monthlyIncomesQuery($detail, $batch)->sum('taxable');
+
+        return round($total, 2);
+    }
+
+    private function monthlyIncomesQuery(PayrollBatchDetail $detail, PayrollBatch $batch): Builder
+    {
         $batch->loadMissing('payrollCalendar');
         $calendar = $batch->payrollCalendar;
 
         if ($calendar === null || $calendar->calendar_month === null || $calendar->pay_year === null) {
-            return (float) $detail->incomes()->sum('taxable');
+            return PayrollIncome::query()->where('payroll_batch_detail_id', $detail->payroll_batch_detail_id);
         }
 
-        $total = (float) PayrollIncome::query()
+        return PayrollIncome::query()
             ->whereHas('payrollBatchDetail', function ($query) use ($detail, $calendar) {
                 $query
                     ->where('employee_id', $detail->employee_id)
@@ -157,10 +345,28 @@ class GovernmentDeductionPayrollService
                             ->where('pay_year', (int) $calendar->pay_year)
                             ->where('calendar_month', (int) $calendar->calendar_month);
                     });
-            })
-            ->sum('taxable');
+            });
+    }
 
-        return round($total, 2);
+    private function monthlyDeductionsQuery(PayrollBatchDetail $detail, PayrollBatch $batch): Builder
+    {
+        $batch->loadMissing('payrollCalendar');
+        $calendar = $batch->payrollCalendar;
+
+        if ($calendar === null || $calendar->calendar_month === null || $calendar->pay_year === null) {
+            return PayrollDeduction::query()->where('payroll_batch_detail_id', $detail->payroll_batch_detail_id);
+        }
+
+        return PayrollDeduction::query()
+            ->whereHas('payrollBatchDetail', function ($query) use ($detail, $calendar) {
+                $query
+                    ->where('employee_id', $detail->employee_id)
+                    ->whereHas('payrollBatch.payrollCalendar', function ($calendarQuery) use ($calendar) {
+                        $calendarQuery
+                            ->where('pay_year', (int) $calendar->pay_year)
+                            ->where('calendar_month', (int) $calendar->calendar_month);
+                    });
+            });
     }
 
     /**
@@ -175,7 +381,7 @@ class GovernmentDeductionPayrollService
         return match ($govtTableId) {
             self::GOVT_HDMF => $this->computePagibig($grossTaxable),
             self::GOVT_PHIC => $this->computePhilhealthBracket($grossTaxable),
-            self::GOVT_SSS => $this->computeSss($grossTaxable),
+            self::GOVT_SSS => $this->computeSssRegular($grossTaxable),
             self::GOVT_SSEC => ['employee_amount' => 0.0, 'employer_amount' => 0.0],
             self::GOVT_WTAX => $this->computeWithholdingTax($grossTaxable, $statutoryEmployeeTotal, $batch),
             default => null,
@@ -221,6 +427,7 @@ class GovernmentDeductionPayrollService
     public function computePhilhealthBracket(float $grossTaxable): array
     {
         $row = GovtTablePhilhealth::query()
+            ->where('is_active', true)
             ->where('salary_from', '<=', $grossTaxable)
             ->where('salary_to', '>=', $grossTaxable)
             ->orderBy('salary_from')
@@ -228,6 +435,19 @@ class GovernmentDeductionPayrollService
 
         if ($row === null) {
             return ['employee_amount' => 0.0, 'employer_amount' => 0.0];
+        }
+
+        if ($row->is_percent) {
+            // Base is already Basic Salary − Tardiness (Overtime excluded).
+            $percentage = max(0.0, (float) $row->percentage);
+            $totalPremium = round($grossTaxable * ($percentage / 100), 2);
+            $employeeShare = round($totalPremium / 2, 2);
+            $employerShare = round($totalPremium - $employeeShare, 2);
+
+            return [
+                'employee_amount' => $employeeShare,
+                'employer_amount' => $employerShare,
+            ];
         }
 
         return [
@@ -255,9 +475,10 @@ class GovernmentDeductionPayrollService
     public function computePhilhealthPremium(
         PayrollBatchDetail $detail,
         PayrollBatch $batch,
-        float $monthlyGrossTaxable,
     ): array {
-        $bracket = $this->computePhilhealthBracket($monthlyGrossTaxable);
+        // Percent brackets: (Basic − Tardiness) × %; fixed brackets lookup the same base.
+        $contributionBase = $this->philhealthContributionBase($detail, $batch);
+        $bracket = $this->computePhilhealthBracket($contributionBase);
         $priorMinimum = $this->priorPhilhealthMinimumDeductions($detail, $batch);
 
         return [
@@ -273,13 +494,6 @@ class GovernmentDeductionPayrollService
      */
     public function priorPhilhealthMinimumDeductions(PayrollBatchDetail $detail, PayrollBatch $batch): array
     {
-        $batch->loadMissing('payrollCalendar');
-        $calendar = $batch->payrollCalendar;
-
-        if ($calendar === null || $calendar->calendar_month === null || $calendar->pay_year === null) {
-            return ['employee_amount' => 0.0, 'employer_amount' => 0.0];
-        }
-
         $minimumTypeId = DeductionType::query()
             ->where('deduction_type_code', PhilhealthDeductionTypes::MINIMUM)
             ->value('deduction_type_id');
@@ -288,26 +502,7 @@ class GovernmentDeductionPayrollService
             return ['employee_amount' => 0.0, 'employer_amount' => 0.0];
         }
 
-        $totals = PayrollDeduction::query()
-            ->where('deduction_type_id', (int) $minimumTypeId)
-            ->whereHas('payrollBatchDetail', function ($detailQuery) use ($detail, $calendar) {
-                $detailQuery
-                    ->where('employee_id', $detail->employee_id)
-                    ->whereHas('payrollBatch.payrollCalendar', function ($calendarQuery) use ($calendar) {
-                        $calendarQuery
-                            ->where('pay_year', (int) $calendar->pay_year)
-                            ->where('calendar_month', (int) $calendar->calendar_month)
-                            ->where('pay_period', '<', (int) $calendar->pay_period);
-                    });
-            })
-            ->selectRaw('COALESCE(SUM(employee_amount), 0) as employee_total')
-            ->selectRaw('COALESCE(SUM(employer_amount), 0) as employer_total')
-            ->first();
-
-        return [
-            'employee_amount' => (float) ($totals->employee_total ?? 0),
-            'employer_amount' => (float) ($totals->employer_total ?? 0),
-        ];
+        return $this->priorDeductionAmounts($detail, $batch, (int) $minimumTypeId);
     }
 
     /**
@@ -329,22 +524,61 @@ class GovernmentDeductionPayrollService
     /**
      * @return array{employee_amount: float, employer_amount: float}
      */
-    public function computeSss(float $grossTaxable): array
+    public function computeSssRegular(float $grossTaxable): array
     {
-        $row = GovtTableSss::query()
-            ->where('compensation_from', '<=', $grossTaxable)
-            ->where('compensation_to', '>=', $grossTaxable)
-            ->orderBy('compensation_from')
-            ->first();
+        $row = $this->sssBracketRow($grossTaxable);
 
         if ($row === null) {
             return ['employee_amount' => 0.0, 'employer_amount' => 0.0];
         }
 
         return [
-            'employee_amount' => (float) $row->employee_sss,
-            'employer_amount' => (float) $row->employer_sss,
+            'employee_amount' => round((float) $row->employee_sss, 2),
+            // Regular SS + EC (employer only)
+            'employer_amount' => round((float) $row->employer_sss + (float) $row->employer_ec, 2),
         ];
+    }
+
+    /**
+     * @return array{employee_amount: float, employer_amount: float}
+     */
+    public function computeSssMpf(float $grossTaxable): array
+    {
+        $row = $this->sssBracketRow($grossTaxable);
+
+        if ($row === null) {
+            return ['employee_amount' => 0.0, 'employer_amount' => 0.0];
+        }
+
+        return [
+            'employee_amount' => round((float) $row->employee_mpf_share, 2),
+            'employer_amount' => round((float) $row->employer_mpf_share, 2),
+        ];
+    }
+
+    /**
+     * Combined Regular + MPF (+ EC on employer) — kept for callers that need the full SSS total.
+     *
+     * @return array{employee_amount: float, employer_amount: float}
+     */
+    public function computeSss(float $grossTaxable): array
+    {
+        $regular = $this->computeSssRegular($grossTaxable);
+        $mpf = $this->computeSssMpf($grossTaxable);
+
+        return [
+            'employee_amount' => round($regular['employee_amount'] + $mpf['employee_amount'], 2),
+            'employer_amount' => round($regular['employer_amount'] + $mpf['employer_amount'], 2),
+        ];
+    }
+
+    private function sssBracketRow(float $grossTaxable): ?GovtTableSss
+    {
+        return GovtTableSss::query()
+            ->where('compensation_from', '<=', $grossTaxable)
+            ->where('compensation_to', '>=', $grossTaxable)
+            ->orderBy('compensation_from')
+            ->first();
     }
 
     /**
@@ -357,8 +591,8 @@ class GovernmentDeductionPayrollService
         }
 
         $netTaxable = max(0, $grossTaxable - $statutoryEmployeeTotal);
-        // Monthly gross → monthly withholding tax table.
-        $frequencyId = GovtTableWtax2023::MONTHLY;
+        // Match BIR table to payroll calendar pay type (semi-monthly employee → semi-monthly table).
+        $frequencyId = $this->withholdingTaxFrequencyId($batch);
 
         $rows = GovtTableWtax2023::query()
             ->where('withholding_tax_table_type_id', $frequencyId)

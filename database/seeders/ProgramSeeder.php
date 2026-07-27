@@ -28,8 +28,6 @@ class ProgramSeeder extends Seeder
             return;
         }
 
-        Program::query()->delete();
-
         $created = 0;
         $skipped = 0;
 
@@ -42,12 +40,20 @@ class ProgramSeeder extends Seeder
                 continue;
             }
 
-            Program::query()->create([
-                'campus_id' => $campusId,
-                'program_code' => $program['program_code'],
-                'program_name' => $program['program_name'],
-                'is_active' => (bool) ($program['is_active'] ?? true),
-            ]);
+            $record = Program::withTrashed()->updateOrCreate(
+                [
+                    'campus_id' => $campusId,
+                    'program_code' => $program['program_code'],
+                ],
+                [
+                    'program_name' => $program['program_name'],
+                    'is_active' => (bool) ($program['is_active'] ?? true),
+                ],
+            );
+
+            if ($record->trashed()) {
+                $record->restore();
+            }
 
             $created++;
         }

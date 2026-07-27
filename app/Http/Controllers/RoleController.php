@@ -7,6 +7,7 @@ use App\Http\Requests\Role\UpdateRoleRequest;
 use App\Models\Module;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\SidebarNavigationService;
 use App\Services\SysLogService;
 use App\Support\LiveTable;
 use Illuminate\Http\RedirectResponse;
@@ -95,6 +96,7 @@ class RoleController extends Controller
         $role = Role::query()->create($request->safe()->only(['name', 'slug', 'description']));
         $this->syncRolePermissions($role, $request->input('modules', []), $request->input('sub_modules', []));
         $role->syncMembers($request->input('member_ids', []));
+        SidebarNavigationService::forgetForRole($role->fresh());
 
         SysLogService::record(
             action: 'create',
@@ -160,6 +162,7 @@ class RoleController extends Controller
         $role->update($request->safe()->only(['name', 'description']));
         $this->syncRolePermissions($role, $request->input('modules', []), $request->input('sub_modules', []));
         $role->syncMembers($request->input('member_ids', []));
+        SidebarNavigationService::forgetForRole($role->fresh());
 
         SysLogService::record(
             action: 'update',
@@ -183,6 +186,7 @@ class RoleController extends Controller
         $name = $role->name;
         $roleId = $role->id;
 
+        SidebarNavigationService::forgetForRole($role);
         $role->delete();
 
         SysLogService::record(

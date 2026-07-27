@@ -396,12 +396,20 @@
         @apply bg-[#00A3E6]/10 text-[#0089c2] hover:bg-[#00A3E6]/10 hover:text-[#0089c2];
     }
 
+    .employee-salary-tab-bar {
+        @apply relative z-20 mb-4 flex flex-wrap gap-0 border-b border-gray-200;
+    }
+
     .employee-salary-subtab-btn {
-        @apply border-b-2 border-transparent px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-[#00A3E6]/40 hover:text-[#0B318F];
+        @apply relative -mb-px border-b-2 border-[#00A3E6]/25 px-4 py-2.5 text-sm font-semibold text-[#0B318F] transition-colors hover:border-[#00A3E6]/50;
     }
 
     .employee-salary-subtab-btn-active {
         @apply border-[#00A3E6] text-[#0B318F];
+    }
+
+    .employee-salary-previous-row-selected {
+        @apply bg-[#00A3E6]/10;
     }
 
     .rate-definition-rates-layout {
@@ -475,5 +483,78 @@
 
     .animate-loading-bar {
         animation: loading-bar 2s ease-in-out infinite;
+    }
+}
+
+/* Report / page print — hide app chrome and avoid Safari blank overflow tables */
+@media print {
+    @page {
+        margin: 12mm;
+    }
+
+    html,
+    body {
+        background: #fff !important;
+        color: #111 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    #app-sidebar,
+    header.fixed,
+    #pulse-full-screen-loader,
+    #sidebar-overlay,
+    .modal-overlay,
+    [data-print-hide],
+    #report-print-document {
+        display: none !important;
+    }
+
+    .app-main-offset {
+        margin: 0 !important;
+        padding: 0 !important;
+        min-height: 0 !important;
+    }
+
+    main {
+        overflow: visible !important;
+        padding: 0 !important;
+    }
+
+    .page-shell {
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .report-print-sheet {
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    .overflow-x-auto,
+    .overflow-auto,
+    .overflow-hidden,
+    .overflow-y-auto {
+        overflow: visible !important;
+    }
+
+    .report-print-sheet table,
+    .report-print-sheet th,
+    .report-print-sheet td {
+        color: #111 !important;
+        background: #fff !important;
+    }
+
+    .report-print-sheet thead {
+        display: table-header-group;
+    }
+
+    .report-print-sheet tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
 }

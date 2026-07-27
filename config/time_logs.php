@@ -31,5 +31,20 @@ return [
                 ['key' => 'filename', 'label' => 'File Name', 'type' => 'text'],
             ],
         ],
+        'teaching-loads' => [
+            'label' => 'Teaching Loads',
+            'type' => 'skolaris_pull',
+            'log_table' => 'teaching_load_pull_batches',
+            'name' => 'Teaching Loads pull history',
+            'search' => ['batch_no'],
+            'columns' => [
+                ['key' => 'batch_no', 'label' => 'Pull Batch', 'type' => 'text'],
+                ['key' => 'pulled_at', 'label' => 'Date Pulled', 'type' => 'datetime'],
+                ['key' => 'pulled_by_name', 'label' => 'Pulled By', 'type' => 'text'],
+                ['key' => 'employee_count', 'label' => 'Employees Pulled', 'type' => 'number'],
+                ['key' => 'records_count', 'label' => 'Load Rows', 'type' => 'number'],
+                ['key' => 'date_range', 'label' => 'Date Range', 'type' => 'text'],
+            ],
+        ],
     ],
 ];
