@@ -34,6 +34,7 @@
                     'rate_group_id' => $salary->rate_group_id,
                     'nd_rate_group_id' => $salary->nd_rate_group_id,
                     'use_basic_income_as_hourly_rate' => $salary->use_basic_income_as_hourly_rate,
+                    'is_above_minimum_wage_earner' => $salary->is_above_minimum_wage_earner,
                     'incomes' => $salary->incomes->map(fn ($income) => [
                         'income_type_id' => $income->income_type_id,
                         'taxable' => $income->taxable !== null ? (string) (float) $income->taxable : '',
@@ -59,7 +60,7 @@
 <section class="employee-tab-section" data-employee-salary-root>
     <h2 class="mb-2 text-lg font-semibold text-gray-900">Employee Salary</h2>
     <p class="mb-4 text-sm text-gray-600">
-        Configure salary per employment record. Salary changes with a new effectivity date are kept as previous salary history and applied in payroll by date.
+        Configure salary per employment record. Changing the amount or other salary settings archives the current row under Previous Salary (and a new Effectivity From closes the prior period for payroll by date).
     </p>
 
     @error('employee_salaries')<p class="mb-4 text-sm text-red-600">{{ $message }}</p>@enderror

@@ -80,6 +80,51 @@
       "email": "taytay@icct.edu.ph",
       "website": "https://www.icct.edu.ph",
       "is_active": true
+    },
+    {
+      "campus_code": "GH",
+      "campus_name": "Greenhills",
+      "address": null,
+      "phone": "",
+      "email": "",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
+    },
+    {
+      "campus_code": "ND",
+      "campus_name": "N. Domingo",
+      "address": null,
+      "phone": "",
+      "email": "",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
+    },
+    {
+      "campus_code": "WR",
+      "campus_name": "Washington Residences",
+      "address": null,
+      "phone": "",
+      "email": "",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
+    },
+    {
+      "campus_code": "O8",
+      "campus_name": "108",
+      "address": null,
+      "phone": "",
+      "email": "",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
+    },
+    {
+      "campus_code": "F6",
+      "campus_name": "225 6th Floor",
+      "address": null,
+      "phone": "",
+      "email": "",
+      "website": "https://www.icct.edu.ph",
+      "is_active": true
     }
   ],
   "programs": [

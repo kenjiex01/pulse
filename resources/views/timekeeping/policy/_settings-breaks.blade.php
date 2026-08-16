@@ -36,7 +36,24 @@
                 <div class="grid gap-4 md:grid-cols-2">
                     <div>
                         <label for="break_grace_period" class="form-label">Grace Period (minutes)</label>
-                        <input id="break_grace_period" name="break_grace_period" type="number" step="0.0001" min="0" value="{{ old('break_grace_period', $policy->break_grace_period) }}" class="form-input" data-break-tardiness-field>
+                        @php
+                            $breakGraceInput = old('break_grace_period', $policy->break_grace_period);
+                            if ($breakGraceInput === null || $breakGraceInput === '' || (is_numeric($breakGraceInput) && (float) $breakGraceInput <= 0)) {
+                                $breakGraceInput = '';
+                            }
+                        @endphp
+                        <input
+                            id="break_grace_period"
+                            name="break_grace_period"
+                            type="number"
+                            step="0.0001"
+                            min="0"
+                            value="{{ $breakGraceInput }}"
+                            class="form-input"
+                            placeholder="Leave blank if none"
+                            data-break-tardiness-field
+                        >
+                        <p class="mt-1 text-xs text-gray-500">Optional. Leave blank for no grace period.</p>
                         <label class="mt-2 flex items-center gap-2 text-sm">
                             <input type="hidden" name="is_break_deduct_grace_period" value="0">
                             <input type="checkbox" name="is_break_deduct_grace_period" value="1" @checked(old('is_break_deduct_grace_period', $policy->is_break_deduct_grace_period)) data-break-tardiness-field>

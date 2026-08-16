@@ -13,6 +13,10 @@
         'description' => $isTeachingLoads
             ? 'Pull faculty teaching loads from Skolaris and review pull history by batch and employee.'
             : 'Upload and manage raw time in / time out and DTR timelog transactions from biometric or file imports.',
+        'secondaryActionModalId' => auth()->user()?->can('time-logs.create') && ! $isTeachingLoads
+            ? 'time-logs-s3-pull-modal'
+            : null,
+        'secondaryActionLabel' => 'Pull logs',
         'actionModalId' => auth()->user()?->can('time-logs.create')
             ? ($isTeachingLoads ? 'time-logs-pull-modal' : 'time-logs-upload-modal')
             : null,
@@ -84,6 +88,21 @@
                 ])->render(),
             ])
         @else
+            @include('partials.modal', [
+                'id' => 'time-logs-s3-pull-modal',
+                'title' => 'Pull biometric logs from S3',
+                'description' => 'Import gzipped attendance JSON from the biometric_logs/ bucket prefix.',
+                'open' => $openS3Pull ?? false,
+                'panelClass' => 'max-w-2xl',
+                'body' => view('timekeeping.time-logs._s3-pull-form', [
+                    'tab' => $tab,
+                    's3PullConfigured' => $s3PullConfigured ?? false,
+                    's3PullCampuses' => $s3PullCampuses ?? collect(),
+                    's3PullYear' => $s3PullYear ?? now()->year,
+                    's3PullMonth' => $s3PullMonth ?? now()->month,
+                ])->render(),
+            ])
+
             @include('partials.modal', [
                 'id' => 'time-logs-upload-modal',
                 'title' => ($requiresCampus ?? false) ? 'Upload Timelogs DTR' : 'Upload Time Logs',

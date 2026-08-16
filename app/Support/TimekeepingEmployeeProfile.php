@@ -35,6 +35,7 @@ class TimekeepingEmployeeProfile
         }
 
         $tabs['attendance'] = 'Attendance View';
+        $tabs['calendar'] = 'Calendar View';
         $tabs['employee-load'] = 'Employee Load';
 
         return $tabs;
@@ -60,8 +61,16 @@ class TimekeepingEmployeeProfile
             'approval' => 'timekeeping.employee-profile.approval',
             'approval-routes' => 'timekeeping.employee-profile.approval-routes',
             'attendance' => 'timekeeping.employee-profile.attendance',
+            'attendance-pdf' => 'timekeeping.employee-profile.attendance-pdf',
+            'calendar' => 'timekeeping.employee-profile.calendar',
+            'attendance-store' => 'timekeeping.employee-profile.attendance-store',
             'attendance-update' => 'timekeeping.employee-profile.attendance-update',
+            'attendance-destroy' => 'timekeeping.employee-profile.attendance-destroy',
             'employee-load' => 'timekeeping.employee-profile.employee-load',
+            'upload.template' => 'timekeeping.employee-profile.upload.template',
+            'upload.process' => 'timekeeping.employee-profile.upload.process',
+            'upload.commit' => 'timekeeping.employee-profile.upload.commit',
+            'upload.discard' => 'timekeeping.employee-profile.upload.discard',
             default => "timekeeping.employee-profile.$action",
         };
     }

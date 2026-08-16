@@ -3,6 +3,7 @@
 use App\Models\Campus;
 use App\Models\College;
 use App\Models\Designation;
+use App\Models\DocumentType;
 use App\Models\EmployeeDepartment;
 use App\Models\EmploymentType;
 use App\Models\Position;
@@ -177,6 +178,31 @@ return [
             ['name' => 'campus_id', 'label' => 'Campus', 'type' => 'select', 'source' => 'campuses', 'rules' => ['required', 'exists:tbl_campuses,campus_id']],
             ['name' => 'program_code', 'label' => 'Program Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:20']],
             ['name' => 'program_name', 'label' => 'Program Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:150']],
+            ['name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'rules' => ['sometimes', 'boolean']],
+        ],
+    ],
+    'document-types' => [
+        'name' => 'Document Types',
+        'model' => DocumentType::class,
+        'primary_key' => 'document_type_id',
+        'log_table' => 'tbl_document_types',
+        'icon' => 'document-type',
+        'sort_order' => 10,
+        'order' => ['sort_order' => 'asc', 'type_name' => 'asc'],
+        'search' => ['type_code', 'type_name'],
+        'columns' => [
+            ['key' => 'type_code', 'label' => 'Code'],
+            ['key' => 'type_name', 'label' => 'Type'],
+            ['key' => 'is_required', 'label' => 'Required', 'type' => 'boolean'],
+            ['key' => 'sort_order', 'label' => 'Sort'],
+            ['key' => 'is_active', 'label' => 'Status', 'type' => 'boolean'],
+        ],
+        'fields' => [
+            ['name' => 'type_code', 'label' => 'Type Code', 'type' => 'text', 'rules' => ['nullable', 'string', 'max:20'], 'unique' => true],
+            ['name' => 'type_name', 'label' => 'Type Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:100'], 'unique' => true],
+            ['name' => 'description', 'label' => 'Description', 'type' => 'textarea', 'rules' => ['nullable', 'string']],
+            ['name' => 'is_required', 'label' => 'Required', 'type' => 'checkbox', 'default' => false, 'rules' => ['sometimes', 'boolean']],
+            ['name' => 'sort_order', 'label' => 'Sort Order', 'type' => 'number', 'rules' => ['nullable', 'integer', 'min:0']],
             ['name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'rules' => ['sometimes', 'boolean']],
         ],
     ],

@@ -29,6 +29,7 @@
                         <th class="whitespace-nowrap px-3 py-2 text-center font-semibold text-gray-700" colspan="3">Social Security</th>
                         <th class="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700" rowspan="2">EC</th>
                         <th class="whitespace-nowrap px-3 py-2 text-center font-semibold text-gray-700" colspan="2">Mandatory Provident Fund</th>
+                        <th class="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700" rowspan="2">Gross Income</th>
                         <th class="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700" rowspan="2">Grand Total</th>
                     </tr>
                     <tr>
@@ -51,16 +52,72 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="px-3 py-8 text-center text-gray-500">No SSS contributions found for the selected batches.</td>
+                            <td colspan="11" class="px-3 py-8 text-center text-gray-500">No SSS contributions found for the selected batches.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
+    @elseif (($preview['meta']['layout'] ?? null) === 'icct_per_hour')
+        <div class="flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900">{{ $preview['title'] ?? 'Report Preview' }}</h3>
+            </div>
+        </div>
+
+        @include('payroll.reports._icct-payroll-register-table', ['preview' => $preview, 'forPdf' => false])
+    @elseif (($preview['meta']['layout'] ?? null) === 'bir_tax')
+        <div class="flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900">{{ $preview['title'] ?? 'Report Preview' }}</h3>
+            </div>
+        </div>
+
+        @include('payroll.reports._bir-tax-withheld-table', ['preview' => $preview, 'forPdf' => false])
+    @elseif (in_array($preview['meta']['layout'] ?? null, ['philhealth', 'pagibig'], true))
+        <div class="flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900">{{ $preview['title'] ?? 'Report Preview' }}</h3>
+            </div>
+        </div>
+
+        @include('payroll.reports._government-contribution-table', ['preview' => $preview, 'forPdf' => false])
+    @elseif (($preview['meta']['layout'] ?? null) === 'payslip')
+        <div class="flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900">{{ $preview['title'] ?? 'Report Preview' }}</h3>
+                <p class="text-sm text-gray-500">{{ count($preview['meta']['payslips'] ?? []) }} payslip(s)</p>
+            </div>
+        </div>
+
+        @include('payroll.reports._payslip-document', ['preview' => $preview, 'forPdf' => false])
+    @elseif (($preview['meta']['layout'] ?? null) === 'bir_1601c')
+        <div class="flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900">{{ $preview['title'] ?? 'Report Preview' }}</h3>
+                <p class="text-sm text-gray-500">{{ (int) ($preview['meta']['employee_count'] ?? 0) }} employee(s)</p>
+            </div>
+        </div>
+
+        @include('payroll.reports._bir-1601c-document', ['preview' => $preview, 'forPdf' => false])
+    @elseif (($preview['meta']['layout'] ?? null) === 'bir_2316')
+        <div class="flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900">{{ $preview['title'] ?? 'Report Preview' }}</h3>
+                <p class="text-sm text-gray-500">{{ count($preview['meta']['certificates'] ?? []) }} certificate(s)</p>
+            </div>
+        </div>
+
+        @include('payroll.reports._bir-2316-document', ['preview' => $preview, 'forPdf' => false])
+    @elseif (($preview['meta']['layout'] ?? null) === 'attendance_view' && ! empty($preview['meta']['sections']))
+        @include('payroll.reports._attendance-view-document', ['preview' => $preview, 'forPdf' => false])
     @else
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h3 class="text-lg font-semibold text-gray-900">{{ $preview['title'] ?? 'Report Preview' }}</h3>
+                @if (! empty($preview['meta']['filter_summary']))
+                    <p class="text-sm text-gray-600">{{ $preview['meta']['filter_summary'] }}</p>
+                @endif
                 @if (! empty($preview['meta']['batch_labels']))
                     <p class="mt-1 text-sm text-gray-600">
                         Batches: {{ implode(' · ', $preview['meta']['batch_labels']) }}

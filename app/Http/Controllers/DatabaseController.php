@@ -7,7 +7,6 @@ use App\Services\DesktopCloudBackupService;
 use App\Services\SysLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -84,13 +83,7 @@ class DatabaseController extends Controller
 
             $result = $backupService->restoreFromSqlFile($importPath);
 
-            // A restored backup may be from an older app version. Bring the schema up to
-            // date so pages that expect newer columns/tables don't 500 after redirect.
-            try {
-                Artisan::call('migrate', ['--force' => true, '--no-interaction' => true]);
-            } catch (\Throwable $migrationException) {
-                Log::warning('Post-restore migrate failed.', ['message' => $migrationException->getMessage()]);
-            }
+            $backupService->finalizeRestoredDatabase();
 
             try {
                 SysLogService::record(

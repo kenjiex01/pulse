@@ -6,8 +6,9 @@ return [
     | Timelogs DTR — hardcoded campus file layouts
     |--------------------------------------------------------------------------
     |
-    | Each campus that provides a DTR template has a fixed parser definition.
-    | Cainta (CA) and San Mateo (SA) use .xls; Sumulong (SU) uses .xlsx.
+    | Each campus that supports Timelogs DTR upload has a fixed parser.
+    | San Mateo (SA) uses Card Report (.xls). Sumulong (SU) uses DTR Report (.xlsx).
+    | Cainta (CA) and all other campuses use Cainta Timesheet Report (.xls).
     |
     */
 
@@ -33,6 +34,47 @@ return [
             'parser' => 'sumulong_dtr_report',
         ],
         'CA' => [
+            'file_extension' => 'xls',
+            'parser' => 'cainta_timesheet_report',
+        ],
+        // Remaining campuses use the same Cainta Timesheet Report layout.
+        'AG' => [
+            'file_extension' => 'xls',
+            'parser' => 'cainta_timesheet_report',
+        ],
+        'UA' => [
+            'file_extension' => 'xls',
+            'parser' => 'cainta_timesheet_report',
+        ],
+        'BI' => [
+            'file_extension' => 'xls',
+            'parser' => 'cainta_timesheet_report',
+        ],
+        'CO' => [
+            'file_extension' => 'xls',
+            'parser' => 'cainta_timesheet_report',
+        ],
+        'TA' => [
+            'file_extension' => 'xls',
+            'parser' => 'cainta_timesheet_report',
+        ],
+        'GH' => [
+            'file_extension' => 'xls',
+            'parser' => 'cainta_timesheet_report',
+        ],
+        'ND' => [
+            'file_extension' => 'xls',
+            'parser' => 'cainta_timesheet_report',
+        ],
+        'WR' => [
+            'file_extension' => 'xls',
+            'parser' => 'cainta_timesheet_report',
+        ],
+        'O8' => [
+            'file_extension' => 'xls',
+            'parser' => 'cainta_timesheet_report',
+        ],
+        'F6' => [
             'file_extension' => 'xls',
             'parser' => 'cainta_timesheet_report',
         ],

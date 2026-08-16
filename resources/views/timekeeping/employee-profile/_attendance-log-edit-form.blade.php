@@ -14,6 +14,22 @@
     <input type="hidden" name="search" value="{{ request('search') }}">
     <input type="hidden" name="page" value="{{ request('page') }}">
     <input type="hidden" name="attendance_page" value="{{ $attendancePage }}">
+    <input type="hidden" name="view_tab" value="{{ $viewTab ?? 'attendance' }}">
+    @if (! empty($calendarYear))
+        <input type="hidden" name="year" value="{{ $calendarYear }}">
+    @endif
+    @if (! empty($calendarMonth))
+        <input type="hidden" name="month" value="{{ $calendarMonth }}">
+    @endif
+    @if (! empty($dateFrom))
+        <input type="hidden" name="date_from" value="{{ $dateFrom }}">
+    @endif
+    @if (! empty($dateTo))
+        <input type="hidden" name="date_to" value="{{ $dateTo }}">
+    @endif
+    @if (! empty($calendarDay))
+        <input type="hidden" name="day" value="{{ $calendarDay }}">
+    @endif
 
     <div class="grid gap-4 sm:grid-cols-2">
         <div>

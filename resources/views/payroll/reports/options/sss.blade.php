@@ -26,7 +26,7 @@
                         {{ app(ReportBatchOptionsService::class)->batchLabel($batch) }}
                     </option>
                 @empty
-                    <option value="" disabled>No processed batches found</option>
+                    <option value="" disabled>No processed or posted batches found</option>
                 @endforelse
             </select>
             <p class="mt-1 text-xs text-gray-500">
@@ -41,8 +41,8 @@
             <select id="sss-output-format" name="output_format" class="form-input" required>
                 @foreach ($report->fileTypes as $fileType)
                     <option
-                        value="{{ $fileType->code === \App\Models\ReportFileType::CODE_EXCEL ? 'excel' : 'html' }}"
-                        @selected(old('output_format', 'html') === ($fileType->code === \App\Models\ReportFileType::CODE_EXCEL ? 'excel' : 'html'))
+                        value="{{ $fileType->code }}"
+                        @selected(old('output_format', 'html') === $fileType->code)
                     >
                         {{ $fileType->label }}
                     </option>

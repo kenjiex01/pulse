@@ -54,6 +54,8 @@
                         <th class="px-3 py-2 text-left">Employee No.</th>
                         <th class="px-3 py-2 text-left">Employee Name</th>
                         <th class="px-3 py-2 text-left">Income Type</th>
+                        <th class="px-3 py-2 text-right">Hours</th>
+                        <th class="px-3 py-2 text-right">Days</th>
                         <th class="px-3 py-2 text-right">Taxable</th>
                         <th class="px-3 py-2 text-right">Non-Taxable</th>
                         <th class="px-3 py-2 text-right">Amount</th>
@@ -62,6 +64,7 @@
                         <th class="px-3 py-2 text-left">Employee Name</th>
                         <th class="px-3 py-2 text-left">Deduction Type</th>
                         <th class="px-3 py-2 text-right">Hours</th>
+                        <th class="px-3 py-2 text-right">Days</th>
                         <th class="px-3 py-2 text-right">Employee</th>
                         <th class="px-3 py-2 text-right">Employer</th>
                         <th class="px-3 py-2 text-right">Amount</th>
@@ -71,6 +74,18 @@
                         <th class="px-3 py-2 text-left">Day Type</th>
                         <th class="px-3 py-2 text-left">Time Type</th>
                         <th class="px-3 py-2 text-right">Hours</th>
+                    @elseif ($uploadType === 'shift-codes')
+                        <th class="px-3 py-2 text-left">Employee No.</th>
+                        <th class="px-3 py-2 text-left">Employee Name</th>
+                        <th class="px-3 py-2 text-left">Work Date</th>
+                        <th class="px-3 py-2 text-left">Shift Code</th>
+                        <th class="px-3 py-2 text-left">Schedule</th>
+                    @elseif ($uploadType === 'overtime')
+                        <th class="px-3 py-2 text-left">Employee No.</th>
+                        <th class="px-3 py-2 text-left">Employee Name</th>
+                        <th class="px-3 py-2 text-left">Work Date</th>
+                        <th class="px-3 py-2 text-left">OT Start</th>
+                        <th class="px-3 py-2 text-left">OT End</th>
                     @elseif ($uploadType === 'leaves')
                         <th class="px-3 py-2 text-left">Employee No.</th>
                         <th class="px-3 py-2 text-left">Employee Name</th>
@@ -100,12 +115,15 @@
 
                         @if (in_array($uploadType, ['incomes', 'income-adjustments'], true))
                             <td class="px-3 py-2 text-gray-600">{{ $record->incomeType?->income_type_code ?? '—' }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ $record->hours !== null ? number_format((float) $record->hours, 2) : '—' }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ $record->days !== null ? number_format((float) $record->days, 2) : '—' }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->taxable !== null ? number_format((float) $record->taxable, 2) : '—' }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->non_taxable !== null ? number_format((float) $record->non_taxable, 2) : '—' }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->amount !== null ? number_format((float) $record->amount, 2) : '—' }}</td>
                         @elseif (in_array($uploadType, ['deductions', 'deduction-adjustments'], true))
                             <td class="px-3 py-2 text-gray-600">{{ $record->deductionType?->deduction_type_code ?? '—' }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->hours !== null ? number_format((float) $record->hours, 2) : '—' }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ $record->days !== null ? number_format((float) $record->days, 2) : '—' }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->employee_amount !== null ? number_format((float) $record->employee_amount, 2) : '—' }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->employer_amount !== null ? number_format((float) $record->employer_amount, 2) : '—' }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->amount !== null ? number_format((float) $record->amount, 2) : '—' }}</td>
@@ -113,6 +131,27 @@
                             <td class="px-3 py-2 text-gray-600">{{ $record->dayType?->day_type_code ?? '—' }}</td>
                             <td class="px-3 py-2 text-gray-600">{{ $record->timeType?->time_type_code ?? '—' }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ number_format((float) $record->hours, 2) }}</td>
+                        @elseif ($uploadType === 'shift-codes')
+                            <td class="px-3 py-2 text-gray-600">{{ $record->work_date?->format('M j, Y') ?? '—' }}</td>
+                            <td class="px-3 py-2 text-gray-600">
+                                {{ $record->shiftCode?->shift_code ?? '—' }}
+                                @if ($record->shiftCode?->description)
+                                    <span class="text-gray-500">— {{ $record->shiftCode->description }}</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2 text-gray-600">
+                                @if ($record->shiftCode?->time_in && $record->shiftCode?->time_out)
+                                    {{ \Illuminate\Support\Str::of($record->shiftCode->time_in)->substr(0, 5) }}
+                                    –
+                                    {{ \Illuminate\Support\Str::of($record->shiftCode->time_out)->substr(0, 5) }}
+                                @else
+                                    —
+                                @endif
+                            </td>
+                        @elseif ($uploadType === 'overtime')
+                            <td class="px-3 py-2 text-gray-600">{{ $record->work_date?->format('M j, Y') ?? '—' }}</td>
+                            <td class="px-3 py-2 text-gray-600">{{ $record->ot_start?->format('g:i A') ?? '—' }}</td>
+                            <td class="px-3 py-2 text-gray-600">{{ $record->ot_end?->format('g:i A') ?? '—' }}</td>
                         @elseif ($uploadType === 'leaves')
                             <td class="px-3 py-2 text-gray-600">{{ $record->leaveType?->leave_type_code ?? '—' }}</td>
                             <td class="px-3 py-2 text-gray-600">{{ $record->dt_from?->format('M j, Y') ?? '—' }}</td>

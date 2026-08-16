@@ -24,19 +24,36 @@ return [
         ['alias' => 'gsis_number', 'label' => 'GSIS'],
         ['alias' => 'tax_status', 'label' => 'Tax Status'],
 
-        // Campus assignment (primary)
+        // Campus assignments (primary required; slots 2–5 optional)
         ['alias' => 'campus_code', 'label' => 'Campus Code', 'required' => true],
         ['alias' => 'biometric_id', 'label' => 'Biometric ID', 'required' => true],
         ['alias' => 'college', 'label' => 'Department / College'],
         ['alias' => 'department', 'label' => 'Employee Department'],
         ['alias' => 'program', 'label' => 'Program'],
 
-        // Campus assignment (secondary — optional)
         ['alias' => 'campus2_code', 'label' => 'Campus Code 2'],
         ['alias' => 'campus2_biometric_id', 'label' => 'Biometric ID 2'],
         ['alias' => 'campus2_college', 'label' => 'Department / College 2'],
         ['alias' => 'campus2_department', 'label' => 'Employee Department 2'],
         ['alias' => 'campus2_program', 'label' => 'Program 2'],
+
+        ['alias' => 'campus3_code', 'label' => 'Campus Code 3'],
+        ['alias' => 'campus3_biometric_id', 'label' => 'Biometric ID 3'],
+        ['alias' => 'campus3_college', 'label' => 'Department / College 3'],
+        ['alias' => 'campus3_department', 'label' => 'Employee Department 3'],
+        ['alias' => 'campus3_program', 'label' => 'Program 3'],
+
+        ['alias' => 'campus4_code', 'label' => 'Campus Code 4'],
+        ['alias' => 'campus4_biometric_id', 'label' => 'Biometric ID 4'],
+        ['alias' => 'campus4_college', 'label' => 'Department / College 4'],
+        ['alias' => 'campus4_department', 'label' => 'Employee Department 4'],
+        ['alias' => 'campus4_program', 'label' => 'Program 4'],
+
+        ['alias' => 'campus5_code', 'label' => 'Campus Code 5'],
+        ['alias' => 'campus5_biometric_id', 'label' => 'Biometric ID 5'],
+        ['alias' => 'campus5_college', 'label' => 'Department / College 5'],
+        ['alias' => 'campus5_department', 'label' => 'Employee Department 5'],
+        ['alias' => 'campus5_program', 'label' => 'Program 5'],
 
         // Employment
         ['alias' => 'is_hybrid', 'label' => 'Hybrid (yes/no)'],
@@ -66,6 +83,7 @@ return [
         ['alias' => 'salary_days_per_period', 'label' => 'Days Per Period'],
         ['alias' => 'salary_hours_per_day', 'label' => 'Hours Per Day'],
         ['alias' => 'salary_use_basic_income_as_hourly_rate', 'label' => 'Use Basic Income as Hourly Rate (yes/no)'],
+        ['alias' => 'salary_is_above_minimum_wage_earner', 'label' => 'Is Above Minimum Wage Earner (yes/no)'],
         ['alias' => 'salary_basic_taxable', 'label' => 'Basic Income Taxable'],
         ['alias' => 'salary_basic_non_taxable', 'label' => 'Basic Income Non-Taxable'],
         ['alias' => 'salary_incomes', 'label' => 'Other Incomes (CODE|taxable|non_taxable;...)'],
@@ -81,6 +99,7 @@ return [
         ['alias' => 'salary2_days_per_period', 'label' => 'Days Per Period 2'],
         ['alias' => 'salary2_hours_per_day', 'label' => 'Hours Per Day 2'],
         ['alias' => 'salary2_use_basic_income_as_hourly_rate', 'label' => 'Use Basic Income as Hourly Rate 2 (yes/no)'],
+        ['alias' => 'salary2_is_above_minimum_wage_earner', 'label' => 'Is Above Minimum Wage Earner 2 (yes/no)'],
         ['alias' => 'salary2_basic_taxable', 'label' => 'Basic Income Taxable 2'],
         ['alias' => 'salary2_basic_non_taxable', 'label' => 'Basic Income Non-Taxable 2'],
         ['alias' => 'salary2_incomes', 'label' => 'Other Incomes 2 (CODE|taxable|non_taxable;...)'],
@@ -145,14 +164,6 @@ return [
         ['alias' => 'gi_relative_in_icct_name', 'label' => 'Relative Name'],
         ['alias' => 'gi_relative_in_icct_relationship', 'label' => 'Relative Relationship'],
         ['alias' => 'gi_organization_memberships', 'label' => 'Organization Memberships'],
-
-        // Extended — repeatable collections (JSON arrays)
-        ['alias' => 'json_family_members', 'label' => 'Family Members JSON'],
-        ['alias' => 'json_employment_history', 'label' => 'Employment History JSON'],
-        ['alias' => 'json_exams', 'label' => 'Exams JSON'],
-        ['alias' => 'json_seminars', 'label' => 'Seminars JSON'],
-        ['alias' => 'json_awards', 'label' => 'Awards JSON'],
-        ['alias' => 'json_references', 'label' => 'References JSON'],
     ],
 
     'family_background_map' => [
@@ -185,15 +196,6 @@ return [
         'gi_organization_memberships' => 'organization_memberships',
     ],
 
-    'json_collection_map' => [
-        'json_family_members' => 'family_members',
-        'json_employment_history' => 'employment_history',
-        'json_exams' => 'exams',
-        'json_seminars' => 'seminars',
-        'json_awards' => 'awards',
-        'json_references' => 'references',
-    ],
-
     /**
      * Static sample row for the upload template (no DB lookups).
      *
@@ -223,5 +225,19 @@ return [
         'salary_basic_taxable' => '25000',
         'role' => '2',
         'country' => 'Philippines',
+    ],
+
+    'upload_types' => [
+        'master-file' => [
+            'label' => 'Master File',
+            'description' => 'Import employee master data from a CSV template.',
+            'template_filename' => 'employee_upload_template.xlsx',
+        ],
+        'employee-salary' => [
+            'label' => 'Employee Salary',
+            'description' => 'Update salary records for existing employees.',
+            'template_filename' => 'employee_salary_upload_template.xlsx',
+            'config' => 'employee_salary_upload',
+        ],
     ],
 ];

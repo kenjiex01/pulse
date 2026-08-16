@@ -17,6 +17,35 @@ class EmployeeSalaryResolverService
         CarbonInterface $from,
         CarbonInterface $to,
     ): Collection {
+        return $this->baseSalariesForPeriodQuery($employeeId, $payTypeId, $from, $to)->get();
+    }
+
+    /**
+     * Salaries for one employment user type (faculty / staff / admin) in the pay period.
+     *
+     * @return Collection<int, EmployeeSalary>
+     */
+    public function salariesForPeriodByUserType(
+        int $employeeId,
+        int $payTypeId,
+        CarbonInterface $from,
+        CarbonInterface $to,
+        string $userType,
+    ): Collection {
+        return $this->baseSalariesForPeriodQuery($employeeId, $payTypeId, $from, $to)
+            ->whereHas('employmentInformation', fn ($query) => $query->where('user_type', $userType))
+            ->get();
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Builder<EmployeeSalary>
+     */
+    private function baseSalariesForPeriodQuery(
+        int $employeeId,
+        int $payTypeId,
+        CarbonInterface $from,
+        CarbonInterface $to,
+    ) {
         return EmployeeSalary::query()
             ->where('pay_type_id', $payTypeId)
             ->whereHas('employmentInformation', fn ($query) => $query->where('employee_id', $employeeId))
@@ -25,10 +54,9 @@ class EmployeeSalaryResolverService
                 $query->whereNull('date_effective_to')
                     ->orWhere('date_effective_to', '>=', $from->toDateString());
             })
-            ->with(['incomes.incomeType', 'deductions.deductionType'])
+            ->with(['incomes.incomeType', 'deductions.deductionType', 'employmentInformation'])
             ->orderBy('date_effective_from')
-            ->orderBy('employee_salary_id')
-            ->get();
+            ->orderBy('employee_salary_id');
     }
 
     /**

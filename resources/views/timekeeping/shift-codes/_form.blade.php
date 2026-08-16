@@ -92,37 +92,59 @@
             >
             @error('description')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
-        <div>
-            <label for="time_in_{{ $formContext }}" class="form-label">Break In</label>
+        <div class="sm:col-span-2 border-t border-gray-100 pt-4">
+            <h3 class="text-sm font-semibold text-gray-900">Duty Schedule</h3>
+            <p class="mt-1 text-xs text-gray-500">
+                Official shift start and end (24-hour). Used for late, undertime, and excess-hours payroll.
+                Break durations are configured separately below.
+            </p>
+        </div>
+        <div data-shift-duty-time-in>
+            <label for="time_in_{{ $formContext }}" class="form-label">
+                Time In
+                <span class="text-red-500" data-shift-duty-required-star @class(['hidden' => $flexiEnabled])>*</span>
+            </label>
             <input
                 id="time_in_{{ $formContext }}"
                 name="time_in"
                 type="text"
                 maxlength="5"
-                placeholder="06:00"
-                value="{{ old('time_in', $record?->time_in) }}"
+                placeholder="07:00"
+                value="{{ old('time_in', ($record?->time_in !== '00:00' ? $record?->time_in : '') ?? '') }}"
                 class="form-input"
+                data-shift-duty-field
+                @required(! $flexiEnabled)
             >
             @error('time_in')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
-        <div>
-            <label for="time_out_{{ $formContext }}" class="form-label">Break Out</label>
+        <div data-shift-duty-time-out>
+            <label for="time_out_{{ $formContext }}" class="form-label">
+                Time Out
+                <span class="text-red-500" data-shift-duty-required-star @class(['hidden' => $flexiEnabled])>*</span>
+            </label>
             <input
                 id="time_out_{{ $formContext }}"
                 name="time_out"
                 type="text"
                 maxlength="5"
-                placeholder="15:00"
-                value="{{ old('time_out', $record?->time_out) }}"
+                placeholder="16:00"
+                value="{{ old('time_out', ($record?->time_out !== '00:00' ? $record?->time_out : '') ?? '') }}"
                 class="form-input"
+                data-shift-duty-field
+                @required(! $flexiEnabled)
             >
             @error('time_out')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
     </div>
 
-    <div>
+    <div class="border-t border-gray-100 pt-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-sm font-semibold text-gray-900">Breaks</h3>
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900">Breaks</h3>
+                <p class="mt-1 text-xs text-gray-500">
+                    Set break window (Break Out → Break In) and/or break minutes. Break Out = leave for break; Break In = return from break.
+                </p>
+            </div>
             <div class="flex gap-2">
                 <button type="button" class="btn-secondary text-xs" data-shift-break-add>Add Break</button>
                 <button type="button" class="btn-secondary text-xs" data-shift-break-remove>Remove</button>
@@ -130,11 +152,13 @@
         </div>
 
         <div class="mt-3 overflow-x-auto rounded-lg border border-gray-200">
-            <table class="table-skolaris min-w-[480px]">
+            <table class="table-skolaris min-w-[640px]">
                 <thead>
                     <tr>
                         <th>Break No</th>
-                        <th>Break Minute <span class="text-red-500">*</span></th>
+                        <th>Break Out</th>
+                        <th>Break In</th>
+                        <th>Break Minute</th>
                         <th>Paid Break?</th>
                     </tr>
                 </thead>
@@ -144,12 +168,35 @@
                             <td class="font-medium text-gray-700">Break {{ $index + 1 }}</td>
                             <td>
                                 <input
+                                    type="text"
+                                    name="breaks[{{ $index }}][break_out]"
+                                    maxlength="5"
+                                    placeholder="11:00"
+                                    value="{{ $break['break_out'] ?? '' }}"
+                                    class="form-input max-w-[6rem]"
+                                >
+                                @error('breaks.'.$index.'.break_out')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                            </td>
+                            <td>
+                                <input
+                                    type="text"
+                                    name="breaks[{{ $index }}][break_in]"
+                                    maxlength="5"
+                                    placeholder="12:00"
+                                    value="{{ $break['break_in'] ?? '' }}"
+                                    class="form-input max-w-[6rem]"
+                                >
+                                @error('breaks.'.$index.'.break_in')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                            </td>
+                            <td>
+                                <input
                                     type="number"
                                     name="breaks[{{ $index }}][break_minute]"
                                     min="1"
                                     max="999"
                                     value="{{ $break['break_minute'] ?? '' }}"
-                                    class="form-input max-w-[8rem]"
+                                    class="form-input max-w-[6rem]"
+                                    placeholder="60"
                                 >
                                 @error('breaks.'.$index.'.break_minute')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                             </td>
@@ -174,7 +221,13 @@
             <tr data-shift-break-row>
                 <td class="font-medium text-gray-700" data-shift-break-label>Break 1</td>
                 <td>
-                    <input type="number" name="breaks[__INDEX__][break_minute]" min="1" max="999" class="form-input max-w-[8rem]">
+                    <input type="text" name="breaks[__INDEX__][break_out]" maxlength="5" placeholder="11:00" class="form-input max-w-[6rem]">
+                </td>
+                <td>
+                    <input type="text" name="breaks[__INDEX__][break_in]" maxlength="5" placeholder="12:00" class="form-input max-w-[6rem]">
+                </td>
+                <td>
+                    <input type="number" name="breaks[__INDEX__][break_minute]" min="1" max="999" placeholder="60" class="form-input max-w-[6rem]">
                 </td>
                 <td>
                     <input type="hidden" name="breaks[__INDEX__][is_paid_break]" value="0">

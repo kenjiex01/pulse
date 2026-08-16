@@ -48,25 +48,37 @@
 
     @php
         $selectedDeductionCode = optional($deductionTypes->firstWhere('deduction_type_id', (int) old('deduction_type_id')))->deduction_type_code;
-        $showHours = in_array($selectedDeductionCode, ['LTDE', 'UTDE'], true);
+        $showLateUndertimeFields = in_array($selectedDeductionCode, ['LTDE', 'UTDE'], true);
     @endphp
 
-    <div data-batch-add-deduction-hours-wrap class="{{ $showHours ? '' : 'hidden' }}">
-        <label for="batch-add-deduction-hours" class="form-label">Hours <span class="text-red-500">*</span></label>
+    <div data-batch-add-deduction-ltde-wrap class="{{ $showLateUndertimeFields ? '' : 'hidden' }} space-y-4">
+        <div data-batch-add-deduction-hours-wrap>
+            <label for="batch-add-deduction-hours" class="form-label">Hours <span class="text-red-500">*</span></label>
+            <input
+                type="number"
+                id="batch-add-deduction-hours"
+                name="hours"
+                min="0"
+                step="0.01"
+                class="form-input text-right"
+                placeholder="0.00"
+                value="{{ old('hours') }}"
+                data-batch-add-deduction-hours
+                @if ($showLateUndertimeFields) required @endif
+            >
+            @error('hours')
+                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+            @enderror
+        </div>
+
         <input
-            type="number"
-            id="batch-add-deduction-hours"
-            name="hours"
-            min="0"
-            step="0.01"
-            class="form-input text-right"
-            placeholder="0.00"
-            value="{{ old('hours') }}"
-            data-batch-add-deduction-hours
+            type="hidden"
+            name="days"
+            value="{{ old('days', $showLateUndertimeFields ? '1' : '') }}"
+            data-batch-add-deduction-days
         >
-        @error('hours')
-            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-        @enderror
+
+        <p class="text-xs text-gray-500">Each late or undertime entry counts as 1 day. Add multiple entries for different dates.</p>
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -120,13 +132,18 @@
             @enderror
         </div>
         <div>
-            <label for="batch-add-deduction-reference-date" class="form-label">Reference Date</label>
+            <label for="batch-add-deduction-reference-date" class="form-label">
+                Reference Date
+                <span class="text-red-500 {{ $showLateUndertimeFields ? '' : 'hidden' }}" data-batch-add-deduction-reference-date-required>*</span>
+            </label>
             <input
                 type="date"
                 id="batch-add-deduction-reference-date"
                 name="reference_date"
                 class="form-input"
                 value="{{ old('reference_date') }}"
+                data-batch-add-deduction-reference-date
+                @if ($showLateUndertimeFields) required @endif
             >
             @error('reference_date')
                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>

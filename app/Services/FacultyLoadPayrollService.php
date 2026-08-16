@@ -21,6 +21,7 @@ class FacultyLoadPayrollService
         private readonly EmployeeLoadPayrollService $employeeLoadPayroll,
         private readonly TimeLogsPayrollService $timeLogsPayroll,
         private readonly FlexiShiftPayrollService $flexiShiftPayroll,
+        private readonly PayrollBreakService $breakPayroll,
     ) {}
 
     /**
@@ -344,8 +345,8 @@ class FacultyLoadPayrollService
      */
     private function lastTimeOut(Collection $punches): ?string
     {
-        $out = $punches->reverse()->first(fn ($punch) => ! (bool) $punch->is_in && $punch->dt_datetime !== null);
+        $session = $this->breakPayroll->payrollSessionFromPunches($punches);
 
-        return $out?->dt_datetime?->format('H:i:s');
+        return $session['time_out'];
     }
 }

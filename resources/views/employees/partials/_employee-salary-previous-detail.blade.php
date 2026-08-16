@@ -118,6 +118,10 @@
             <span class="font-medium">Use Basic Income as Hourly Rate:</span>
             {{ $previousSalary->use_basic_income_as_hourly_rate ? 'Yes' : 'No' }}
         </p>
+        <p class="mb-2 text-sm text-gray-700">
+            <span class="font-medium">Is Above minimum wage earner:</span>
+            {{ $previousSalary->is_above_minimum_wage_earner ? 'Yes' : 'No' }}
+        </p>
         <p class="form-label">Hourly Rate</p>
         <p class="mt-1 text-sm font-medium text-gray-900">{{ $hourlyRate !== null ? number_format($hourlyRate, 2) : '—' }}</p>
     </div>

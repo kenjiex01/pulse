@@ -69,6 +69,17 @@ return [
             'use_path_style_endpoint' => false,
             'throw' => true,
             'report' => true,
+            // Large desktop installers (300MB+) need longer idle timeouts on multipart parts.
+            'http' => [
+                'connect_timeout' => 60,
+                'timeout' => 900,
+            ],
+            'options' => [
+                '@http' => [
+                    'connect_timeout' => 60,
+                    'timeout' => 900,
+                ],
+            ],
         ],
 
     ],

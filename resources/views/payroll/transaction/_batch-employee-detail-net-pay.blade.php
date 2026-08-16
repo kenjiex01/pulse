@@ -3,6 +3,7 @@
         ->map(fn ($income) => [
             'label' => $income->incomeType?->description ?? $income->incomeType?->income_type_code ?? 'Income',
             'hours' => $income->hours !== null ? (float) $income->hours : null,
+            'days' => $income->days !== null ? (float) $income->days : null,
             'amount' => (float) $income->taxable + (float) $income->non_taxable,
         ])
         ->filter(fn (array $line) => $line['amount'] !== 0.0)
@@ -11,7 +12,9 @@
     $deductionLines = $deductionRows
         ->map(fn (array $deduction) => [
             'label' => $deduction['description'] ?? $deduction['code'] ?? 'Deduction',
+            'minutes' => ($deduction['minutes'] ?? null),
             'hours' => ($deduction['show_hours'] ?? false) ? (float) ($deduction['hours'] ?? 0) : null,
+            'days' => ($deduction['show_days'] ?? false) ? (float) ($deduction['days'] ?? 0) : null,
             'amount' => (float) $deduction['employee_amount'],
         ])
         ->filter(fn (array $line) => $line['amount'] !== 0.0)
@@ -27,6 +30,9 @@
                     <div class="flex shrink-0 items-baseline gap-3 tabular-nums text-gray-900">
                         @if ($line['hours'] !== null)
                             <span class="text-gray-500">{{ number_format($line['hours'], 2) }} hrs</span>
+                        @endif
+                        @if ($line['days'] !== null)
+                            <span class="text-gray-500">{{ number_format($line['days'], 2) }} days</span>
                         @endif
                         <span>{{ number_format($line['amount'], 2) }}</span>
                     </div>
@@ -49,8 +55,14 @@
                 <div class="flex items-baseline justify-between gap-4 text-sm">
                     <span class="text-gray-700">{{ $line['label'] }}:</span>
                     <div class="flex shrink-0 items-baseline gap-3 tabular-nums text-gray-900">
+                        @if ($line['minutes'] !== null)
+                            <span class="text-gray-500">{{ number_format((int) $line['minutes']) }} min</span>
+                        @endif
                         @if ($line['hours'] !== null)
                             <span class="text-gray-500">{{ number_format($line['hours'], 2) }} hrs</span>
+                        @endif
+                        @if ($line['days'] !== null)
+                            <span class="text-gray-500">{{ number_format($line['days'], 2) }} days</span>
                         @endif
                         <span>-{{ number_format($line['amount'], 2) }}</span>
                     </div>

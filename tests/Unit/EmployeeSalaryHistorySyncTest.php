@@ -94,4 +94,80 @@ class EmployeeSalaryHistorySyncTest extends TestCase
         );
         $this->assertSame('10.00000', (string) $previousSalary->days_per_period);
     }
+
+    #[Test]
+    public function it_archives_previous_salary_when_amount_changes_on_the_same_effectivity_date(): void
+    {
+        $employee = Employee::query()->create([
+            'employee_number' => 'EFF-002',
+            'first_name' => 'Same',
+            'middle_name' => 'Day',
+            'last_name' => 'History',
+            'email' => 'same.day.history@example.com',
+            'phone' => '09170000002',
+            'campus_id' => Campus::query()->value('campus_id'),
+            'employment_status' => Employee::STATUS_ACTIVE,
+            'is_active' => true,
+            'is_hybrid' => true,
+        ]);
+
+        $faculty = EmployeeEmploymentInformation::query()->create([
+            'employee_id' => $employee->employee_id,
+            'user_type' => EmployeeEmploymentInformation::TYPE_FACULTY,
+            'sort_order' => 0,
+        ]);
+
+        EmployeeEmploymentInformation::query()->create([
+            'employee_id' => $employee->employee_id,
+            'user_type' => EmployeeEmploymentInformation::TYPE_STAFF,
+            'sort_order' => 1,
+        ]);
+
+        $salaryPayload = fn (int $index, float $basic) => [
+            'employment_index' => $index,
+            'date_effective_from' => '2026-07-14',
+            'basic_computation_id' => BasicComputation::TIME_IN_OUT,
+            'pay_type_id' => PayType::SEMI_MONTHLY,
+            'rate_group_id' => RateGroup::query()->value('rate_group_id'),
+            'days_per_period' => 10.875,
+            'hours_per_day' => 8,
+            'incomes' => [[
+                'income_type_id' => 1,
+                'taxable' => $basic,
+                'non_taxable' => 0,
+            ]],
+        ];
+
+        EmployeeSalarySync::sync($employee, [
+            $salaryPayload(0, 25000),
+            $salaryPayload(1, 18000),
+        ], true);
+
+        EmployeeSalarySync::sync($employee, [
+            $salaryPayload(0, 25000.01),
+            $salaryPayload(1, 18000),
+        ], true);
+
+        $previousFaculty = EmployeeSalary::query()
+            ->where('employment_info_id', $faculty->employment_info_id)
+            ->whereNotNull('date_effective_to')
+            ->whereDate('date_effective_from', '2026-07-14')
+            ->whereDate('date_effective_to', '2026-07-14')
+            ->first();
+
+        $currentFaculty = EmployeeSalary::query()
+            ->where('employment_info_id', $faculty->employment_info_id)
+            ->whereNull('date_effective_to')
+            ->whereDate('date_effective_from', '2026-07-14')
+            ->first();
+
+        $this->assertNotNull($previousFaculty);
+        $this->assertNotNull($currentFaculty);
+        $this->assertEquals(25000.0, (float) $previousFaculty->incomes()->sum('taxable'));
+        $this->assertEquals(25000.01, (float) $currentFaculty->incomes()->sum('taxable'));
+        $this->assertSame(
+            2,
+            EmployeeSalary::query()->where('employment_info_id', $faculty->employment_info_id)->count(),
+        );
+    }
 }

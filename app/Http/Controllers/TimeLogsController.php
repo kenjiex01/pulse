@@ -8,6 +8,7 @@ use App\Models\TeachingLoadPullBatch;
 use App\Models\TeachingLoadSession;
 use App\Models\TimeCaptureFormat;
 use App\Services\SysLogService;
+use App\Services\BiometricLogsS3PullService;
 use App\Services\TimeLogsDtrUploadService;
 use App\Services\TeachingLoadPullService;
 use App\Services\TimeLogsUploadService;
@@ -28,6 +29,7 @@ class TimeLogsController extends Controller
         private readonly TimeLogsUploadService $uploadService,
         private readonly TimeLogsDtrUploadService $dtrUploadService,
         private readonly TeachingLoadPullService $teachingLoadPullService,
+        private readonly BiometricLogsS3PullService $biometricLogsS3PullService,
     ) {}
 
     public function index(Request $request, string $tab): View
@@ -105,7 +107,14 @@ class TimeLogsController extends Controller
             'formats' => TimeCaptureFormat::query()->orderBy('device_name')->get(),
             'dtrCampuses' => TimeLogs::dtrCampuses(),
             'requiresCampus' => TimeLogs::requiresCampus($tab),
-            'openUpload' => ! $isTeachingLoads && ($request->boolean('upload') || $request->boolean('create')) && ! $request->boolean('preview'),
+            's3PullConfigured' => ! $isTeachingLoads && $this->biometricLogsS3PullService->isConfigured(),
+            's3PullCampuses' => ! $isTeachingLoads
+                ? Campus::query()->where('is_active', true)->orderBy('campus_name')->get(['campus_id', 'campus_code', 'campus_name'])
+                : collect(),
+            's3PullYear' => (int) now(config('backup.cloud.timezone', 'Asia/Manila'))->format('Y'),
+            's3PullMonth' => (int) now(config('backup.cloud.timezone', 'Asia/Manila'))->format('m'),
+            'openUpload' => ! $isTeachingLoads && ($request->boolean('upload') || $request->boolean('create')) && ! $request->boolean('preview') && ! $request->boolean('s3_pull'),
+            'openS3Pull' => ! $isTeachingLoads && $request->boolean('s3_pull'),
             'openPull' => $isTeachingLoads && ($request->boolean('pull') || $request->boolean('create')),
             'openPreview' => ! $isTeachingLoads && $request->boolean('preview') && session('time_logs_staging_token'),
             'openViewId' => $request->input('view'),
@@ -202,7 +211,7 @@ class TimeLogsController extends Controller
             $rules['campus_id'] = [
                 'required',
                 Rule::exists('tbl_campuses', 'campus_id')
-                    ->whereIn('campus_code', TimeLogs::DTR_CAMPUS_CODES)
+                    ->whereIn('campus_code', TimeLogs::dtrCampusCodes())
                     ->whereNull('deleted_at'),
             ];
         } else {
@@ -391,6 +400,85 @@ class TimeLogsController extends Controller
             ->with('success', $deleted.' batch'.($deleted === 1 ? '' : 'es').' purged.');
     }
 
+    public function pullBiometricLogsFromS3(Request $request): RedirectResponse
+    {
+        TimeLogs::authorize($request->user(), 'add');
+
+        $validated = $request->validate([
+            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'month' => ['required', 'integer', 'min:1', 'max:12'],
+            'campus_id' => ['nullable', 'integer', 'exists:tbl_campuses,campus_id'],
+            'collector_folder' => ['nullable', 'string', 'max:128'],
+            'tab' => ['nullable', 'string'],
+        ]);
+
+        $tab = TimeLogs::resolveTab($validated['tab'] ?? 'time-in-out');
+
+        if (TimeLogs::isSkolarisPullTab($tab)) {
+            $tab = 'time-in-out';
+        }
+
+        try {
+            $summary = $this->biometricLogsS3PullService->pull(
+                user: $request->user(),
+                year: (int) $validated['year'],
+                month: (int) $validated['month'],
+                campusId: isset($validated['campus_id']) ? (int) $validated['campus_id'] : null,
+                collectorFolder: $validated['collector_folder'] ?? null,
+            );
+        } catch (RuntimeException $exception) {
+            return redirect()
+                ->route(TimeLogs::routeName('tab'), ['tab' => $tab, 's3_pull' => 1])
+                ->withInput()
+                ->with('error', $exception->getMessage());
+        }
+
+        $message = sprintf(
+            'S3 pull finished: %d file(s) scanned, %d imported, %d skipped, %d punch(es) inserted, %d duplicate(s) skipped, %d unmatched biometric ID(s).',
+            $summary['files_scanned'],
+            $summary['files_imported'],
+            $summary['files_skipped'],
+            $summary['punches_inserted'],
+            $summary['punches_skipped_duplicates'],
+            $summary['punches_unmatched'],
+        );
+
+        if ($summary['errors'] !== []) {
+            $message .= ' Errors: '.implode(' | ', array_slice($summary['errors'], 0, 3));
+        }
+
+        return redirect()
+            ->route(TimeLogs::routeName('tab'), ['tab' => $tab])
+            ->with($summary['errors'] !== [] && $summary['files_imported'] === 0 ? 'error' : 'success', $message);
+    }
+
+    public function listBiometricS3Folders(Request $request): JsonResponse
+    {
+        TimeLogs::authorize($request->user(), 'view');
+
+        $validated = $request->validate([
+            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'month' => ['required', 'integer', 'min:1', 'max:12'],
+        ]);
+
+        if (! $this->biometricLogsS3PullService->isConfigured()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'S3 is not configured.',
+                'folders' => [],
+            ], 422);
+        }
+
+        $folders = $this->biometricLogsS3PullService->listCollectorFolders(
+            (int) $validated['year'],
+            (int) $validated['month'],
+        );
+
+        return response()->json([
+            'success' => true,
+            'folders' => $folders,
+        ]);
+    }
 
     public function startTeachingLoadPull(Request $request): JsonResponse
     {

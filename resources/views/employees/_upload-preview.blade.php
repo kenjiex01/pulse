@@ -1,6 +1,10 @@
 @if (! $staging)
     <p class="text-sm text-gray-600">Upload preview expired. Please upload the file again.</p>
 @else
+    @php
+        $isSalaryUpload = ($staging['upload_type'] ?? 'master-file') === 'employee-salary';
+        $uploadLabel = $isSalaryUpload ? 'Salary Record(s)' : 'Employee(s)';
+    @endphp
     <div class="space-y-4 text-sm">
         <div class="grid gap-3 sm:grid-cols-3">
             <div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
@@ -25,20 +29,38 @@
                         <table class="min-w-full divide-y divide-gray-100 text-xs">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-3 py-2 text-left font-semibold text-gray-600">Employee #</th>
-                                    <th class="px-3 py-2 text-left font-semibold text-gray-600">Name</th>
-                                    <th class="px-3 py-2 text-left font-semibold text-gray-600">Email</th>
-                                    <th class="px-3 py-2 text-left font-semibold text-gray-600">Campus</th>
+                                    @if ($isSalaryUpload)
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Employee #</th>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Name</th>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Slot</th>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Effectivity From</th>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Pay Type</th>
+                                    @else
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Employee #</th>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Name</th>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Email</th>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Campus</th>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Action</th>
+                                    @endif
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-50 bg-white">
                                 @foreach ($staging['valid'] ?? [] as $row)
                                     @php($preview = $row['preview'] ?? $row)
                                     <tr data-paginate-row>
-                                        <td class="px-3 py-2 text-gray-700">{{ $preview['employee_number'] ?: '(auto)' }}</td>
-                                        <td class="px-3 py-2 text-gray-700">{{ trim(($preview['first_name'] ?? '').' '.($preview['last_name'] ?? '')) }}</td>
-                                        <td class="px-3 py-2 text-gray-700">{{ $preview['email'] ?? '—' }}</td>
-                                        <td class="px-3 py-2 text-gray-700">{{ $preview['campus_code'] ?? '—' }}</td>
+                                        @if ($isSalaryUpload)
+                                            <td class="px-3 py-2 text-gray-700">{{ $preview['employee_number'] ?? '—' }}</td>
+                                            <td class="px-3 py-2 text-gray-700">{{ $preview['name'] ?? '—' }}</td>
+                                            <td class="px-3 py-2 text-gray-700">{{ $preview['employment_slot'] ?? '—' }}</td>
+                                            <td class="px-3 py-2 text-gray-700">{{ $preview['date_effective_from'] ?? '—' }}</td>
+                                            <td class="px-3 py-2 text-gray-700">{{ $preview['pay_type'] ?? '—' }}</td>
+                                        @else
+                                            <td class="px-3 py-2 text-gray-700">{{ $preview['employee_number'] ?: '(auto)' }}</td>
+                                            <td class="px-3 py-2 text-gray-700">{{ trim(($preview['first_name'] ?? '').' '.($preview['last_name'] ?? '')) ?: '—' }}</td>
+                                            <td class="px-3 py-2 text-gray-700">{{ $preview['email'] ?? '—' }}</td>
+                                            <td class="px-3 py-2 text-gray-700">{{ $preview['campus_code'] ?: '—' }}</td>
+                                            <td class="px-3 py-2 text-gray-700">{{ $preview['action'] ?? 'Create' }}</td>
+                                        @endif
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -75,7 +97,9 @@
                 <form method="POST" action="{{ route('employees.upload.commit') }}">
                     @csrf
                     <input type="hidden" name="staging_token" value="{{ $stagingToken }}">
-                    <button type="submit" class="btn-primary">Import {{ $staging['valid_count'] }} Employee(s)</button>
+                    <button type="submit" class="btn-primary">
+                        {{ $isSalaryUpload ? 'Apply' : 'Import' }} {{ $staging['valid_count'] }} {{ $uploadLabel }}
+                    </button>
                 </form>
             @endif
         </div>

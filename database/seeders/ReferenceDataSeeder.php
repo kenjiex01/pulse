@@ -22,6 +22,7 @@ class ReferenceDataSeeder extends Seeder
             RankSeeder::class,
             EmploymentTypeSeeder::class,
             EmployeeDepartmentSeeder::class,
+            DocumentTypeSeeder::class,
             CollegeSeeder::class,
             ProgramSeeder::class,
             PayTypeSeeder::class,

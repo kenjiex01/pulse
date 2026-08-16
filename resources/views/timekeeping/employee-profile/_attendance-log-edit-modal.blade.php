@@ -22,6 +22,12 @@
         'dateValue' => $dateValue,
         'timeValue' => $timeValue,
         'isInValue' => $isInValue,
-        'attendancePage' => $attendancePage,
+        'attendancePage' => $attendancePage ?? null,
+        'viewTab' => $viewTab ?? 'attendance',
+        'calendarYear' => $calendarYear ?? null,
+        'calendarMonth' => $calendarMonth ?? null,
+        'calendarDay' => $calendarDay ?? null,
+        'dateFrom' => $dateFrom ?? null,
+        'dateTo' => $dateTo ?? null,
     ])->render(),
 ])

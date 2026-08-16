@@ -18,6 +18,7 @@ class PayrollDeduction extends Model
         'payroll_batch_detail_id',
         'deduction_type_id',
         'hours',
+        'days',
         'employee_amount',
         'employer_amount',
         'reference_number',
@@ -31,6 +32,7 @@ class PayrollDeduction extends Model
     {
         return [
             'hours' => 'decimal:4',
+            'days' => 'decimal:4',
             'employee_amount' => 'decimal:2',
             'employer_amount' => 'decimal:2',
             'dt_reference' => 'datetime',

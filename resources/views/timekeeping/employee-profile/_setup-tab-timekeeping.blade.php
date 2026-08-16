@@ -147,6 +147,17 @@
                 >
                 <span>Auto populate attendance</span>
             </label>
+
+            <label class="flex items-start gap-2 text-sm text-gray-700">
+                <input
+                    type="checkbox"
+                    name="is_auto_compute_excess_as_ot"
+                    value="1"
+                    class="mt-0.5 rounded border-gray-300 text-[#0B318F] focus:ring-[#0B318F]"
+                    @checked((bool) old('is_auto_compute_excess_as_ot', $setup?->is_auto_compute_excess_as_ot))
+                >
+                <span>Auto compute Excess as OT</span>
+            </label>
         </div>
     </div>
 </div>

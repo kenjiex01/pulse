@@ -470,6 +470,9 @@ class TimekeepingPolicy
 
         if ($record->marks_absent) {
             $result['is_absent'] = true;
+            // Optional equivalent on an absent row can define the OT-offset hour amount; default is 60.
+            $equivalent = max(0, (int) round((float) $record->equivalent));
+            $result['equivalent_minutes'] = $equivalent > 0 ? $equivalent : 60;
 
             return $result;
         }
@@ -725,10 +728,14 @@ class TimekeepingPolicy
                     $gracePeriod = $data['break_grace_period'] ?? null;
                     $deductGrace = filter_var($data['is_break_deduct_grace_period'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-                    if (filled($gracePeriod) || $deductGrace) {
-                        if (! is_numeric($gracePeriod) || (float) $gracePeriod <= 0) {
-                            $validator->errors()->add('break_grace_period', 'Grace period cannot be negative or zero.');
-                        }
+                    // Blank grace = no break grace period. Only validate when a value is entered
+                    // or when "deduct grace" is checked (needs a positive grace).
+                    if ($deductGrace && blank($gracePeriod)) {
+                        $validator->errors()->add('break_grace_period', 'Grace period is required when deducting grace from break tardiness.');
+                    } elseif (filled($gracePeriod) && (! is_numeric($gracePeriod) || (float) $gracePeriod < 0)) {
+                        $validator->errors()->add('break_grace_period', 'Grace period cannot be negative.');
+                    } elseif (filled($gracePeriod) && (float) $gracePeriod == 0.0 && $deductGrace) {
+                        $validator->errors()->add('break_grace_period', 'Grace period must be greater than zero when deducting grace.');
                     }
                 }
             });
@@ -824,28 +831,33 @@ class TimekeepingPolicy
         return [
             'is_allow_flexi_time' => ['required', 'boolean'],
             'max_flexi_time' => ['nullable', 'required_if:is_allow_flexi_time,1,true', 'numeric', 'gt:0', 'regex:/^\d{1,3}(\.\d{1,4})?$/'],
-            'grace_period' => ['nullable', 'numeric', 'gt:0', 'regex:/^\d{1,3}(\.\d{1,4})?$/'],
+            'grace_period' => ['nullable', 'numeric', 'min:0', 'regex:/^\d{1,3}(\.\d{1,4})?$/'],
             'is_deduct_grace_period' => ['nullable', 'boolean'],
             'tardiness_leave_type_id' => ['required', 'integer', Rule::exists('tbl_leave_types', 'leave_type_id')],
             'undertime_leave_type_id' => ['required', 'integer', Rule::exists('tbl_leave_types', 'leave_type_id')],
             'tardiness_rounding_id' => ['nullable', 'integer', Rule::exists('lu_rounding', 'rounding_id')],
             'undertime_rounding_id' => ['nullable', 'integer', Rule::exists('lu_rounding', 'rounding_id')],
+            'is_offset_absent_tardiness_with_ot' => ['nullable', 'boolean'],
         ];
     }
 
     private static function tardinessUndertimePayload(array $validated): array
     {
         $allowFlexi = filter_var($validated['is_allow_flexi_time'], FILTER_VALIDATE_BOOLEAN);
+        $gracePeriod = self::nullablePositiveMinutes($validated['grace_period'] ?? null);
+        $deductGrace = $gracePeriod !== null
+            && filter_var($validated['is_deduct_grace_period'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         return [
             'is_allow_flexi_time' => $allowFlexi ?: null,
             'max_flexi_time' => $allowFlexi ? $validated['max_flexi_time'] : null,
-            'grace_period' => filled($validated['grace_period'] ?? null) ? $validated['grace_period'] : null,
-            'is_deduct_grace_period' => filter_var($validated['is_deduct_grace_period'] ?? false, FILTER_VALIDATE_BOOLEAN) ?: null,
+            'grace_period' => $gracePeriod,
+            'is_deduct_grace_period' => $deductGrace ?: null,
             'tardiness_leave_type_id' => $validated['tardiness_leave_type_id'],
             'undertime_leave_type_id' => $validated['undertime_leave_type_id'],
             'tardiness_rounding_id' => filled($validated['tardiness_rounding_id'] ?? null) ? $validated['tardiness_rounding_id'] : null,
             'undertime_rounding_id' => filled($validated['undertime_rounding_id'] ?? null) ? $validated['undertime_rounding_id'] : null,
+            'is_offset_absent_tardiness_with_ot' => filter_var($validated['is_offset_absent_tardiness_with_ot'] ?? false, FILTER_VALIDATE_BOOLEAN),
         ];
     }
 
@@ -901,7 +913,7 @@ class TimekeepingPolicy
         return [
             'break_computation' => ['required', 'integer', Rule::in([1, 2])],
             'break_deduct_tardiness' => ['nullable', 'boolean'],
-            'break_grace_period' => ['nullable', 'numeric', 'gt:0', 'regex:/^\d{1,3}(\.\d{1,4})?$/'],
+            'break_grace_period' => ['nullable', 'numeric', 'min:0', 'regex:/^\d{1,3}(\.\d{1,4})?$/'],
             'is_break_deduct_grace_period' => ['nullable', 'boolean'],
             'break_tardiness_leave_type_id' => ['nullable', 'integer', Rule::exists('tbl_leave_types', 'leave_type_id')],
             'break_tardiness_rounding_id' => ['nullable', 'integer', Rule::exists('lu_rounding', 'rounding_id')],
@@ -911,12 +923,18 @@ class TimekeepingPolicy
     private static function breaksPayload(array $validated): array
     {
         $deductBreakTardiness = filter_var($validated['break_deduct_tardiness'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $breakGracePeriod = $deductBreakTardiness
+            ? self::nullablePositiveMinutes($validated['break_grace_period'] ?? null)
+            : null;
+        $deductBreakGrace = $deductBreakTardiness
+            && $breakGracePeriod !== null
+            && filter_var($validated['is_break_deduct_grace_period'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         return [
             'break_computation' => $validated['break_computation'],
             'break_deduct_tardiness' => $deductBreakTardiness ?: null,
-            'break_grace_period' => $deductBreakTardiness && filled($validated['break_grace_period'] ?? null) ? $validated['break_grace_period'] : null,
-            'is_break_deduct_grace_period' => $deductBreakTardiness && filter_var($validated['is_break_deduct_grace_period'] ?? false, FILTER_VALIDATE_BOOLEAN) ? true : null,
+            'break_grace_period' => $breakGracePeriod,
+            'is_break_deduct_grace_period' => $deductBreakGrace ? true : null,
             'break_tardiness_leave_type_id' => $deductBreakTardiness && filled($validated['break_tardiness_leave_type_id'] ?? null) ? $validated['break_tardiness_leave_type_id'] : null,
             'break_tardiness_rounding_id' => $deductBreakTardiness && filled($validated['break_tardiness_rounding_id'] ?? null) ? $validated['break_tardiness_rounding_id'] : null,
         ];
@@ -1011,5 +1029,21 @@ class TimekeepingPolicy
         }
 
         return number_format((float) $value, 4, '.', ',');
+    }
+
+    /**
+     * Empty / zero minutes mean "no grace period" and are stored as null.
+     */
+    private static function nullablePositiveMinutes(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (! is_numeric($value) || (float) $value <= 0) {
+            return null;
+        }
+
+        return (string) $value;
     }
 }

@@ -7,7 +7,7 @@
     @if ($open ?? false) data-modal-auto-open @endif
 >
     <div class="modal-backdrop" data-modal-close aria-hidden="true"></div>
-    <div class="modal-panel {{ $panelClass ?? '' }}">
+    <div class="modal-panel {{ $panelClass ?? 'max-w-lg' }}">
         <div class="modal-header">
             <div class="flex min-w-0 items-start gap-2">
                 @isset($backUrl)

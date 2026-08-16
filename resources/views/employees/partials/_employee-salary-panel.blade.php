@@ -29,6 +29,10 @@
         "employee_salaries.$salaryIndex.use_basic_income_as_hourly_rate",
         $salary['use_basic_income_as_hourly_rate'] ?? false,
     );
+    $isAboveMinimumWageEarner = (bool) old(
+        "employee_salaries.$salaryIndex.is_above_minimum_wage_earner",
+        $salary['is_above_minimum_wage_earner'] ?? false,
+    );
     $initialHourlyRate = $useBasicIncomeAsHourlyRate
         ? ($basicIncomeAmount > 0 ? round($basicIncomeAmount, 2) : null)
         : \App\Models\EmployeeSalary::computeHourlyRate(
@@ -131,7 +135,7 @@
             <div>
                 <label class="form-label">Effectivity To</label>
                 <input type="text" value="Present" readonly class="form-input bg-gray-50" tabindex="-1">
-                <p class="mt-1 text-xs text-gray-500">Auto-closed when a new salary with a later effectivity date is saved.</p>
+                <p class="mt-1 text-xs text-gray-500">Auto-closed when salary settings/amount change, or when a later effectivity date is saved.</p>
             </div>
             <div>
                 <label class="form-label">Pay Type <span class="text-red-500">*</span></label>
@@ -217,6 +221,15 @@
                 @checked($useBasicIncomeAsHourlyRate)
             >
             <span>Use Basic Income as Hourly Rate</span>
+        </label>
+        <label class="mb-3 flex items-center gap-2 text-sm text-gray-700">
+            <input
+                type="checkbox"
+                name="employee_salaries[{{ $salaryIndex }}][is_above_minimum_wage_earner]"
+                value="1"
+                @checked($isAboveMinimumWageEarner)
+            >
+            <span>Is Above minimum wage earner</span>
         </label>
         <label class="form-label">Hourly Rate</label>
         <input

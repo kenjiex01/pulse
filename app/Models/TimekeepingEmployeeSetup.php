@@ -19,6 +19,7 @@ class TimekeepingEmployeeSetup extends Model
         'timekeeping_policy_id',
         'is_leave',
         'is_populate',
+        'is_auto_compute_excess_as_ot',
         'timekeeping_policy_team_setting_id',
     ];
 
@@ -27,6 +28,7 @@ class TimekeepingEmployeeSetup extends Model
         return [
             'is_leave' => 'boolean',
             'is_populate' => 'boolean',
+            'is_auto_compute_excess_as_ot' => 'boolean',
         ];
     }
 

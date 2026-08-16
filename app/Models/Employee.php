@@ -117,6 +117,9 @@ class Employee extends Model
             $employee->campusAssignments()->each(
                 fn (EmployeeCampusAssignment $assignment) => $assignment->delete()
             );
+            $employee->credentials()->each(
+                fn (EmployeeCredential $credential) => $credential->delete()
+            );
         });
     }
 
@@ -160,6 +163,20 @@ class Employee extends Model
         return $this->hasMany(EmployeeCampusAssignment::class, 'employee_id', 'employee_id')
             ->orderBy('sort_order')
             ->orderBy('employee_campus_assignment_id');
+    }
+
+    public function credentials(): HasMany
+    {
+        return $this->hasMany(EmployeeCredential::class, 'employee_id', 'employee_id')
+            ->with('documentType')
+            ->orderByDesc('employee_credential_id');
+    }
+
+    public function loans(): HasMany
+    {
+        return $this->hasMany(EmployeeLoan::class, 'employee_id', 'employee_id')
+            ->orderByDesc('dt_loan')
+            ->orderByDesc('employee_loan_id');
     }
 
     public function timekeepingSetup(): HasOne
@@ -342,6 +359,19 @@ class Employee extends Model
 
     public function logSnapshot(): array
     {
+        $this->loadMissing([
+            'campusAssignments.campus',
+            'employmentInformations.salary.payType',
+            'employmentInformations.salary.basicComputation',
+            'employmentInformations.salary.rateGroup',
+            'employmentInformations.salary.ndRateGroup',
+            'employmentInformations.salary.incomes.incomeType',
+            'employmentInformations.salary.deductions.deductionType',
+        ]);
+
+        $extended = $this->extended_profile ?? [];
+        $roleId = data_get($extended, 'role_id');
+
         return array_merge(
             $this->only([
                 'employee_number',
@@ -352,20 +382,113 @@ class Employee extends Model
                 'is_hybrid',
                 'email',
                 'phone',
+                'home_phone',
+                'work_phone',
+                'fax_number',
                 'program',
                 'department',
                 'college',
                 'campus',
+                'campus_id',
                 'employment_status',
                 'compliance_status',
                 'is_active',
                 'birth_date',
+                'place_of_birth',
+                'gender',
+                'civil_status',
+                'nationality',
+                'religion',
+                'language_dialect',
+                'height_cm',
+                'weight_kg',
+                'tin_number',
+                'sss_number',
+                'philhealth_number',
+                'pagibig_number',
+                'gsis_number',
+                'tax_status',
+                'emergency_contact_name',
+                'emergency_contact_relationship',
+                'emergency_contact_phone',
+                'emergency_contact_email',
+                'emergency_contact_address',
+                'address_line',
+                'country',
+                'region',
+                'province',
+                'city_municipality',
+                'barangay',
+                'postal_code',
                 'is_confidential',
             ]),
             [
-                'employment_informations' => $this->employmentInformations()
-                    ->get(['user_type', 'position', 'designation', 'rank', 'employment_type', 'hire_date', 'sort_order'])
-                    ->toArray(),
+                'role_id' => $roleId,
+                'extended_profile' => $extended,
+                'employment_informations' => $this->employmentInformations
+                    ->map(fn (EmployeeEmploymentInformation $info) => [
+                        'user_type' => $info->user_type,
+                        'position' => $info->position,
+                        'designation' => $info->designation,
+                        'rank' => $info->rank,
+                        'employment_type' => $info->employment_type,
+                        'hire_date' => $info->hire_date?->format('Y-m-d'),
+                        'sort_order' => $info->sort_order,
+                    ])
+                    ->values()
+                    ->all(),
+                'campus_assignments' => $this->campusAssignments
+                    ->map(fn (EmployeeCampusAssignment $assignment) => [
+                        'campus_id' => $assignment->campus_id,
+                        'campus_code' => $assignment->campus?->campus_code,
+                        'college' => $assignment->college,
+                        'department' => $assignment->department,
+                        'program' => $assignment->program,
+                        'biometric_id' => $assignment->biometric_id,
+                        'sort_order' => $assignment->sort_order,
+                    ])
+                    ->values()
+                    ->all(),
+                'employee_salaries' => $this->employmentInformations
+                    ->flatMap(function (EmployeeEmploymentInformation $info) {
+                        $salary = $info->salary;
+
+                        if ($salary === null) {
+                            return [];
+                        }
+
+                        return [[
+                            'user_type' => $info->user_type,
+                            'date_effective_from' => $salary->date_effective_from?->format('Y-m-d'),
+                            'date_effective_to' => $salary->date_effective_to?->format('Y-m-d'),
+                            'pay_type' => $salary->payType?->pay_type,
+                            'basic_computation' => $salary->basicComputation?->description,
+                            'rate_group' => $salary->rateGroup?->description,
+                            'nd_rate_group' => $salary->ndRateGroup?->description,
+                            'days_per_period' => $salary->days_per_period,
+                            'hours_per_day' => $salary->hours_per_day,
+                            'use_basic_income_as_hourly_rate' => $salary->use_basic_income_as_hourly_rate,
+                            'is_above_minimum_wage_earner' => $salary->is_above_minimum_wage_earner,
+                            'incomes' => $salary->incomes
+                                ->map(fn (EmployeeSalaryIncome $income) => [
+                                    'code' => $income->incomeType?->income_type_code,
+                                    'taxable' => $income->taxable,
+                                    'non_taxable' => $income->non_taxable,
+                                ])
+                                ->values()
+                                ->all(),
+                            'deductions' => $salary->deductions
+                                ->map(fn (EmployeeSalaryDeduction $deduction) => [
+                                    'code' => $deduction->deductionType?->deduction_type_code,
+                                    'employee_amount' => $deduction->employee_amount,
+                                    'employer_amount' => $deduction->employer_amount,
+                                ])
+                                ->values()
+                                ->all(),
+                        ]];
+                    })
+                    ->values()
+                    ->all(),
             ],
         );
     }

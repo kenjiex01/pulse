@@ -30,6 +30,39 @@ class PayrollBreakServiceTest extends TestCase
     }
 
     #[Test]
+    public function payroll_session_treats_last_punch_as_out_when_tagged_in(): void
+    {
+        $service = new PayrollBreakService;
+        $punches = $this->punchesForDay('2026-07-30', [
+            ['05:48:00', true],
+            ['05:50:00', false],
+            ['18:18:00', true],
+        ]);
+
+        $session = $service->payrollSessionFromPunches($punches);
+
+        $this->assertSame('05:48:00', $session['time_in']);
+        $this->assertSame('18:18:00', $session['time_out']);
+        $this->assertSame([], $service->breakSegmentsFromPunches($punches));
+    }
+
+    #[Test]
+    public function duplicate_morning_ins_then_afternoon_out_use_first_in_last_out(): void
+    {
+        $service = new PayrollBreakService;
+        $punches = $this->punchesForDay('2026-07-30', [
+            ['05:48:00', true],
+            ['05:49:00', true],
+            ['18:12:00', false],
+        ]);
+
+        $session = $service->payrollSessionFromPunches($punches);
+
+        $this->assertSame('05:48:00', $session['time_in']);
+        $this->assertSame('18:12:00', $session['time_out']);
+    }
+
+    #[Test]
     public function break_segments_use_middle_out_to_in_pairs_between_first_in_and_last_out(): void
     {
         $service = new PayrollBreakService;

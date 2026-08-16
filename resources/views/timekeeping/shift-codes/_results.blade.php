@@ -12,8 +12,8 @@
                     <th>Shift Code</th>
                     <th>Description</th>
                     <th>Type</th>
-                    <th>Break In</th>
-                    <th>Break Out</th>
+                    <th>Time In</th>
+                    <th>Time Out</th>
                     <th class="text-right">Actions</th>
                 </tr>
             </thead>

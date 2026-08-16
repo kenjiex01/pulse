@@ -44,6 +44,8 @@ class EmployeeLoadPayrollService
             'undertime_minutes' => 0,
             'undertime_deduction' => 0.0,
             'absent_sessions' => 0,
+            'late_days' => 0,
+            'undertime_days' => 0,
         ];
 
         if ((int) $salary->basic_computation_id !== BasicComputation::TIME_IN_OUT) {
@@ -64,6 +66,8 @@ class EmployeeLoadPayrollService
 
         $lateMinutes = $this->totalLateMinutes($entries, $policy);
         $undertimeMinutes = $this->totalUndertimeMinutes($entries, $policy);
+        $lateDays = $this->countLateDays($entries, $policy);
+        $undertimeDays = $this->countUndertimeDays($entries, $policy);
         $absentSessions = $this->countAbsentSessions($entries, $policy);
         $hourlyRate = $salary->hourlyRate();
         $lateDeduction = ($lateMinutes > 0 && $hourlyRate !== null)
@@ -82,6 +86,8 @@ class EmployeeLoadPayrollService
             'undertime_minutes' => $undertimeMinutes,
             'undertime_deduction' => $undertimeDeduction,
             'absent_sessions' => $absentSessions,
+            'late_days' => $lateDays,
+            'undertime_days' => $undertimeDays,
         ];
     }
 
@@ -95,7 +101,9 @@ class EmployeeLoadPayrollService
      *     late_deduction: float,
      *     undertime_minutes: int,
      *     undertime_deduction: float,
-     *     absent_sessions: int
+     *     absent_sessions: int,
+     *     late_days: int,
+     *     undertime_days: int
      * }
      */
     public function computeForPeriodWithSalaries(
@@ -134,6 +142,8 @@ class EmployeeLoadPayrollService
         $undertimeMinutes = 0;
         $undertimeDeduction = 0.0;
         $absentSessions = 0;
+        $lateDays = 0;
+        $undertimeDays = 0;
 
         foreach ($entries->groupBy(fn (RawEmployeeLoadEntry $entry) => $entry->session_date?->toDateString()) as $date => $dayEntries) {
             if ($date === null || $date === '') {
@@ -147,6 +157,8 @@ class EmployeeLoadPayrollService
             }
 
             $workedThisDay = false;
+            $lateThisDay = false;
+            $undertimeThisDay = false;
 
             foreach ($dayEntries as $entry) {
                 $resolvedLate = $this->resolvedLateForEntry($entry, $policy);
@@ -156,9 +168,26 @@ class EmployeeLoadPayrollService
                 } elseif ($entry->time_in !== null && $entry->time_in !== '') {
                     $workedThisDay = true;
                     $lateMinutes += $resolvedLate['billable_minutes'];
+
+                    if ($resolvedLate['billable_minutes'] > 0) {
+                        $lateThisDay = true;
+                    }
                 }
 
-                $undertimeMinutes += $this->resolvedUndertimeForEntry($entry, $policy)['billable_minutes'];
+                $undertimeBillable = $this->resolvedUndertimeForEntry($entry, $policy)['billable_minutes'];
+                $undertimeMinutes += $undertimeBillable;
+
+                if ($undertimeBillable > 0) {
+                    $undertimeThisDay = true;
+                }
+            }
+
+            if ($lateThisDay) {
+                $lateDays++;
+            }
+
+            if ($undertimeThisDay) {
+                $undertimeDays++;
             }
 
             if ($workedThisDay) {
@@ -196,6 +225,8 @@ class EmployeeLoadPayrollService
             'undertime_minutes' => $undertimeMinutes,
             'undertime_deduction' => round($undertimeDeduction, 2),
             'absent_sessions' => $absentSessions,
+            'late_days' => $lateDays,
+            'undertime_days' => $undertimeDays,
         ];
     }
 
@@ -442,6 +473,46 @@ class EmployeeLoadPayrollService
         }
 
         return $total;
+    }
+
+    /**
+     * @param  Collection<int, RawEmployeeLoadEntry>  $entries
+     */
+    public function countLateDays(Collection $entries, ?TimekeepingPolicy $policy = null): int
+    {
+        return $entries
+            ->groupBy(fn (RawEmployeeLoadEntry $entry) => $entry->session_date?->toDateString())
+            ->filter(function (Collection $dayEntries) use ($policy) {
+                foreach ($dayEntries as $entry) {
+                    $resolved = $this->resolvedLateForEntry($entry, $policy);
+
+                    if (! $resolved['is_absent'] && $resolved['billable_minutes'] > 0) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
+            ->count();
+    }
+
+    /**
+     * @param  Collection<int, RawEmployeeLoadEntry>  $entries
+     */
+    public function countUndertimeDays(Collection $entries, ?TimekeepingPolicy $policy = null): int
+    {
+        return $entries
+            ->groupBy(fn (RawEmployeeLoadEntry $entry) => $entry->session_date?->toDateString())
+            ->filter(function (Collection $dayEntries) use ($policy) {
+                foreach ($dayEntries as $entry) {
+                    if ($this->resolvedUndertimeForEntry($entry, $policy)['billable_minutes'] > 0) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
+            ->count();
     }
 
     /**

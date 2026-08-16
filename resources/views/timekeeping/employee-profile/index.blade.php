@@ -7,6 +7,8 @@
     @include('partials.page-header', [
         'title' => 'Employee Profile',
         'description' => 'Configure timekeeping settings for each employee — holiday group, shift code, policy, and rest days.',
+        'actionModalId' => auth()->user()?->can('employee-profile.update') ? 'employee-profile-upload-modal' : null,
+        'actionLabel' => 'Upload',
     ])
 
     @include('partials.live-data-table', [
@@ -24,4 +26,29 @@
             'openViewEmployeeId' => $openViewEmployeeId ?? null,
         ])->render(),
     ])
+
+    @can('employee-profile.update')
+        @include('partials.modal', [
+            'id' => 'employee-profile-upload-modal',
+            'title' => 'Upload Employee Setup',
+            'description' => 'Download the pre-filled template, update holiday group, policy, shift code, rest days, and flags, then upload.',
+            'open' => $openUpload ?? false,
+            'panelClass' => 'max-w-2xl',
+            'body' => view('timekeeping.employee-profile._upload-form')->render(),
+        ])
+
+        @if ($openPreview ?? false)
+            @include('partials.modal', [
+                'id' => 'employee-profile-upload-preview-modal',
+                'title' => 'Upload Preview',
+                'description' => 'Review valid rows and errors before updating employee timekeeping setup.',
+                'open' => true,
+                'panelClass' => 'max-w-5xl',
+                'body' => view('timekeeping.employee-profile._upload-preview', [
+                    'staging' => $staging ?? null,
+                    'stagingToken' => $stagingToken ?? null,
+                ])->render(),
+            ])
+        @endif
+    @endcan
 @endsection

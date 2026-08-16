@@ -2,11 +2,18 @@
 
 namespace App\Services;
 
+use App\Support\DesktopSqliteToMysqlImporter;
 use App\Support\MysqlToSqliteDumpConverter;
+use Database\Seeders\ModuleSeeder;
+use Database\Seeders\ReportSeeder;
+use Database\Seeders\RoleModuleSeeder;
+use Database\Seeders\SubModuleSeeder;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -22,10 +29,46 @@ class DatabaseBackupService
         File::ensureDirectoryExists($backupDir);
 
         return match ($driver) {
-            'sqlite' => $this->backupSqlite($backupDir, $filename),
-            'mysql', 'mariadb' => $this->backupMysql($backupDir, $filename),
+            'sqlite' => $this->backupSqlite($backupDir, $filename, excludeModuleCatalog: true),
+            'mysql', 'mariadb' => $this->backupMysql($backupDir, $filename, excludeModuleCatalog: true),
             default => throw new RuntimeException("Database backup is not supported for driver [{$driver}]."),
         };
+    }
+
+    /**
+     * Run after a successful SQL restore: migrate schema, then sync module catalog from seeders.
+     */
+    public function finalizeRestoredDatabase(): void
+    {
+        $this->reconcileModuleCatalogSchemaAfterRestore();
+
+        try {
+            Artisan::call('migrate', ['--force' => true, '--no-interaction' => true]);
+        } catch (\Throwable $exception) {
+            Log::warning('Post-restore migrate failed.', ['message' => $exception->getMessage()]);
+        }
+
+        $this->refreshModuleCatalogAfterRestore();
+        $this->ensureReportCatalogIfMissing();
+        $this->resetDesktopBootstrapVersionMarker();
+    }
+
+    /**
+     * Heal desktop DBs left without module tables after an older SQL restore (500 on dashboard).
+     */
+    public function repairModuleCatalogIfMissing(): void
+    {
+        $this->reconcileModuleCatalogSchemaAfterRestore();
+
+        if (! Schema::hasTable('tbl_modules')) {
+            return;
+        }
+
+        if ((int) DB::table('tbl_modules')->count() < 1) {
+            $this->refreshModuleCatalogAfterRestore();
+        }
+
+        $this->ensureReportCatalogIfMissing();
     }
 
     /**
@@ -75,6 +118,10 @@ class DatabaseBackupService
 
         $driver = DB::connection()->getDriverName();
 
+        if (in_array($driver, ['mysql', 'mariadb'], true) && $this->sqlDumpLooksLikeSqlite($sqlFilePath)) {
+            return $this->restoreMysqlFromDesktopSqliteDump($sqlFilePath);
+        }
+
         return match ($driver) {
             'sqlite' => $this->restoreSqliteFromFile($sqlFilePath),
             'mysql', 'mariadb' => $this->restoreMysqlFromFile($sqlFilePath),
@@ -107,7 +154,7 @@ class DatabaseBackupService
         $this->prepareSqliteImportFile($sqlFilePath, $stableImportPath);
 
         // Always take a safety backup we can roll back to before touching the live DB.
-        $safetyBackup = $this->create();
+        $safetyBackup = $this->createSafetySnapshot();
 
         try {
             // Validate the dump against a throwaway DB first. A bad or wrong-format file
@@ -179,6 +226,8 @@ class DatabaseBackupService
             $sql = (new MysqlToSqliteDumpConverter)->convert($sql);
         }
 
+        $sql = $this->stripModuleCatalogFromSqlDump($sql);
+
         File::put($destinationPath, $sql);
     }
 
@@ -245,6 +294,60 @@ class DatabaseBackupService
     /**
      * @return array{safety_backup: string, bytes: int}
      */
+    private function restoreMysqlFromDesktopSqliteDump(string $sqlFilePath): array
+    {
+        $this->assertDumpRestorable($sqlFilePath);
+
+        $bytes = File::size($sqlFilePath);
+        $safetyBackup = $this->createSafetySnapshot();
+
+        $importDir = storage_path('app/backups/imports');
+        File::ensureDirectoryExists($importDir);
+
+        $preparedPath = $importDir.DIRECTORY_SEPARATOR.'mysql-bridge-prepared-'.uniqid('', true).'.sql';
+        $tempSqlite = $importDir.DIRECTORY_SEPARATOR.'mysql-bridge-'.uniqid('', true).'.sqlite';
+
+        File::put($tempSqlite, '');
+
+        try {
+            $this->prepareSqliteImportFile($sqlFilePath, $preparedPath);
+            $this->importSqliteDumpFromFile($tempSqlite, $preparedPath);
+            $this->assertSqliteHasTables($tempSqlite);
+
+            (new DesktopSqliteToMysqlImporter)->import($tempSqlite);
+
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+
+            foreach ($this->moduleCatalogTablesExcludedFromDump() as $table) {
+                if (Schema::hasTable($table)) {
+                    DB::table($table)->truncate();
+                }
+            }
+
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+
+            DB::purge((string) config('database.default'));
+            DB::reconnect();
+
+            return [
+                'safety_backup' => $safetyBackup['filename'],
+                'bytes' => $bytes,
+            ];
+        } catch (\Throwable $exception) {
+            throw new RuntimeException(
+                'Desktop backup import to MySQL failed: '.$exception->getMessage(),
+                0,
+                $exception,
+            );
+        } finally {
+            foreach ([$preparedPath, $tempSqlite, $tempSqlite.'-wal', $tempSqlite.'-shm', $tempSqlite.'-journal'] as $path) {
+                if (File::exists($path)) {
+                    @unlink($path);
+                }
+            }
+        }
+    }
+
     private function restoreMysqlFromFile(string $sqlFilePath): array
     {
         $sql = File::get($sqlFilePath);
@@ -253,7 +356,9 @@ class DatabaseBackupService
             throw new RuntimeException('SQL file is empty.');
         }
 
-        $safetyBackup = $this->create();
+        $sql = $this->stripModuleCatalogFromSqlDump($sql);
+
+        $safetyBackup = $this->createSafetySnapshot();
         $connectionName = (string) config('database.default', 'mysql');
         $config = DB::connection($connectionName)->getConfig();
 
@@ -291,7 +396,7 @@ class DatabaseBackupService
         ];
     }
 
-    private function backupSqlite(string $backupDir, string $filename): array
+    private function backupSqlite(string $backupDir, string $filename, bool $excludeModuleCatalog = true): array
     {
         $databasePath = DB::connection()->getDatabaseName();
 
@@ -301,7 +406,7 @@ class DatabaseBackupService
 
         $destination = $backupDir.DIRECTORY_SEPARATOR.$filename;
 
-        $this->exportSqliteAsSql($databasePath, $destination);
+        $this->exportSqliteAsSql($databasePath, $destination, $excludeModuleCatalog);
 
         return [
             'driver' => 'sqlite',
@@ -312,7 +417,27 @@ class DatabaseBackupService
         ];
     }
 
-    private function exportSqliteAsSql(string $sourcePath, string $destinationPath): void
+    /**
+     * Full database snapshot before restore (includes module catalog for rollback).
+     *
+     * @return array{driver: string, path: string, filename: string, mime: string, size: int}
+     */
+    private function createSafetySnapshot(): array
+    {
+        $driver = DB::connection()->getDriverName();
+        $filename = 'pulse-db-safety-'.now()->format('Y-m-d-H-i-s').'-'.uniqid('', true).'.sql';
+        $backupDir = storage_path('app/backups');
+
+        File::ensureDirectoryExists($backupDir);
+
+        return match ($driver) {
+            'sqlite' => $this->backupSqlite($backupDir, $filename, excludeModuleCatalog: false),
+            'mysql', 'mariadb' => $this->backupMysql($backupDir, $filename, excludeModuleCatalog: false),
+            default => throw new RuntimeException("Database backup is not supported for driver [{$driver}]."),
+        };
+    }
+
+    private function exportSqliteAsSql(string $sourcePath, string $destinationPath, bool $excludeModuleCatalog = true): void
     {
         if (File::exists($destinationPath)) {
             File::delete($destinationPath);
@@ -324,13 +449,22 @@ class DatabaseBackupService
             $result = Process::timeout(300)->run([$sqlite3, $sourcePath, '.dump']);
 
             if ($result->successful() && filled(trim($result->output()))) {
-                File::put($destinationPath, $result->output());
+                $sql = $result->output();
+
+                if ($excludeModuleCatalog) {
+                    $sql = $this->stripModuleCatalogFromSqlDump($sql);
+                }
+
+                File::put($destinationPath, $sql);
 
                 return;
             }
         }
 
-        File::put($destinationPath, $this->buildSqliteSqlDump($sourcePath));
+        File::put(
+            $destinationPath,
+            $this->buildSqliteSqlDump($sourcePath, $excludeModuleCatalog),
+        );
     }
 
     private function resolveSqlite3Binary(): ?string
@@ -501,11 +635,13 @@ class DatabaseBackupService
         }
     }
 
-    private function buildSqliteSqlDump(string $databasePath): string
+    private function buildSqliteSqlDump(string $databasePath, bool $excludeModuleCatalog = true): string
     {
         $pdo = new \PDO('sqlite:'.$databasePath, null, null, [
             \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
         ]);
+
+        $excluded = $excludeModuleCatalog ? $this->moduleCatalogTablesExcludedFromDump() : [];
 
         $lines = [
             'PRAGMA foreign_keys=OFF;',
@@ -517,11 +653,16 @@ class DatabaseBackupService
         )->fetchAll(\PDO::FETCH_ASSOC);
 
         foreach ($tables as $table) {
+            $tableName = (string) $table['name'];
+
+            if (in_array($tableName, $excluded, true)) {
+                continue;
+            }
+
             if (! empty($table['sql'])) {
                 $lines[] = $table['sql'].';';
             }
 
-            $tableName = $table['name'];
             $columns = $pdo->query('PRAGMA table_info("'.str_replace('"', '""', $tableName).'")')
                 ->fetchAll(\PDO::FETCH_ASSOC);
 
@@ -551,6 +692,10 @@ class DatabaseBackupService
         )->fetchAll(\PDO::FETCH_COLUMN);
 
         foreach ($indexes as $indexSql) {
+            if ($excludeModuleCatalog && $this->sqlStatementReferencesExcludedCatalogTable((string) $indexSql)) {
+                continue;
+            }
+
             $lines[] = $indexSql.';';
         }
 
@@ -580,7 +725,7 @@ class DatabaseBackupService
         return "'".str_replace("'", "''", $value)."'";
     }
 
-    private function backupMysql(string $backupDir, string $filename): array
+    private function backupMysql(string $backupDir, string $filename, bool $excludeModuleCatalog = true): array
     {
         $config = DB::connection()->getConfig();
         $destination = $backupDir.DIRECTORY_SEPARATOR.$filename;
@@ -593,8 +738,19 @@ class DatabaseBackupService
             '--single-transaction',
             '--routines',
             '--triggers',
-            $config['database'] ?? '',
         ];
+
+        if ($excludeModuleCatalog) {
+            $database = (string) ($config['database'] ?? '');
+
+            foreach ($this->moduleCatalogTablesExcludedFromDump() as $table) {
+                if ($database !== '') {
+                    $command[] = '--ignore-table='.$database.'.'.$table;
+                }
+            }
+        }
+
+        $command[] = $config['database'] ?? '';
 
         $environment = [];
 
@@ -879,6 +1035,206 @@ class DatabaseBackupService
         }
 
         return $statements;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function moduleCatalogTablesExcludedFromDump(): array
+    {
+        $tables = config('backup.exclude_tables_from_dump', []);
+
+        return is_array($tables) ? array_values(array_filter($tables, 'is_string')) : [];
+    }
+
+    private function stripModuleCatalogFromSqlDump(string $sql): string
+    {
+        $lines = preg_split('/\R/', $sql) ?: [];
+        $filtered = [];
+
+        foreach ($lines as $line) {
+            if ($this->sqlDumpLineReferencesExcludedCatalogTable($line)) {
+                continue;
+            }
+
+            $filtered[] = $line;
+        }
+
+        return implode(PHP_EOL, $filtered);
+    }
+
+    private function sqlDumpLineReferencesExcludedCatalogTable(string $line): bool
+    {
+        $trimmed = trim($line);
+
+        if ($trimmed === '' || str_starts_with($trimmed, '--')) {
+            return false;
+        }
+
+        foreach ($this->moduleCatalogTablesExcludedFromDump() as $table) {
+            if ($this->sqlStatementReferencesExcludedCatalogTable($trimmed, $table)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function sqlStatementReferencesExcludedCatalogTable(string $sql, ?string $onlyTable = null): bool
+    {
+        $tables = $onlyTable !== null
+            ? [$onlyTable]
+            : $this->moduleCatalogTablesExcludedFromDump();
+
+        foreach ($tables as $table) {
+            $quoted = preg_quote($table, '/');
+
+            if (preg_match('/^CREATE TABLE(?: IF NOT EXISTS)? (?:[`"\[]?'.$quoted.'[`"\]]?)/i', $sql)) {
+                return true;
+            }
+
+            if (preg_match('/^INSERT INTO (?:[`"\[]?'.$quoted.'[`"\]]?)/i', $sql)) {
+                return true;
+            }
+
+            if (preg_match('/^CREATE (?:UNIQUE )?INDEX (?:[`"\[]?[^`"\[]+[`"\]]? )?ON (?:[`"\[]?'.$quoted.'[`"\]]?)/i', $sql)) {
+                return true;
+            }
+
+            if (preg_match('/^DROP TABLE(?: IF EXISTS)? (?:[`"\[]?'.$quoted.'[`"\]]?)/i', $sql)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function refreshModuleCatalogAfterRestore(): void
+    {
+        foreach ([ModuleSeeder::class, SubModuleSeeder::class, RoleModuleSeeder::class] as $seederClass) {
+            try {
+                Artisan::call('db:seed', [
+                    '--class' => $seederClass,
+                    '--force' => true,
+                    '--no-interaction' => true,
+                ]);
+            } catch (\Throwable $exception) {
+                Log::warning('Post-restore module catalog seed failed.', [
+                    'seeder' => $seederClass,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * SQL dumps omit module catalog tables but keep the old `migrations` rows, so a plain
+     * `migrate` skips recreating tbl_modules / sys_sub_modules and the app 500s on login.
+     */
+    private function reconcileModuleCatalogSchemaAfterRestore(): void
+    {
+        $catalogTables = $this->moduleCatalogTablesExcludedFromDump();
+
+        if ($catalogTables === []) {
+            return;
+        }
+
+        $missingTables = array_values(array_filter(
+            $catalogTables,
+            fn (string $table) => ! Schema::hasTable($table),
+        ));
+
+        if ($missingTables === []) {
+            return;
+        }
+
+        if (! Schema::hasTable('migrations')) {
+            return;
+        }
+
+        Log::info('Post-restore module catalog tables missing; re-running module migrations.', [
+            'missing' => $missingTables,
+        ]);
+
+        $moduleMigrationNames = [
+            '2026_06_08_120000_create_tbl_modules_table',
+            '2026_06_08_130000_create_tbl_role_modules_table',
+            '2026_06_09_140000_create_sys_sub_modules_table',
+            '2026_06_09_140001_make_tbl_modules_route_name_nullable',
+            '2026_06_09_150000_create_tbl_role_sub_modules_table',
+        ];
+
+        DB::table('migrations')->whereIn('migration', $moduleMigrationNames)->delete();
+
+        try {
+            Artisan::call('migrate', ['--force' => true, '--no-interaction' => true]);
+        } catch (\Throwable $exception) {
+            Log::warning('Post-restore module catalog migration failed.', [
+                'message' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * SQL backups include report table schema but usually no catalog rows — Payroll Reports 404s without this.
+     */
+    public function ensureReportCatalogIfMissing(): void
+    {
+        if (! Schema::hasTable('lu_report_classifications')) {
+            return;
+        }
+
+        $classificationCount = (int) DB::table('lu_report_classifications')->count();
+        $reportCount = Schema::hasTable('tbl_reports')
+            ? (int) DB::table('tbl_reports')->count()
+            : 0;
+
+        if ($classificationCount > 0 && $reportCount > 0) {
+            return;
+        }
+
+        try {
+            Artisan::call('db:seed', [
+                '--class' => ReportSeeder::class,
+                '--force' => true,
+                '--no-interaction' => true,
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('Post-restore report catalog seed failed.', [
+                'message' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    private function resetDesktopBootstrapVersionMarker(): void
+    {
+        $markers = [
+            storage_path('app/.desktop-bootstrap-version'),
+            storage_path('app/.desktop-schema-state'),
+            storage_path('app/.desktop-govt-tables-version'),
+        ];
+
+        foreach ($markers as $markerPath) {
+            if (File::exists($markerPath)) {
+                File::delete($markerPath);
+            }
+        }
+    }
+
+    private function sqlDumpLooksLikeSqlite(string $sqlFilePath): bool
+    {
+        if (! File::exists($sqlFilePath)) {
+            return false;
+        }
+
+        $head = ltrim((string) File::get($sqlFilePath, false, null, 0, 8192));
+
+        if ($head === '') {
+            return false;
+        }
+
+        return str_starts_with($head, 'PRAGMA ')
+            || str_contains($head, 'sqlite_master');
     }
 
 }

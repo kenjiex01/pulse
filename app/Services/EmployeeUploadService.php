@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Employee;
+use App\Models\EmployeeEmploymentInformation;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -26,45 +27,68 @@ class EmployeeUploadService
     public function __construct(private readonly EmployeeUploadRowMapper $rowMapper) {}
 
     /**
+     * @return array<string, array<string, mixed>>
+     */
+    public function uploadTypes(): array
+    {
+        return (array) config('employee_upload.upload_types', []);
+    }
+
+    public function normalizeUploadType(string $uploadType): string
+    {
+        return array_key_exists($uploadType, $this->uploadTypes()) ? $uploadType : 'master-file';
+    }
+
+    private function configNameFor(string $uploadType): string
+    {
+        $meta = $this->uploadTypes()[$this->normalizeUploadType($uploadType)] ?? [];
+
+        return (string) ($meta['config'] ?? 'employee_upload');
+    }
+
+    /**
      * @return array<int, array{alias: string, label: string}>
      */
-    public function columns(): array
+    public function columns(string $uploadType = 'master-file'): array
     {
-        return (array) config('employee_upload.columns', []);
+        return (array) config($this->configNameFor($uploadType).'.columns', []);
     }
 
     /**
      * @return array<int, string>
      */
-    public function aliases(): array
+    public function aliases(string $uploadType = 'master-file'): array
     {
-        return array_column($this->columns(), 'alias');
+        return array_column($this->columns($uploadType), 'alias');
     }
 
     /**
      * @return array<int, string>
      */
-    public function labels(): array
+    public function labels(string $uploadType = 'master-file'): array
     {
-        return array_column($this->columns(), 'label');
+        return array_column($this->columns($uploadType), 'label');
     }
 
-    public function templateFilePath(): string
+    public function templateFilePath(string $uploadType = 'master-file'): string
     {
-        $bundled = resource_path('templates/employee_upload_template.xlsx');
+        $uploadType = $this->normalizeUploadType($uploadType);
+        $meta = $this->uploadTypes()[$uploadType] ?? [];
+        $filename = (string) ($meta['template_filename'] ?? 'employee_upload_template.xlsx');
+        $bundled = resource_path('templates/'.$filename);
 
         if (is_readable($bundled)) {
             return $bundled;
         }
 
-        $cached = storage_path('app/templates/employee_upload_template.xlsx');
+        $cached = storage_path('app/templates/'.$filename);
 
         if (is_readable($cached)) {
             return $cached;
         }
 
         File::ensureDirectoryExists(dirname($cached));
-        File::put($cached, $this->buildTemplateBinary());
+        File::put($cached, $this->buildTemplateBinary($uploadType));
 
         return $cached;
     }
@@ -72,10 +96,11 @@ class EmployeeUploadService
     /**
      * @return array<string, string>
      */
-    public function sampleRowValues(): array
+    public function sampleRowValues(string $uploadType = 'master-file'): array
     {
-        $sample = (array) config('employee_upload.sample_row', []);
-        $aliases = $this->aliases();
+        $configName = $this->configNameFor($uploadType);
+        $sample = (array) config("{$configName}.sample_row", []);
+        $aliases = $this->aliases($uploadType);
 
         return array_merge(
             array_fill_keys($aliases, ''),
@@ -83,11 +108,11 @@ class EmployeeUploadService
         );
     }
 
-    public function buildTemplateContent(): string
+    public function buildTemplateContent(string $uploadType = 'master-file'): string
     {
-        $aliases = $this->aliases();
-        $labels = $this->labels();
-        $sample = $this->sampleRowValues();
+        $aliases = $this->aliases($uploadType);
+        $labels = $this->labels($uploadType);
+        $sample = $this->sampleRowValues($uploadType);
         $sampleRow = array_map(fn (string $alias) => $sample[$alias] ?? '', $aliases);
 
         return $this->formatCsvRow($aliases)."\n"
@@ -95,16 +120,17 @@ class EmployeeUploadService
             .$this->formatCsvRow($sampleRow)."\n";
     }
 
-    public function buildTemplateBinary(): string
+    public function buildTemplateBinary(string $uploadType = 'master-file'): string
     {
-        $aliases = $this->aliases();
-        $labels = $this->labels();
-        $sample = $this->sampleRowValues();
+        $uploadType = $this->normalizeUploadType($uploadType);
+        $aliases = $this->aliases($uploadType);
+        $labels = $this->labels($uploadType);
+        $sample = $this->sampleRowValues($uploadType);
         $sampleRow = array_map(fn (string $alias) => $sample[$alias] ?? '', $aliases);
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Employee Upload');
+        $sheet->setTitle($uploadType === 'employee-salary' ? 'Employee Salary Upload' : 'Employee Upload');
 
         foreach ([$aliases, $labels, $sampleRow] as $rowIndex => $rowData) {
             foreach ($rowData as $colIndex => $value) {
@@ -141,17 +167,21 @@ class EmployeeUploadService
      *     error_count: int
      * }
      */
-    public function parseUploadedFile(UploadedFile $file): array
-    {
+    public function parseUploadedFile(
+        UploadedFile $file,
+        string $uploadType = 'master-file',
+        bool $disableRequiredFields = false,
+    ): array {
         $this->assertAllowedFile($file);
+        $uploadType = $this->normalizeUploadType($uploadType);
 
         $extension = strtolower($file->getClientOriginalExtension());
 
         if (in_array($extension, ['xlsx', 'xls'], true)) {
-            return $this->parseSpreadsheetFile($file);
+            return $this->parseSpreadsheetFile($file, $uploadType, $disableRequiredFields);
         }
 
-        return $this->parseDelimitedFile($file);
+        return $this->parseDelimitedFile($file, $uploadType, $disableRequiredFields);
     }
 
     /**
@@ -163,10 +193,10 @@ class EmployeeUploadService
      *     error_count: int
      * }
      */
-    private function parseDelimitedFile(UploadedFile $file): array
+    private function parseDelimitedFile(UploadedFile $file, string $uploadType, bool $disableRequiredFields = false): array
     {
-        $aliases = $this->aliases();
-        $labels = $this->labels();
+        $aliases = $this->aliases($uploadType);
+        $labels = $this->labels($uploadType);
 
         $handle = fopen($file->getRealPath(), 'r');
 
@@ -183,7 +213,7 @@ class EmployeeUploadService
 
         fclose($handle);
 
-        return $this->parseRowMatrix($matrix, $aliases, $labels, $file->getClientOriginalName());
+        return $this->parseRowMatrix($matrix, $aliases, $labels, $file->getClientOriginalName(), $uploadType, $disableRequiredFields);
     }
 
     /**
@@ -195,7 +225,7 @@ class EmployeeUploadService
      *     error_count: int
      * }
      */
-    private function parseSpreadsheetFile(UploadedFile $file): array
+    private function parseSpreadsheetFile(UploadedFile $file, string $uploadType, bool $disableRequiredFields = false): array
     {
         try {
             $spreadsheet = IOFactory::load($file->getRealPath());
@@ -207,9 +237,11 @@ class EmployeeUploadService
 
         return $this->parseRowMatrix(
             $matrix,
-            $this->aliases(),
-            $this->labels(),
+            $this->aliases($uploadType),
+            $this->labels($uploadType),
             $file->getClientOriginalName(),
+            $uploadType,
+            $disableRequiredFields,
         );
     }
 
@@ -225,14 +257,21 @@ class EmployeeUploadService
      *     error_count: int
      * }
      */
-    private function parseRowMatrix(array $matrix, array $aliases, array $labels, string $filename): array
-    {
+    private function parseRowMatrix(
+        array $matrix,
+        array $aliases,
+        array $labels,
+        string $filename,
+        string $uploadType = 'master-file',
+        bool $disableRequiredFields = false,
+    ): array {
         $valid = [];
         $errors = [];
         $seenNumbers = [];
         $seenEmails = [];
+        $seenSalaryKeys = [];
         $lineNumber = 0;
-        $headerMatched = false;
+        $columnMap = null;
 
         foreach ($matrix as $cells) {
             $lineNumber++;
@@ -247,25 +286,32 @@ class EmployeeUploadService
                 continue;
             }
 
-            if (! $headerMatched) {
-                if ($this->matchesRow($cells, $aliases) || $this->matchesRow($cells, $labels)) {
-                    $headerMatched = true;
-                }
+            if ($columnMap === null) {
+                $columnMap = $this->resolveHeaderColumnMap($cells, $aliases, $labels, $uploadType, $disableRequiredFields);
 
                 continue;
             }
 
-            if ($this->matchesRow($cells, $aliases) || $this->matchesRow($cells, $labels)) {
+            if ($this->resolveHeaderColumnMap($cells, $aliases, $labels, $uploadType, $disableRequiredFields) !== null) {
                 continue;
             }
 
             $row = [];
 
-            foreach ($aliases as $index => $alias) {
-                $row[$alias] = trim((string) ($cells[$index] ?? ''));
+            foreach ($aliases as $alias) {
+                $index = $columnMap[$alias] ?? null;
+                $row[$alias] = $index === null ? '' : trim((string) ($cells[$index] ?? ''));
             }
 
-            $rowErrors = $this->validateRow($row, $lineNumber, $seenNumbers, $seenEmails);
+            $rowErrors = $this->validateRow(
+                $row,
+                $lineNumber,
+                $seenNumbers,
+                $seenEmails,
+                $seenSalaryKeys,
+                $uploadType,
+                $disableRequiredFields,
+            );
 
             if ($rowErrors['errors'] !== []) {
                 foreach ($rowErrors['errors'] as $message) {
@@ -278,9 +324,13 @@ class EmployeeUploadService
             $valid[] = $rowErrors['payload'];
         }
 
-        if (! $headerMatched) {
+        if ($columnMap === null) {
+            $message = $uploadType === 'employee-salary'
+                ? 'Invalid salary upload template header. Download the latest Employee Salary template from Employees → Upload.'
+                : 'Invalid template header. Download the latest template from Employees → Upload (or keep employee_number and email columns).';
+
             throw ValidationException::withMessages([
-                'upload_file' => 'Invalid template header. Download the latest template and do not change the first two header rows.',
+                'upload_file' => $message,
             ]);
         }
 
@@ -290,7 +340,111 @@ class EmployeeUploadService
             'filename' => $filename,
             'valid_count' => count($valid),
             'error_count' => count($errors),
+            'upload_type' => $uploadType,
+            'disable_required_fields' => $disableRequiredFields,
         ];
+    }
+
+    /**
+     * Map header cells to current template aliases.
+     * Supports legacy aliases such as salary_date_effective → salary_date_effective_from.
+     *
+     * @param  array<int, string>  $cells
+     * @param  array<int, string>  $aliases
+     * @param  array<int, string>  $labels
+     * @return array<string, int>|null
+     */
+    private function resolveHeaderColumnMap(
+        array $cells,
+        array $aliases,
+        array $labels,
+        string $uploadType = 'master-file',
+        bool $disableRequiredFields = false,
+    ): ?array {
+        $aliasByNormalized = [];
+
+        foreach ($aliases as $alias) {
+            $aliasByNormalized[$this->normalizeHeaderKey($alias)] = $alias;
+        }
+
+        foreach ($labels as $index => $label) {
+            $alias = $aliases[$index] ?? null;
+            if ($alias === null) {
+                continue;
+            }
+
+            $aliasByNormalized[$this->normalizeHeaderKey($label)] = $alias;
+        }
+
+        foreach ($this->legacyHeaderAliases($uploadType) as $legacy => $current) {
+            $aliasByNormalized[$this->normalizeHeaderKey($legacy)] = $current;
+        }
+
+        $map = [];
+
+        foreach ($cells as $index => $cell) {
+            $key = $this->normalizeHeaderKey((string) $cell);
+            if ($key === '' || ! isset($aliasByNormalized[$key])) {
+                continue;
+            }
+
+            $alias = $aliasByNormalized[$key];
+            if (! array_key_exists($alias, $map)) {
+                $map[$alias] = (int) $index;
+            }
+        }
+
+        foreach ($this->requiredHeaderAliases($uploadType, $disableRequiredFields) as $alias) {
+            if (! array_key_exists($alias, $map)) {
+                return null;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function requiredHeaderAliases(string $uploadType, bool $disableRequiredFields = false): array
+    {
+        if ($uploadType === 'employee-salary') {
+            return ['employee_number', 'date_effective_from', 'pay_type'];
+        }
+
+        if ($disableRequiredFields) {
+            return ['employee_number', 'email'];
+        }
+
+        return ['employee_number', 'first_name', 'last_name', 'email'];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function legacyHeaderAliases(string $uploadType = 'master-file'): array
+    {
+        $legacy = [
+            'salary_date_effective' => 'salary_date_effective_from',
+            'salary2_date_effective' => 'salary2_date_effective_from',
+            'Salary Effectivity (YYYY-MM-DD or M/D/YYYY)' => 'salary_date_effective_from',
+            'Salary 2 Effectivity (YYYY-MM-DD or M/D/YYYY)' => 'salary2_date_effective_from',
+        ];
+
+        if ($uploadType === 'employee-salary') {
+            $legacy['date_effective'] = 'date_effective_from';
+            $legacy['Salary Effectivity From (YYYY-MM-DD or M/D/YYYY)'] = 'date_effective_from';
+        }
+
+        return $legacy;
+    }
+
+    private function normalizeHeaderKey(string $value): string
+    {
+        $value = strtolower(trim($value));
+        $value = str_replace(["\u{00A0}", "\t"], ' ', $value);
+
+        return preg_replace('/\s+/', ' ', $value) ?? $value;
     }
 
     /**
@@ -304,8 +458,15 @@ class EmployeeUploadService
         int $lineNumber,
         array &$seenNumbers,
         array &$seenEmails,
+        array &$seenSalaryKeys,
+        string $uploadType = 'master-file',
+        bool $disableRequiredFields = false,
     ): array {
-        return $this->rowMapper->mapRow($row, $lineNumber, $seenNumbers, $seenEmails);
+        if ($uploadType === 'employee-salary') {
+            return $this->rowMapper->mapSalaryUploadRow($row, $lineNumber, $seenSalaryKeys);
+        }
+
+        return $this->rowMapper->mapRow($row, $lineNumber, $seenNumbers, $seenEmails, $disableRequiredFields);
     }
 
     /**
@@ -336,7 +497,7 @@ class EmployeeUploadService
     }
 
     /**
-     * @return array{created: int, employee_ids: array<int, int>}
+     * @return array{created: int, updated: int, employee_ids: array<int, int>}
      */
     public function commit(User $user, string $token): array
     {
@@ -346,19 +507,75 @@ class EmployeeUploadService
             throw new RuntimeException('No valid staged records to import.');
         }
 
+        if (($staging['upload_type'] ?? 'master-file') === 'employee-salary') {
+            return $this->commitSalaryUpload($user, $token, $staging);
+        }
+
         $createdIds = [];
+        $updatedIds = [];
 
-        DB::transaction(function () use ($staging, &$createdIds) {
+        DB::transaction(function () use ($staging, &$createdIds, &$updatedIds) {
             foreach ($staging['valid'] as $payload) {
-                $employee = Employee::query()->create($payload['employee']);
+                $existingId = (int) ($payload['existing_employee_id'] ?? 0);
+                $isUpdate = $existingId > 0;
+                $employeeAttributes = (array) ($payload['employee'] ?? []);
 
-                EmployeeEmploymentSync::sync($employee, $payload['employment_informations']);
-                EmployeeCampusAssignmentSync::sync($employee, $payload['campus_assignments']);
-                EmployeeSalarySync::sync(
-                    $employee,
-                    $payload['employee_salaries'],
-                    (bool) ($payload['is_hybrid'] ?? false),
-                );
+                if ($isUpdate) {
+                    $employee = Employee::query()->findOrFail($existingId);
+                    $oldSnapshot = $employee->logSnapshot();
+
+                    if ($employeeAttributes !== []) {
+                        $employee->fill($employeeAttributes);
+                        $employee->save();
+                    }
+
+                    if (! empty($payload['sync_employment'])) {
+                        EmployeeEmploymentSync::sync($employee, $payload['employment_informations'] ?? []);
+                    }
+
+                    if (! empty($payload['sync_campus'])) {
+                        EmployeeCampusAssignmentSync::sync($employee, $payload['campus_assignments'] ?? []);
+                    }
+
+                    if (! empty($payload['sync_salary'])) {
+                        EmployeeSalarySync::sync(
+                            $employee,
+                            $payload['employee_salaries'] ?? [],
+                            (bool) ($payload['is_hybrid'] ?? $employee->is_hybrid),
+                        );
+                    }
+
+                    SysLogService::record(
+                        action: 'edit',
+                        table: 'tbl_employees',
+                        recordId: $employee->employee_id,
+                        oldValues: $oldSnapshot,
+                        newValues: $employee->fresh()->logSnapshot(),
+                        description: 'Updated employee via upload: '.$employee->employee_number,
+                    );
+
+                    $updatedIds[] = $employee->employee_id;
+
+                    continue;
+                }
+
+                $employee = Employee::query()->create($employeeAttributes);
+
+                if (! empty($payload['sync_employment']) || empty($payload['disable_required_fields'])) {
+                    EmployeeEmploymentSync::sync($employee, $payload['employment_informations'] ?? []);
+                }
+
+                if (! empty($payload['sync_campus']) || empty($payload['disable_required_fields'])) {
+                    EmployeeCampusAssignmentSync::sync($employee, $payload['campus_assignments'] ?? []);
+                }
+
+                if (! empty($payload['sync_salary']) || empty($payload['disable_required_fields'])) {
+                    EmployeeSalarySync::sync(
+                        $employee,
+                        $payload['employee_salaries'] ?? [],
+                        (bool) ($payload['is_hybrid'] ?? false),
+                    );
+                }
 
                 SysLogService::record(
                     action: 'create',
@@ -376,7 +593,43 @@ class EmployeeUploadService
 
         return [
             'created' => count($createdIds),
-            'employee_ids' => $createdIds,
+            'updated' => count($updatedIds),
+            'employee_ids' => array_values(array_unique([...$createdIds, ...$updatedIds])),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $staging
+     * @return array{updated: int, employee_ids: array<int, int>}
+     */
+    private function commitSalaryUpload(User $user, string $token, array $staging): array
+    {
+        $employeeIds = [];
+
+        DB::transaction(function () use ($staging, &$employeeIds) {
+            foreach ($staging['valid'] as $payload) {
+                $employment = EmployeeEmploymentInformation::query()
+                    ->where('employment_info_id', $payload['employment_info_id'])
+                    ->firstOrFail();
+
+                EmployeeSalarySync::syncForEmployment($employment, $payload['salary']);
+
+                SysLogService::record(
+                    action: 'update',
+                    table: 'tbl_employee_salaries',
+                    recordId: $employment->employment_info_id,
+                    description: 'Updated salary via upload for employee '.$payload['employee_number'].' (slot '.((int) $payload['employment_index'] + 1).')',
+                );
+
+                $employeeIds[] = (int) $payload['employee_id'];
+            }
+        });
+
+        $this->discardStaging($user, $token);
+
+        return [
+            'updated' => count($staging['valid']),
+            'employee_ids' => array_values(array_unique($employeeIds)),
         ];
     }
 
@@ -444,25 +697,6 @@ class EmployeeUploadService
     private function detectDelimiter(string $line): string
     {
         return substr_count($line, "\t") > substr_count($line, ',') ? "\t" : ',';
-    }
-
-    /**
-     * @param  array<int, string>  $cells
-     * @param  array<int, string>  $expected
-     */
-    private function matchesRow(array $cells, array $expected): bool
-    {
-        if ($expected === [] || count($cells) < count($expected)) {
-            return false;
-        }
-
-        foreach ($expected as $index => $expectedCell) {
-            if (trim((string) ($cells[$index] ?? '')) !== trim($expectedCell)) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /**

@@ -23,5 +23,15 @@ return [
         'post_max_size' => env('PHP_POST_MAX_SIZE', '300M'),
         'memory_limit' => env('PHP_MEMORY_LIMIT', '1024M'),
         'max_execution_time' => env('PHP_MAX_EXECUTION_TIME', '0'),
+
+        // Desktop serves pages with `php -S`, which recompiles every PHP file per request.
+        // OPcache (compiled into the bundled binary) keeps them in memory for the app session.
+        'opcache.enable' => env('PHP_OPCACHE_ENABLE', '1'),
+        'opcache.enable_cli' => env('PHP_OPCACHE_ENABLE_CLI', '1'),
+        'opcache.memory_consumption' => env('PHP_OPCACHE_MEMORY', '192'),
+        'opcache.interned_strings_buffer' => env('PHP_OPCACHE_STRINGS_BUFFER', '16'),
+        'opcache.max_accelerated_files' => env('PHP_OPCACHE_MAX_FILES', '20000'),
+        'opcache.validate_timestamps' => env('PHP_OPCACHE_VALIDATE_TIMESTAMPS', '1'),
+        'opcache.revalidate_freq' => env('PHP_OPCACHE_REVALIDATE_FREQ', '60'),
     ],
 ];

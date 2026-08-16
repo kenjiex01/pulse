@@ -11,12 +11,13 @@ use App\Models\PayrollIncome;
 use App\Models\Report;
 use App\Models\User;
 use App\Support\SssDeductionTypes;
+use App\Support\GovernmentIdNumbers;
+use App\Support\SpreadsheetDownload;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SssContributionReportService
@@ -75,14 +76,10 @@ class SssContributionReportService
             ->getAlignment()
             ->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
-        $writer = new Xlsx($spreadsheet);
-        $filename = 'SSS_Contribution_'.now()->format('Ymd_His').'.xlsx';
-
-        return response()->streamDownload(function () use ($writer) {
-            $writer->save('php://output');
-        }, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ]);
+        return SpreadsheetDownload::stream(
+            $spreadsheet,
+            'SSS_Contribution_'.now()->format('Ymd_His'),
+        );
     }
 
     /**
@@ -105,7 +102,10 @@ class SssContributionReportService
                 'details.deductions.deductionType',
             ])
             ->whereIn('payroll_batch_id', $batchIds)
-            ->where('payroll_batch_status_id', PayrollBatchStatus::PROCESSED)
+            ->whereIn('payroll_batch_status_id', [
+                PayrollBatchStatus::PROCESSED,
+                PayrollBatchStatus::POSTED,
+            ])
             ->get();
 
         if ($batches->isEmpty()) {
@@ -156,7 +156,7 @@ class SssContributionReportService
                 if (! isset($byEmployee[$employeeId])) {
                     $byEmployee[$employeeId] = [
                         'employee_id' => $employeeId,
-                        'sss_number' => (string) ($employee->sss_number ?: ''),
+                        'sss_number' => GovernmentIdNumbers::normalize((string) ($employee->sss_number ?: '')) ?? '',
                         'employee_name' => $this->formatEmployeeName($employee->last_name, $employee->first_name, $employee->middle_name, $employee->suffix),
                         'ss_employee' => 0.0,
                         'ss_employer_with_ec' => 0.0,
@@ -182,12 +182,15 @@ class SssContributionReportService
         }
 
         foreach ($byEmployee as $employeeId => $row) {
-            $byEmployee[$employeeId]['taxable'] = $this->monthlyTaxableForEmployee(
+            $incomeTotals = $this->monthlyIncomeTotalsForEmployee(
                 $employeeId,
                 $payYear,
                 $calendarMonth,
                 $batches->pluck('payroll_batch_id')->all(),
             );
+
+            $byEmployee[$employeeId]['taxable'] = $incomeTotals['taxable'];
+            $byEmployee[$employeeId]['gross_income'] = $incomeTotals['gross_income'];
         }
 
         $rows = collect($byEmployee)
@@ -198,6 +201,7 @@ class SssContributionReportService
                 $mpfEmployee = round((float) $row['mpf_employee'], 2);
                 $mpfEmployer = round((float) $row['mpf_employer'], 2);
                 $ssTotal = round($ssEmployee + $ssEmployer, 2);
+                $grossIncome = round((float) ($row['gross_income'] ?? 0), 2);
                 $grandTotal = round($ssTotal + $ec + $mpfEmployee + $mpfEmployer, 2);
 
                 if ($ssEmployee <= 0 && $ssEmployer <= 0 && $ec <= 0 && $mpfEmployee <= 0 && $mpfEmployer <= 0) {
@@ -213,6 +217,7 @@ class SssContributionReportService
                     'ec' => $ec,
                     'mpf_employee' => $mpfEmployee,
                     'mpf_employer' => $mpfEmployer,
+                    'gross_income' => $grossIncome,
                     'grand_total' => $grandTotal,
                 ];
             })
@@ -234,6 +239,7 @@ class SssContributionReportService
                 $this->money($row['ec']),
                 $this->money($row['mpf_employee']),
                 $this->money($row['mpf_employer']),
+                $this->money($row['gross_income']),
                 $this->money($row['grand_total']),
             ];
         }
@@ -277,6 +283,7 @@ class SssContributionReportService
             'EC',
             'MPF Employee',
             'MPF Employer',
+            'Gross Income',
             'Grand Total',
         ];
     }
@@ -304,14 +311,15 @@ class SssContributionReportService
 
     /**
      * @param  list<int>  $batchIds
+     * @return array{taxable: float, gross_income: float}
      */
-    private function monthlyTaxableForEmployee(int $employeeId, int $payYear, int $calendarMonth, array $batchIds): float
+    private function monthlyIncomeTotalsForEmployee(int $employeeId, int $payYear, int $calendarMonth, array $batchIds): array
     {
         if ($payYear <= 0 || $calendarMonth <= 0 || $batchIds === []) {
-            return 0.0;
+            return ['taxable' => 0.0, 'gross_income' => 0.0];
         }
 
-        $total = (float) PayrollIncome::query()
+        $totals = PayrollIncome::query()
             ->whereHas('payrollBatchDetail', function ($detailQuery) use ($employeeId, $payYear, $calendarMonth, $batchIds) {
                 $detailQuery
                     ->where('employee_id', $employeeId)
@@ -322,9 +330,16 @@ class SssContributionReportService
                             ->where('calendar_month', $calendarMonth);
                     });
             })
-            ->sum('taxable');
+            ->selectRaw('COALESCE(SUM(taxable), 0) as taxable_total, COALESCE(SUM(non_taxable), 0) as non_taxable_total')
+            ->first();
 
-        return round($total, 2);
+        $taxable = round((float) ($totals->taxable_total ?? 0), 2);
+        $nonTaxable = round((float) ($totals->non_taxable_total ?? 0), 2);
+
+        return [
+            'taxable' => $taxable,
+            'gross_income' => round($taxable + $nonTaxable, 2),
+        ];
     }
 
     private function employerEcForGross(float $grossTaxable): float

@@ -38,6 +38,73 @@ document.addEventListener('DOMContentLoaded', () => {
         pulseLoader.hide();
     }
 
+    const startDesktopInstallerDownload = async (trigger) => {
+        const href = trigger.getAttribute('href') || '';
+        const filename = trigger.dataset.desktopInstallerFilename || 'Pulse-installer';
+        const statusEl = document.querySelector('[data-desktop-installer-download-status]');
+
+        if (!href) {
+            return;
+        }
+
+        pulseLoader.show('Preparing installer download...');
+        if (statusEl) {
+            statusEl.hidden = false;
+            statusEl.textContent = 'Preparing download…';
+        }
+
+        try {
+            const response = await fetch(href, {
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || !payload.ok || !payload.url) {
+                throw new Error(payload.message || 'Unable to prepare the installer download.');
+            }
+
+            pulseLoader.show('Starting download...');
+            if (statusEl) {
+                statusEl.textContent = `Downloading ${payload.filename || filename}…`;
+            }
+
+            // Prefer an iframe so Electron/NativePHP does not navigate the main window
+            // away on large attachment responses (and S3 can stream directly).
+            const frame = document.createElement('iframe');
+            frame.setAttribute('aria-hidden', 'true');
+            frame.style.cssText = 'position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+            frame.src = payload.url;
+            document.body.appendChild(frame);
+
+            window.setTimeout(() => {
+                frame.remove();
+                pulseLoader.hide();
+                if (statusEl) {
+                    statusEl.textContent = 'Download started. Check your Downloads folder, then quit Pulse and run the installer.';
+                }
+            }, 2500);
+        } catch (error) {
+            pulseLoader.hide();
+            if (statusEl) {
+                statusEl.textContent = error?.message || 'Download failed.';
+            }
+            window.alert(error?.message || 'Unable to start the installer download.');
+        }
+    };
+
+    document.addEventListener('click', (event) => {
+        const installerDownload = event.target.closest('[data-desktop-installer-download]');
+
+        if (installerDownload) {
+            event.preventDefault();
+            startDesktopInstallerDownload(installerDownload);
+        }
+    });
+
     document.addEventListener('click', (event) => {
         const link = event.target.closest('a[href]');
 
@@ -103,6 +170,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Confirm cancel / validation already blocked the submit — do not leave the loader up.
         if (event.defaultPrevented) {
+            return;
+        }
+
+        // New-tab / download submits leave this document mounted — showing the
+        // full-screen loader would stick forever (desktop report preview).
+        if (form.target === '_blank' || form.hasAttribute('download')) {
             return;
         }
 
@@ -401,9 +474,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    let credentialPreviewObjectUrl = null;
+
+    const revokeCredentialPreviewObjectUrl = () => {
+        if (credentialPreviewObjectUrl) {
+            URL.revokeObjectURL(credentialPreviewObjectUrl);
+            credentialPreviewObjectUrl = null;
+        }
+    };
+
     const closeModal = (modal) => {
         if (!modal) {
             return;
+        }
+
+        if (modal.id === 'employee-credential-preview-modal') {
+            const previewFrame = modal.querySelector('[data-credential-preview-frame]');
+            revokeCredentialPreviewObjectUrl();
+            if (previewFrame) {
+                previewFrame.removeAttribute('srcdoc');
+                previewFrame.src = 'about:blank';
+            }
         }
 
         modal.classList.add('hidden');
@@ -434,6 +525,182 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.add('modal-open');
     };
 
+    const fillCredentialPreviewModal = async (trigger) => {
+        const modal = document.getElementById('employee-credential-preview-modal');
+        if (!modal || !trigger?.dataset?.credentialPreviewUrl) {
+            return false;
+        }
+
+        const title = modal.querySelector('#employee-credential-preview-modal-title');
+        const description = modal.querySelector('[data-credential-preview-description]');
+        const frame = modal.querySelector('[data-credential-preview-frame]');
+
+        if (title) {
+            title.textContent = trigger.dataset.credentialPreviewTitle || 'Credential Preview';
+        }
+
+        if (description) {
+            const filename = trigger.dataset.credentialPreviewFilename || '';
+            description.textContent = filename;
+            description.classList.toggle('hidden', filename === '');
+        }
+
+        if (!frame) {
+            return false;
+        }
+
+        const kind = trigger.dataset.credentialPreviewKind || '';
+        if (kind === 'word' || kind === 'spreadsheet') {
+            const engineReady = await ensureDocumentPreviewEngine();
+            if (!engineReady) {
+                return false;
+            }
+        }
+
+        revokeCredentialPreviewObjectUrl();
+        frame.removeAttribute('srcdoc');
+        frame.src = 'about:blank';
+
+        const isDesktop = document.documentElement.dataset.pulseDesktop === '1';
+        const contentUrl = trigger.dataset.credentialContentUrl || '';
+
+        // Electron/NativePHP: load image/PDF bytes via blob URL so the iframe never
+        // navigates to a binary Content-Disposition response (blank white frame).
+        if (isDesktop && contentUrl && (kind === 'pdf' || kind === 'image' || kind === 'word' || kind === 'spreadsheet')) {
+            try {
+                const response = await fetch(contentUrl, {
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: '*/*',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error('Unable to load credential preview.');
+                }
+
+                const blob = await response.blob();
+                const type = (blob.type || '').toLowerCase();
+                credentialPreviewObjectUrl = URL.createObjectURL(blob);
+
+                if (kind === 'image' || type.startsWith('image/')) {
+                    frame.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#fff;text-align:center}img{max-width:100%;height:auto}</style></head><body><img src="${credentialPreviewObjectUrl}" alt=""></body></html>`;
+                } else if (kind === 'pdf' || kind === 'word' || kind === 'spreadsheet' || type.includes('pdf')) {
+                    frame.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body,embed{margin:0;width:100%;height:100%;border:0;background:#525659}</style></head><body><embed src="${credentialPreviewObjectUrl}" type="application/pdf"></body></html>`;
+                } else {
+                    frame.src = trigger.dataset.credentialPreviewUrl;
+                }
+
+                return true;
+            } catch {
+                // Fall through to server HTML preview route.
+            }
+        }
+
+        frame.src = trigger.dataset.credentialPreviewUrl;
+
+        return true;
+    };
+
+    const ensureDocumentPreviewEngine = async () => {
+        const engineModal = document.getElementById('document-preview-engine-modal');
+        const statusUrl = engineModal?.dataset?.documentPreviewEngineStatusUrl || '';
+        const installUrl = engineModal?.dataset?.documentPreviewEngineInstallUrl || '';
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        if (!statusUrl || !installUrl) {
+            return true;
+        }
+
+        try {
+            const statusResponse = await fetch(statusUrl, {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (!statusResponse.ok) {
+                return true;
+            }
+
+            const status = await statusResponse.json();
+            if (status.available || !status.enabled) {
+                return true;
+            }
+
+            if (!engineModal) {
+                return true;
+            }
+
+            const meta = engineModal.querySelector('[data-document-preview-engine-meta]');
+            if (meta) {
+                meta.textContent = `Platform: ${status.platform} · LibreOffice ${status.version} · ~${status.approximate_size_mb} MB`;
+            }
+
+            return await new Promise((resolve) => {
+                const installBtn = engineModal.querySelector('[data-document-preview-engine-install]');
+                let settled = false;
+
+                const cleanup = () => {
+                    installBtn?.removeEventListener('click', onInstall);
+                    engineModal.removeEventListener('click', onDismiss, true);
+                };
+
+                const finish = (value) => {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    cleanup();
+                    closeModal(engineModal);
+                    resolve(value);
+                };
+
+                const onDismiss = (event) => {
+                    if (event.target.closest('[data-modal-close]')) {
+                        finish(false);
+                    }
+                };
+
+                const onInstall = async () => {
+                    installBtn.disabled = true;
+                    window.pulseLoader?.show?.('Downloading preview engine...');
+                    try {
+                        const response = await fetch(installUrl, {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                Accept: 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': csrf,
+                                'Content-Type': 'application/json',
+                            },
+                            body: '{}',
+                        });
+                        const payload = await response.json().catch(() => ({}));
+                        if (!response.ok || !payload.ok) {
+                            window.alert(payload.message || 'Unable to install the document preview engine.');
+                            finish(false);
+                            return;
+                        }
+                        finish(true);
+                    } catch {
+                        window.alert('Unable to install the document preview engine.');
+                        finish(false);
+                    } finally {
+                        installBtn.disabled = false;
+                        window.pulseLoader?.hide?.();
+                    }
+                };
+
+                installBtn?.addEventListener('click', onInstall);
+                engineModal.addEventListener('click', onDismiss, true);
+                openModal(engineModal, { stack: true });
+            });
+        } catch {
+            return true;
+        }
+    };
+
     document.addEventListener('click', (event) => {
         const openTrigger = event.target.closest('[data-modal-open]');
 
@@ -441,6 +708,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const modal = document.getElementById(openTrigger.dataset.modalOpen);
             const shouldStack = openTrigger.hasAttribute('data-modal-stack')
                 || Boolean(document.querySelector('.modal-overlay:not(.hidden)'));
+
+            if (openTrigger.dataset.credentialPreviewUrl) {
+                event.preventDefault();
+                fillCredentialPreviewModal(openTrigger).then((ready) => {
+                    if (ready) {
+                        openModal(modal, { stack: shouldStack });
+                    }
+                });
+
+                return;
+            }
 
             openModal(modal, { stack: shouldStack });
 
@@ -992,7 +1270,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         panel.querySelectorAll('input, select, textarea').forEach((field) => {
-            field.disabled = !enabled;
+            if (enabled) {
+                field.disabled = false;
+                field.removeAttribute('disabled');
+            } else {
+                field.disabled = true;
+            }
         });
 
         panel.querySelectorAll('select.form-input').forEach((select) => {
@@ -1305,6 +1588,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         previousScope.dataset.previousSalaryInitialized = 'true';
+
+        previousScope.querySelectorAll('[data-client-paginate]').forEach(initClientPagination);
 
         const rows = previousScope.querySelectorAll('[data-previous-salary-select]');
         const details = previousScope.querySelectorAll('[data-previous-salary-detail]');
@@ -1621,10 +1906,110 @@ document.addEventListener('DOMContentLoaded', () => {
     initEmployeeProfileFormTabs();
     initEmployeeProfileSetupRoots();
 
+    const SCHEME_USER_AMORTIZATION = '1';
+    const SCHEME_BASED_ON_PAYMENTS = '2';
+
+    const parseLoanNumber = (value) => {
+        const parsed = Number.parseFloat(String(value ?? '').replace(/,/g, ''));
+        return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const formatLoanMoney = (value) => (Math.round(value * 100) / 100).toFixed(2);
+
+    const syncEmployeeLoanForm = (form) => {
+        const scheme = form.querySelector('[data-loan-payment-scheme]');
+        const nop = form.querySelector('[data-loan-number-of-payments]');
+        const amortization = form.querySelector('[data-loan-amortization]');
+        const amount = form.querySelector('[data-loan-amount]');
+        const interest = form.querySelector('[data-loan-interest]');
+        const paidPrevious = form.querySelector('[data-loan-paid-previous]');
+        const deductedNew = form.querySelector('[data-loan-deducted-new]');
+        const principal = form.querySelector('[data-loan-principal]');
+        const balance = form.querySelector('[data-loan-balance]');
+
+        if (!scheme || !amount) {
+            return;
+        }
+
+        const schemeValue = String(scheme.value || SCHEME_USER_AMORTIZATION);
+        const basedOnPayments = schemeValue === SCHEME_BASED_ON_PAYMENTS;
+
+        if (nop) {
+            nop.disabled = !basedOnPayments;
+            nop.required = basedOnPayments;
+        }
+
+        if (amortization) {
+            amortization.disabled = basedOnPayments;
+            amortization.required = !basedOnPayments;
+        }
+
+        const loanAmount = parseLoanNumber(amount.value);
+        const loanInterest = parseLoanNumber(interest?.value);
+        const paid = parseLoanNumber(paidPrevious?.value);
+        const deducted = parseLoanNumber(deductedNew?.value);
+
+        if (basedOnPayments && amortization && nop) {
+            const payments = Number.parseInt(String(nop.value || ''), 10);
+            if (payments > 0) {
+                amortization.value = formatLoanMoney(loanAmount / payments);
+            }
+        }
+
+        if (principal) {
+            principal.value = formatLoanMoney(loanAmount + loanInterest);
+        }
+
+        if (balance) {
+            balance.value = formatLoanMoney(loanAmount + loanInterest - paid - deducted);
+        }
+    };
+
+    const initEmployeeLoanForm = (form) => {
+        if (!form || form.dataset.loanFormInitialized === 'true') {
+            return;
+        }
+
+        form.dataset.loanFormInitialized = 'true';
+
+        const refresh = () => syncEmployeeLoanForm(form);
+
+        form.querySelectorAll([
+            '[data-loan-payment-scheme]',
+            '[data-loan-number-of-payments]',
+            '[data-loan-amount]',
+            '[data-loan-interest]',
+            '[data-loan-paid-previous]',
+            '[data-loan-deducted-new]',
+            '[data-loan-amortization]',
+        ].join(',')).forEach((field) => {
+            field.addEventListener('input', refresh);
+            field.addEventListener('change', refresh);
+        });
+
+        form.addEventListener('submit', () => {
+            form.querySelectorAll('[data-loan-number-of-payments], [data-loan-amortization]').forEach((field) => {
+                if (field.disabled) {
+                    field.disabled = false;
+                    field.dataset.wasDisabled = '1';
+                }
+            });
+        });
+
+        refresh();
+    };
+
+    const initEmployeeLoanForms = (root = document) => {
+        root.querySelectorAll('[data-employee-loan-form]').forEach(initEmployeeLoanForm);
+    };
+
+    initEmployeeLoanForms();
+
     document.querySelectorAll('[data-modal-auto-open]').forEach((modal) => {
         openModal(modal);
         initEmployeeProfileFormTabs(modal);
         initEmployeeProfileSetupRoots(modal);
+        initEmployeeLoanForms(modal);
     });
 
     const initRoleMembersRoot = (root) => {
@@ -2414,6 +2799,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initSearchableSelects(container);
         initEmployeeProfileFormTabs(container);
         initEmployeeProfileSetupRoots(container);
+        initEmployeeLoanForms(container);
     };
 
     const getPayrollMaintenanceFieldValue = (form, fieldName) => {
@@ -2477,25 +2863,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const syncBatchAddDeductionHours = (form) => {
         const typeSelect = form?.querySelector('[data-batch-add-deduction-type]');
-        const hoursWrap = form?.querySelector('[data-batch-add-deduction-hours-wrap]');
+        const ltdeWrap = form?.querySelector('[data-batch-add-deduction-ltde-wrap]');
         const hoursInput = form?.querySelector('[data-batch-add-deduction-hours]');
+        const daysInput = form?.querySelector('[data-batch-add-deduction-days]');
+        const referenceDateInput = form?.querySelector('[data-batch-add-deduction-reference-date]');
+        const referenceDateRequired = form?.querySelector('[data-batch-add-deduction-reference-date-required]');
 
-        if (!typeSelect || !hoursWrap) {
+        if (!typeSelect || !ltdeWrap) {
             return;
         }
 
         const code = typeSelect.selectedOptions[0]?.dataset.code ?? '';
-        const needsHours = code === 'LTDE' || code === 'UTDE';
+        const needsLateUndertimeFields = code === 'LTDE' || code === 'UTDE';
 
-        hoursWrap.classList.toggle('hidden', !needsHours);
+        ltdeWrap.classList.toggle('hidden', !needsLateUndertimeFields);
 
         if (hoursInput) {
-            hoursInput.required = needsHours;
+            hoursInput.required = needsLateUndertimeFields;
 
-            if (!needsHours) {
+            if (!needsLateUndertimeFields) {
                 hoursInput.value = '';
             }
         }
+
+        if (daysInput) {
+            daysInput.value = needsLateUndertimeFields ? '1' : '';
+        }
+
+        if (referenceDateInput) {
+            referenceDateInput.required = needsLateUndertimeFields;
+        }
+
+        referenceDateRequired?.classList.toggle('hidden', !needsLateUndertimeFields);
     };
 
     const initBatchAddDeductionForm = (form) => {
@@ -2516,6 +2915,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('[data-batch-add-deduction-form]').forEach(initBatchAddDeductionForm);
 
+    const syncBatchAddIncomeHoursDays = (form) => {
+        const typeSelect = form?.querySelector('[data-batch-add-income-type]');
+        const hoursDaysWrap = form?.querySelector('[data-batch-add-income-hours-days-wrap]');
+        const hoursInput = form?.querySelector('[data-batch-add-income-hours]');
+        const daysInput = form?.querySelector('[data-batch-add-income-days]');
+
+        if (!typeSelect || !hoursDaysWrap) {
+            return;
+        }
+
+        const code = typeSelect.selectedOptions[0]?.dataset.code ?? '';
+        const needsHoursDays = code === 'BASC' || code === 'OVRT';
+
+        hoursDaysWrap.classList.toggle('hidden', !needsHoursDays);
+
+        if (hoursInput) {
+            hoursInput.required = needsHoursDays;
+
+            if (!needsHoursDays) {
+                hoursInput.value = '';
+            }
+        }
+
+        if (daysInput) {
+            daysInput.required = needsHoursDays;
+
+            if (!needsHoursDays) {
+                daysInput.value = '';
+            }
+        }
+    };
+
+    const initBatchAddIncomeForm = (form) => {
+        if (!form || form.dataset.batchAddIncomeInit === 'true') {
+            return;
+        }
+
+        const typeSelect = form.querySelector('[data-batch-add-income-type]');
+
+        if (!typeSelect) {
+            return;
+        }
+
+        form.dataset.batchAddIncomeInit = 'true';
+        typeSelect.addEventListener('change', () => syncBatchAddIncomeHoursDays(form));
+        syncBatchAddIncomeHoursDays(form);
+    };
+
+    document.querySelectorAll('[data-batch-add-income-form]').forEach(initBatchAddIncomeForm);
+
     document.addEventListener('change', (event) => {
         if (!(event.target instanceof Element)) {
             return;
@@ -2528,6 +2977,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         syncBatchAddDeductionHours(typeSelect.closest('[data-batch-add-deduction-form]'));
+    });
+
+    document.addEventListener('change', (event) => {
+        if (!(event.target instanceof Element)) {
+            return;
+        }
+
+        const incomeTypeSelect = event.target.closest('[data-batch-add-income-type]');
+
+        if (!incomeTypeSelect) {
+            return;
+        }
+
+        syncBatchAddIncomeHoursDays(incomeTypeSelect.closest('[data-batch-add-income-form]'));
     });
 
     document.addEventListener('click', (event) => {
@@ -2549,14 +3012,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 initBatchAddDeductionForm(form);
                 syncBatchAddDeductionHours(form);
             });
+            modal?.querySelectorAll('[data-batch-add-income-form]').forEach((form) => {
+                initBatchAddIncomeForm(form);
+                syncBatchAddIncomeHoursDays(form);
+            });
             modal?.querySelectorAll('[data-time-logs-upload-form]').forEach((form) => {
                 syncTimeLogsTemplateLink(form);
                 syncTimeLogsDtrFileAccept(form);
             });
+            modal?.querySelectorAll('[data-employee-upload-form]').forEach(initEmployeeUploadForm);
             syncPayrollBatchRemoveSelection(modal ?? document);
             syncPayrollBatchAddSelection(modal ?? document);
             initEmployeeProfileFormTabs(modal ?? document);
             initEmployeeProfileSetupRoots(modal ?? document);
+            initEmployeeLoanForms(modal ?? document);
         }, 0);
     });
 
@@ -2991,7 +3460,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             row.querySelectorAll('input').forEach((input) => {
                 const name = input.getAttribute('name') ?? '';
-                if (name.includes('[break_minute]')) {
+                if (name.includes('[break_out]')) {
+                    input.name = `breaks[${index}][break_out]`;
+                } else if (name.includes('[break_in]')) {
+                    input.name = `breaks[${index}][break_in]`;
+                } else if (name.includes('[break_minute]')) {
                     input.name = `breaks[${index}][break_minute]`;
                 } else if (name.includes('[is_paid_break]')) {
                     input.name = `breaks[${index}][is_paid_break]`;
@@ -3022,6 +3495,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     field.setAttribute('required', 'required');
                 }
+            });
+
+            form.querySelectorAll('[data-shift-duty-field]').forEach((field) => {
+                if (enabled) {
+                    field.removeAttribute('required');
+                } else {
+                    field.setAttribute('required', 'required');
+                }
+            });
+
+            form.querySelectorAll('[data-shift-duty-required-star]').forEach((star) => {
+                star.classList.toggle('hidden', enabled);
             });
         };
 
@@ -3110,8 +3595,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const update = () => {
-            const extension = campusSelect.selectedOptions[0]?.dataset.fileExtension ?? '';
-            const campusCode = campusSelect.selectedOptions[0]?.dataset.campusCode ?? '';
+            const selected = campusSelect.selectedOptions[0];
+            const extension = selected?.dataset.fileExtension ?? '';
+            const parser = selected?.dataset.parser ?? '';
 
             if (extension) {
                 fileInput.accept = `.${extension}`;
@@ -3121,9 +3607,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (hint) {
                 if (!extension) {
-                    hint.textContent = 'Select a campus first. Cainta/San Mateo: .xls only. Sumulong: .xlsx only.';
-                } else if (campusCode === 'SA') {
+                    hint.textContent = 'Select a campus first. Most campuses: .xls Timesheet Report. San Mateo: .xls Card Report. Sumulong: .xlsx DTR Report.';
+                } else if (parser === 'san_mateo_card_report') {
                     hint.textContent = 'Upload San Mateo DTR (.XLS). Only Card Report worksheets are imported; summary tabs are ignored.';
+                } else if (parser === 'sumulong_dtr_report') {
+                    hint.textContent = 'Upload Sumulong DTR Report (.XLSX). Employee name plus ID number in parentheses.';
+                } else if (parser === 'cainta_timesheet_report') {
+                    hint.textContent = 'Upload Timesheet Report (.XLS). Employee: NAME (biometric ID) blocks with In/Out columns.';
                 } else {
                     hint.textContent = `Upload the campus DTR file (.${extension.toUpperCase()} only).`;
                 }
@@ -3294,41 +3784,280 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-employee-load-upload-form]').forEach(initEmployeeLoadUploadForm);
     document.querySelectorAll('[data-modal-auto-open] [data-employee-load-upload-form]').forEach(initEmployeeLoadUploadForm);
 
-    const initSssBatchMonthYearGuard = (root) => {
-        const select = root.querySelector('[data-sss-batch-select]');
+    const syncEmployeeUploadForm = (form) => {
+        const typeSelect = form.querySelector('[data-employee-upload-type]');
+        const templateLink = form.querySelector('[data-employee-upload-template-link]');
+        const templateBase = templateLink?.dataset.employeeUploadTemplateBase;
 
-        if (!select || select.dataset.sssGuardBound === '1') {
+        if (!typeSelect) {
             return;
         }
 
-        select.dataset.sssGuardBound = '1';
+        const uploadType = typeSelect.value || 'master-file';
 
-        select.addEventListener('change', () => {
-            const selected = Array.from(select.selectedOptions);
+        form.querySelectorAll('[data-employee-upload-panel]').forEach((panel) => {
+            panel.hidden = panel.dataset.employeeUploadPanel !== uploadType;
+        });
 
-            if (selected.length <= 1) {
+        if (templateLink && templateBase) {
+            templateLink.href = `${templateBase}?type=${encodeURIComponent(uploadType)}`;
+        }
+    };
+
+    const initEmployeeUploadForm = (form) => {
+        if (form.dataset.employeeUploadBound === '1') {
+            syncEmployeeUploadForm(form);
+
+            return;
+        }
+
+        form.dataset.employeeUploadBound = '1';
+        syncEmployeeUploadForm(form);
+
+        form.addEventListener('change', (event) => {
+            if (event.target.matches('[data-employee-upload-type]')) {
+                syncEmployeeUploadForm(form);
+            }
+        });
+    };
+
+    document.querySelectorAll('[data-employee-upload-form]').forEach(initEmployeeUploadForm);
+    document.querySelectorAll('[data-modal-auto-open] [data-employee-upload-form]').forEach(initEmployeeUploadForm);
+
+    const initPayrollBatchMonthYearGuard = (root) => {
+        root.querySelectorAll('[data-payroll-batch-month-guard], [data-sss-batch-select]').forEach((select) => {
+            if (!select || select.dataset.payrollBatchGuardBound === '1') {
                 return;
             }
 
-            const anchor = selected[0];
-            const payYear = anchor.dataset.payYear ?? '';
-            const calendarMonth = anchor.dataset.calendarMonth ?? '';
-            let removed = false;
+            select.dataset.payrollBatchGuardBound = '1';
 
-            selected.slice(1).forEach((option) => {
-                if (
-                    (option.dataset.payYear ?? '') !== payYear
-                    || (option.dataset.calendarMonth ?? '') !== calendarMonth
-                ) {
-                    option.selected = false;
-                    removed = true;
+            select.addEventListener('change', () => {
+                const selected = Array.from(select.selectedOptions);
+
+                if (selected.length <= 1) {
+                    return;
+                }
+
+                const anchor = selected[0];
+                const payYear = anchor.dataset.payYear ?? '';
+                const calendarMonth = anchor.dataset.calendarMonth ?? '';
+                let removed = false;
+
+                selected.slice(1).forEach((option) => {
+                    if (
+                        (option.dataset.payYear ?? '') !== payYear
+                        || (option.dataset.calendarMonth ?? '') !== calendarMonth
+                    ) {
+                        option.selected = false;
+                        removed = true;
+                    }
+                });
+
+                if (removed) {
+                    window.alert('Selected payroll batches must share the same pay month and pay year.');
                 }
             });
+        });
+    };
 
-            if (removed) {
-                window.alert('SSS report batches must share the same pay month and pay year.');
+    const initSssBatchMonthYearGuard = (root) => {
+        initPayrollBatchMonthYearGuard(root);
+    };
+
+    const initBatchEmployeePicker = (root) => {
+        const batchSelect = root.querySelector('[data-batch-employee-batch-select], [data-payslip-batch-select]');
+        const employeeSelect = root.querySelector('[data-batch-employee-employee-select], [data-payslip-employee-select]');
+
+        if (!batchSelect || !employeeSelect) {
+            return;
+        }
+
+        const employeesUrl = batchSelect.dataset.employeesUrl ?? '';
+        const employeesParam = batchSelect.dataset.employeesParam || 'payroll_batch_id';
+        const emptyFilterMessage = batchSelect.dataset.employeesEmptyFilter
+            || 'Select a posted batch to load employees…';
+        const emptyResultsMessage = batchSelect.dataset.employeesEmptyResults
+            || 'No employees found in this batch.';
+        const isMultiBatch = Boolean(batchSelect.multiple);
+        const selectedIds = new Set(
+            [
+                ...Array.from(employeeSelect.querySelectorAll('option:checked'))
+                    .map((option) => option.value)
+                    .filter(Boolean),
+                ...(batchSelect.dataset.selectedEmployeeIds || '')
+                    .split(',')
+                    .map((value) => value.trim())
+                    .filter(Boolean),
+            ],
+        );
+
+        const selectedBatchValues = () => {
+            if (isMultiBatch) {
+                return Array.from(batchSelect.selectedOptions)
+                    .map((option) => option.value)
+                    .filter(Boolean);
+            }
+
+            return batchSelect.value ? [batchSelect.value] : [];
+        };
+
+        const setEmployeeOptions = (employees, preserveSelection = true) => {
+            const nextSelected = preserveSelection ? selectedIds : new Set();
+
+            employeeSelect.innerHTML = '';
+
+            if (!employees.length) {
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.disabled = true;
+                placeholder.selected = true;
+                placeholder.textContent = selectedBatchValues().length
+                    ? emptyResultsMessage
+                    : emptyFilterMessage;
+                employeeSelect.appendChild(placeholder);
+
+                return;
+            }
+
+            employees.forEach((employee) => {
+                const option = document.createElement('option');
+                option.value = String(employee.id);
+                option.textContent = employee.label;
+
+                if (nextSelected.has(String(employee.id))) {
+                    option.selected = true;
+                }
+
+                employeeSelect.appendChild(option);
+            });
+        };
+
+        const loadEmployees = async (filterValues, preserveSelection = true) => {
+            const values = Array.isArray(filterValues)
+                ? filterValues.filter(Boolean)
+                : (filterValues ? [filterValues] : []);
+
+            if (!values.length || !employeesUrl) {
+                setEmployeeOptions([], preserveSelection);
+
+                return;
+            }
+
+            employeeSelect.disabled = true;
+
+            try {
+                const url = new URL(employeesUrl, window.location.origin);
+
+                if (isMultiBatch || employeesParam.includes('payroll_batch_ids')) {
+                    values.forEach((value) => {
+                        url.searchParams.append('payroll_batch_ids[]', value);
+                    });
+                } else {
+                    url.searchParams.set(employeesParam, values[0]);
+                }
+
+                const response = await fetch(url.toString(), {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load employees.');
+                }
+
+                const payload = await response.json();
+                setEmployeeOptions(Array.isArray(payload.employees) ? payload.employees : [], preserveSelection);
+            } catch {
+                employeeSelect.innerHTML = '';
+                const errorOption = document.createElement('option');
+                errorOption.value = '';
+                errorOption.disabled = true;
+                errorOption.selected = true;
+                errorOption.textContent = 'Unable to load employees.';
+                employeeSelect.appendChild(errorOption);
+            } finally {
+                employeeSelect.disabled = false;
+            }
+        };
+
+        batchSelect.addEventListener('change', () => {
+            selectedIds.clear();
+            loadEmployees(selectedBatchValues(), false);
+        });
+
+        const initialValues = selectedBatchValues();
+
+        if (initialValues.length) {
+            loadEmployees(initialValues, true);
+        } else {
+            setEmployeeOptions([], true);
+        }
+    };
+
+    const initPayslipReportOptions = (root) => {
+        initBatchEmployeePicker(root);
+    };
+
+    const initEmployeeMultiselect = (picker) => {
+        if (!picker || picker.dataset.employeeMultiselectReady === '1') {
+            return;
+        }
+
+        picker.dataset.employeeMultiselectReady = '1';
+
+        const searchInput = picker.querySelector('[data-employee-multiselect-search]');
+        const selectAll = picker.querySelector('[data-employee-multiselect-select-all]');
+        const countLabel = picker.querySelector('[data-employee-multiselect-count]');
+
+        const updateSelectedCount = () => {
+            const checked = picker.querySelectorAll('[data-employee-multiselect-row]:checked').length;
+
+            if (countLabel) {
+                countLabel.textContent = `${checked} selected`;
+            }
+
+            return checked;
+        };
+
+        picker.querySelectorAll('[data-employee-multiselect-row]').forEach((checkbox) => {
+            checkbox.addEventListener('change', updateSelectedCount);
+        });
+
+        selectAll?.addEventListener('change', () => {
+            picker.querySelectorAll('[data-employee-multiselect-item]:not([hidden]) [data-employee-multiselect-row]').forEach((checkbox) => {
+                checkbox.checked = selectAll.checked;
+            });
+            updateSelectedCount();
+        });
+
+        searchInput?.addEventListener('input', () => {
+            const term = (searchInput.value || '').trim().toLowerCase();
+
+            picker.querySelectorAll('[data-employee-multiselect-item]').forEach((item) => {
+                const haystack = item.dataset.employeeSearchText || '';
+                item.hidden = term !== '' && !haystack.includes(term);
+            });
+
+            if (selectAll) {
+                selectAll.checked = false;
             }
         });
+
+        updateSelectedCount();
+    };
+
+    const initEmployeeMultiselects = (scope = document) => {
+        if (!scope) {
+            return;
+        }
+
+        if (scope.matches?.('[data-employee-multiselect]')) {
+            initEmployeeMultiselect(scope);
+        }
+
+        scope.querySelectorAll?.('[data-employee-multiselect]').forEach(initEmployeeMultiselect);
     };
 
     const initPayrollReportsRoot = (root) => {
@@ -3339,13 +4068,78 @@ document.addEventListener('DOMContentLoaded', () => {
 
         initSssBatchMonthYearGuard(root);
 
-        form?.addEventListener('submit', () => {
+        form?.addEventListener('submit', async (event) => {
             const outputFormat = form.querySelector('[name="output_format"]')?.value ?? 'html';
 
             if (outputFormat === 'html') {
+                const isPulseDesktop = document.documentElement.dataset.pulseDesktop === '1';
+
+                if (isPulseDesktop) {
+                    // Electron/NativePHP often opens an empty window for target="_blank".
+                    form.removeAttribute('target');
+                    pulseLoader.show('Generating report...');
+
+                    return;
+                }
+
+                // Browser: preview in a new tab so this page stays on the form.
                 form.target = '_blank';
-            } else {
-                form.removeAttribute('target');
+                pulseLoader.hide();
+
+                return;
+            }
+
+            // Excel/PDF attachment responses navigate Electron/NativePHP to a blank white
+            // document. Fetch the file and trigger a client-side download instead.
+            event.preventDefault();
+            form.removeAttribute('target');
+            const downloadLabel = outputFormat === 'pdf' ? 'Generating PDF...' : 'Generating Excel...';
+            pulseLoader.show(downloadLabel);
+
+            try {
+                const response = await fetch(form.action, {
+                    method: (form.method || 'POST').toUpperCase(),
+                    body: new FormData(form),
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf,application/octet-stream,*/*',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                const contentType = response.headers.get('content-type') || '';
+                const disposition = response.headers.get('content-disposition') || '';
+                const isDownloadResponse = /attachment/i.test(disposition)
+                    || contentType.includes('spreadsheet')
+                    || contentType.includes('application/pdf');
+
+                if (! response.ok || contentType.includes('text/html') || ! isDownloadResponse) {
+                    const html = await response.text();
+                    document.open();
+                    document.write(html);
+                    document.close();
+
+                    return;
+                }
+
+                const filenameMatch = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+                const rawName = filenameMatch?.[1] || filenameMatch?.[2] || (outputFormat === 'pdf' ? 'report.pdf' : 'report.xlsx');
+                const filename = decodeURIComponent(rawName.trim());
+
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = objectUrl;
+                link.download = filename;
+                link.rel = 'noopener';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+            } catch (error) {
+                window.alert(error?.message || `${outputFormat === 'pdf' ? 'PDF' : 'Excel'} download failed.`);
+            } finally {
+                pulseLoader.hide();
             }
         });
 
@@ -3356,8 +4150,8 @@ document.addEventListener('DOMContentLoaded', () => {
             window.location.href = url.toString();
         });
 
-        reportSelect?.addEventListener('change', async () => {
-            const reportId = reportSelect.value;
+        const loadReportOptions = async () => {
+            const reportId = reportSelect?.value;
 
             if (!reportId || !optionsPanel) {
                 return;
@@ -3368,7 +4162,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const classification = classificationSelect?.value ?? 'payroll';
             const url = `${optionsUrl}?classification=${encodeURIComponent(classification)}`;
 
-            optionsPanel.innerHTML = '<p class="text-sm text-gray-500">Loading report options...</p>';
+            optionsPanel.innerHTML = '<p class="text-sm text-gray-500">Loading report options…</p>';
 
             try {
                 const response = await fetch(url, {
@@ -3383,13 +4177,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 optionsPanel.innerHTML = await response.text();
                 initSssBatchMonthYearGuard(optionsPanel);
+                initPayslipReportOptions(optionsPanel);
+                initEmployeeMultiselects(optionsPanel);
             } catch {
                 optionsPanel.innerHTML = '<p class="text-sm text-red-600">Unable to load report options.</p>';
             }
+        };
+
+        reportSelect?.addEventListener('change', () => {
+            loadReportOptions();
         });
+
+        const initialReportId = root.dataset.initialReportId;
+
+        if (initialReportId && reportSelect?.value === initialReportId) {
+            loadReportOptions();
+        } else if (optionsPanel) {
+            initSssBatchMonthYearGuard(optionsPanel);
+            initPayslipReportOptions(optionsPanel);
+            initEmployeeMultiselects(optionsPanel);
+        }
     };
 
     document.querySelectorAll('[data-payroll-reports-root]').forEach(initPayrollReportsRoot);
+    initEmployeeMultiselects(document);
     syncEmployeeLoadPurgeSelection();
 
     const syncPayrollUploadPurgeSelection = () => {
@@ -3585,6 +4396,130 @@ document.addEventListener('DOMContentLoaded', () => {
         loadEmployeeProfileLazyPanel(panel, pageLink.href);
     }, true);
 
+    document.addEventListener('click', (event) => {
+        const applyBtn = event.target.closest('[data-attendance-range-apply]');
+
+        if (!applyBtn) {
+            return;
+        }
+
+        const lazyContent = applyBtn.closest('[data-employee-profile-lazy-content]');
+        const panel = lazyContent?.closest('[data-employee-tab-panel][data-employee-profile-lazy-panel]');
+        const dateFrom = lazyContent?.querySelector('[data-attendance-date-from]')?.value;
+        const dateTo = lazyContent?.querySelector('[data-attendance-date-to]')?.value;
+        const baseUrl = applyBtn.dataset.attendanceBaseUrl || '';
+
+        if (!panel || !baseUrl || !dateFrom || !dateTo) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const url = new URL(baseUrl, window.location.origin);
+        url.searchParams.set('date_from', dateFrom);
+        url.searchParams.set('date_to', dateTo);
+        loadEmployeeProfileLazyPanel(panel, url.toString());
+    }, true);
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') {
+            return;
+        }
+
+        const target = event.target;
+        if (!target?.matches?.('[data-attendance-date-from], [data-attendance-date-to]')) {
+            return;
+        }
+
+        const lazyContent = target.closest('[data-employee-profile-lazy-content]');
+        const applyBtn = lazyContent?.querySelector('[data-attendance-range-apply]');
+        applyBtn?.click();
+        event.preventDefault();
+    });
+
+    const showAttendanceCalendarDay = (root, dateKey) => {
+        if (!root || !dateKey) {
+            return;
+        }
+
+        const detail = root.querySelector('[data-calendar-day-detail]');
+        const header = root.querySelector('[data-calendar-day-detail-header]');
+        const title = root.querySelector('[data-calendar-day-detail-title]');
+        const summary = root.querySelector('[data-calendar-day-detail-summary]');
+        const placeholder = root.querySelector('[data-calendar-day-placeholder]');
+        const panel = root.querySelector(`[data-calendar-day-panel="${dateKey}"]`);
+        const dayButton = root.querySelector(`[data-calendar-day="${dateKey}"]`);
+
+        if (!detail || !panel) {
+            return;
+        }
+
+        detail.hidden = false;
+        if (header) {
+            header.hidden = false;
+        }
+
+        root.querySelectorAll('[data-calendar-day-panel]').forEach((el) => {
+            el.hidden = el !== panel;
+        });
+        root.querySelectorAll('[data-calendar-day]').forEach((el) => {
+            el.classList.toggle('is-selected', el === dayButton);
+        });
+
+        if (placeholder) {
+            placeholder.hidden = true;
+        }
+
+        if (title) {
+            title.textContent = dayButton?.dataset.calendarDayLabel || dateKey;
+        }
+
+        if (summary) {
+            const firstIn = dayButton?.dataset.calendarFirstIn || '—';
+            const lastOut = dayButton?.dataset.calendarLastOut || '—';
+            summary.textContent = `First In: ${firstIn} · Last Out: ${lastOut}`;
+        }
+
+        detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
+    document.addEventListener('click', (event) => {
+        const dayButton = event.target.closest('[data-calendar-day]');
+        const closeButton = event.target.closest('[data-calendar-day-detail-close]');
+        const root = event.target.closest('[data-attendance-calendar]');
+
+        if (!root) {
+            return;
+        }
+
+        if (closeButton) {
+            const header = root.querySelector('[data-calendar-day-detail-header]');
+            const placeholder = root.querySelector('[data-calendar-day-placeholder]');
+
+            if (header) {
+                header.hidden = true;
+            }
+
+            root.querySelectorAll('[data-calendar-day-panel]').forEach((el) => {
+                el.hidden = true;
+            });
+            root.querySelectorAll('[data-calendar-day]').forEach((el) => {
+                el.classList.remove('is-selected');
+            });
+
+            if (placeholder) {
+                placeholder.hidden = false;
+            }
+
+            return;
+        }
+
+        if (dayButton) {
+            showAttendanceCalendarDay(root, dayButton.dataset.calendarDay);
+        }
+    });
+
     const loadEmployeeProfileApprovalRoutes = async (select) => {
         const root = select.closest('[data-employee-profile-approval-root]');
         const container = root?.querySelector('[data-employee-profile-approval-routes]');
@@ -3673,6 +4608,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const perPageWrap = container.querySelector('[data-paginate-per-page-wrap]');
         const showAllBtn = container.querySelector('[data-paginate-show-all]');
         const nav = container.querySelector('[data-paginate-nav]');
+        const alwaysShow = container.dataset.paginateAlwaysShow === '1' || container.dataset.paginateAlwaysShow === 'true';
         const defaultPageSize = Math.max(1, parseInt(container.dataset.pageSize || '20', 10));
         const windowSize = 5;
 
@@ -3704,7 +4640,7 @@ document.addEventListener('DOMContentLoaded', () => {
             perPageWrap?.classList.toggle('hidden', showingAll);
 
             if (controls) {
-                controls.classList.toggle('hidden', rows.length <= 1 && !showingAll);
+                controls.classList.toggle('hidden', !alwaysShow && rows.length <= 1 && !showingAll);
             }
         };
 
@@ -4063,6 +4999,105 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-teaching-load-pull-root]').forEach(initTeachingLoadPull);
     document.querySelectorAll('[data-modal-auto-open] [data-teaching-load-pull-root]').forEach(initTeachingLoadPull);
 
+    const initBiometricS3PullForm = (form) => {
+        if (! form || form.dataset.biometricS3PullBound === '1') {
+            return;
+        }
+
+        form.dataset.biometricS3PullBound = '1';
+
+        const foldersUrl = form.dataset.foldersUrl;
+        const yearInput = form.querySelector('[data-biometric-s3-year]');
+        const monthSelect = form.querySelector('[data-biometric-s3-month]');
+        const folderSelect = form.querySelector('[data-biometric-s3-folder]');
+        const hint = form.querySelector('[data-biometric-s3-folder-hint]');
+
+        if (! foldersUrl || ! yearInput || ! monthSelect || ! folderSelect) {
+            return;
+        }
+
+        const selectedFolder = () => folderSelect.value || '';
+
+        const loadFolders = async () => {
+            const year = yearInput.value;
+            const month = monthSelect.value;
+
+            if (! year || ! month) {
+                return;
+            }
+
+            const previous = selectedFolder();
+            folderSelect.disabled = true;
+            if (hint) {
+                hint.textContent = 'Loading collector folders from S3…';
+            }
+
+            try {
+                const url = new URL(foldersUrl, window.location.origin);
+                url.searchParams.set('year', year);
+                url.searchParams.set('month', month);
+
+                const response = await fetch(url.toString(), {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin',
+                });
+
+                const payload = await response.json().catch(() => ({}));
+
+                if (! response.ok || ! payload.success) {
+                    throw new Error(payload.message || 'Unable to list S3 folders.');
+                }
+
+                const folders = Array.isArray(payload.folders) ? payload.folders : [];
+                folderSelect.innerHTML = '';
+
+                const allOption = document.createElement('option');
+                allOption.value = '';
+                allOption.textContent = 'All collectors for the selected month';
+                folderSelect.appendChild(allOption);
+
+                folders.forEach((name) => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    if (previous && previous === name) {
+                        option.selected = true;
+                    }
+                    folderSelect.appendChild(option);
+                });
+
+                if (hint) {
+                    hint.textContent = folders.length
+                        ? `${folders.length} collector folder(s) found for ${year}-${String(month).padStart(2, '0')}.`
+                        : `No collector folders under biometric_logs/${year}/${String(month).padStart(2, '0')}/ yet.`;
+                }
+            } catch (error) {
+                if (hint) {
+                    hint.textContent = error.message || 'Could not load S3 folders.';
+                }
+            } finally {
+                folderSelect.disabled = false;
+            }
+        };
+
+        yearInput.addEventListener('change', loadFolders);
+        monthSelect.addEventListener('change', loadFolders);
+
+        form.addEventListener('submit', () => {
+            if (window.PulseLoader) {
+                window.PulseLoader.show('Pulling biometric logs from S3…');
+            }
+        });
+
+        // Load once when the form is present (modal may already be open).
+        loadFolders();
+    };
+
+    document.querySelectorAll('[data-biometric-s3-pull-form]').forEach(initBiometricS3PullForm);
+
     const printReportFromSource = (sourceId) => {
         const source = document.getElementById(sourceId);
 
@@ -4152,6 +5187,83 @@ tr { page-break-inside: avoid; }
 
     window.addEventListener('beforeprint', () => {
         pulseLoader.hide();
+    });
+
+    const loadOvertimeExcessPreview = async (form, { autofill = true } = {}) => {
+        const previewUrl = form.getAttribute('data-ot-preview-url');
+        const workDateInput = form.querySelector('[data-ot-work-date]');
+        const startInput = form.querySelector('[data-ot-start]');
+        const endInput = form.querySelector('[data-ot-end]');
+        const hint = form.querySelector('[data-ot-excess-hint]');
+
+        if (! previewUrl || ! workDateInput || ! hint) {
+            return;
+        }
+
+        const workDate = workDateInput.value;
+
+        if (! workDate) {
+            hint.classList.add('hidden');
+            hint.textContent = '';
+            return;
+        }
+
+        hint.classList.remove('hidden');
+        hint.textContent = 'Loading excess hours…';
+
+        try {
+            const url = new URL(previewUrl, window.location.origin);
+            url.searchParams.set('work_date', workDate);
+            const response = await fetch(url.toString(), {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+
+            if (! response.ok) {
+                hint.textContent = 'Unable to load excess hours for this date.';
+                return;
+            }
+
+            const payload = await response.json();
+
+            if (! payload.ok) {
+                hint.textContent = payload.message || 'No excess hours for this date.';
+                return;
+            }
+
+            const windows = Array.isArray(payload.windows) ? payload.windows : [];
+            const labels = windows.map((window) => `${window.label} (${window.minutes} min)`).join('; ');
+            const total = Number(payload.excess_minutes || 0);
+            hint.textContent = labels
+                ? `Excess outside shift: ${labels}. Total ${total} min — OT fields auto-filled; adjust if needed.`
+                : `Excess outside shift: ${total} min.`;
+
+            if (autofill && startInput && endInput && payload.suggested_ot_start && payload.suggested_ot_end) {
+                startInput.value = payload.suggested_ot_start;
+                endInput.value = payload.suggested_ot_end;
+            }
+        } catch {
+            hint.textContent = 'Unable to load excess hours for this date.';
+        }
+    };
+
+    document.addEventListener('change', (event) => {
+        const workDateInput = event.target.closest('[data-ot-work-date]');
+
+        if (! workDateInput) {
+            return;
+        }
+
+        const form = workDateInput.closest('[data-ot-approval-form]');
+
+        if (form) {
+            loadOvertimeExcessPreview(form, { autofill: true });
+        }
+    });
+
+    document.querySelectorAll('[data-ot-approval-form]').forEach((form) => {
+        const startInput = form.querySelector('[data-ot-start]');
+        const hasOldTimes = Boolean(startInput?.value);
+        loadOvertimeExcessPreview(form, { autofill: ! hasOldTimes });
     });
 
     initGovernmentIdInputs();

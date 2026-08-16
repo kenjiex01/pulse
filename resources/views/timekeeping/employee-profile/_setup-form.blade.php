@@ -2,7 +2,7 @@
     use App\Support\TimekeepingEmployeeProfile;
 
     $formContext = 'setup-employee-'.$employee->employee_id;
-    $activeTab = TimekeepingEmployeeProfile::normalizeSetupTab(old('active_tab', 'timekeeping'));
+    $activeTab = TimekeepingEmployeeProfile::normalizeSetupTab(old('active_tab', request('view_tab', 'timekeeping')));
 @endphp
 
 <div class="space-y-4" data-employee-form-tabs>
@@ -55,6 +55,11 @@
         data-lazy-url="{{ route(TimekeepingEmployeeProfile::routeName('attendance'), array_filter([
             'employee' => $employee->employee_id,
             'attendance_page' => request('attendance_page'),
+            'date_from' => request('date_from'),
+            'date_to' => request('date_to'),
+            'year' => request('year'),
+            'month' => request('month'),
+            'day' => request('day'),
         ])) }}"
         @if ($activeTab === 'attendance') data-lazy-pending="true" @endif
     >
@@ -62,6 +67,25 @@
             <div class="py-6 text-center text-sm text-gray-500">Loading attendance view…</div>
         @else
             <div class="py-6 text-center text-sm text-gray-500">Open this tab to load attendance view.</div>
+        @endif
+    </div>
+
+    <div
+        class="employee-tab-panel {{ $activeTab === 'calendar' ? '' : 'hidden' }}"
+        data-employee-tab-panel="calendar"
+        data-employee-profile-lazy-panel
+        data-lazy-url="{{ route(TimekeepingEmployeeProfile::routeName('calendar'), array_filter([
+            'employee' => $employee->employee_id,
+            'year' => request('year'),
+            'month' => request('month'),
+            'day' => request('day'),
+        ])) }}"
+        @if ($activeTab === 'calendar') data-lazy-pending="true" @endif
+    >
+        @if ($activeTab === 'calendar')
+            <div class="py-6 text-center text-sm text-gray-500">Loading calendar view…</div>
+        @else
+            <div class="py-6 text-center text-sm text-gray-500">Open this tab to load calendar view.</div>
         @endif
     </div>
 

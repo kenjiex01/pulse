@@ -7,7 +7,7 @@
     </div>
     @isset($secondaryActionModalId)
         <div class="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-            <button type="button" data-modal-open="{{ $secondaryActionModalId }}" class="btn-secondary w-full sm:w-auto">
+            <button type="button" data-modal-open="{{ $secondaryActionModalId }}" class="btn-primary w-full sm:w-auto">
                 @isset($secondaryActionIcon)
                     {!! $secondaryActionIcon !!}
                 @endisset

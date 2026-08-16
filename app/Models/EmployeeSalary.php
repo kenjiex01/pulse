@@ -24,6 +24,7 @@ class EmployeeSalary extends Model
         'days_per_period',
         'hours_per_day',
         'use_basic_income_as_hourly_rate',
+        'is_above_minimum_wage_earner',
         'cola_rate_per_hour',
         'rate_group_id',
         'nd_rate_group_id',
@@ -37,6 +38,7 @@ class EmployeeSalary extends Model
             'days_per_period' => 'decimal:5',
             'hours_per_day' => 'decimal:2',
             'use_basic_income_as_hourly_rate' => 'boolean',
+            'is_above_minimum_wage_earner' => 'boolean',
             'cola_rate_per_hour' => 'decimal:2',
         ];
     }

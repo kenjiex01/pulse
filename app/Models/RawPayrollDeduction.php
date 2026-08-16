@@ -18,6 +18,7 @@ class RawPayrollDeduction extends Model
         'employee_id',
         'deduction_type_id',
         'hours',
+        'days',
         'employee_amount',
         'employer_amount',
         'amount',
@@ -30,6 +31,7 @@ class RawPayrollDeduction extends Model
     {
         return [
             'hours' => 'decimal:4',
+            'days' => 'decimal:4',
             'employee_amount' => 'decimal:2',
             'employer_amount' => 'decimal:2',
             'amount' => 'decimal:2',
