@@ -62,36 +62,42 @@ const html = `<!DOCTYPE html>
     <table>
       <tr class="row-key">
         <td class="col-a">emp_num</td>
+        <td>full_name</td>
         <td>day_type</td>
         <td>time_type</td>
         <td>hours</td>
       </tr>
       <tr class="row-label">
         <td>Employee No.</td>
+        <td>Full Name</td>
         <td>Day Type Code</td>
         <td>Time Type Code</td>
         <td>No. of Hours</td>
       </tr>
       <tr class="row-hint">
         <td>Accepts all existing Employee No.</td>
+        <td>For reference only; not imported.</td>
         <td>Accepts current value(s): LEGL, REGU, RES, RSLG, RSSP, SPCL, SUND</td>
         <td>Accepts current value(s): BP, NDIF, NOT, NSOT, OT, SOT</td>
         <td>Accepts up to 8 digits and 2 decimals</td>
       </tr>
       <tr class="row-data">
         <td>2026-00003</td>
+        <td>Maria L. Santos</td>
         <td>REGU</td>
         <td>BP</td>
         <td>40</td>
       </tr>
       <tr class="row-data">
         <td>2026-00003</td>
+        <td>Maria L. Santos</td>
         <td>REGU</td>
         <td>OT</td>
         <td>4</td>
       </tr>
       <tr class="row-data">
         <td>2026-00003</td>
+        <td>Maria L. Santos</td>
         <td>REGU</td>
         <td>NDIF</td>
         <td>2</td>

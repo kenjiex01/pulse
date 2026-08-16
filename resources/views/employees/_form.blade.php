@@ -53,7 +53,10 @@
     @endif
     @if (! $wizardMode)
         <input type="hidden" name="active_tab" value="{{ $activeTab }}" data-employee-active-tab>
-        @include('employees._tabs-nav', ['activeTab' => $activeTab])
+        @include('employees._tabs-nav', [
+            'activeTab' => $activeTab,
+            'showHistoryTab' => $isEdit,
+        ])
     @else
         <h2 class="text-2xl font-bold text-gray-900">Employee Details</h2>
         <p class="text-sm text-gray-600">Complete all sections below. Role assignment is on the review step.</p>
@@ -411,6 +414,36 @@
         </section>
     </div>
 
+    @unless ($wizardMode)
+        @include('employees.partials._credentials-tab', [
+            'employee' => $employee,
+            'isEdit' => $isEdit,
+            'activeTab' => $activeTab,
+            'wizardMode' => false,
+        ])
+
+        @include('employees.partials._loans-tab', [
+            'employee' => $employee,
+            'isEdit' => $isEdit,
+            'activeTab' => $activeTab,
+            'wizardMode' => false,
+        ])
+    @endunless
+
+    @if ($isEdit)
+        <div
+            class="employee-tab-panel {{ $activeTab === 'history' ? '' : 'hidden' }}"
+            data-employee-tab-panel="history"
+            data-employee-profile-lazy-panel
+            data-lazy-url="{{ route('employees.history', ['employee' => $employee->employee_id, 'page' => request('page')]) }}"
+            @if ($activeTab === 'history') data-lazy-pending="true" @endif
+        >
+            <div class="py-6 text-center text-sm text-gray-500">
+                {{ $activeTab === 'history' ? 'Loading change history…' : 'Open this tab to load change history.' }}
+            </div>
+        </div>
+    @endif
+
     <div class="flex flex-col-reverse gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:justify-between">
         @if ($wizardMode)
             <a href="{{ route('employees.create', ['step' => 0]) }}" class="btn-secondary w-full sm:w-auto">
@@ -429,3 +462,8 @@
         @endif
     </div>
 </form>
+
+@if ($isEdit && ! $wizardMode)
+    @include('employees.partials._credentials-modals', ['employee' => $employee])
+    @include('employees.partials._loans-modals', ['employee' => $employee])
+@endif

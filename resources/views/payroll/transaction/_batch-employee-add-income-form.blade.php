@@ -6,6 +6,7 @@
     method="POST"
     action="{{ route(PayrollTransactionModule::routeName('employees.incomes.store'), [$batch, $detail]) }}"
     class="space-y-4"
+    data-batch-add-income-form
 >
     @csrf
     <input type="hidden" name="form_context" value="add-batch-employee-income">
@@ -27,10 +28,15 @@
             class="form-input"
             required
             data-no-searchable-select
+            data-batch-add-income-type
         >
             <option value="">Select income type</option>
             @foreach ($incomeTypes as $incomeType)
-                <option value="{{ $incomeType->income_type_id }}" @selected((string) old('income_type_id') === (string) $incomeType->income_type_id)>
+                <option
+                    value="{{ $incomeType->income_type_id }}"
+                    data-code="{{ $incomeType->income_type_code }}"
+                    @selected((string) old('income_type_id') === (string) $incomeType->income_type_id)
+                >
                     {{ $incomeType->income_type_code }} — {{ $incomeType->description }}
                 </option>
             @endforeach
@@ -38,6 +44,50 @@
         @error('income_type_id')
             <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
         @enderror
+    </div>
+
+    @php
+        $selectedIncomeCode = optional($incomeTypes->firstWhere('income_type_id', (int) old('income_type_id')))->income_type_code;
+        $showHoursDays = in_array($selectedIncomeCode, ['BASC', 'OVRT'], true);
+    @endphp
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 {{ $showHoursDays ? '' : 'hidden' }}" data-batch-add-income-hours-days-wrap>
+        <div>
+            <label for="batch-add-income-hours" class="form-label">Hours <span class="text-red-500">*</span></label>
+            <input
+                type="number"
+                id="batch-add-income-hours"
+                name="hours"
+                min="0"
+                step="0.0001"
+                class="form-input text-right"
+                placeholder="0.00"
+                value="{{ old('hours') }}"
+                data-batch-add-income-hours
+                @if ($showHoursDays) required @endif
+            >
+            @error('hours')
+                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+            @enderror
+        </div>
+        <div>
+            <label for="batch-add-income-days" class="form-label">Days <span class="text-red-500">*</span></label>
+            <input
+                type="number"
+                id="batch-add-income-days"
+                name="days"
+                min="0"
+                step="0.0001"
+                class="form-input text-right"
+                placeholder="0.00"
+                value="{{ old('days') }}"
+                data-batch-add-income-days
+                @if ($showHoursDays) required @endif
+            >
+            @error('days')
+                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+            @enderror
+        </div>
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\DesktopConnectivity;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -21,6 +22,10 @@ class DesktopCloudBackupService
         }
 
         if (! $this->shouldRunNow()) {
+            return;
+        }
+
+        if (! app(DesktopConnectivity::class)->isOnline()) {
             return;
         }
 
@@ -56,6 +61,10 @@ class DesktopCloudBackupService
         $now = $this->now();
 
         if (! $force && ! $this->shouldRunNow($now)) {
+            return null;
+        }
+
+        if (! app(DesktopConnectivity::class)->isOnline()) {
             return null;
         }
 
@@ -153,11 +162,18 @@ class DesktopCloudBackupService
         return $cleared;
     }
 
-    public function uploadPath(string $filename): string
+    /**
+     * S3 object key: {prefix}/{YYYY}/{MM}/{filename}
+     *
+     * Example: payroll-backups/2026/08/pulse-db-Kents-MacBook-Pro-2026-08-12-10-00-00.sql.gz
+     */
+    public function uploadPath(string $filename, ?Carbon $now = null): string
     {
         $prefix = trim((string) config('backup.cloud.s3_prefix', 'payroll-backups'), '/');
+        $now ??= $this->now();
+        $relative = sprintf('%s/%s/%s', $now->format('Y'), $now->format('m'), $filename);
 
-        return $prefix === '' ? $filename : $prefix.'/'.$filename;
+        return $prefix === '' ? $relative : $prefix.'/'.$relative;
     }
 
     /**

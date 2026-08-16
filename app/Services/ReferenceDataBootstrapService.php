@@ -77,7 +77,7 @@ class ReferenceDataBootstrapService
 
     private function campusesIncomplete(): bool
     {
-        $expectedCodes = ['AG', 'UA', 'BI', 'CA', 'CO', 'DC', 'SA', 'SU', 'TA'];
+        $expectedCodes = ['AG', 'UA', 'BI', 'CA', 'CO', 'DC', 'SA', 'SU', 'TA', 'GH', 'ND', 'WR', 'O8', 'F6'];
 
         $existingCodes = Campus::query()
             ->whereIn('campus_code', $expectedCodes)

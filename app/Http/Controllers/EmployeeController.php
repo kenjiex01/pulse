@@ -12,6 +12,7 @@ use App\Models\Employee;
 use App\Models\Role;
 use App\Services\EmployeeCampusAssignmentSync;
 use App\Services\EmployeeEmploymentSync;
+use App\Services\EmployeeHistoryService;
 use App\Services\EmployeeSalarySync;
 use App\Services\EmployeeUploadService;
 use App\Services\EmployeeWizardSession;
@@ -27,7 +28,10 @@ use Illuminate\View\View;
 
 class EmployeeController extends Controller
 {
-    public function __construct(private readonly EmployeeUploadService $uploadService) {}
+    public function __construct(
+        private readonly EmployeeUploadService $uploadService,
+        private readonly EmployeeHistoryService $historyService,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -330,6 +334,9 @@ class EmployeeController extends Controller
             'employmentInformations.previousSalaries.ndRateGroup',
             'employmentInformations.previousSalaries.incomes.incomeType',
             'employmentInformations.previousSalaries.deductions.deductionType',
+            'credentials',
+            'loans.loanType',
+            'loans.paymentScheme',
         ]);
 
         SysLogService::record(
@@ -347,8 +354,34 @@ class EmployeeController extends Controller
         return view('employees.edit', compact('employee', 'campuses'));
     }
 
+    public function history(Request $request, Employee $employee): View
+    {
+        $this->authorize('view', $employee);
+
+        $logs = $this->historyService->logsForEmployee(
+            $employee,
+            LiveTable::perPage($request, 15),
+        );
+
+        return view('employees.partials._history-results', [
+            'employee' => $employee,
+            'logs' => $logs,
+            'historyService' => $this->historyService,
+        ]);
+    }
+
     public function update(UpdateEmployeeRequest $request, Employee $employee): RedirectResponse
     {
+        $employee->load([
+            'campusAssignments.campus',
+            'employmentInformations.salary.payType',
+            'employmentInformations.salary.basicComputation',
+            'employmentInformations.salary.rateGroup',
+            'employmentInformations.salary.ndRateGroup',
+            'employmentInformations.salary.incomes.incomeType',
+            'employmentInformations.salary.deductions.deductionType',
+        ]);
+
         $oldValues = $employee->logSnapshot();
         $payload = $request->validated();
 

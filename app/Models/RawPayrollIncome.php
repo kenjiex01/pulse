@@ -17,6 +17,8 @@ class RawPayrollIncome extends Model
         'payroll_transaction_id',
         'employee_id',
         'income_type_id',
+        'hours',
+        'days',
         'taxable',
         'non_taxable',
         'amount',
@@ -26,6 +28,8 @@ class RawPayrollIncome extends Model
     protected function casts(): array
     {
         return [
+            'hours' => 'decimal:4',
+            'days' => 'decimal:4',
             'taxable' => 'decimal:2',
             'non_taxable' => 'decimal:2',
             'amount' => 'decimal:2',

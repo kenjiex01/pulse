@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\DayType;
 use App\Models\DeductionType;
 use App\Models\Employee;
+use App\Models\EmployeeOvertimeApproval;
+use App\Models\EmployeeShiftOverride;
 use App\Models\IncomeType;
 use App\Models\LeaveType;
 use App\Models\LoanType;
@@ -14,8 +16,11 @@ use App\Models\RawPayrollHoursWorked;
 use App\Models\RawPayrollIncome;
 use App\Models\RawPayrollLeave;
 use App\Models\RawPayrollLoanPayment;
+use App\Models\RawPayrollOvertime;
 use App\Models\RawPayrollResignedEmployee;
+use App\Models\RawPayrollShiftCode;
 use App\Models\RawPayrollTransaction;
+use App\Models\ShiftCode;
 use App\Models\TimeType;
 use App\Models\User;
 use App\Support\PayrollTransactionModule;
@@ -24,6 +29,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class PayrollTransactionUploadService
@@ -33,6 +39,10 @@ class PayrollTransactionUploadService
     private const DATE_PATTERN = '/^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$/';
 
     private const DATE_PATTERN_US = '/^([0]?[1-9]|1[0-2])\/([0]?[1-9]|1\d|2\d|3[01])\/(19|20)\d{2}$/';
+
+    public function __construct(
+        private readonly EmployeeOvertimeApprovalService $overtimeApprovals,
+    ) {}
 
     /**
      * @return array<int, string>
@@ -85,16 +95,36 @@ class PayrollTransactionUploadService
         }
 
         $empIndex = array_search('emp_num', $aliases, true);
+        $fullNameIndex = array_search('full_name', $aliases, true);
 
         if ($empIndex === false) {
             return $content;
         }
 
+        $prefillNumbers = array_values(array_filter(
+            $prefillEmployeeNumbers,
+            fn ($number) => trim((string) $number) !== ''
+        ));
+
+        $employeesByNumber = $prefillNumbers === []
+            ? collect()
+            : Employee::query()
+                ->whereIn('employee_number', $prefillNumbers)
+                ->get()
+                ->keyBy('employee_number');
+
         foreach ($prefillEmployeeNumbers as $employeeNumber) {
             $row = array_fill(0, count($aliases), '');
 
+            $employeeNumber = trim((string) $employeeNumber);
+
             if ($employeeNumber !== '') {
                 $row[$empIndex] = $employeeNumber;
+
+                if ($fullNameIndex !== false) {
+                    $employee = $employeesByNumber->get($employeeNumber);
+                    $row[$fullNameIndex] = $employee?->full_name ?? '';
+                }
             }
 
             $content .= $this->formatCsvRow($row)."\n";
@@ -112,7 +142,7 @@ class PayrollTransactionUploadService
      *     error_count: int
      * }
      */
-    public function parseUploadedFile(UploadedFile $file, string $uploadType): array
+    public function parseUploadedFile(UploadedFile $file, string $uploadType, ?PayrollCalendar $calendar = null): array
     {
         $this->assertTextFile($file);
 
@@ -136,6 +166,8 @@ class PayrollTransactionUploadService
         $errors = [];
         $lineNumber = 0;
         $delimiter = "\t";
+        $seenShiftKeys = [];
+        $seenOvertimeKeys = [];
 
         try {
             while (($line = fgets($handle)) !== false) {
@@ -183,7 +215,32 @@ class PayrollTransactionUploadService
                     $row[$alias] = trim($cells[$index] ?? '');
                 }
 
-                $parsed = $this->validateRow($uploadType, $fields, $row, $lineNumber, $errors);
+                $parsed = $this->validateRow($uploadType, $fields, $row, $lineNumber, $errors, $calendar);
+
+                if ($parsed !== null && $uploadType === 'shift-codes') {
+                    $dupKey = ((int) $parsed['employee_id']).'|'.($parsed['work_date'] ?? '');
+
+                    if (isset($seenShiftKeys[$dupKey])) {
+                        $errors[] = "Line {$lineNumber}: Duplicate employee and work date in this file (also on line {$seenShiftKeys[$dupKey]}).";
+                        $parsed = null;
+                    } else {
+                        $seenShiftKeys[$dupKey] = $lineNumber;
+                    }
+                }
+
+                if ($parsed !== null && $uploadType === 'overtime') {
+                    $dupKey = ((int) $parsed['employee_id']).'|'
+                        .($parsed['work_date'] ?? '').'|'
+                        .($parsed['ot_start'] ?? '').'|'
+                        .($parsed['ot_end'] ?? '');
+
+                    if (isset($seenOvertimeKeys[$dupKey])) {
+                        $errors[] = "Line {$lineNumber}: Duplicate overtime window in this file (also on line {$seenOvertimeKeys[$dupKey]}).";
+                        $parsed = null;
+                    } else {
+                        $seenOvertimeKeys[$dupKey] = $lineNumber;
+                    }
+                }
 
                 if ($parsed !== null) {
                     $valid[] = $parsed;
@@ -330,8 +387,10 @@ class PayrollTransactionUploadService
 
         return match (true) {
             $alias === 'emp_num' => 'Accepts all existing Employee No.',
+            ($field['type'] ?? '') === 'reference' => (string) ($field['hint'] ?? 'For reference only; not imported.'),
             $type === 'decimal' => 'Accepts up to '.((int) ($field['size'] ?? 8)).' digits and 2 decimals',
             $type === 'date' => 'Accepts mm/dd/yyyy format',
+            $type === 'time' => 'Accepts HH:MM (24-hour) or h:mm AM/PM',
             $type === 'string' => 'Accepts up to '.((int) ($field['max'] ?? 255)).' characters',
             $type === 'income_type' => $this->lookupValuesHint(IncomeType::class, 'income_type_code'),
             $type === 'deduction_type' => $this->lookupValuesHint(DeductionType::class, 'deduction_type_code'),
@@ -339,6 +398,7 @@ class PayrollTransactionUploadService
             $type === 'time_type' => $this->lookupValuesHint(TimeType::class, 'time_type_code'),
             $type === 'leave_type' => $this->lookupValuesHint(LeaveType::class, 'leave_type_code'),
             $type === 'loan_type' => $this->lookupValuesHint(LoanType::class, 'loan_type_code'),
+            $type === 'shift_code' => $this->lookupValuesHint(ShiftCode::class, 'shift_code'),
             default => '',
         };
     }
@@ -418,8 +478,14 @@ class PayrollTransactionUploadService
      * @param  array<int, string>  $errors
      * @return array<string, mixed>|null
      */
-    private function validateRow(string $uploadType, array $fields, array $row, int $lineNumber, array &$errors): ?array
-    {
+    private function validateRow(
+        string $uploadType,
+        array $fields,
+        array $row,
+        int $lineNumber,
+        array &$errors,
+        ?PayrollCalendar $calendar = null,
+    ): ?array {
         $parsed = [];
         $hasError = false;
 
@@ -442,7 +508,7 @@ class PayrollTransactionUploadService
         foreach ($fields as $field) {
             $alias = $field['alias'];
 
-            if ($alias === 'emp_num') {
+            if ($alias === 'emp_num' || ($field['type'] ?? '') === 'reference') {
                 continue;
             }
 
@@ -471,8 +537,22 @@ class PayrollTransactionUploadService
             $this->validateLeaveRow($parsed, $lineNumber, $errors, $hasError);
         }
 
-        if (in_array($uploadType, ['deductions', 'deduction-adjustments'], true) && ! $hasError) {
+        if (in_array($uploadType, ['incomes', 'income-adjustments'], true)) {
+            $this->validateIncomeHoursRow($parsed, $lineNumber, $errors, $hasError);
+            $this->validateIncomeDaysRow($parsed, $lineNumber, $errors, $hasError);
+        }
+
+        if (in_array($uploadType, ['deductions', 'deduction-adjustments'], true)) {
             $this->validateDeductionHoursRow($parsed, $lineNumber, $errors, $hasError);
+            $this->validateDeductionDaysRow($parsed, $lineNumber, $errors, $hasError);
+        }
+
+        if ($uploadType === 'shift-codes' && ! $hasError) {
+            $this->validateShiftCodeRow($parsed, $lineNumber, $errors, $hasError, $calendar);
+        }
+
+        if ($uploadType === 'overtime' && ! $hasError) {
+            $this->validateOvertimeRow($parsed, $lineNumber, $errors, $hasError, $calendar);
         }
 
         if ($uploadType === 'resigned-employees' && ! $hasError && isset($parsed['dt_resigned'])) {
@@ -501,8 +581,10 @@ class PayrollTransactionUploadService
                 ? $this->lookupLeaveType($value, $lineNumber, $label, $errors, $hasError, 'applies_to_leave_type_id')
                 : $this->lookupLeaveType($value, $lineNumber, $label, $errors, $hasError, 'leave_type_id'),
             'loan_type' => $this->lookupLoanType($value, $lineNumber, $label, $errors, $hasError),
-            'decimal' => $this->validateDecimal($alias, $value, $lineNumber, $label, $errors, $hasError),
+            'shift_code' => $this->lookupShiftCode($value, $lineNumber, $label, $errors, $hasError),
+            'decimal' => $this->validateDecimal($field, $value, $lineNumber, $label, $errors, $hasError),
             'date' => $this->validateDateField($alias, $value, $lineNumber, $label, $errors, $hasError),
+            'time' => $this->validateTimeField($alias, $value, $lineNumber, $label, $errors, $hasError),
             'string' => $this->validateStringField($alias, $value, $lineNumber, $label, (int) ($field['max'] ?? 255), $errors, $hasError),
             default => [$alias => $value],
         };
@@ -620,8 +702,194 @@ class PayrollTransactionUploadService
      * @param  array<int, string>  $errors
      * @return array<string, mixed>|null
      */
-    private function validateDecimal(string $alias, string $value, int $lineNumber, string $label, array &$errors, bool &$hasError): ?array
+    private function lookupShiftCode(string $value, int $lineNumber, string $label, array &$errors, bool &$hasError): ?array
     {
+        $type = ShiftCode::query()->where('shift_code', $value)->first();
+
+        if (! $type) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Invalid {$label} ({$value}).";
+
+            return null;
+        }
+
+        return ['shift_code_id' => $type->shift_code_id];
+    }
+
+    /**
+     * @param  array<string, mixed>  $parsed
+     * @param  array<int, string>  $errors
+     */
+    private function validateShiftCodeRow(
+        array $parsed,
+        int $lineNumber,
+        array &$errors,
+        bool &$hasError,
+        ?PayrollCalendar $calendar,
+    ): void {
+        if (! isset($parsed['work_date'])) {
+            return;
+        }
+
+        if (! $calendar?->dt_from || ! $calendar?->dt_to) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Pay period dates are missing for the selected calendar.";
+
+            return;
+        }
+
+        $workDate = Carbon::parse($parsed['work_date'])->startOfDay();
+        $from = $calendar->dt_from->copy()->startOfDay();
+        $to = $calendar->dt_to->copy()->startOfDay();
+
+        if ($workDate->lt($from) || $workDate->gt($to)) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Work Date must fall within the selected pay period ("
+                .$from->format('m/d/Y').' – '.$to->format('m/d/Y').').';
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $parsed
+     * @param  array<int, string>  $errors
+     */
+    private function validateOvertimeRow(
+        array &$parsed,
+        int $lineNumber,
+        array &$errors,
+        bool &$hasError,
+        ?PayrollCalendar $calendar,
+    ): void {
+        if (! isset($parsed['work_date'], $parsed['ot_start'], $parsed['ot_end'], $parsed['employee_id'])) {
+            return;
+        }
+
+        if (! $calendar?->dt_from || ! $calendar?->dt_to) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Pay period dates are missing for the selected calendar.";
+
+            return;
+        }
+
+        $workDate = Carbon::parse($parsed['work_date'])->startOfDay();
+        $from = $calendar->dt_from->copy()->startOfDay();
+        $to = $calendar->dt_to->copy()->startOfDay();
+
+        if ($workDate->lt($from) || $workDate->gt($to)) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Work Date must fall within the selected pay period ("
+                .$from->format('m/d/Y').' – '.$to->format('m/d/Y').').';
+
+            return;
+        }
+
+        $employee = Employee::query()
+            ->with(['timekeepingSetup.shiftCode'])
+            ->find((int) $parsed['employee_id']);
+
+        if (! $employee) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Employee not found.";
+
+            return;
+        }
+
+        try {
+            $summary = $this->overtimeApprovals->validateForStore(
+                (int) $employee->employee_id,
+                $workDate->toDateString(),
+                (string) $parsed['ot_start'],
+                (string) $parsed['ot_end'],
+                null,
+                $employee->timekeepingSetup?->shiftCode,
+            );
+        } catch (ValidationException $exception) {
+            $hasError = true;
+            $messages = collect($exception->errors())->flatten()->filter()->values();
+            $detail = $messages->isNotEmpty() ? $messages->implode(' ') : 'Invalid overtime window.';
+            $errors[] = "Line {$lineNumber}: {$detail}";
+
+            return;
+        }
+
+        $parsed['ot_start_at'] = $summary['ot_start']->toDateTimeString();
+        $parsed['ot_end_at'] = $summary['ot_end']->toDateTimeString();
+        $parsed['billable_minutes'] = $summary['billable_minutes'];
+    }
+
+    /**
+     * @param  array<int, string>  $errors
+     * @return array<string, mixed>|null
+     */
+    private function validateTimeField(
+        string $alias,
+        string $value,
+        int $lineNumber,
+        string $label,
+        array &$errors,
+        bool &$hasError,
+    ): ?array {
+        $normalized = $this->normalizeTimeClock($value);
+
+        if ($normalized === null) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Invalid {$label} ({$value}). Use HH:MM or h:mm AM/PM.";
+
+            return null;
+        }
+
+        return [$alias => $normalized];
+    }
+
+    private function normalizeTimeClock(string $value): ?string
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', $value) === 1) {
+            try {
+                return Carbon::createFromFormat(
+                    substr_count($value, ':') === 2 ? 'H:i:s' : 'H:i',
+                    $value,
+                )->format('H:i');
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
+        if (preg_match('/^\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)$/i', $value) === 1) {
+            $upper = preg_replace('/\s+/', ' ', strtoupper(trim($value))) ?? '';
+            $hasSeconds = substr_count(preg_replace('/\s*(AM|PM)$/i', '', $upper) ?? '', ':') === 2;
+            $formats = $hasSeconds
+                ? ['g:i:s A', 'h:i:s A']
+                : ['g:i A', 'h:i A'];
+
+            foreach ($formats as $format) {
+                try {
+                    return Carbon::createFromFormat($format, $upper)->format('H:i');
+                } catch (\Throwable) {
+                    // try next format
+                }
+            }
+
+            return null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $field
+     * @param  array<int, string>  $errors
+     * @return array<string, mixed>|null
+     */
+    private function validateDecimal(array $field, string $value, int $lineNumber, string $label, array &$errors, bool &$hasError): ?array
+    {
+        $alias = (string) ($field['alias'] ?? '');
+
         if (! is_numeric($value)) {
             $hasError = true;
             $errors[] = "Line {$lineNumber}: Invalid {$label} ({$value}).";
@@ -629,7 +897,9 @@ class PayrollTransactionUploadService
             return null;
         }
 
-        return [$alias => round((float) $value, 2)];
+        $decimals = in_array($alias, ['hours', 'days'], true) ? 4 : 2;
+
+        return [$alias => round((float) $value, $decimals)];
     }
 
     /**
@@ -687,6 +957,76 @@ class PayrollTransactionUploadService
     }
 
     /**
+     * Hours is required only for Basic (BASC) and Overtime (OVRT) income uploads.
+     *
+     * @param  array<string, mixed>  $parsed
+     * @param  array<int, string>  $errors
+     */
+    private function validateIncomeHoursRow(array $parsed, int $lineNumber, array &$errors, bool &$hasError): void
+    {
+        $incomeTypeId = (int) ($parsed['income_type_id'] ?? 0);
+
+        if ($incomeTypeId <= 0) {
+            return;
+        }
+
+        $code = IncomeType::query()
+            ->whereKey($incomeTypeId)
+            ->value('income_type_code');
+
+        if (! in_array($code, ['BASC', 'OVRT'], true)) {
+            return;
+        }
+
+        if (! array_key_exists('hours', $parsed) || $parsed['hours'] === null || $parsed['hours'] === '') {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Hours is required for Basic (BASC) and Overtime (OVRT).";
+
+            return;
+        }
+
+        if ((float) $parsed['hours'] <= 0) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Hours must be greater than 0 for Basic (BASC) and Overtime (OVRT).";
+        }
+    }
+
+    /**
+     * Days is required only for Basic (BASC) and Overtime (OVRT) income uploads.
+     *
+     * @param  array<string, mixed>  $parsed
+     * @param  array<int, string>  $errors
+     */
+    private function validateIncomeDaysRow(array $parsed, int $lineNumber, array &$errors, bool &$hasError): void
+    {
+        $incomeTypeId = (int) ($parsed['income_type_id'] ?? 0);
+
+        if ($incomeTypeId <= 0) {
+            return;
+        }
+
+        $code = IncomeType::query()
+            ->whereKey($incomeTypeId)
+            ->value('income_type_code');
+
+        if (! in_array($code, ['BASC', 'OVRT'], true)) {
+            return;
+        }
+
+        if (! array_key_exists('days', $parsed) || $parsed['days'] === null || $parsed['days'] === '') {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Days is required for Basic (BASC) and Overtime (OVRT).";
+
+            return;
+        }
+
+        if ((float) $parsed['days'] <= 0) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Days must be greater than 0 for Basic (BASC) and Overtime (OVRT).";
+        }
+    }
+
+    /**
      * Hours is required only for Late (LTDE) and Undertime (UTDE) deduction uploads.
      *
      * @param  array<string, mixed>  $parsed
@@ -721,6 +1061,41 @@ class PayrollTransactionUploadService
         }
     }
 
+    /**
+     * Days is required only for Late (LTDE) and Undertime (UTDE) deduction uploads.
+     *
+     * @param  array<string, mixed>  $parsed
+     * @param  array<int, string>  $errors
+     */
+    private function validateDeductionDaysRow(array $parsed, int $lineNumber, array &$errors, bool &$hasError): void
+    {
+        $deductionTypeId = (int) ($parsed['deduction_type_id'] ?? 0);
+
+        if ($deductionTypeId <= 0) {
+            return;
+        }
+
+        $code = DeductionType::query()
+            ->whereKey($deductionTypeId)
+            ->value('deduction_type_code');
+
+        if (! in_array($code, ['LTDE', 'UTDE'], true)) {
+            return;
+        }
+
+        if (! array_key_exists('days', $parsed) || $parsed['days'] === null || $parsed['days'] === '') {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Days is required for Late (LTDE) and Undertime (UTDE).";
+
+            return;
+        }
+
+        if ((float) $parsed['days'] <= 0) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Days must be greater than 0 for Late (LTDE) and Undertime (UTDE).";
+        }
+    }
+
     private function isValidDate(string $value): bool
     {
         return preg_match(self::DATE_PATTERN, $value) === 1
@@ -738,6 +1113,8 @@ class PayrollTransactionUploadService
                 'payroll_transaction_id' => $transaction->payroll_transaction_id,
                 'employee_id' => $row['employee_id'],
                 'income_type_id' => $row['income_type_id'],
+                'hours' => $row['hours'] ?? null,
+                'days' => $row['days'] ?? null,
                 'taxable' => $row['taxable'] ?? null,
                 'non_taxable' => $row['non_taxable'] ?? null,
                 'amount' => $row['amount'] ?? null,
@@ -748,6 +1125,7 @@ class PayrollTransactionUploadService
                 'employee_id' => $row['employee_id'],
                 'deduction_type_id' => $row['deduction_type_id'],
                 'hours' => $row['hours'] ?? null,
+                'days' => $row['days'] ?? null,
                 'employee_amount' => $row['emp_amount'] ?? null,
                 'employer_amount' => $row['empr_amount'] ?? null,
                 'amount' => $row['amount'] ?? null,
@@ -763,6 +1141,8 @@ class PayrollTransactionUploadService
                 'hours' => $row['hours'],
                 'amount' => $row['amount'] ?? null,
             ]),
+            'shift-codes' => $this->persistShiftCodeRow($transaction, $row),
+            'overtime' => $this->persistOvertimeRow($transaction, $row),
             'leaves' => RawPayrollLeave::query()->create([
                 'payroll_transaction_id' => $transaction->payroll_transaction_id,
                 'employee_id' => $row['employee_id'],
@@ -791,6 +1171,214 @@ class PayrollTransactionUploadService
             ]),
             default => throw new RuntimeException('Unsupported upload type.'),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function persistShiftCodeRow(RawPayrollTransaction $transaction, array $row): void
+    {
+        $employeeId = (int) $row['employee_id'];
+        $workDate = Carbon::parse($row['work_date'])->toDateString();
+        $shiftCodeId = (int) $row['shift_code_id'];
+        $employeeNumber = Employee::query()->whereKey($employeeId)->value('employee_number') ?? (string) $employeeId;
+
+        $raw = RawPayrollShiftCode::query()->create([
+            'payroll_transaction_id' => $transaction->payroll_transaction_id,
+            'employee_id' => $employeeId,
+            'work_date' => $workDate,
+            'shift_code_id' => $shiftCodeId,
+        ]);
+
+        SysLogService::record(
+            action: 'create',
+            table: 'raw_payroll_shift_codes',
+            recordId: $raw->payroll_shift_code_id,
+            newValues: [
+                'payroll_transaction_id' => $transaction->payroll_transaction_id,
+                'batch_no' => $transaction->batch_no,
+                'employee_id' => $employeeId,
+                'work_date' => $workDate,
+                'shift_code_id' => $shiftCodeId,
+            ],
+            description: 'Uploaded day shift code for employee '.$employeeNumber
+                .' on '.$workDate
+                .' in upload batch no. '.$transaction->batch_no,
+        );
+
+        $override = EmployeeShiftOverride::query()
+            ->where('employee_id', $employeeId)
+            ->whereDate('work_date', $workDate)
+            ->first();
+
+        if ($override) {
+            $oldValues = [
+                'employee_id' => $override->employee_id,
+                'work_date' => $override->work_date?->toDateString(),
+                'shift_code_id' => $override->shift_code_id,
+            ];
+
+            $override->update(['shift_code_id' => $shiftCodeId]);
+            $override->refresh();
+
+            SysLogService::record(
+                action: 'update',
+                table: 'tbl_employee_shift_overrides',
+                recordId: $override->employee_shift_override_id,
+                oldValues: $oldValues,
+                newValues: [
+                    'employee_id' => $override->employee_id,
+                    'work_date' => $override->work_date?->toDateString(),
+                    'shift_code_id' => $override->shift_code_id,
+                ],
+                description: 'Updated day shift override from upload for employee '.$employeeNumber
+                    .' on '.$workDate
+                    .' (upload batch no. '.$transaction->batch_no.')',
+            );
+
+            return;
+        }
+
+        $override = EmployeeShiftOverride::query()->create([
+            'employee_id' => $employeeId,
+            'work_date' => $workDate,
+            'shift_code_id' => $shiftCodeId,
+        ]);
+
+        SysLogService::record(
+            action: 'create',
+            table: 'tbl_employee_shift_overrides',
+            recordId: $override->employee_shift_override_id,
+            newValues: [
+                'employee_id' => $override->employee_id,
+                'work_date' => $override->work_date?->toDateString(),
+                'shift_code_id' => $override->shift_code_id,
+            ],
+            description: 'Created day shift override from upload for employee '.$employeeNumber
+                .' on '.$workDate
+                .' (upload batch no. '.$transaction->batch_no.')',
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function persistOvertimeRow(RawPayrollTransaction $transaction, array $row): void
+    {
+        $employeeId = (int) $row['employee_id'];
+        $workDate = Carbon::parse($row['work_date'])->toDateString();
+        $otStartAt = (string) ($row['ot_start_at'] ?? '');
+        $otEndAt = (string) ($row['ot_end_at'] ?? '');
+        $billableMinutes = (int) ($row['billable_minutes'] ?? 0);
+        $employeeNumber = Employee::query()->whereKey($employeeId)->value('employee_number') ?? (string) $employeeId;
+
+        if ($otStartAt === '' || $otEndAt === '') {
+            $employee = Employee::query()
+                ->with(['timekeepingSetup.shiftCode'])
+                ->find($employeeId);
+
+            $summary = $this->overtimeApprovals->validateForStore(
+                $employeeId,
+                $workDate,
+                (string) $row['ot_start'],
+                (string) $row['ot_end'],
+                null,
+                $employee?->timekeepingSetup?->shiftCode,
+            );
+
+            $otStartAt = $summary['ot_start']->toDateTimeString();
+            $otEndAt = $summary['ot_end']->toDateTimeString();
+            $billableMinutes = $summary['billable_minutes'];
+        }
+
+        $raw = RawPayrollOvertime::query()->create([
+            'payroll_transaction_id' => $transaction->payroll_transaction_id,
+            'employee_id' => $employeeId,
+            'work_date' => $workDate,
+            'ot_start' => $otStartAt,
+            'ot_end' => $otEndAt,
+        ]);
+
+        SysLogService::record(
+            action: 'create',
+            table: 'raw_payroll_overtimes',
+            recordId: $raw->payroll_overtime_id,
+            newValues: [
+                'payroll_transaction_id' => $transaction->payroll_transaction_id,
+                'batch_no' => $transaction->batch_no,
+                'employee_id' => $employeeId,
+                'work_date' => $workDate,
+                'ot_start' => $otStartAt,
+                'ot_end' => $otEndAt,
+                'billable_minutes' => $billableMinutes,
+            ],
+            description: 'Uploaded overtime approval for employee '.$employeeNumber
+                .' on '.$workDate
+                .' ('.$otStartAt.' – '.$otEndAt.')'
+                .' in upload batch no. '.$transaction->batch_no,
+        );
+
+        $approval = EmployeeOvertimeApproval::query()
+            ->where('employee_id', $employeeId)
+            ->whereDate('work_date', $workDate)
+            ->where('ot_start', $otStartAt)
+            ->first();
+
+        if ($approval) {
+            $oldValues = [
+                'employee_id' => $approval->employee_id,
+                'work_date' => $approval->work_date?->toDateString(),
+                'ot_start' => $approval->ot_start?->toDateTimeString(),
+                'ot_end' => $approval->ot_end?->toDateTimeString(),
+            ];
+
+            $approval->update([
+                'ot_end' => $otEndAt,
+            ]);
+            $approval->refresh();
+
+            SysLogService::record(
+                action: 'update',
+                table: 'tbl_employee_overtime_approvals',
+                recordId: $approval->employee_overtime_approval_id,
+                oldValues: $oldValues,
+                newValues: [
+                    'employee_id' => $approval->employee_id,
+                    'work_date' => $approval->work_date?->toDateString(),
+                    'ot_start' => $approval->ot_start?->toDateTimeString(),
+                    'ot_end' => $approval->ot_end?->toDateTimeString(),
+                    'billable_minutes' => $billableMinutes,
+                ],
+                description: 'Updated overtime approval from upload for employee '.$employeeNumber
+                    .' on '.$workDate
+                    .' (upload batch no. '.$transaction->batch_no.')',
+            );
+
+            return;
+        }
+
+        $approval = EmployeeOvertimeApproval::query()->create([
+            'employee_id' => $employeeId,
+            'work_date' => $workDate,
+            'ot_start' => $otStartAt,
+            'ot_end' => $otEndAt,
+        ]);
+
+        SysLogService::record(
+            action: 'create',
+            table: 'tbl_employee_overtime_approvals',
+            recordId: $approval->employee_overtime_approval_id,
+            newValues: [
+                'employee_id' => $approval->employee_id,
+                'work_date' => $approval->work_date?->toDateString(),
+                'ot_start' => $approval->ot_start?->toDateTimeString(),
+                'ot_end' => $approval->ot_end?->toDateTimeString(),
+                'billable_minutes' => $billableMinutes,
+            ],
+            description: 'Created overtime approval from upload for employee '.$employeeNumber
+                .' on '.$workDate
+                .' (upload batch no. '.$transaction->batch_no.')',
+        );
     }
 
     private function nextBatchNumber(int $transactionTypeId): int

@@ -12,6 +12,9 @@
     @csrf
     @method('PUT')
 
+    {{-- Preserve offset setting when saving general tardiness/undertime fields (checkbox lives on the equivalents card). --}}
+    <input type="hidden" name="is_offset_absent_tardiness_with_ot" value="{{ old('is_offset_absent_tardiness_with_ot', $policy->is_offset_absent_tardiness_with_ot) ? '1' : '0' }}">
+
     <p class="text-sm text-gray-500">
         This policy applies to all employees tagged as compute late and/or compute undertime under the Employees module.
     </p>
@@ -50,7 +53,23 @@
             </div>
             <div>
                 <label for="grace_period" class="form-label">Grace Period (minutes)</label>
-                <input id="grace_period" name="grace_period" type="number" step="0.0001" min="0" value="{{ old('grace_period', $policy->grace_period) }}" class="form-input">
+                @php
+                    $gracePeriodInput = old('grace_period', $policy->grace_period);
+                    if ($gracePeriodInput === null || $gracePeriodInput === '' || (is_numeric($gracePeriodInput) && (float) $gracePeriodInput <= 0)) {
+                        $gracePeriodInput = '';
+                    }
+                @endphp
+                <input
+                    id="grace_period"
+                    name="grace_period"
+                    type="number"
+                    step="0.0001"
+                    min="0"
+                    value="{{ $gracePeriodInput }}"
+                    class="form-input"
+                    placeholder="Leave blank if none"
+                >
+                <p class="mt-1 text-xs text-gray-500">Optional. Leave blank for no grace period.</p>
                 <label class="mt-2 flex items-center gap-2 text-sm text-gray-700">
                     <input type="hidden" name="is_deduct_grace_period" value="0">
                     <input type="checkbox" name="is_deduct_grace_period" value="1" @checked(old('is_deduct_grace_period', $policy->is_deduct_grace_period))>

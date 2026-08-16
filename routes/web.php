@@ -1,13 +1,18 @@
 <?php
 
+use App\Http\Controllers\DesktopInstallerUpdateController;
+use App\Http\Controllers\DocumentPreviewEngineController;
 use App\Http\Controllers\DatabaseBackupController;
 use App\Http\Controllers\DatabaseController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\EmployeeCredentialController;
+use App\Http\Controllers\EmployeeLoanController;
 use App\Http\Controllers\EmployeeLookupController;
 use App\Http\Controllers\EmployeeUploadController;
 use App\Http\Controllers\HrLookupController;
+use App\Http\Controllers\BirFormSettingsController;
 use App\Http\Controllers\GovernmentTablesController;
 use App\Http\Controllers\PayrollCalendarController;
 use App\Http\Controllers\PayrollMaintenanceController;
@@ -33,6 +38,9 @@ Route::get('/', function () {
         : redirect()->route('login');
 });
 
+Route::get('desktop/update/download', [DesktopInstallerUpdateController::class, 'download'])
+    ->name('desktop.update.download');
+
 Route::middleware('guest')->group(function () {
     Route::get('login', [LoginController::class, 'create'])->name('login');
     Route::post('login', [LoginController::class, 'store']);
@@ -41,6 +49,11 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::post('logout', [LoginController::class, 'destroy'])->name('logout');
+
+    Route::get('document-preview/engine/status', [DocumentPreviewEngineController::class, 'status'])
+        ->name('document-preview.engine.status');
+    Route::post('document-preview/engine/install', [DocumentPreviewEngineController::class, 'install'])
+        ->name('document-preview.engine.install');
 
     Route::middleware('role:admin')->group(function () {
         Route::get('database', [DatabaseController::class, 'index'])->name('database.index');
@@ -63,6 +76,23 @@ Route::middleware('auth')->group(function () {
         Route::post('employees/upload/process', [EmployeeUploadController::class, 'processUpload'])->name('employees.upload.process');
         Route::post('employees/upload/commit', [EmployeeUploadController::class, 'commitUpload'])->name('employees.upload.commit');
         Route::post('employees/upload/discard', [EmployeeUploadController::class, 'discardStaging'])->name('employees.upload.discard');
+        Route::get('employees/{employee}/history', [EmployeeController::class, 'history'])->name('employees.history');
+        Route::post('employees/{employee}/credentials', [EmployeeCredentialController::class, 'store'])
+            ->name('employees.credentials.store');
+        Route::get('employees/{employee}/credentials/{credential}/preview', [EmployeeCredentialController::class, 'preview'])
+            ->name('employees.credentials.preview');
+        Route::get('employees/{employee}/credentials/{credential}/content', [EmployeeCredentialController::class, 'content'])
+            ->name('employees.credentials.content');
+        Route::get('employees/{employee}/credentials/{credential}/download', [EmployeeCredentialController::class, 'download'])
+            ->name('employees.credentials.download');
+        Route::delete('employees/{employee}/credentials/{credential}', [EmployeeCredentialController::class, 'destroy'])
+            ->name('employees.credentials.destroy');
+        Route::post('employees/{employee}/loans', [EmployeeLoanController::class, 'store'])
+            ->name('employees.loans.store');
+        Route::put('employees/{employee}/loans/{loan}', [EmployeeLoanController::class, 'update'])
+            ->name('employees.loans.update');
+        Route::delete('employees/{employee}/loans/{loan}', [EmployeeLoanController::class, 'destroy'])
+            ->name('employees.loans.destroy');
         Route::resource('employees', EmployeeController::class)->only([
             'index', 'create', 'store', 'show', 'edit', 'update', 'destroy',
         ]);
@@ -231,6 +261,33 @@ Route::middleware('auth')->group(function () {
             ->whereNumber('detail')
             ->name('payroll.transaction.employees.incomes.store');
 
+        Route::post('payroll/transaction/batches/{batch}/employees/{detail}/shift-overrides', [PayrollTransactionController::class, 'storeEmployeeShiftOverride'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->name('payroll.transaction.employees.shift-overrides.store');
+
+        Route::delete('payroll/transaction/batches/{batch}/employees/{detail}/shift-overrides/{override}', [PayrollTransactionController::class, 'destroyEmployeeShiftOverride'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->whereNumber('override')
+            ->name('payroll.transaction.employees.shift-overrides.destroy');
+
+        Route::get('payroll/transaction/batches/{batch}/employees/{detail}/overtime-approvals/preview', [PayrollTransactionController::class, 'previewEmployeeOvertimeApproval'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->name('payroll.transaction.employees.overtime-approvals.preview');
+
+        Route::post('payroll/transaction/batches/{batch}/employees/{detail}/overtime-approvals', [PayrollTransactionController::class, 'storeEmployeeOvertimeApproval'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->name('payroll.transaction.employees.overtime-approvals.store');
+
+        Route::delete('payroll/transaction/batches/{batch}/employees/{detail}/overtime-approvals/{approval}', [PayrollTransactionController::class, 'destroyEmployeeOvertimeApproval'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->whereNumber('approval')
+            ->name('payroll.transaction.employees.overtime-approvals.destroy');
+
         Route::post('payroll/transaction/batches/{batch}/employees/{detail}/deductions', [PayrollTransactionController::class, 'storeEmployeeDeduction'])
             ->whereNumber('batch')
             ->whereNumber('detail')
@@ -270,6 +327,13 @@ Route::middleware('auth')->group(function () {
             ->name('payroll.transaction.upload.destroy');
     });
 
+    Route::middleware('module:payroll.bir-forms.index')->group(function () {
+        Route::get('payroll/bir-forms', [BirFormSettingsController::class, 'index'])
+            ->name('payroll.bir-forms.index');
+        Route::put('payroll/bir-forms', [BirFormSettingsController::class, 'update'])
+            ->name('payroll.bir-forms.update');
+    });
+
     Route::middleware('module:payroll.reports.index')->group(function () {
         Route::get('payroll/reports', [PayrollReportsController::class, 'index'])
             ->name('payroll.reports.index');
@@ -277,6 +341,12 @@ Route::middleware('auth')->group(function () {
         Route::get('payroll/reports/{report}/options', [PayrollReportsController::class, 'options'])
             ->whereNumber('report')
             ->name('payroll.reports.options');
+
+        Route::get('payroll/reports/batch-employees', [PayrollReportsController::class, 'batchEmployees'])
+            ->name('payroll.reports.batch-employees');
+
+        Route::get('payroll/reports/year-employees', [PayrollReportsController::class, 'yearEmployees'])
+            ->name('payroll.reports.year-employees');
 
         Route::post('payroll/reports/generate', [PayrollReportsController::class, 'generate'])
             ->name('payroll.reports.generate');
@@ -471,6 +541,12 @@ Route::middleware('auth')->group(function () {
         Route::post('timekeeping/time-logs/upload/discard', [TimeLogsController::class, 'discardStaging'])
             ->name('timekeeping.time-logs.discard');
 
+        Route::post('timekeeping/time-logs/s3-pull', [TimeLogsController::class, 'pullBiometricLogsFromS3'])
+            ->name('timekeeping.time-logs.s3-pull');
+
+        Route::get('timekeeping/time-logs/s3-pull/folders', [TimeLogsController::class, 'listBiometricS3Folders'])
+            ->name('timekeeping.time-logs.s3-folders');
+
         Route::delete('timekeeping/time-logs/{tab}/purge', [TimeLogsController::class, 'destroy'])
             ->where('tab', implode('|', array_keys(\App\Support\TimeLogs::tabs())))
             ->name('timekeeping.time-logs.destroy');
@@ -515,14 +591,43 @@ Route::middleware('auth')->group(function () {
             ->whereNumber('employee')
             ->name('timekeeping.employee-profile.attendance');
 
+        Route::get('timekeeping/employee-profile/{employee}/attendance-view/pdf', [TimekeepingEmployeeProfileController::class, 'downloadAttendanceViewPdf'])
+            ->whereNumber('employee')
+            ->name('timekeeping.employee-profile.attendance-pdf');
+
+        Route::get('timekeeping/employee-profile/{employee}/calendar-view', [TimekeepingEmployeeProfileController::class, 'calendarView'])
+            ->whereNumber('employee')
+            ->name('timekeeping.employee-profile.calendar');
+
+        Route::post('timekeeping/employee-profile/{employee}/attendance-logs', [TimekeepingEmployeeProfileController::class, 'storeAttendanceLog'])
+            ->whereNumber('employee')
+            ->name('timekeeping.employee-profile.attendance-store');
+
         Route::put('timekeeping/employee-profile/{employee}/attendance-logs/{attendanceLog}', [TimekeepingEmployeeProfileController::class, 'updateAttendanceLog'])
             ->whereNumber('employee')
             ->whereNumber('attendanceLog')
             ->name('timekeeping.employee-profile.attendance-update');
 
+        Route::delete('timekeeping/employee-profile/{employee}/attendance-logs/{attendanceLog}', [TimekeepingEmployeeProfileController::class, 'destroyAttendanceLog'])
+            ->whereNumber('employee')
+            ->whereNumber('attendanceLog')
+            ->name('timekeeping.employee-profile.attendance-destroy');
+
         Route::get('timekeeping/employee-profile/{employee}/employee-load', [TimekeepingEmployeeProfileController::class, 'employeeLoadView'])
             ->whereNumber('employee')
             ->name('timekeeping.employee-profile.employee-load');
+
+        Route::get('timekeeping/employee-profile/upload/template', [TimekeepingEmployeeProfileController::class, 'downloadUploadTemplate'])
+            ->name('timekeeping.employee-profile.upload.template');
+
+        Route::post('timekeeping/employee-profile/upload/process', [TimekeepingEmployeeProfileController::class, 'processUpload'])
+            ->name('timekeeping.employee-profile.upload.process');
+
+        Route::post('timekeeping/employee-profile/upload/commit', [TimekeepingEmployeeProfileController::class, 'commitUpload'])
+            ->name('timekeeping.employee-profile.upload.commit');
+
+        Route::post('timekeeping/employee-profile/upload/discard', [TimekeepingEmployeeProfileController::class, 'discardUpload'])
+            ->name('timekeeping.employee-profile.upload.discard');
     });
 
     Route::middleware('module:timekeeping.employee-load.index')->group(function () {

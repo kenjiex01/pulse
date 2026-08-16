@@ -170,6 +170,7 @@
                             <div><p class="text-sm text-gray-600">Days Per Period</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employmentInfo->salary->days_per_period) }}</p></div>
                             <div><p class="text-sm text-gray-600">Hours Per Day</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employmentInfo->salary->hours_per_day) }}</p></div>
                             <div><p class="text-sm text-gray-600">Use Basic Income as Hourly Rate</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->salary->use_basic_income_as_hourly_rate ? 'Yes' : 'No' }}</p></div>
+                            <div><p class="text-sm text-gray-600">Is Above minimum wage earner</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->salary->is_above_minimum_wage_earner ? 'Yes' : 'No' }}</p></div>
                             <div><p class="text-sm text-gray-600">Night Diff. Rate Group</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employmentInfo->salary->ndRateGroup?->description) }}</p></div>
                             <div><p class="text-sm text-gray-600">Hourly Rate</p><p class="mt-1 font-medium text-gray-900">@php($hourlyRate = $employmentInfo->salary->hourlyRate()){{ $hourlyRate !== null ? number_format($hourlyRate, 2) : '—' }}</p></div>
                         </div>

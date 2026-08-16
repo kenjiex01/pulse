@@ -18,8 +18,15 @@ class TimeLogs
 
     public const TEACHING_LOADS_TAB = 'teaching-loads';
 
-    /** @var array<int, string> */
-    public const DTR_CAMPUS_CODES = ['SA', 'SU', 'CA'];
+    /**
+     * Campus codes configured for Timelogs DTR upload (see config/time_logs_dtr.php).
+     *
+     * @return array<int, string>
+     */
+    public static function dtrCampusCodes(): array
+    {
+        return array_keys(config('time_logs_dtr.campuses', []));
+    }
 
     public static function tabs(): array
     {
@@ -70,14 +77,11 @@ class TimeLogs
      */
     public static function dtrCampuses()
     {
-        $order = array_flip(self::DTR_CAMPUS_CODES);
-
         return Campus::query()
-            ->whereIn('campus_code', self::DTR_CAMPUS_CODES)
+            ->whereIn('campus_code', self::dtrCampusCodes())
             ->where('is_active', true)
-            ->get()
-            ->sortBy(fn (Campus $campus) => $order[$campus->campus_code] ?? PHP_INT_MAX)
-            ->values();
+            ->orderBy('campus_name')
+            ->get();
     }
 
     public static function transactionTypeId(string $tab): int
@@ -99,6 +103,8 @@ class TimeLogs
             'destroy' => 'timekeeping.time-logs.destroy',
             'pull.start' => 'timekeeping.time-logs.pull.start',
             'pull.step' => 'timekeeping.time-logs.pull.step',
+            's3-pull' => 'timekeeping.time-logs.s3-pull',
+            's3-folders' => 'timekeeping.time-logs.s3-folders',
             default => "timekeeping.time-logs.$action",
         };
     }

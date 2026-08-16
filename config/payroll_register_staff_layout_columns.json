@@ -1,0 +1,324 @@
+[
+    {
+        "letter": "A",
+        "row5": "#",
+        "row6": "",
+        "highlight": false,
+        "field": "index"
+    },
+    {
+        "letter": "B",
+        "row5": "NAME OF STAFF",
+        "row6": "",
+        "highlight": false,
+        "field": "employee_name"
+    },
+    {
+        "letter": "C",
+        "row5": "BASIC",
+        "row6": "RATE",
+        "highlight": false,
+        "field": "basic_rate"
+    },
+    {
+        "letter": "D",
+        "row5": "No. of",
+        "row6": "Days",
+        "highlight": false,
+        "field": "days"
+    },
+    {
+        "letter": "E",
+        "row5": "Total",
+        "row6": "Pay",
+        "highlight": false,
+        "field": "total_pay"
+    },
+    {
+        "letter": "F",
+        "row5": "OVERTIME(reg)",
+        "row6": "Hour",
+        "highlight": false,
+        "field": "overtime_reg_hours"
+    },
+    {
+        "letter": "G",
+        "row5": "Amount",
+        "row6": "Amount",
+        "highlight": false,
+        "field": "overtime_reg_amount"
+    },
+    {
+        "letter": "H",
+        "row5": "OVERTIME RD (Sun)",
+        "row6": "Hour",
+        "highlight": false,
+        "field": "overtime_rd_hours"
+    },
+    {
+        "letter": "I",
+        "row5": "Amount",
+        "row6": "Amount",
+        "highlight": false,
+        "field": "overtime_rd_amount"
+    },
+    {
+        "letter": "J",
+        "row5": "HOLIDAY",
+        "row6": "Day",
+        "highlight": false,
+        "field": "holiday_days"
+    },
+    {
+        "letter": "K",
+        "row5": "Amount",
+        "row6": "Amount",
+        "highlight": false,
+        "field": "holiday_amount"
+    },
+    {
+        "letter": "L",
+        "row5": "Holiday Duty",
+        "row6": "Hour",
+        "highlight": false,
+        "field": "holiday_duty_hours"
+    },
+    {
+        "letter": "M",
+        "row5": "Amount",
+        "row6": "Amount",
+        "highlight": false,
+        "field": "holiday_duty_amount"
+    },
+    {
+        "letter": "N",
+        "row5": "Special Holiday",
+        "row6": "Hour",
+        "highlight": false,
+        "field": "special_holiday_hours"
+    },
+    {
+        "letter": "O",
+        "row5": "Amount",
+        "row6": "Amount",
+        "highlight": false,
+        "field": "special_holiday_amount"
+    },
+    {
+        "letter": "P",
+        "row5": "Hol OT",
+        "row6": "",
+        "highlight": false,
+        "field": "hol_ot_hours"
+    },
+    {
+        "letter": "Q",
+        "row5": "Amount",
+        "row6": "",
+        "highlight": false,
+        "field": "hol_ot_amount"
+    },
+    {
+        "letter": "R",
+        "row5": "LATE/UNDERTIME",
+        "row6": "Min",
+        "highlight": false,
+        "field": "late_minutes"
+    },
+    {
+        "letter": "S",
+        "row5": "Amount",
+        "row6": "Amount",
+        "highlight": false,
+        "field": "late_amount"
+    },
+    {
+        "letter": "T",
+        "row5": "GROSS",
+        "row6": "INCOME",
+        "highlight": false,
+        "field": "gross_income"
+    },
+    {
+        "letter": "U",
+        "row5": "GROSS",
+        "row6": "Philhealth",
+        "highlight": false,
+        "field": "gross_philhealth"
+    },
+    {
+        "letter": "V",
+        "row5": "Tax",
+        "row6": "Withheld",
+        "highlight": false,
+        "field": "tax_withheld"
+    },
+    {
+        "letter": "W",
+        "row5": "PAG-IBIG",
+        "row6": "",
+        "highlight": false,
+        "field": "pagibig"
+    },
+    {
+        "letter": "X",
+        "row5": "SSS",
+        "row6": "",
+        "highlight": false,
+        "field": "sss"
+    },
+    {
+        "letter": "Y",
+        "row5": "PHILHEALTH",
+        "row6": "",
+        "highlight": false,
+        "field": "philhealth"
+    },
+    {
+        "letter": "Z",
+        "row5": "SSS PROVIDENT FUND",
+        "row6": "",
+        "highlight": false,
+        "field": "sss_provident"
+    },
+    {
+        "letter": "AA",
+        "row5": "PAG-IBIG",
+        "row6": "Loan",
+        "highlight": false,
+        "field": "pagibig_loan"
+    },
+    {
+        "letter": "AB",
+        "row5": "Pagibig",
+        "row6": "Calamity loan",
+        "highlight": false,
+        "field": "pagibig_calamity"
+    },
+    {
+        "letter": "AC",
+        "row5": "SSS",
+        "row6": "Loan",
+        "highlight": false,
+        "field": "sss_loan"
+    },
+    {
+        "letter": "AD",
+        "row5": "CA/",
+        "row6": "Property Loan",
+        "highlight": false,
+        "field": "ca_property_loan"
+    },
+    {
+        "letter": "AE",
+        "row5": "Shortages",
+        "row6": "",
+        "highlight": false,
+        "field": "shortages"
+    },
+    {
+        "letter": "AF",
+        "row5": "SSS Calamity Loan",
+        "row6": "",
+        "highlight": false,
+        "field": "sss_calamity"
+    },
+    {
+        "letter": "AG",
+        "row5": "Uniform",
+        "row6": "Textile",
+        "highlight": false,
+        "field": "uniform_textile"
+    },
+    {
+        "letter": "AH",
+        "row5": "Incomplete",
+        "row6": "Uniform",
+        "highlight": false,
+        "field": "incomplete_uniform"
+    },
+    {
+        "letter": "AI",
+        "row5": "Payment for",
+        "row6": "Safety Shoes",
+        "highlight": false,
+        "field": "safety_shoes"
+    },
+    {
+        "letter": "AJ",
+        "row5": "Payment for",
+        "row6": "VC Securities Stock",
+        "highlight": false,
+        "field": "vc_securities"
+    },
+    {
+        "letter": "AK",
+        "row5": "Labor Day",
+        "row6": "Deduction",
+        "highlight": false,
+        "field": "labor_day_deduction"
+    },
+    {
+        "letter": "AL",
+        "row5": "De Minimis",
+        "row6": "Benefit",
+        "highlight": false,
+        "field": "de_minimis"
+    },
+    {
+        "letter": "AM",
+        "row5": "Water & Elec Bill",
+        "row6": "",
+        "highlight": false,
+        "field": "water_elec_bill"
+    },
+    {
+        "letter": "AN",
+        "row5": "SSS Contri. Prev. Cutoff",
+        "row6": "",
+        "highlight": false,
+        "field": "sss_prev_cutoff"
+    },
+    {
+        "letter": "AO",
+        "row5": "Food Contribution",
+        "row6": "",
+        "highlight": false,
+        "field": "food_contribution"
+    },
+    {
+        "letter": "AP",
+        "row5": "Adjustment SSS Loan",
+        "row6": "",
+        "highlight": false,
+        "field": "adjustment_sss_loan"
+    },
+    {
+        "letter": "AQ",
+        "row5": "Overtime",
+        "row6": "",
+        "highlight": false,
+        "field": "overtime_total"
+    },
+    {
+        "letter": "AR",
+        "row5": "Gross",
+        "row6": "Taxable",
+        "highlight": false,
+        "field": "gross_taxable"
+    },
+    {
+        "letter": "AS",
+        "row5": "Taxable",
+        "row6": "Income",
+        "highlight": false,
+        "field": "taxable_income"
+    },
+    {
+        "letter": "AT",
+        "row5": "NET PAY",
+        "row6": "",
+        "highlight": false,
+        "field": "net_pay"
+    }
+]

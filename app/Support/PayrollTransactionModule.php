@@ -119,6 +119,8 @@ class PayrollTransactionModule
             'upload.destroy' => 'payroll.transaction.upload.destroy',
             'employees.incomes.store' => 'payroll.transaction.employees.incomes.store',
             'employees.deductions.store' => 'payroll.transaction.employees.deductions.store',
+            'employees.shift-overrides.store' => 'payroll.transaction.employees.shift-overrides.store',
+            'employees.shift-overrides.destroy' => 'payroll.transaction.employees.shift-overrides.destroy',
             default => "payroll.transaction.$action",
         };
     }

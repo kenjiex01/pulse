@@ -8,11 +8,59 @@
 @endphp
 
 <div class="mt-6 rounded-xl border border-gray-200 bg-white p-6 @if(($type ?? '') === 'breaks') !mt-4 !border-0 !p-0 !shadow-none @endif">
+    @if ($type === 'tardiness')
+        <form
+            method="POST"
+            action="{{ route(\App\Support\TimekeepingPolicy::routeName('update'), ['policy' => $policy->timekeeping_policy_id, 'tab' => 'tardiness-undertime']) }}"
+            class="mb-4"
+        >
+            @csrf
+            @method('PUT')
+            <input type="hidden" name="is_allow_flexi_time" value="{{ $policy->is_allow_flexi_time ? '1' : '0' }}">
+            <input type="hidden" name="max_flexi_time" value="{{ $policy->max_flexi_time }}">
+            <input type="hidden" name="grace_period" value="{{ $policy->grace_period ?? '' }}">
+            <input type="hidden" name="is_deduct_grace_period" value="{{ $policy->is_deduct_grace_period ? '1' : '0' }}">
+            <input type="hidden" name="tardiness_rounding_id" value="{{ $policy->tardiness_rounding_id }}">
+            <input type="hidden" name="tardiness_leave_type_id" value="{{ $policy->tardiness_leave_type_id }}">
+            <input type="hidden" name="undertime_rounding_id" value="{{ $policy->undertime_rounding_id }}">
+            <input type="hidden" name="undertime_leave_type_id" value="{{ $policy->undertime_leave_type_id }}">
+
+            <label class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-800">
+                <input type="hidden" name="is_offset_absent_tardiness_with_ot" value="0">
+                <input
+                    type="checkbox"
+                    name="is_offset_absent_tardiness_with_ot"
+                    value="1"
+                    class="mt-1"
+                    @checked(old('is_offset_absent_tardiness_with_ot', $policy->is_offset_absent_tardiness_with_ot))
+                    onchange="this.form.requestSubmit()"
+                >
+                <span class="flex-1">
+                    <span class="font-medium text-gray-900">Offset absent tardiness with overtime</span>
+                    <span class="mt-1 block text-xs text-gray-500">
+                        If a Tardiness Equivalent marks the day absent (e.g. 16+ min late) but the employee has approved overtime that day,
+                        do not charge late/absent. Credit full scheduled hours and reduce OT by <strong>1 hour</strong> (absent hour),
+                        not the raw late minutes (e.g. 6:00–15:00, in 6:35 / out 18:00 with 3h OT → full 8 hrs, OT = 2 hrs).
+                    </span>
+                </span>
+                @can('timekeeping-policy.update')
+                    <button type="submit" class="btn-secondary shrink-0 !px-3 !py-1.5 text-xs">Save</button>
+                @endcan
+            </label>
+            @error('is_offset_absent_tardiness_with_ot')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+        </form>
+    @endif
+
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
             <h3 class="text-sm font-semibold text-gray-900">{{ $config['name'] }}s</h3>
             @if ($type === 'tardiness')
                 <p class="mt-1 text-xs text-gray-500">Late conversion rules — e.g. 1–5 min → 5 min, 16+ min → absent.</p>
+                @if ($policy->is_offset_absent_tardiness_with_ot)
+                    <p class="mt-1 text-xs text-[#0B318F]">
+                        Offset with OT is enabled: absent-late days with approved overtime keep full scheduled hours; OT is reduced by 1 hour (absent), not raw late minutes.
+                    </p>
+                @endif
             @endif
         </div>
         @can('timekeeping-policy.create')

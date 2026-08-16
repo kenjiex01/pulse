@@ -47,4 +47,46 @@ class EmployeeAttendanceLogServiceTest extends TestCase
         $this->assertSame('2026-06-15 16:05:00', $updated->dt_datetime?->format('Y-m-d H:i:s'));
         $this->assertFalse($updated->is_in);
     }
+
+    #[Test]
+    public function calendar_month_shows_first_in_and_last_out_per_day(): void
+    {
+        $employeeId = 6;
+
+        $transaction = RawTimekeepingTransaction::query()->create([
+            'timekeeping_transaction_type_id' => 1,
+            'dt_from' => '2026-08-01',
+            'dt_to' => '2026-08-31',
+            'uploaded_by_id' => 1,
+            'batch_no' => 18,
+        ]);
+
+        foreach ([
+            ['2026-08-07 07:52:00', true],
+            ['2026-08-07 13:18:00', true],
+            ['2026-08-07 18:14:00', false],
+            ['2026-08-07 20:01:00', false],
+        ] as [$datetime, $isIn]) {
+            RawTimekeepingInandout::query()->create([
+                'timekeeping_transaction_id' => $transaction->timekeeping_transaction_id,
+                'employee_id' => $employeeId,
+                'dt_datetime' => Carbon::parse($datetime),
+                'is_in' => $isIn,
+                'timekeeping_trantype' => 1,
+            ]);
+        }
+
+        $employee = new \App\Models\Employee;
+        $employee->employee_id = $employeeId;
+
+        $calendar = (new EmployeeAttendanceLogService)->calendarMonth($employee, 2026, 8);
+        $day = collect($calendar['weeks'])->flatten(1)->firstWhere('date', '2026-08-07');
+
+        $this->assertNotNull($day);
+        $this->assertTrue($day['has_logs']);
+        $this->assertSame('7:52 AM', $day['first_in']);
+        $this->assertSame('8:01 PM', $day['last_out']);
+        $this->assertSame(4, $day['log_count']);
+        $this->assertCount(4, $calendar['days']['2026-08-07']['logs']);
+    }
 }

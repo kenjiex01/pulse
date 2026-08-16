@@ -1,5 +1,8 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+@php
+    $isDesktopApp = (bool) config('nativephp-internal.running', env('NATIVEPHP_RUNNING', false));
+@endphp
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-pulse-desktop="{{ $isDesktopApp ? '1' : '0' }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -21,7 +24,10 @@
 @endphp
 <body class="min-h-screen bg-slate-50">
     @include('partials.full-screen-loader')
+    @include('partials.full-screen-loader-fallback')
     @include('partials.sidebar')
+    @include('partials.desktop-installer-update-modal')
+    @include('partials.document-preview-engine-modal')
 
     <header class="fixed top-0 z-50 h-14 w-full border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur">
         <div class="flex h-full items-center justify-between gap-3 px-4">

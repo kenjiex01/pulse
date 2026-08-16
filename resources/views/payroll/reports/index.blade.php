@@ -13,12 +13,20 @@
         'description' => 'Generate payroll and other module reports from saved report definitions.',
     ])
 
-    <div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8" data-payroll-reports-root>
+    <div
+        class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8"
+        data-payroll-reports-root
+        @if ($selectedReport && ($lazyLoadReportOptions ?? true))
+            data-initial-report-id="{{ $selectedReport->report_id }}"
+            data-initial-classification="{{ $classification->code }}"
+        @endif
+    >
         <form
             method="POST"
             action="{{ route('payroll.reports.generate') }}"
             class="space-y-6"
             data-payroll-reports-form
+            data-no-loader
         >
             @csrf
 
@@ -69,14 +77,19 @@
                 class="rounded-xl border border-gray-200 bg-slate-50 p-4 sm:p-5"
                 data-payroll-report-options-panel
             >
-                @if ($selectedReport)
+                @if ($selectedReport && ! ($lazyLoadReportOptions ?? true))
                     @include(PayrollReportsModule::optionsConfig($selectedReport->options_key)['view'], [
                         'report' => $selectedReport,
                         'processedBatches' => $processedBatches,
+                        'postedBatches' => $postedBatches ?? collect(),
+                        'employees' => $employees ?? collect(),
+                        'payYears' => $payYears ?? [],
                         'detailColumns' => $detailColumns,
                         'sortColumns' => $sortColumns,
                         'groupColumns' => $groupColumns,
                     ])
+                @elseif ($selectedReport)
+                    <p class="text-sm text-gray-500">Loading report options…</p>
                 @else
                     <p class="text-sm text-gray-500">Select a report type to configure generation options.</p>
                 @endif

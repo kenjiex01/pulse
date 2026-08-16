@@ -30,7 +30,7 @@
         @include('partials.modal', [
             'id' => 'employee-upload-modal',
             'title' => 'Upload Employees',
-            'description' => 'Import employee master data from a CSV template.',
+            'description' => 'Import employee master data or update salary records from a template.',
             'open' => $openUpload ?? false,
             'panelClass' => 'max-w-2xl',
             'body' => view('employees._upload-form')->render(),

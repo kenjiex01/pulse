@@ -1,0 +1,303 @@
+[
+    {
+        "letter": "A",
+        "row5": "#",
+        "row6": "",
+        "highlight": false,
+        "field": "index"
+    },
+    {
+        "letter": "B",
+        "row5": "NAME OF FACULTY",
+        "row6": "",
+        "highlight": false,
+        "field": "employee_name"
+    },
+    {
+        "letter": "C",
+        "row5": "FT / PT",
+        "row6": "",
+        "highlight": false,
+        "field": "ft_pt"
+    },
+    {
+        "letter": "D",
+        "row5": "Rate per hour",
+        "row6": "",
+        "highlight": false,
+        "field": "hourly_rate"
+    },
+    {
+        "letter": "E",
+        "row5": "Daily Rate",
+        "row6": "",
+        "highlight": false,
+        "field": "daily_rate"
+    },
+    {
+        "letter": "F",
+        "row5": "Rank",
+        "row6": "",
+        "highlight": false,
+        "field": "rank"
+    },
+    {
+        "letter": "G",
+        "row5": "Schedule of Loading",
+        "row6": "",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "H",
+        "row5": "No. of",
+        "row6": "of hrs present",
+        "highlight": false,
+        "field": "basc_hours"
+    },
+    {
+        "letter": "I",
+        "row5": "Total",
+        "row6": "Pay",
+        "highlight": false,
+        "field": "basc_amount"
+    },
+    {
+        "letter": "J",
+        "row5": "Total Pay both",
+        "row6": "",
+        "highlight": false,
+        "field": "total_hours_both"
+    },
+    {
+        "letter": "K",
+        "row5": "total pay both",
+        "row6": "",
+        "highlight": false,
+        "field": "total_pay_both"
+    },
+    {
+        "letter": "L",
+        "row5": "Holiday",
+        "row6": "",
+        "highlight": false,
+        "field": "holiday_hours"
+    },
+    {
+        "letter": "M",
+        "row5": "Amnt",
+        "row6": "",
+        "highlight": false,
+        "field": "holiday_amount"
+    },
+    {
+        "letter": "N",
+        "row5": "Tardiness",
+        "row6": "",
+        "highlight": false,
+        "field": "late_hours"
+    },
+    {
+        "letter": "O",
+        "row5": "Job Order",
+        "row6": "",
+        "highlight": false,
+        "field": "overtime_hours"
+    },
+    {
+        "letter": "P",
+        "row5": "Job Order Amnt",
+        "row6": "",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "Q",
+        "row5": "Overtime",
+        "row6": "",
+        "highlight": false,
+        "field": "overtime_hours"
+    },
+    {
+        "letter": "R",
+        "row5": "Overtime Amnt",
+        "row6": "",
+        "highlight": false,
+        "field": "overtime_amount"
+    },
+    {
+        "letter": "S",
+        "row5": "Department",
+        "row6": "Meet",
+        "highlight": false,
+        "field": "department"
+    },
+    {
+        "letter": "T",
+        "row5": "President",
+        "row6": "Meet",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "U",
+        "row5": "Additional",
+        "row6": "",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "V",
+        "row5": "GROSS ",
+        "row6": "INCOME",
+        "highlight": false,
+        "field": "gross_income"
+    },
+    {
+        "letter": "W",
+        "row5": "Philhealth Gross",
+        "row6": "",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "X",
+        "row5": "Tax",
+        "row6": "Withheld",
+        "highlight": false,
+        "field": "tax_withheld"
+    },
+    {
+        "letter": "Y",
+        "row5": "PAG-IBIG",
+        "row6": "",
+        "highlight": false,
+        "field": "pagibig"
+    },
+    {
+        "letter": "Z",
+        "row5": "SSS",
+        "row6": "",
+        "highlight": false,
+        "field": "sss"
+    },
+    {
+        "letter": "AA",
+        "row5": "Philhealth",
+        "row6": "",
+        "highlight": false,
+        "field": "philhealth"
+    },
+    {
+        "letter": "AB",
+        "row5": "SSS PROV FUND",
+        "row6": "",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AC",
+        "row5": "Pag-ibig",
+        "row6": "Loan",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AD",
+        "row5": "SSS",
+        "row6": "Loan",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AE",
+        "row5": "Pagibig Calamity Loan",
+        "row6": "",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AF",
+        "row5": "SSS CALAMITY LOAN",
+        "row6": "",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AG",
+        "row5": "Cash Advance",
+        "row6": "",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AH",
+        "row5": "VC SECURITIES PAYMENT",
+        "row6": "",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AI",
+        "row5": "Adj. Government contribution",
+        "row6": "",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AJ",
+        "row5": "Allowance",
+        "row6": "Overpayment",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AK",
+        "row5": "WATER & ELEC",
+        "row6": "",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AL",
+        "row5": "New Uniform",
+        "row6": "Deduction",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AM",
+        "row5": "Incomplete Uniform",
+        "row6": "",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AN",
+        "row5": "Overtime",
+        "row6": "",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AO",
+        "row5": "Gross",
+        "row6": "Taxable",
+        "highlight": false,
+        "field": null
+    },
+    {
+        "letter": "AP",
+        "row5": "Taxable",
+        "row6": "Income",
+        "highlight": false,
+        "field": "taxable_income"
+    },
+    {
+        "letter": "AQ",
+        "row5": "NET PAY",
+        "row6": "",
+        "highlight": false,
+        "field": "net_pay"
+    }
+]

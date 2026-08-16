@@ -24,7 +24,24 @@ class PayrollBreakService
 
         $shiftCode->loadMissing('breaks');
 
-        return (int) $shiftCode->breaks->sum('shift_code_break_minute');
+        return (int) $shiftCode->breaks->sum(function ($break) {
+            if (filled($break->break_out) && filled($break->break_in)) {
+                try {
+                    $start = \Carbon\CarbonImmutable::parse('2000-01-01 '.$break->break_out);
+                    $end = \Carbon\CarbonImmutable::parse('2000-01-01 '.$break->break_in);
+
+                    if ($end->lessThanOrEqualTo($start)) {
+                        $end = $end->addDay();
+                    }
+
+                    return (int) $start->diffInMinutes($end);
+                } catch (\Throwable) {
+                    // fall through to stored minutes
+                }
+            }
+
+            return (int) $break->shift_code_break_minute;
+        });
     }
 
     public function actualBreakMinutesFromPunches(Collection $dayPunches): int
@@ -65,8 +82,12 @@ class PayrollBreakService
     }
 
     /**
-     * Payroll work window per day: chronologically first IN and last OUT.
-     * Punches between them (OUT → IN pairs) are break logs — see breakSegmentsFromPunches().
+     * Payroll work window per day: chronologically first IN and last punch as OUT.
+     *
+     * Employees often punch multiple times (duplicate Ins, mid-day Out/In for break).
+     * Session start = first In. Session end = last punch of the day — even when that
+     * last punch was mistakenly tagged as In (missing Out). Punches between them
+     * (OUT → IN pairs) are break logs — see breakSegmentsFromPunches().
      *
      * @param  Collection<int, RawTimekeepingInandout>  $dayPunches
      * @return array{time_in: string|null, time_out: string|null}
@@ -76,7 +97,23 @@ class PayrollBreakService
         $ordered = $this->orderedPunches($dayPunches);
 
         $timeInPunch = $ordered->first(fn (RawTimekeepingInandout $punch) => (bool) $punch->is_in);
-        $timeOutPunch = $ordered->last(fn (RawTimekeepingInandout $punch) => ! (bool) $punch->is_in);
+        $lastPunch = $ordered->last();
+
+        $timeOutPunch = null;
+
+        if ($lastPunch !== null) {
+            // Prefer a true Out when it is the last punch; otherwise treat the day's
+            // last log as Time Out (covers dangling In at end of day).
+            if (! (bool) $lastPunch->is_in) {
+                $timeOutPunch = $lastPunch;
+            } elseif ($timeInPunch !== null
+                && (int) $lastPunch->timekeeping_inandout_id !== (int) $timeInPunch->timekeeping_inandout_id) {
+                $timeOutPunch = $lastPunch;
+            } else {
+                // Only one In and no Out — no complete session end.
+                $timeOutPunch = $ordered->last(fn (RawTimekeepingInandout $punch) => ! (bool) $punch->is_in);
+            }
+        }
 
         return [
             'time_in' => $timeInPunch?->dt_datetime?->format('H:i:s'),
@@ -101,23 +138,31 @@ class PayrollBreakService
         }
 
         $firstInIndex = $ordered->search(fn (RawTimekeepingInandout $punch) => (bool) $punch->is_in);
+        $session = $this->payrollSessionFromPunches($dayPunches);
+        $sessionEnd = $session['time_out'];
 
-        $lastOutIndex = null;
+        if ($firstInIndex === false || $sessionEnd === null || $sessionEnd === '') {
+            return [];
+        }
+
+        $lastEndIndex = null;
 
         for ($index = $ordered->count() - 1; $index >= 0; $index--) {
-            if (! (bool) $ordered[$index]->is_in) {
-                $lastOutIndex = $index;
+            $at = $ordered[$index]->dt_datetime?->format('H:i:s');
+            if ($at === $sessionEnd) {
+                $lastEndIndex = $index;
                 break;
             }
         }
 
-        if ($firstInIndex === false || $lastOutIndex === null || $lastOutIndex <= $firstInIndex) {
+        if ($lastEndIndex === null || $lastEndIndex <= $firstInIndex) {
             return [];
         }
 
+        $lastPunchIsSyntheticOut = (bool) $ordered[$lastEndIndex]->is_in;
         $segments = [];
 
-        for ($index = $firstInIndex + 1; $index < $lastOutIndex; $index++) {
+        for ($index = $firstInIndex + 1; $index < $lastEndIndex; $index++) {
             $current = $ordered[$index];
             $next = $ordered[$index + 1] ?? null;
 
@@ -126,6 +171,12 @@ class PayrollBreakService
             }
 
             if ((bool) $current->is_in || ! (bool) $next->is_in) {
+                continue;
+            }
+
+            // When the day's last punch is an In treated as Out, do not count
+            // Out → that final In as a break (it is the end of the work window).
+            if ($lastPunchIsSyntheticOut && ($index + 1) === $lastEndIndex) {
                 continue;
             }
 

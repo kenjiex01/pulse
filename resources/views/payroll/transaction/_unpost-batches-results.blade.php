@@ -18,7 +18,7 @@
                     <th>Status</th>
                     <th>Created By</th>
                     <th>Date Created</th>
-                    <th class="w-28 text-right">Actions</th>
+                    <th class="w-36 text-right">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -41,16 +41,26 @@
                         <td class="text-gray-600">{{ $batch->createdBy?->name ?? '—' }}</td>
                         <td class="whitespace-nowrap text-gray-600">{{ $batch->dt_created?->format('M j, Y g:i A') ?? '—' }}</td>
                         <td class="text-right">
-                            <form
-                                method="POST"
-                                action="{{ route(\App\Support\PayrollTransactionModule::routeName('unpost'), $batch) }}"
-                                class="inline"
-                                data-confirm-submit="Unpost batch {{ $batch->formattedBatchNo() }}? It will return to Processed and can be re-processed or edited again."
-                            >
-                                @csrf
-                                <input type="hidden" name="search" value="{{ request('search') }}">
-                                <button type="submit" class="btn-secondary !px-3 !py-1.5 text-xs">Unpost</button>
-                            </form>
+                            <div class="inline-flex items-center justify-end gap-1">
+                                <a
+                                    href="{{ route(\App\Support\PayrollTransactionModule::routeName('tab'), ['tab' => 'unpost-batches', 'view_payroll_batch' => $batch->payroll_batch_id, 'search' => request('search')]) }}"
+                                    class="btn-icon"
+                                    title="View batch"
+                                    data-no-loader
+                                >
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                </a>
+                                <form
+                                    method="POST"
+                                    action="{{ route(\App\Support\PayrollTransactionModule::routeName('unpost'), $batch) }}"
+                                    class="inline"
+                                    data-confirm-submit="Unpost batch {{ $batch->formattedBatchNo() }}? It will return to Processed and can be re-processed or edited again."
+                                >
+                                    @csrf
+                                    <input type="hidden" name="search" value="{{ request('search') }}">
+                                    <button type="submit" class="btn-secondary !px-3 !py-1.5 text-xs">Unpost</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                 @empty

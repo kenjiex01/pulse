@@ -26,7 +26,7 @@
         @if ($fieldType === 'checkbox')
             <label class="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-3">
                 <input type="hidden" name="{{ $fieldName }}" value="0">
-                <input type="checkbox" name="{{ $fieldName }}" value="1" class="rounded border-gray-300 text-[#00A3E6] focus:ring-[#00A3E6]" @checked(filter_var(old($fieldName, $record?->{$fieldName} ?? true), FILTER_VALIDATE_BOOLEAN))>
+                <input type="checkbox" name="{{ $fieldName }}" value="1" class="rounded border-gray-300 text-[#00A3E6] focus:ring-[#00A3E6]" @checked(filter_var(old($fieldName, $record?->{$fieldName} ?? ($field['default'] ?? true)), FILTER_VALIDATE_BOOLEAN))>
                 <span class="text-sm font-medium text-gray-900">{{ $field['label'] }}</span>
             </label>
             @error($fieldName)<p class="text-xs text-red-600">{{ $message }}</p>@enderror

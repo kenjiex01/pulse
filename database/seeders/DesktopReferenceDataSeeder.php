@@ -55,6 +55,7 @@ class DesktopReferenceDataSeeder extends Seeder
             RankSeeder::class,
             EmploymentTypeSeeder::class,
             EmployeeDepartmentSeeder::class,
+            DocumentTypeSeeder::class,
             PayTypeSeeder::class,
             PayrollMaintenanceSeeder::class,
             PhilhealthMinimumDeductionTypeSeeder::class,

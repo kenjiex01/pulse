@@ -82,22 +82,30 @@ class DesktopCloudBackupServiceTest extends TestCase
         $this->assertFalse($service->shouldRunNow());
     }
 
-    public function test_upload_path_uses_configured_prefix(): void
+    public function test_upload_path_uses_year_and_month_folders(): void
     {
         config([
             'backup.cloud.s3_prefix' => 'payroll-backups',
+            'backup.cloud.timezone' => 'Asia/Manila',
         ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-08-12 10:00:00', 'Asia/Manila'));
 
         $service = app(DesktopCloudBackupService::class);
 
         $this->assertSame(
-            'payroll-backups/pulse-db-2026-07-16-10-00-00.sql.gz',
-            $service->uploadPath('pulse-db-2026-07-16-10-00-00.sql.gz'),
+            'payroll-backups/2026/08/pulse-db-2026-08-12-10-00-00.sql.gz',
+            $service->uploadPath('pulse-db-2026-08-12-10-00-00.sql.gz'),
         );
     }
 
     public function test_cloud_filename_includes_desktop_name(): void
     {
+        config([
+            'backup.cloud.s3_prefix' => 'payroll-backups',
+            'backup.cloud.timezone' => 'Asia/Manila',
+        ]);
+
         $service = app(DesktopCloudBackupService::class);
         $desktop = $service->desktopName();
 
@@ -109,8 +117,10 @@ class DesktopCloudBackupServiceTest extends TestCase
             $service->cloudFilename('pulse-db-2026-07-16-10-00-00.sql.gz'),
         );
 
+        Carbon::setTestNow(Carbon::parse('2026-07-16 10:00:00', 'Asia/Manila'));
+
         $this->assertSame(
-            'payroll-backups/pulse-db-'.$desktop.'-2026-07-16-10-00-00.sql.gz',
+            'payroll-backups/2026/07/pulse-db-'.$desktop.'-2026-07-16-10-00-00.sql.gz',
             $service->uploadPath($service->cloudFilename('pulse-db-2026-07-16-10-00-00.sql.gz')),
         );
     }

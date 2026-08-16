@@ -38,7 +38,8 @@
                     <div>
                         <h2 class="text-lg font-semibold text-[#0B318F]">Download SQL Backup</h2>
                         <p class="mt-1 text-sm text-gray-600">
-                            Exports the full database as a <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs">.sql</code> file.
+                            Exports your business data as a <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs">.sql</code> file.
+                            Menu modules and role navigation are <strong>not</strong> included — the app version you install supplies those.
                             Use this before reinstalling the desktop app or when moving data to another machine.
                         </p>
                     </div>
@@ -70,9 +71,10 @@
                     <h2 class="text-lg font-semibold text-[#0B318F]">Daily Cloud Backup</h2>
                     <p class="mt-1 text-sm text-gray-600">
                         Automatically gzips the full database and uploads to S3 once per day after the scheduled time
-                        (browser and desktop). The uploaded filename includes this computer's name so backups from
-                        different machines stay distinct. On desktop, NativePHP also runs the scheduler every minute
-                        while the app is open.
+                        (browser and desktop). Files go under year then month folders
+                        (<code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs">payroll-backups/YYYY/MM/</code>).
+                        The filename includes this computer's name so backups from different machines stay distinct.
+                        On desktop, NativePHP also runs the scheduler every minute while the app is open.
                     </p>
                 </div>
 
@@ -143,9 +145,14 @@
                     <h2 class="text-lg font-semibold text-amber-900">Restore SQL Backup</h2>
                     <p class="mt-1 text-sm text-amber-900/80">
                         Replaces the current <strong>{{ strtoupper($driver) }}</strong> database with the uploaded <code class="rounded bg-white px-1.5 py-0.5 text-xs">.sql</code> file.
-                        MySQL / phpMyAdmin dumps are automatically converted to the desktop database format.
+                        @if (in_array($driver, ['mysql', 'mariadb'], true))
+                            MySQL / phpMyAdmin dumps import directly. <strong>Pulse desktop</strong> backups (SQLite, often starting with <code class="rounded bg-white px-1 text-xs">PRAGMA</code>) are converted automatically for browser dev.
+                        @else
+                            MySQL / phpMyAdmin dumps are automatically converted to the desktop SQLite format.
+                        @endif
                         A safety copy of the current database is saved under <code class="rounded bg-white px-1.5 py-0.5 text-xs">storage/app/backups</code> before import (auto-restored if the upload is invalid).
-                        Max file size {{ (int) floor(config('uploads.sql_restore_max_kb', 262144) / 1024) }} MB. Works on both the desktop app and browser (web) version.
+                        Uploaded files from older app versions have stale menu data removed automatically; modules are refreshed after restore.
+                        Max file size {{ (int) floor(config('uploads.sql_restore_max_kb', 262144) / 1024) }} MB.
                     </p>
                 </div>
 

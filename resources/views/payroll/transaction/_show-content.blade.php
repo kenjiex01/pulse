@@ -92,7 +92,7 @@
                 >
                     @csrf
                     <input type="hidden" name="batch_employee_search" value="{{ $batchEmployeeSearch }}">
-                    <button type="submit" class="btn-secondary !px-3 !py-1.5 text-xs">Re-process</button>
+                    <button type="submit" class="btn-primary !px-3 !py-1.5 text-xs">Re-process</button>
                 </form>
             @endif
             @if ($batchPostable ?? false)
@@ -117,7 +117,7 @@
                 <button
                     type="submit"
                     form="payroll-batch-remove-employees-form"
-                    class="btn-secondary !px-3 !py-1.5 text-xs"
+                    class="btn-danger !px-3 !py-1.5 text-xs"
                     disabled
                     data-payroll-batch-remove-btn
                 >
@@ -129,7 +129,7 @@
 
         <form
             method="GET"
-            action="{{ route(\App\Support\PayrollTransactionModule::routeName('tab'), ['tab' => 'batches']) }}"
+            action="{{ route(\App\Support\PayrollTransactionModule::routeName('tab'), ['tab' => $moduleTab ?? 'batches']) }}"
             class="flex items-center gap-2"
         >
             <input type="hidden" name="view_payroll_batch" value="{{ $batch->payroll_batch_id }}">
@@ -146,7 +146,7 @@
                 placeholder="Search employee no. or name..."
                 class="form-input !py-1.5 text-sm"
             >
-            <button type="submit" class="btn-secondary !px-3 !py-1.5 text-xs">Search</button>
+            <button type="submit" class="btn-primary !px-3 !py-1.5 text-xs">Search</button>
         </form>
     </div>
 

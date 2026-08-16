@@ -75,7 +75,7 @@
             'title' => 'Employee Profile',
             'description' => $employee->full_name.' ('.$employee->employee_number.')',
             'open' => (string) ($openViewEmployeeId ?? '') === (string) $employee->employee_id,
-            'panelClass' => 'max-w-3xl',
+            'panelClass' => 'max-w-[96vw]',
             'body' => view('timekeeping.employee-profile._show-content', [
                 'employee' => $employee,
                 'formOptions' => $formOptions,
@@ -89,7 +89,7 @@
                 'description' => $employee->full_name.' ('.$employee->employee_number.')',
                 'open' => (string) ($openSetupEmployeeId ?? '') === (string) $employee->employee_id
                     || (old('form_context') === 'setup-employee-'.$employee->employee_id && $errors->any()),
-                'panelClass' => 'max-w-4xl',
+                'panelClass' => 'max-w-[96vw]',
                 'body' => view('timekeeping.employee-profile._setup-form', [
                     'employee' => $employee,
                     'formOptions' => $formOptions,

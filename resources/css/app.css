@@ -43,7 +43,7 @@
     }
 
     .btn-danger {
-        @apply inline-flex items-center justify-center gap-2 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50;
+        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-red-600 disabled:hover:shadow-sm;
     }
 
     .btn-ghost {
@@ -56,6 +56,10 @@
 
     .form-input {
         @apply h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-500 focus:border-[#00A3E6] focus:outline-none focus:ring-2 focus:ring-blue-500;
+    }
+
+    select.form-input[multiple] {
+        @apply h-auto py-1;
     }
 
     .searchable-select {
@@ -317,7 +321,7 @@
     }
 
     .modal-panel {
-        @apply relative z-10 w-full max-w-lg overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl;
+        @apply relative z-10 w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl;
     }
 
     .modal-panel-lg {
@@ -382,6 +386,68 @@
 
     .employee-tab-btn-active {
         @apply bg-[#00A3E6]/10 text-[#0089c2] hover:bg-[#00A3E6]/10 hover:text-[#0089c2];
+    }
+
+    .attendance-calendar-grid {
+        @apply grid grid-cols-7;
+    }
+
+    .attendance-calendar-head {
+        @apply border-b border-gray-200 bg-gray-50;
+    }
+
+    .attendance-calendar-weekday {
+        @apply px-1 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500;
+    }
+
+    .attendance-calendar-week {
+        @apply border-b border-gray-100 last:border-b-0;
+    }
+
+    .attendance-calendar-day {
+        @apply flex min-h-[5.75rem] flex-col gap-0.5 border-r border-gray-100 px-1.5 py-1.5 text-left transition-colors last:border-r-0;
+        @apply enabled:hover:bg-[#00A3E6]/5 enabled:focus-visible:outline enabled:focus-visible:outline-2 enabled:focus-visible:outline-[#00A3E6];
+        @apply disabled:cursor-default disabled:opacity-100;
+    }
+
+    .attendance-calendar-day.is-outside {
+        @apply bg-gray-50/70 text-gray-400;
+    }
+
+    .attendance-calendar-day.is-today .attendance-calendar-day-num {
+        @apply inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#0B318F] text-white;
+    }
+
+    .attendance-calendar-day.has-logs {
+        @apply cursor-pointer;
+    }
+
+    .attendance-calendar-day.is-selected {
+        @apply bg-[#00A3E6]/10 ring-1 ring-inset ring-[#00A3E6]/40;
+    }
+
+    .attendance-calendar-day-num {
+        @apply mb-0.5 text-xs font-semibold text-gray-800;
+    }
+
+    .attendance-calendar-day.is-outside .attendance-calendar-day-num {
+        @apply text-gray-400;
+    }
+
+    .attendance-calendar-punch {
+        @apply block truncate text-[10px] leading-tight sm:text-[11px];
+    }
+
+    .attendance-calendar-punch.is-in {
+        @apply font-medium text-emerald-700;
+    }
+
+    .attendance-calendar-punch.is-out {
+        @apply font-medium text-orange-700;
+    }
+
+    .attendance-calendar-empty {
+        @apply mt-2 text-center text-xs text-gray-300;
     }
 
     .policy-settings-nav {

@@ -126,13 +126,25 @@ class SubModuleSeeder extends Seeder
             );
 
             SubModule::query()->updateOrCreate(
+                ['route_name' => 'payroll.bir-forms.index'],
+                [
+                    'module_id' => $payroll->id,
+                    'name' => 'BIR Forms Setup',
+                    'route_pattern' => 'payroll.bir-forms.*',
+                    'icon' => 'bir-forms',
+                    'sort_order' => 6,
+                    'is_active' => true,
+                ],
+            );
+
+            SubModule::query()->updateOrCreate(
                 ['route_name' => 'payroll.reports.index'],
                 [
                     'module_id' => $payroll->id,
                     'name' => 'Reports',
                     'route_pattern' => 'payroll.reports.*',
                     'icon' => 'payroll-reports',
-                    'sort_order' => 6,
+                    'sort_order' => 7,
                     'is_active' => true,
                 ],
             );

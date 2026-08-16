@@ -18,6 +18,7 @@ class PayrollIncome extends Model
         'payroll_batch_detail_id',
         'income_type_id',
         'hours',
+        'days',
         'taxable',
         'non_taxable',
         'is_editable',
@@ -31,6 +32,7 @@ class PayrollIncome extends Model
     {
         return [
             'hours' => 'decimal:4',
+            'days' => 'decimal:4',
             'taxable' => 'decimal:2',
             'non_taxable' => 'decimal:2',
             'orig_taxable' => 'decimal:2',

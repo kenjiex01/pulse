@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ShiftCode
 {
@@ -56,17 +57,44 @@ class ShiftCode
             'description' => ['required', 'string', 'max:45'],
             'is_flexi_time' => ['nullable', 'boolean'],
             'expected_hours_per_day' => ['nullable', 'required_if:is_flexi_time,1,true', 'numeric', 'gt:0', 'lte:24', 'regex:/^\d{1,2}(\.\d{1,4})?$/'],
-            'time_in' => ['nullable', 'string', 'max:5', 'regex:'.self::TIME_PATTERN],
-            'time_out' => ['nullable', 'string', 'max:5', 'regex:'.self::TIME_PATTERN],
+            'time_in' => [
+                'required_unless:is_flexi_time,1,true',
+                'nullable',
+                'string',
+                'max:5',
+                'regex:'.self::TIME_PATTERN,
+            ],
+            'time_out' => [
+                'required_unless:is_flexi_time,1,true',
+                'nullable',
+                'string',
+                'max:5',
+                'regex:'.self::TIME_PATTERN,
+            ],
             'breaks' => ['nullable', 'array'],
-            'breaks.*.break_minute' => ['required', 'integer', 'min:1', 'max:999'],
+            'breaks.*.break_out' => ['nullable', 'string', 'max:5', 'regex:'.self::TIME_PATTERN],
+            'breaks.*.break_in' => ['nullable', 'string', 'max:5', 'regex:'.self::TIME_PATTERN],
+            'breaks.*.break_minute' => ['nullable', 'integer', 'min:1', 'max:999'],
             'breaks.*.is_paid_break' => ['nullable', 'boolean'],
         ];
     }
 
     public static function validate(array $data, ?int $ignoreId = null): array
     {
-        return Validator::make($data, self::validationRules($ignoreId))->validate();
+        $validated = Validator::make($data, self::validationRules($ignoreId))->validate();
+
+        foreach ($validated['breaks'] ?? [] as $index => $break) {
+            $hasWindow = filled($break['break_out'] ?? null) && filled($break['break_in'] ?? null);
+            $hasMinutes = filled($break['break_minute'] ?? null);
+
+            if (! $hasWindow && ! $hasMinutes) {
+                throw ValidationException::withMessages([
+                    "breaks.{$index}.break_minute" => 'Enter break minutes or both Break Out and Break In.',
+                ]);
+            }
+        }
+
+        return $validated;
     }
 
     public static function headerPayload(array $validated): array
@@ -91,13 +119,21 @@ class ShiftCode
         $rows = [];
 
         foreach ($validated['breaks'] ?? [] as $index => $break) {
-            if (! filled($break['break_minute'] ?? null)) {
+            if (! filled($break['break_minute'] ?? null) && ! filled($break['break_out'] ?? null) && ! filled($break['break_in'] ?? null)) {
+                continue;
+            }
+
+            $minutes = self::resolveBreakMinutes($break);
+
+            if ($minutes === null || $minutes <= 0) {
                 continue;
             }
 
             $rows[] = [
                 'shift_code_break_no' => $index + 1,
-                'shift_code_break_minute' => (int) $break['break_minute'],
+                'break_out' => filled($break['break_out'] ?? null) ? trim($break['break_out']) : null,
+                'break_in' => filled($break['break_in'] ?? null) ? trim($break['break_in']) : null,
+                'shift_code_break_minute' => $minutes,
                 'shift_code_is_paid_break' => filter_var($break['is_paid_break'] ?? false, FILTER_VALIDATE_BOOLEAN),
             ];
         }
@@ -139,6 +175,8 @@ class ShiftCode
             return $record->breaks
                 ->map(fn ($break) => [
                     'break_no' => $break->shift_code_break_no,
+                    'break_out' => $break->break_out,
+                    'break_in' => $break->break_in,
                     'break_minute' => $break->shift_code_break_minute,
                     'is_paid_break' => $break->shift_code_is_paid_break,
                 ])
@@ -147,5 +185,37 @@ class ShiftCode
         }
 
         return [];
+    }
+
+    /**
+     * @param  array{break_out?: string|null, break_in?: string|null, break_minute?: int|string|null}  $break
+     */
+    public static function resolveBreakMinutes(array $break): ?int
+    {
+        if (filled($break['break_minute'] ?? null)) {
+            return (int) $break['break_minute'];
+        }
+
+        $breakOut = trim((string) ($break['break_out'] ?? ''));
+        $breakIn = trim((string) ($break['break_in'] ?? ''));
+
+        if ($breakOut === '' || $breakIn === '') {
+            return null;
+        }
+
+        try {
+            $start = \Carbon\CarbonImmutable::parse('2000-01-01 '.$breakOut);
+            $end = \Carbon\CarbonImmutable::parse('2000-01-01 '.$breakIn);
+
+            if ($end->lessThanOrEqualTo($start)) {
+                $end = $end->addDay();
+            }
+
+            $minutes = (int) $start->diffInMinutes($end);
+
+            return $minutes > 0 ? $minutes : null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

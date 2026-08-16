@@ -19,12 +19,18 @@ class EmployeeSalarySync
             'employmentInformations.salaries.deductions',
         ]);
 
-        $employmentRecords = $employee->employmentInformations->values();
+        $employmentRecords = $employee->employmentInformations
+            ->sortBy([
+                ['sort_order', 'asc'],
+                ['employment_info_id', 'asc'],
+            ])
+            ->values();
         $expectedCount = $isHybrid ? 2 : 1;
 
         foreach ($employmentRecords as $index => $employmentInfo) {
             if ($index >= $expectedCount) {
-                $employmentInfo->salaries()->forceDelete();
+                // Soft-delete only — never wipe salary history with forceDelete on trim.
+                $employmentInfo->salaries()->each(fn (EmployeeSalary $salary) => $salary->delete());
 
                 continue;
             }
@@ -34,13 +40,16 @@ class EmployeeSalarySync
             ) ?? ($salaryRecords[$index] ?? null);
 
             if (! is_array($salaryData)) {
-                $employmentInfo->salaries()->forceDelete();
-
                 continue;
             }
 
             self::syncSalaryForEmployment($employmentInfo, $salaryData);
         }
+    }
+
+    public static function syncForEmployment(EmployeeEmploymentInformation $employmentInfo, array $salaryData): void
+    {
+        self::syncSalaryForEmployment($employmentInfo, $salaryData);
     }
 
     private static function syncSalaryForEmployment(EmployeeEmploymentInformation $employmentInfo, array $salaryData): void
@@ -63,12 +72,22 @@ class EmployeeSalarySync
         $deductionRows = self::deductionRows($salaryData);
 
         if ($current && self::shouldCreateSalaryHistory($current, $headerPayload, $incomeRows, $deductionRows)) {
+            $currentFrom = $current->date_effective_from?->toDateString();
             $closeDate = Carbon::parse($effectiveFrom)->subDay()->toDateString();
 
-            if ($current->date_effective_from?->toDateString() <= $closeDate) {
+            if ($currentFrom !== null && $currentFrom <= $closeDate) {
+                // New later effectivity date — close previous day before the new from-date.
                 $current->update(['date_effective_to' => $closeDate]);
+            } elseif ($currentFrom !== null && $currentFrom === $effectiveFrom) {
+                // Same effectivity date but salary content changed (e.g. 25000 → 25000.01).
+                // Never force-delete: archive the old row as previous (from = to) and insert a new current.
+                $current->update(['date_effective_to' => $currentFrom]);
             } else {
-                $current->forceDelete();
+                // New from is earlier than the open current — keep history by closing the open row
+                // on its own start date, then create the earlier/new current row.
+                $current->update([
+                    'date_effective_to' => $currentFrom ?? $effectiveFrom,
+                ]);
             }
 
             $current = null;
@@ -101,6 +120,7 @@ class EmployeeSalarySync
             'days_per_period' => $salaryData['days_per_period'] ?? null,
             'hours_per_day' => $salaryData['hours_per_day'] ?? null,
             'use_basic_income_as_hourly_rate' => ! empty($salaryData['use_basic_income_as_hourly_rate']),
+            'is_above_minimum_wage_earner' => ! empty($salaryData['is_above_minimum_wage_earner']),
             'rate_group_id' => $salaryData['rate_group_id'] ?? null,
             'nd_rate_group_id' => $salaryData['nd_rate_group_id'] ?? null,
         ];
@@ -175,13 +195,14 @@ class EmployeeSalarySync
             'days_per_period',
             'hours_per_day',
             'use_basic_income_as_hourly_rate',
+            'is_above_minimum_wage_earner',
             'rate_group_id',
             'nd_rate_group_id',
         ] as $field) {
             $currentValue = $current->{$field};
             $nextValue = $headerPayload[$field] ?? null;
 
-            if ($field === 'use_basic_income_as_hourly_rate') {
+            if (in_array($field, ['use_basic_income_as_hourly_rate', 'is_above_minimum_wage_earner'], true)) {
                 if ((bool) $currentValue !== (bool) $nextValue) {
                     return true;
                 }

@@ -70,6 +70,10 @@
                     <dt class="font-medium text-gray-500">Auto Populate Attendance</dt>
                     <dd class="mt-0.5 text-gray-900">{{ $setup?->is_populate ? 'Enabled' : 'Disabled' }}</dd>
                 </div>
+                <div>
+                    <dt class="font-medium text-gray-500">Auto Compute Excess as OT</dt>
+                    <dd class="mt-0.5 text-gray-900">{{ $setup?->is_auto_compute_excess_as_ot ? 'Enabled' : 'Disabled' }}</dd>
+                </div>
             </dl>
         </div>
     </div>
@@ -90,11 +94,33 @@
         data-lazy-url="{{ route(TimekeepingEmployeeProfile::routeName('attendance'), array_filter([
             'employee' => $employee->employee_id,
             'attendance_page' => request('attendance_page'),
+            'date_from' => request('date_from'),
+            'date_to' => request('date_to'),
+            'year' => request('year'),
+            'month' => request('month'),
+            'day' => request('day'),
         ])) }}"
         @if ($activeTab === 'attendance') data-lazy-pending="true" @endif
     >
         <div class="py-6 text-center text-sm text-gray-500">
             {{ $activeTab === 'attendance' ? 'Loading attendance view…' : 'Open this tab to load attendance view.' }}
+        </div>
+    </div>
+
+    <div
+        class="employee-tab-panel {{ $activeTab === 'calendar' ? '' : 'hidden' }}"
+        data-employee-tab-panel="calendar"
+        data-employee-profile-lazy-panel
+        data-lazy-url="{{ route(TimekeepingEmployeeProfile::routeName('calendar'), array_filter([
+            'employee' => $employee->employee_id,
+            'year' => request('year'),
+            'month' => request('month'),
+            'day' => request('day'),
+        ])) }}"
+        @if ($activeTab === 'calendar') data-lazy-pending="true" @endif
+    >
+        <div class="py-6 text-center text-sm text-gray-500">
+            {{ $activeTab === 'calendar' ? 'Loading calendar view…' : 'Open this tab to load calendar view.' }}
         </div>
     </div>
 

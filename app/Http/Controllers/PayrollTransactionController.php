@@ -3,11 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\DeductionType;
+use App\Models\EmployeeOvertimeApproval;
+use App\Models\EmployeeShiftOverride;
 use App\Models\IncomeType;
 use App\Models\PayrollBatch;
 use App\Models\PayrollBatchDetail;
 use App\Models\PayrollBatchStatus;
+use App\Models\PayrollCalendar;
 use App\Models\RawPayrollTransaction;
+use App\Models\ShiftCode;
+use App\Services\EmployeeOvertimeApprovalService;
+use App\Services\PayrollAttendanceDayBreakdownService;
 use App\Services\PayrollBatchService;
 use App\Services\PayrollTransactionUploadService;
 use App\Services\SysLogService;
@@ -16,6 +22,7 @@ use App\Support\PayrollTransactionModule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use RuntimeException;
@@ -26,6 +33,8 @@ class PayrollTransactionController extends Controller
     public function __construct(
         private readonly PayrollBatchService $batchService,
         private readonly PayrollTransactionUploadService $uploadService,
+        private readonly EmployeeOvertimeApprovalService $overtimeApprovalService,
+        private readonly PayrollAttendanceDayBreakdownService $attendanceDayBreakdown,
     ) {}
 
     public function index(Request $request, string $tab): View|RedirectResponse
@@ -54,8 +63,14 @@ class PayrollTransactionController extends Controller
         $batchDetailTab = PayrollTransactionModule::resolveBatchDetailTab($request->input('batch_detail_tab'));
         $incomeTypes = collect();
         $deductionTypes = collect();
+        $shiftCodes = collect();
+        $shiftOverrides = collect();
+        $overtimeApprovals = collect();
+        $attendanceDayBreakdown = ['LTDE' => [], 'UTDE' => [], 'OVRT' => []];
         $openAddEmployeeIncome = false;
         $openAddEmployeeDeduction = false;
+        $openAddEmployeeShiftCode = false;
+        $openAddEmployeeOvertime = false;
         $uploadRecords = null;
         $uploadConfig = null;
         $openUpload = false;
@@ -96,104 +111,158 @@ class PayrollTransactionController extends Controller
                 $batchForm = $this->batchService->formData();
                 $openCreateBatch = ($request->session()->get('errors')?->any() && old('form_context') === 'create-payroll-batch')
                     || $request->boolean('create');
+            }
 
-                $viewBatchId = (int) $request->input('view_payroll_batch', old('payroll_batch_id'));
+            $viewBatchId = (int) $request->input('view_payroll_batch', old('payroll_batch_id'));
 
-                if ($viewBatchId > 0) {
-                    $viewBatch = $this->batchService->loadBatchForView($viewBatchId);
+            if ($viewBatchId > 0) {
+                $viewBatch = $this->batchService->loadBatchForView($viewBatchId);
 
-                    // Posted batches belong on Unpost Batches, not the working list.
-                    if (
-                        $viewBatch
-                        && (int) $viewBatch->payroll_batch_status_id === PayrollBatchStatus::POSTED
-                    ) {
-                        return redirect()
-                            ->route(PayrollTransactionModule::routeName('tab'), [
-                                'tab' => 'unpost-batches',
-                            ]);
+                if ($viewBatch) {
+                    $batchTab = $this->batchTabFor($viewBatch);
+
+                    if ($tab !== $batchTab) {
+                        return redirect()->route(PayrollTransactionModule::routeName('tab'), array_filter([
+                            'tab' => $batchTab,
+                            'view_payroll_batch' => $viewBatchId,
+                            'view_batch_detail' => $request->input('view_batch_detail'),
+                            'batch_detail_tab' => $request->input('batch_detail_tab'),
+                            'batch_employee_search' => $batchEmployeeSearch !== '' ? $batchEmployeeSearch : null,
+                            'search' => $search !== '' ? $search : null,
+                            'add_employees' => $request->boolean('add_employees') ? 1 : null,
+                            'add_income' => $request->boolean('add_income') ? 1 : null,
+                            'add_deduction' => $request->boolean('add_deduction') ? 1 : null,
+                            'add_shift_code' => $request->boolean('add_shift_code') ? 1 : null,
+                            'add_overtime' => $request->boolean('add_overtime') ? 1 : null,
+                        ]));
                     }
 
-                    if ($viewBatch) {
-                        $batchEmployees = $this->batchService
-                            ->batchEmployeesQuery($viewBatch, $batchEmployeeSearch !== '' ? $batchEmployeeSearch : null)
-                            ->paginate(LiveTable::perPage($request, 25), ['*'], 'batch_employee_page')
-                            ->withQueryString();
+                    $batchEmployees = $this->batchService
+                        ->batchEmployeesQuery($viewBatch, $batchEmployeeSearch !== '' ? $batchEmployeeSearch : null)
+                        ->paginate(LiveTable::perPage($request, 25), ['*'], 'batch_employee_page')
+                        ->withQueryString();
 
-                        $openAddEmployees = $request->boolean('add_employees')
-                            || ($request->session()->get('errors')?->any() && old('form_context') === 'add-payroll-batch-employees');
+                    $openAddEmployees = $request->boolean('add_employees')
+                        || ($request->session()->get('errors')?->any() && old('form_context') === 'add-payroll-batch-employees');
 
-                        if ($this->batchService->isBatchEditable($viewBatch)) {
-                            $eligibleEmployees = $this->batchService
-                                ->eligibleEmployeesQuery($viewBatch, $addEmployeeSearch !== '' ? $addEmployeeSearch : null)
-                                ->limit(200)
-                                ->get();
+                    if ($this->batchService->isBatchEditable($viewBatch)) {
+                        $eligibleEmployees = $this->batchService
+                            ->eligibleEmployeesQuery($viewBatch, $addEmployeeSearch !== '' ? $addEmployeeSearch : null)
+                            ->limit(200)
+                            ->get();
 
-                            if ($eligibleEmployees->isEmpty()) {
-                                $addEmployeesEmptyMessage = $this->batchService->addEmployeesEmptyMessage(
-                                    $viewBatch,
-                                    $addEmployeeSearch !== '',
+                        if ($eligibleEmployees->isEmpty()) {
+                            $addEmployeesEmptyMessage = $this->batchService->addEmployeesEmptyMessage(
+                                $viewBatch,
+                                $addEmployeeSearch !== '',
+                            );
+                        }
+                    }
+
+                    $viewBatchDetailId = (int) $request->input('view_batch_detail', 0);
+
+                    if ($viewBatchDetailId > 0) {
+                        $viewBatchDetail = $this->batchService->loadBatchDetailForView(
+                            $viewBatchDetailId,
+                            $viewBatch->payroll_batch_id,
+                        );
+
+                        if ($viewBatchDetail) {
+                            if (! $request->ajax()) {
+                                SysLogService::record(
+                                    action: 'read',
+                                    table: 'trn_payroll_batch_details',
+                                    recordId: $viewBatchDetail->payroll_batch_detail_id,
+                                    description: 'Viewed payroll batch employee '
+                                        .($viewBatchDetail->employee?->employee_number ?? $viewBatchDetail->employee_id)
+                                        .' in batch no. '.$viewBatch->formattedBatchNo(),
                                 );
                             }
-                        }
 
-                        $viewBatchDetailId = (int) $request->input('view_batch_detail', 0);
+                            $incomeTypes = IncomeType::query()
+                                ->where('is_active', true)
+                                ->orderBy('income_type_code')
+                                ->get();
 
-                        if ($viewBatchDetailId > 0) {
-                            $viewBatchDetail = $this->batchService->loadBatchDetailForView(
-                                $viewBatchDetailId,
-                                $viewBatch->payroll_batch_id,
-                            );
+                            $deductionTypes = DeductionType::query()
+                                ->where('is_active', true)
+                                ->where(function ($query) {
+                                    $query->where('is_valid_govt_deduction', false)
+                                        ->orWhereNull('is_valid_govt_deduction');
+                                })
+                                ->orderBy('deduction_type_code')
+                                ->get();
 
-                            if ($viewBatchDetail) {
-                                if (! $request->ajax()) {
-                                    SysLogService::record(
-                                        action: 'read',
-                                        table: 'trn_payroll_batch_details',
-                                        recordId: $viewBatchDetail->payroll_batch_detail_id,
-                                        description: 'Viewed payroll batch employee '
-                                            .($viewBatchDetail->employee?->employee_number ?? $viewBatchDetail->employee_id)
-                                            .' in batch no. '.$viewBatch->formattedBatchNo(),
-                                    );
-                                }
+                            $openAddEmployeeIncome = $request->boolean('add_income')
+                                || (
+                                    $request->session()->get('errors')?->any()
+                                    && old('form_context') === 'add-batch-employee-income'
+                                    && (int) old('payroll_batch_detail_id') === $viewBatchDetail->payroll_batch_detail_id
+                                );
 
-                                $incomeTypes = IncomeType::query()
-                                    ->where('is_active', true)
-                                    ->orderBy('income_type_code')
+                            $openAddEmployeeDeduction = $request->boolean('add_deduction')
+                                || (
+                                    $request->session()->get('errors')?->any()
+                                    && old('form_context') === 'add-batch-employee-deduction'
+                                    && (int) old('payroll_batch_detail_id') === $viewBatchDetail->payroll_batch_detail_id
+                                );
+
+                            $openAddEmployeeShiftCode = $request->boolean('add_shift_code')
+                                || (
+                                    $request->session()->get('errors')?->any()
+                                    && old('form_context') === 'create-payroll-batch-shift-override'
+                                    && (int) old('payroll_batch_detail_id', 0) === (int) $viewBatchDetail->payroll_batch_detail_id
+                                );
+
+                            $openAddEmployeeOvertime = $request->boolean('add_overtime')
+                                || (
+                                    $request->session()->get('errors')?->any()
+                                    && old('form_context') === 'create-payroll-batch-overtime'
+                                    && (int) old('payroll_batch_detail_id', 0) === (int) $viewBatchDetail->payroll_batch_detail_id
+                                );
+
+                            $shiftCodes = ShiftCode::query()
+                                ->orderBy('shift_code')
+                                ->get();
+
+                            $calendar = $viewBatch->payrollCalendar;
+                            if ($calendar?->dt_from && $calendar?->dt_to) {
+                                $shiftOverrides = EmployeeShiftOverride::query()
+                                    ->with('shiftCode')
+                                    ->where('employee_id', $viewBatchDetail->employee_id)
+                                    ->whereDate('work_date', '>=', $calendar->dt_from->toDateString())
+                                    ->whereDate('work_date', '<=', $calendar->dt_to->toDateString())
+                                    ->orderBy('work_date')
                                     ->get();
 
-                                $deductionTypes = DeductionType::query()
-                                    ->where('is_active', true)
-                                    ->where(function ($query) {
-                                        $query->where('is_valid_govt_deduction', false)
-                                            ->orWhereNull('is_valid_govt_deduction');
-                                    })
-                                    ->orderBy('deduction_type_code')
+                                $overtimeApprovals = EmployeeOvertimeApproval::query()
+                                    ->where('employee_id', $viewBatchDetail->employee_id)
+                                    ->whereDate('work_date', '>=', $calendar->dt_from->toDateString())
+                                    ->whereDate('work_date', '<=', $calendar->dt_to->toDateString())
+                                    ->orderBy('work_date')
+                                    ->orderBy('ot_start')
                                     ->get();
-
-                                $openAddEmployeeIncome = $request->boolean('add_income')
-                                    || (
-                                        $request->session()->get('errors')?->any()
-                                        && old('form_context') === 'add-batch-employee-income'
-                                        && (int) old('payroll_batch_detail_id') === $viewBatchDetail->payroll_batch_detail_id
-                                    );
-
-                                $openAddEmployeeDeduction = $request->boolean('add_deduction')
-                                    || (
-                                        $request->session()->get('errors')?->any()
-                                        && old('form_context') === 'add-batch-employee-deduction'
-                                        && (int) old('payroll_batch_detail_id') === $viewBatchDetail->payroll_batch_detail_id
-                                    );
                             }
-                        }
 
-                        if (! $request->ajax()) {
-                            SysLogService::record(
-                                action: 'read',
-                                table: 'trn_payroll_batches',
-                                recordId: $viewBatch->payroll_batch_id,
-                                description: 'Viewed payroll batch no. '.$viewBatch->formattedBatchNo(),
-                            );
+                            $attendanceDayBreakdown = $this->attendanceDayBreakdown->forDetail($viewBatchDetail);
                         }
+                    }
+
+                    if (! $request->ajax()) {
+                        SysLogService::record(
+                            action: 'read',
+                            table: 'trn_payroll_batches',
+                            recordId: $viewBatch->payroll_batch_id,
+                            description: 'Viewed payroll batch no. '.$viewBatch->formattedBatchNo(),
+                        );
+                    }
+
+                    if (! $this->batchService->isBatchEditable($viewBatch)) {
+                        $openAddEmployees = false;
+                        $openAddEmployeeIncome = false;
+                        $openAddEmployeeDeduction = false;
+                        $openAddEmployeeShiftCode = false;
+                        $openAddEmployeeOvertime = false;
                     }
                 }
             }
@@ -294,8 +363,14 @@ class PayrollTransactionController extends Controller
             'batchDetailTab' => $batchDetailTab,
             'incomeTypes' => $incomeTypes,
             'deductionTypes' => $deductionTypes,
+            'shiftCodes' => $shiftCodes,
+            'shiftOverrides' => $shiftOverrides,
+            'overtimeApprovals' => $overtimeApprovals,
+            'attendanceDayBreakdown' => $attendanceDayBreakdown,
             'openAddEmployeeIncome' => $openAddEmployeeIncome,
             'openAddEmployeeDeduction' => $openAddEmployeeDeduction,
+            'openAddEmployeeShiftCode' => $openAddEmployeeShiftCode,
+            'openAddEmployeeOvertime' => $openAddEmployeeOvertime,
             'uploadRecords' => $uploadRecords,
             'uploadConfig' => $uploadConfig,
             'openUpload' => $openUpload,
@@ -370,13 +445,317 @@ class PayrollTransactionController extends Controller
         }
 
         return redirect()->route(PayrollTransactionModule::routeName('tab'), [
-            'tab' => 'batches',
+            'tab' => $this->batchTabFor($batch),
             'view_payroll_batch' => $batch->payroll_batch_id,
             'view_batch_detail' => $detail->payroll_batch_detail_id,
             'batch_detail_tab' => PayrollTransactionModule::resolveBatchDetailTab($request->input('batch_detail_tab')),
             'batch_employee_search' => $request->input('batch_employee_search'),
             'search' => $request->input('search'),
         ]);
+    }
+
+    public function storeEmployeeShiftOverride(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        if ((int) $detail->payroll_batch_id !== (int) $batch->payroll_batch_id) {
+            abort(404);
+        }
+
+        if (! $this->batchService->isBatchEditable($batch)) {
+            return $this->shiftOverrideRedirect($request, $batch, $detail)
+                ->with('error', 'This batch can no longer be edited.');
+        }
+
+        $batch->loadMissing('payrollCalendar');
+        $calendar = $batch->payrollCalendar;
+
+        if (! $calendar?->dt_from || ! $calendar?->dt_to) {
+            return $this->shiftOverrideRedirect($request, $batch, $detail, addShiftCode: true)
+                ->withErrors(['work_date' => 'Pay period dates are missing for this batch.'])
+                ->withInput();
+        }
+
+        $minDate = $calendar->dt_from->toDateString();
+        $maxDate = $calendar->dt_to->toDateString();
+
+        $validated = $request->validate([
+            'work_date' => ['required', 'date', 'after_or_equal:'.$minDate, 'before_or_equal:'.$maxDate],
+            'shift_code_id' => ['required', 'integer', Rule::exists('tbl_shift_codes', 'shift_code_id')->whereNull('deleted_at')],
+        ]);
+
+        $employeeId = (int) $detail->employee_id;
+        $workDate = $validated['work_date'];
+        $shiftCodeId = (int) $validated['shift_code_id'];
+
+        $detail->loadMissing('employee');
+
+        $override = EmployeeShiftOverride::query()
+            ->where('employee_id', $employeeId)
+            ->whereDate('work_date', $workDate)
+            ->first();
+
+        if ($override) {
+            $oldValues = [
+                'employee_id' => $override->employee_id,
+                'work_date' => $override->work_date?->toDateString(),
+                'shift_code_id' => $override->shift_code_id,
+            ];
+            $override->update(['shift_code_id' => $shiftCodeId]);
+            $override->refresh();
+
+            SysLogService::record(
+                action: 'update',
+                table: 'tbl_employee_shift_overrides',
+                recordId: $override->employee_shift_override_id,
+                oldValues: $oldValues,
+                newValues: [
+                    'employee_id' => $override->employee_id,
+                    'work_date' => $override->work_date?->toDateString(),
+                    'shift_code_id' => $override->shift_code_id,
+                ],
+                description: 'Updated day shift override for employee '
+                    .($detail->employee?->employee_number ?? $employeeId)
+                    .' on '.$workDate
+                    .' in payroll batch no. '.$batch->formattedBatchNo(),
+            );
+        } else {
+            $override = EmployeeShiftOverride::query()->create([
+                'employee_id' => $employeeId,
+                'work_date' => $workDate,
+                'shift_code_id' => $shiftCodeId,
+            ]);
+
+            SysLogService::record(
+                action: 'create',
+                table: 'tbl_employee_shift_overrides',
+                recordId: $override->employee_shift_override_id,
+                newValues: [
+                    'employee_id' => $override->employee_id,
+                    'work_date' => $override->work_date?->toDateString(),
+                    'shift_code_id' => $override->shift_code_id,
+                ],
+                description: 'Added day shift override for employee '
+                    .($detail->employee?->employee_number ?? $employeeId)
+                    .' on '.$workDate
+                    .' in payroll batch no. '.$batch->formattedBatchNo(),
+            );
+        }
+
+        return $this->shiftOverrideRedirect($request, $batch, $detail)
+            ->with('success', 'Shift override saved. Process/Reprocess the batch to apply it to pay.');
+    }
+
+    public function destroyEmployeeShiftOverride(
+        Request $request,
+        PayrollBatch $batch,
+        PayrollBatchDetail $detail,
+        EmployeeShiftOverride $override,
+    ): RedirectResponse {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        if ((int) $detail->payroll_batch_id !== (int) $batch->payroll_batch_id) {
+            abort(404);
+        }
+
+        if ((int) $override->employee_id !== (int) $detail->employee_id) {
+            abort(404);
+        }
+
+        if (! $this->batchService->isBatchEditable($batch)) {
+            return $this->shiftOverrideRedirect($request, $batch, $detail)
+                ->with('error', 'This batch can no longer be edited.');
+        }
+
+        $oldValues = [
+            'employee_id' => $override->employee_id,
+            'work_date' => $override->work_date?->toDateString(),
+            'shift_code_id' => $override->shift_code_id,
+        ];
+
+        $override->delete();
+
+        $detail->loadMissing('employee');
+
+        SysLogService::record(
+            action: 'delete',
+            table: 'tbl_employee_shift_overrides',
+            recordId: $override->employee_shift_override_id,
+            oldValues: $oldValues,
+            description: 'Removed day shift override for employee '
+                .($detail->employee?->employee_number ?? $detail->employee_id)
+                .' on '.($oldValues['work_date'] ?? '—')
+                .' in payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return $this->shiftOverrideRedirect($request, $batch, $detail)
+            ->with('success', 'Shift override removed. Process/Reprocess the batch to apply changes to pay.');
+    }
+
+    public function previewEmployeeOvertimeApproval(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail): \Illuminate\Http\JsonResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'view');
+
+        if ((int) $detail->payroll_batch_id !== (int) $batch->payroll_batch_id) {
+            abort(404);
+        }
+
+        $batch->loadMissing('payrollCalendar');
+        $calendar = $batch->payrollCalendar;
+        $minDate = $calendar?->dt_from?->toDateString();
+        $maxDate = $calendar?->dt_to?->toDateString();
+
+        $validated = $request->validate([
+            'work_date' => [
+                'required',
+                'date',
+                ...($minDate ? ['after_or_equal:'.$minDate] : []),
+                ...($maxDate ? ['before_or_equal:'.$maxDate] : []),
+            ],
+        ]);
+
+        $detail->loadMissing(['employee.timekeepingSetup.shiftCode']);
+
+        $preview = $this->overtimeApprovalService->previewForDate(
+            (int) $detail->employee_id,
+            $validated['work_date'],
+            $detail->employee?->timekeepingSetup?->shiftCode,
+        );
+
+        return response()->json($preview);
+    }
+
+    public function storeEmployeeOvertimeApproval(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        if ((int) $detail->payroll_batch_id !== (int) $batch->payroll_batch_id) {
+            abort(404);
+        }
+
+        if (! $this->batchService->isBatchEditable($batch)) {
+            return $this->overtimeApprovalRedirect($request, $batch, $detail)
+                ->with('error', 'This batch can no longer be edited.');
+        }
+
+        $batch->loadMissing('payrollCalendar');
+        $calendar = $batch->payrollCalendar;
+
+        if (! $calendar?->dt_from || ! $calendar?->dt_to) {
+            return $this->overtimeApprovalRedirect($request, $batch, $detail, addOvertime: true)
+                ->withErrors(['work_date' => 'Pay period dates are missing for this batch.'])
+                ->withInput();
+        }
+
+        $minDate = $calendar->dt_from->toDateString();
+        $maxDate = $calendar->dt_to->toDateString();
+
+        $validated = $request->validate([
+            'work_date' => ['required', 'date', 'after_or_equal:'.$minDate, 'before_or_equal:'.$maxDate],
+            'ot_start' => ['required', 'regex:/^\d{1,2}:\d{2}(:\d{2})?$/'],
+            'ot_end' => ['required', 'regex:/^\d{1,2}:\d{2}(:\d{2})?$/'],
+        ]);
+
+        $otStart = substr($validated['ot_start'], 0, 5);
+        $otEnd = substr($validated['ot_end'], 0, 5);
+
+        $detail->loadMissing(['employee.timekeepingSetup.policy', 'employee.timekeepingSetup.shiftCode']);
+
+        $employeeId = (int) $detail->employee_id;
+        $policy = $detail->employee?->timekeepingSetup?->policy;
+        $defaultShift = $detail->employee?->timekeepingSetup?->shiftCode;
+
+        try {
+            $summary = $this->overtimeApprovalService->validateForStore(
+                $employeeId,
+                $validated['work_date'],
+                $otStart,
+                $otEnd,
+                $policy,
+                $defaultShift,
+            );
+        } catch (ValidationException $exception) {
+            return $this->overtimeApprovalRedirect($request, $batch, $detail, addOvertime: true)
+                ->withErrors($exception->errors())
+                ->withInput();
+        }
+
+        $approval = EmployeeOvertimeApproval::query()->create([
+            'employee_id' => $employeeId,
+            'work_date' => $summary['work_date'],
+            'ot_start' => $summary['ot_start']->toDateTimeString(),
+            'ot_end' => $summary['ot_end']->toDateTimeString(),
+        ]);
+
+        SysLogService::record(
+            action: 'create',
+            table: 'tbl_employee_overtime_approvals',
+            recordId: $approval->employee_overtime_approval_id,
+            newValues: [
+                'employee_id' => $approval->employee_id,
+                'work_date' => $approval->work_date?->toDateString(),
+                'ot_start' => $approval->ot_start?->toDateTimeString(),
+                'ot_end' => $approval->ot_end?->toDateTimeString(),
+                'billable_minutes' => $summary['billable_minutes'],
+            ],
+            description: 'Added overtime approval for employee '
+                .($detail->employee?->employee_number ?? $employeeId)
+                .' on '.$summary['work_date']
+                .' ('.$summary['ot_start']->format('H:i').'–'.$summary['ot_end']->format('H:i').')'
+                .' in payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return $this->overtimeApprovalRedirect($request, $batch, $detail)
+            ->with(
+                'success',
+                'Overtime saved ('.$summary['billable_minutes'].' billable min). Process/Reprocess the batch to apply it to pay.',
+            );
+    }
+
+    public function destroyEmployeeOvertimeApproval(
+        Request $request,
+        PayrollBatch $batch,
+        PayrollBatchDetail $detail,
+        EmployeeOvertimeApproval $approval,
+    ): RedirectResponse {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        if ((int) $detail->payroll_batch_id !== (int) $batch->payroll_batch_id) {
+            abort(404);
+        }
+
+        if ((int) $approval->employee_id !== (int) $detail->employee_id) {
+            abort(404);
+        }
+
+        if (! $this->batchService->isBatchEditable($batch)) {
+            return $this->overtimeApprovalRedirect($request, $batch, $detail)
+                ->with('error', 'This batch can no longer be edited.');
+        }
+
+        $oldValues = [
+            'employee_id' => $approval->employee_id,
+            'work_date' => $approval->work_date?->toDateString(),
+            'ot_start' => $approval->ot_start?->toDateTimeString(),
+            'ot_end' => $approval->ot_end?->toDateTimeString(),
+        ];
+
+        $approval->delete();
+        $detail->loadMissing('employee');
+
+        SysLogService::record(
+            action: 'delete',
+            table: 'tbl_employee_overtime_approvals',
+            recordId: $approval->employee_overtime_approval_id,
+            oldValues: $oldValues,
+            description: 'Removed overtime approval for employee '
+                .($detail->employee?->employee_number ?? $detail->employee_id)
+                .' on '.($oldValues['work_date'] ?? '—')
+                .' in payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return $this->overtimeApprovalRedirect($request, $batch, $detail)
+            ->with('success', 'Overtime removed. Process/Reprocess the batch to apply changes to pay.');
     }
 
     public function storeEmployeeIncome(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail): RedirectResponse
@@ -389,6 +768,8 @@ class PayrollTransactionController extends Controller
 
         $validated = $request->validate([
             'income_type_id' => ['required', 'integer', 'exists:tbl_income_types,income_type_id'],
+            'hours' => ['nullable', 'numeric', 'min:0'],
+            'days' => ['nullable', 'numeric', 'min:0'],
             'taxable' => ['nullable', 'numeric', 'min:0'],
             'non_taxable' => ['nullable', 'numeric', 'min:0'],
         ]);
@@ -445,6 +826,7 @@ class PayrollTransactionController extends Controller
         $validated = $request->validate([
             'deduction_type_id' => ['required', 'integer', 'exists:tbl_deduction_types,deduction_type_id'],
             'hours' => ['nullable', 'numeric', 'min:0'],
+            'days' => ['nullable', 'numeric', 'min:0'],
             'employee_amount' => ['nullable', 'numeric', 'min:0'],
             'employer_amount' => ['nullable', 'numeric', 'min:0'],
             'reference_number' => ['nullable', 'string', 'max:45'],
@@ -744,7 +1126,12 @@ class PayrollTransactionController extends Controller
         $this->batchService->assertCalendarOpenForUpload((int) $validated['payroll_calendar_id']);
 
         try {
-            $result = $this->uploadService->parseUploadedFile($request->file('upload_file'), $uploadType);
+            $calendar = PayrollCalendar::query()->findOrFail((int) $validated['payroll_calendar_id']);
+            $result = $this->uploadService->parseUploadedFile(
+                $request->file('upload_file'),
+                $uploadType,
+                $calendar,
+            );
             $token = $this->uploadService->createStagingToken(
                 $request->user(),
                 $uploadType,
@@ -803,22 +1190,44 @@ class PayrollTransactionController extends Controller
                 ->with('error', $exception->getMessage());
         }
 
-        $applied = $this->batchService->applyRawUploadToOpenBatches($transaction);
+        $applied = in_array($uploadType, ['shift-codes', 'overtime'], true)
+            ? 0
+            : $this->batchService->applyRawUploadToOpenBatches($transaction);
 
         session()->forget('payroll_upload_staging_token');
+
+        $recordsCount = match ($uploadType) {
+            'shift-codes' => $transaction->shiftCodeRecords()->count(),
+            'overtime' => $transaction->overtimeRecords()->count(),
+            default => null,
+        };
 
         SysLogService::record(
             action: 'create',
             table: 'raw_payroll_transactions',
             recordId: $transaction->payroll_transaction_id,
+            newValues: in_array($uploadType, ['shift-codes', 'overtime'], true)
+                ? [
+                    'upload_type' => $uploadType,
+                    'batch_no' => $transaction->batch_no,
+                    'payroll_calendar_id' => $transaction->payroll_calendar_id,
+                    'records_count' => $recordsCount,
+                ]
+                : null,
             description: 'Loaded payroll upload batch no. '.$transaction->batch_no
                 .' ('.$uploadType.')'
-                .($applied > 0 ? '; applied '.$applied.' payroll line(s) to open payroll batch(es)' : ''),
+                .($applied > 0 ? '; applied '.$applied.' payroll line(s) to open payroll batch(es)' : '')
+                .($uploadType === 'shift-codes' ? '; upserted employee day shift overrides' : '')
+                .($uploadType === 'overtime' ? '; upserted employee overtime approvals' : ''),
         );
 
         $successMessage = 'Upload batch #'.$transaction->batch_no.' loaded successfully.';
 
-        if ($applied > 0) {
+        if ($uploadType === 'shift-codes') {
+            $successMessage .= ' Day shift overrides saved. Process/Reprocess the batch to apply them to pay.';
+        } elseif ($uploadType === 'overtime') {
+            $successMessage .= ' Overtime approvals saved. Process/Reprocess the batch to apply them to pay.';
+        } elseif ($applied > 0) {
             $successMessage .= ' Applied '.$applied.' payroll line'
                 .($applied === 1 ? '' : 's').' to the matching payroll batch.';
         }
@@ -903,11 +1312,54 @@ class PayrollTransactionController extends Controller
             'incomes', 'income-adjustments' => ['employee', 'incomeType'],
             'deductions', 'deduction-adjustments' => ['employee', 'deductionType'],
             'hours-worked' => ['employee', 'dayType', 'timeType'],
+            'shift-codes' => ['employee', 'shiftCode'],
+            'overtime' => ['employee'],
             'leaves' => ['employee', 'leaveType'],
             'loans' => ['employee', 'loanType'],
             default => ['employee'],
         };
 
         $transaction->load([$relation => fn ($query) => $query->with($nested)]);
+    }
+
+    private function batchTabFor(PayrollBatch $batch): string
+    {
+        return (int) $batch->payroll_batch_status_id === PayrollBatchStatus::POSTED
+            ? 'unpost-batches'
+            : 'batches';
+    }
+
+    private function shiftOverrideRedirect(
+        Request $request,
+        PayrollBatch $batch,
+        PayrollBatchDetail $detail,
+        bool $addShiftCode = false,
+    ): RedirectResponse {
+        return redirect()->route(PayrollTransactionModule::routeName('tab'), array_filter([
+            'tab' => $this->batchTabFor($batch),
+            'view_payroll_batch' => $batch->payroll_batch_id,
+            'view_batch_detail' => $detail->payroll_batch_detail_id,
+            'batch_detail_tab' => 'incomes',
+            'add_shift_code' => $addShiftCode ? 1 : null,
+            'batch_employee_search' => $request->input('batch_employee_search'),
+            'search' => $request->input('search'),
+        ]));
+    }
+
+    private function overtimeApprovalRedirect(
+        Request $request,
+        PayrollBatch $batch,
+        PayrollBatchDetail $detail,
+        bool $addOvertime = false,
+    ): RedirectResponse {
+        return redirect()->route(PayrollTransactionModule::routeName('tab'), array_filter([
+            'tab' => $this->batchTabFor($batch),
+            'view_payroll_batch' => $batch->payroll_batch_id,
+            'view_batch_detail' => $detail->payroll_batch_detail_id,
+            'batch_detail_tab' => 'incomes',
+            'add_overtime' => $addOvertime ? 1 : null,
+            'batch_employee_search' => $request->input('batch_employee_search'),
+            'search' => $request->input('search'),
+        ]));
     }
 }

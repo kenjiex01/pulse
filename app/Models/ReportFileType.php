@@ -11,6 +11,8 @@ class ReportFileType extends Model
 
     public const CODE_EXCEL = 'excel';
 
+    public const CODE_PDF = 'pdf';
+
     public $timestamps = false;
 
     protected $table = 'lu_report_file_types';

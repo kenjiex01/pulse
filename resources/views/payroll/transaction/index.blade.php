@@ -91,11 +91,13 @@
         ])
     @endif
 
-    @if ($moduleTab === 'batches' && ($viewBatch ?? null))
+    @if (in_array($moduleTab, ['batches', 'unpost-batches'], true) && ($viewBatch ?? null))
         @include('partials.modal', [
             'id' => 'payroll-batch-view-modal',
             'title' => 'Payroll Batch — Batch No. '.$viewBatch->formattedBatchNo(),
-            'description' => 'View employees in this batch and manage assignments.',
+            'description' => ($batchEditable ?? false)
+                ? 'View employees in this batch and manage assignments.'
+                : 'View employees and payroll lines in this posted batch (read-only).',
             'open' => true,
             'panelClass' => 'max-w-5xl',
             'body' => view('payroll.transaction._show-content', [
@@ -106,6 +108,7 @@
                 'batchReprocessable' => $batchReprocessable ?? false,
                 'batchPostable' => $batchPostable ?? false,
                 'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
+                'moduleTab' => $moduleTab,
             ])->render(),
         ])
 
@@ -128,7 +131,7 @@
                 'open' => true,
                 'panelClass' => 'max-w-4xl',
                 'backUrl' => route(\App\Support\PayrollTransactionModule::routeName('tab'), [
-                    'tab' => 'batches',
+                    'tab' => $moduleTab,
                     'view_payroll_batch' => $viewBatch->payroll_batch_id,
                     'batch_employee_search' => $batchEmployeeSearch ?? '',
                     'search' => request('search'),
@@ -138,7 +141,27 @@
                     'detail' => $viewBatchDetail,
                     'activeTab' => $batchDetailTab ?? 'incomes',
                     'batchEditable' => $batchEditable ?? false,
+                    'shiftOverrides' => $shiftOverrides ?? collect(),
+                    'overtimeApprovals' => $overtimeApprovals ?? collect(),
+                    'shiftCodes' => $shiftCodes ?? collect(),
+                    'attendanceDayBreakdown' => $attendanceDayBreakdown ?? ['LTDE' => [], 'UTDE' => [], 'OVRT' => []],
                 ])->render(),
+            ])
+
+            @include('payroll.transaction._batch-employee-attendance-breakdown-modal', [
+                'type' => 'LTDE',
+                'modalId' => 'payroll-batch-late-breakdown-modal',
+                'rows' => $attendanceDayBreakdown['LTDE'] ?? [],
+            ])
+            @include('payroll.transaction._batch-employee-attendance-breakdown-modal', [
+                'type' => 'UTDE',
+                'modalId' => 'payroll-batch-undertime-breakdown-modal',
+                'rows' => $attendanceDayBreakdown['UTDE'] ?? [],
+            ])
+            @include('payroll.transaction._batch-employee-attendance-breakdown-modal', [
+                'type' => 'OVRT',
+                'modalId' => 'payroll-batch-overtime-breakdown-modal',
+                'rows' => $attendanceDayBreakdown['OVRT'] ?? [],
             ])
 
             @if (($batchEditable ?? false) && $incomeTypes->isNotEmpty())
@@ -147,6 +170,25 @@
                     'detail' => $viewBatchDetail,
                     'incomeTypes' => $incomeTypes,
                     'open' => $openAddEmployeeIncome ?? false,
+                    'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
+                ])
+            @endif
+
+            @if (($batchEditable ?? false) && $shiftCodes->isNotEmpty())
+                @include('payroll.transaction._batch-employee-add-shift-code-modal', [
+                    'batch' => $viewBatch,
+                    'detail' => $viewBatchDetail,
+                    'shiftCodes' => $shiftCodes,
+                    'open' => $openAddEmployeeShiftCode ?? false,
+                    'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
+                ])
+            @endif
+
+            @if ($batchEditable ?? false)
+                @include('payroll.transaction._batch-employee-add-overtime-modal', [
+                    'batch' => $viewBatch,
+                    'detail' => $viewBatchDetail,
+                    'open' => $openAddEmployeeOvertime ?? false,
                     'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
                 ])
             @endif

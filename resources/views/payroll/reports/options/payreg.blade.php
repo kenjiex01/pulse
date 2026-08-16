@@ -4,6 +4,22 @@
 
 <div class="space-y-4" data-payroll-report-options="payreg">
     <h3 class="text-base font-semibold text-gray-900">Payroll Register Options</h3>
+    <p class="text-sm text-gray-600">
+        Preview, Excel, and PDF use the ICCT staff/admin payroll register column layout (days-based: basic rate, days, OT, late, gross, deductions, net).
+        Excel download uses one worksheet per selected payroll period (e.g. <strong>27-10</strong>, <strong>11-26</strong>). Empty periods are omitted.
+    </p>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div>
+            <label for="employee-type" class="form-label">Employee Type</label>
+            <select id="employee-type" name="employee_type" class="form-input" required>
+                <option value="staff" @selected(old('employee_type', 'staff') === 'staff')>Staff</option>
+                <option value="admin" @selected(old('employee_type') === 'admin')>Admin</option>
+            </select>
+            <p class="mt-1 text-xs text-gray-500">Only employees with the selected employment user type are included.</p>
+            @error('employee_type')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+        </div>
+    </div>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div>
@@ -23,7 +39,7 @@
                         {{ app(ReportBatchOptionsService::class)->batchLabel($batch) }}
                     </option>
                 @empty
-                    <option value="" disabled>No processed batches found</option>
+                    <option value="" disabled>No processed or posted batches found</option>
                 @endforelse
             </select>
             <p class="mt-1 text-xs text-gray-500">Hold Ctrl/Cmd to select multiple batches.</p>
@@ -74,8 +90,8 @@
             <select id="output-format" name="output_format" class="form-input" required>
                 @foreach ($report->fileTypes as $fileType)
                     <option
-                        value="{{ $fileType->code === \App\Models\ReportFileType::CODE_EXCEL ? 'excel' : 'html' }}"
-                        @selected(old('output_format', 'html') === ($fileType->code === \App\Models\ReportFileType::CODE_EXCEL ? 'excel' : 'html'))
+                        value="{{ $fileType->code }}"
+                        @selected(old('output_format', 'html') === $fileType->code)
                     >
                         {{ $fileType->label }}
                     </option>

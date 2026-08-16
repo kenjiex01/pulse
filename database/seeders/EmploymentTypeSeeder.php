@@ -19,10 +19,22 @@ class EmploymentTypeSeeder extends Seeder
         ];
 
         foreach ($employmentTypes as $employmentType) {
-            EmploymentType::query()->updateOrCreate(
-                ['type_name' => $employmentType['type_name']],
-                array_merge($employmentType, ['is_active' => true]),
-            );
+            // type_code is the stable key — type_name may have been renamed by the client (e.g. "Contractual").
+            $existing = EmploymentType::withTrashed()
+                ->where('type_code', $employmentType['type_code'])
+                ->orWhere('type_name', $employmentType['type_name'])
+                ->first();
+
+            if ($existing) {
+                $existing->forceFill([
+                    'type_code' => $existing->type_code ?: $employmentType['type_code'],
+                    'description' => $existing->description ?: $employmentType['description'],
+                ])->save();
+
+                continue;
+            }
+
+            EmploymentType::query()->create(array_merge($employmentType, ['is_active' => true]));
         }
     }
 }

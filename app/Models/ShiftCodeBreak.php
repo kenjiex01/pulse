@@ -19,6 +19,8 @@ class ShiftCodeBreak extends Model
     protected $fillable = [
         'shift_code_id',
         'shift_code_break_no',
+        'break_out',
+        'break_in',
         'shift_code_break_minute',
         'shift_code_is_paid_break',
     ];

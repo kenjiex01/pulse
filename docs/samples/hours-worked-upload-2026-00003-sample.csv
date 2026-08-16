@@ -1,6 +1,6 @@
-emp_num,day_type,time_type,hours
-"Employee No.","Day Type Code","Time Type Code","No. of Hours"
-"Accepts all existing Employee No.","Accepts current value(s): LEGL, REGU, RES, RSLG, RSSP, SPCL, SUND","Accepts current value(s): BP, NDIF, NOT, NSOT, OT, SOT","Accepts up to 8 digits and 2 decimals"
-2026-00003,REGU,BP,40
-2026-00003,REGU,OT,4
-2026-00003,REGU,NDIF,2
+emp_num,full_name,day_type,time_type,hours
+"Employee No.","Full Name","Day Type Code","Time Type Code","No. of Hours"
+"Accepts all existing Employee No.","For reference only; not imported. Prefilled when you download the template from a pay period.","Accepts current value(s): LEGL, REGU, RES, RSLG, RSSP, SPCL, SUND","Accepts current value(s): BP, NDIF, NOT, NSOT, OT, SOT","Accepts up to 8 digits and 2 decimals"
+2026-00003,Maria L. Santos,REGU,BP,40
+2026-00003,Maria L. Santos,REGU,OT,4
+2026-00003,Maria L. Santos,REGU,NDIF,2

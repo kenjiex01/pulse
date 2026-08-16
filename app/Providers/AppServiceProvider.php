@@ -4,11 +4,13 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Policies\HrLookupPolicy;
+use App\Services\DatabaseBackupService;
 use App\Services\DesktopBootstrapService;
 use App\Services\DesktopCloudBackupService;
 use App\Services\GovernmentTablesBootstrapService;
 use App\Services\ReferenceDataBootstrapService;
 use App\Services\SidebarNavigationService;
+use App\Policies\BirFormSettingsPolicy;
 use App\Policies\GovernmentTablesPolicy;
 use App\Policies\PayrollCalendarPolicy;
 use App\Policies\PayrollMaintenancePolicy;
@@ -22,6 +24,7 @@ use App\Policies\TimeLogsPolicy;
 use App\Support\HrLookup;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
@@ -45,6 +48,7 @@ class AppServiceProvider extends ServiceProvider
         $payrollReportsPolicy = new PayrollReportsPolicy;
         $rateDefinitionPolicy = new RateDefinitionPolicy;
         $governmentTablesPolicy = new GovernmentTablesPolicy;
+        $birFormSettingsPolicy = new BirFormSettingsPolicy;
         $timekeepingPolicyPolicy = new TimekeepingPolicyPolicy;
         $timeLogsPolicy = new TimeLogsPolicy;
         $employeeProfilePolicy = new TimekeepingEmployeeProfilePolicy;
@@ -72,6 +76,9 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::define('payroll-reports.viewAny', fn (User $user) => $payrollReportsPolicy->viewAny($user));
         Gate::define('payroll-reports.create', fn (User $user) => $payrollReportsPolicy->create($user));
+
+        Gate::define('bir-forms.viewAny', fn (User $user) => $birFormSettingsPolicy->viewAny($user));
+        Gate::define('bir-forms.update', fn (User $user) => $birFormSettingsPolicy->update($user));
 
         Gate::define('rate-definition.viewAny', fn (User $user) => $rateDefinitionPolicy->viewAny($user));
         Gate::define('rate-definition.create', fn (User $user) => $rateDefinitionPolicy->create($user));
@@ -121,7 +128,38 @@ class AppServiceProvider extends ServiceProvider
             return;
         }
 
+        $this->discardViteDevHotFileInDesktopBundle();
+        $this->disableDebugRenderingOnDesktop();
+
         $this->ensureDesktopDatabase();
+    }
+
+    /**
+     * A leftover public/hot file (from local `npm run dev`) makes @vite load localhost — no CSS/JS in production desktop.
+     */
+    private function discardViteDevHotFileInDesktopBundle(): void
+    {
+        if (! $this->isNativeDesktop()) {
+            return;
+        }
+
+        $hotPath = public_path('hot');
+
+        if (File::exists($hotPath)) {
+            File::delete($hotPath);
+        }
+    }
+
+    /**
+     * Bundled .env ships APP_DEBUG=true; debug error pages are slow and leak internals on client machines.
+     */
+    private function disableDebugRenderingOnDesktop(): void
+    {
+        if (! $this->isNativeDesktop() || env('NATIVEPHP_DEBUG', false)) {
+            return;
+        }
+
+        config(['app.debug' => false]);
     }
 
     private function isNativeDesktop(): bool
@@ -138,8 +176,8 @@ class AppServiceProvider extends ServiceProvider
         self::$desktopDatabaseEnsured = true;
 
         $databasePath = storage_path('app/pulse.sqlite');
-        $isFirstLaunch = ! File::exists($databasePath);
         $versionMarkerPath = storage_path('app/.desktop-bootstrap-version');
+        $isFirstLaunch = ! File::exists($databasePath) || File::size($databasePath) === 0;
 
         if ($isFirstLaunch) {
             File::ensureDirectoryExists(dirname($databasePath));
@@ -154,11 +192,20 @@ class AppServiceProvider extends ServiceProvider
             'database.default' => 'sqlite',
             'database.connections.sqlite.database' => $databasePath,
         ]);
+        DB::purge('sqlite');
+        DB::reconnect('sqlite');
+
+        // The desktop server is `php -S`, so every request re-boots Laravel and would otherwise
+        // re-run migrate + healing seeders. Do that work once per app version instead.
+        if (! $isFirstLaunch && $this->desktopSchemaAlreadyPrepared()) {
+            return;
+        }
 
         try {
-            if ($this->hasPendingMigrations()) {
-                Artisan::call('migrate', ['--force' => true]);
-            }
+            Artisan::call('migrate', ['--force' => true]);
+
+            app(DatabaseBackupService::class)->repairModuleCatalogIfMissing();
+            app(DatabaseBackupService::class)->ensureReportCatalogIfMissing();
 
             if ($isFirstLaunch || ! User::query()->exists()) {
                 Artisan::call('db:seed', ['--force' => true]);
@@ -171,17 +218,37 @@ class AppServiceProvider extends ServiceProvider
             if (! $isFirstLaunch) {
                 app(DesktopCloudBackupService::class)->backupIfNeeded();
             }
+
+            File::put($this->desktopSchemaMarkerPath(), $this->desktopSchemaSignature());
         } catch (\Throwable $exception) {
             report($exception);
         }
     }
 
-    private function hasPendingMigrations(): bool
+    /**
+     * True when migrations and healing seeders already ran for this app version + migration set.
+     */
+    private function desktopSchemaAlreadyPrepared(): bool
     {
-        $migrator = app('migrator');
-        $files = $migrator->getMigrationFiles([database_path('migrations')]);
-        $ran = app('migration.repository')->getRan();
+        $markerPath = $this->desktopSchemaMarkerPath();
 
-        return count(array_diff(array_keys($files), $ran)) > 0;
+        if (! File::exists($markerPath)) {
+            return false;
+        }
+
+        return trim((string) File::get($markerPath)) === $this->desktopSchemaSignature();
+    }
+
+    private function desktopSchemaMarkerPath(): string
+    {
+        return storage_path('app/.desktop-schema-state');
+    }
+
+    private function desktopSchemaSignature(): string
+    {
+        $version = (string) config('nativephp.version', env('NATIVEPHP_APP_VERSION', '0.0.0'));
+        $migrationCount = count(glob(database_path('migrations/*.php')) ?: []);
+
+        return $version.':'.$migrationCount;
     }
 }

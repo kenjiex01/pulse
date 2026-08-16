@@ -24,6 +24,7 @@ class PayrollAttendanceHoursWorkedService
         private readonly PayrollOvertimeService $overtimePayroll,
         private readonly PayrollBreakService $breakPayroll,
         private readonly FlexiShiftPayrollService $flexiShiftPayroll,
+        private readonly EmployeeShiftResolver $shiftResolver,
     ) {}
 
     /**
@@ -63,9 +64,15 @@ class PayrollAttendanceHoursWorkedService
         }
 
         $policy = $employee?->timekeepingSetup?->policy;
-        $shiftCode = $employee?->timekeepingSetup?->shiftCode;
-        $scheduleStart = $shiftCode?->time_in;
-        $scheduleEnd = $shiftCode?->time_out;
+        $defaultShift = $employee?->timekeepingSetup?->shiftCode;
+        $defaultScheduleStart = $defaultShift?->time_in;
+        $defaultScheduleEnd = $defaultShift?->time_out;
+
+        $this->shiftResolver->loadOverridesForRange(
+            (int) $detail->employee_id,
+            $calendar->dt_from,
+            $calendar->dt_to,
+        );
 
         $totals = [];
 
@@ -80,7 +87,7 @@ class PayrollAttendanceHoursWorkedService
                 $calendar->dt_from,
                 $calendar->dt_to,
                 $policy,
-                $shiftCode,
+                $defaultShift,
             );
 
             if (($facultyHours['basic_hours'] ?? 0) > 0) {
@@ -106,17 +113,18 @@ class PayrollAttendanceHoursWorkedService
             foreach ($sessions as $session) {
                 $dateKey = $session['date']->toDateString();
                 $punches = $dayPunches->get($dateKey, collect());
+                $dayShift = $this->shiftResolver->forDate((int) $detail->employee_id, $session['date'], $defaultShift);
 
                 $this->accumulateSessionHours(
                     $totals,
                     $session['date'],
                     $session['time_in'],
                     $session['time_out'],
-                    $scheduleStart,
-                    $scheduleEnd,
+                    $dayShift?->time_in,
+                    $dayShift?->time_out,
                     $policy,
-                    $shiftCode,
-                    $this->breakLateMinutesForDay($punches, $policy, $shiftCode),
+                    $dayShift,
+                    $this->breakLateMinutesForDay($punches, $policy, $dayShift),
                     $punches,
                 );
             }
@@ -134,16 +142,19 @@ class PayrollAttendanceHoursWorkedService
                 }
 
                 $sessionDate = CarbonImmutable::parse($entry->session_date->toDateString());
+                $dayShift = $this->shiftResolver->forDate((int) $detail->employee_id, $sessionDate, $defaultShift);
+                $parsedStart = $this->employeeLoadPayroll->parseScheduleStart($entry->class_schedule);
+                $parsedEnd = $this->employeeLoadPayroll->parseScheduleEnd($entry->class_schedule);
 
                 $this->accumulateSessionHours(
                     $totals,
                     $sessionDate,
                     $entry->time_in,
                     $entry->time_out,
-                    $this->employeeLoadPayroll->parseScheduleStart($entry->class_schedule) ?? $scheduleStart,
-                    $this->employeeLoadPayroll->parseScheduleEnd($entry->class_schedule) ?? $scheduleEnd,
+                    $parsedStart ?? $dayShift?->time_in ?? $defaultScheduleStart,
+                    $parsedEnd ?? $dayShift?->time_out ?? $defaultScheduleEnd,
                     $policy,
-                    $shiftCode,
+                    ($parsedStart !== null || $parsedEnd !== null) ? $dayShift : $dayShift,
                     0,
                     collect(),
                 );

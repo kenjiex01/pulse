@@ -13,6 +13,7 @@ class PayrollOvertimeService
 {
     public function __construct(
         private readonly EmployeeLoadPayrollService $employeeLoadPayroll,
+        private readonly EmployeeShiftResolver $shiftResolver,
     ) {}
 
     public function considersOvertime(?TimekeepingPolicy $policy): bool
@@ -28,6 +29,8 @@ class PayrollOvertimeService
         ?TimekeepingPolicy $policy,
         ?string $scheduleStart,
         ?string $scheduleEnd,
+        ?int $employeeId = null,
+        ?\App\Models\ShiftCode $defaultShift = null,
     ): int {
         if (! $this->considersOvertime($policy)) {
             return 0;
@@ -36,12 +39,24 @@ class PayrollOvertimeService
         $total = 0;
 
         foreach ($sessions as $session) {
+            $dayStart = $scheduleStart;
+            $dayEnd = $scheduleEnd;
+
+            if ($employeeId !== null) {
+                $dayShift = $this->shiftResolver->forDate($employeeId, $session['date'], $defaultShift);
+                if ($dayShift !== null && (bool) $dayShift->is_flexi_time) {
+                    continue;
+                }
+                $dayStart = $dayShift?->time_in ?? $scheduleStart;
+                $dayEnd = $dayShift?->time_out ?? $scheduleEnd;
+            }
+
             $total += $this->billableMinutesForSession(
                 $session['date'],
                 $session['time_in'] ?? null,
                 $session['time_out'] ?? null,
-                $scheduleStart,
-                $scheduleEnd,
+                $dayStart,
+                $dayEnd,
                 $policy,
             );
         }
