@@ -445,6 +445,7 @@ class Employee extends Model
                         'department' => $assignment->department,
                         'program' => $assignment->program,
                         'biometric_id' => $assignment->biometric_id,
+                        'is_primary' => (bool) $assignment->is_primary,
                         'sort_order' => $assignment->sort_order,
                     ])
                     ->values()

@@ -93,6 +93,24 @@
         </p>
     </div>
 
+    <div
+        class="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 text-sm text-gray-600"
+        data-employee-upload-panel="employee-assignment"
+        @unless($selectedUploadType === 'employee-assignment') hidden @endunless
+    >
+        <p class="font-medium text-gray-900">How it works — Employee Assignment</p>
+        <ol class="mt-2 list-decimal space-y-1 pl-5">
+            <li>Download the <strong>Employee Assignment template (.xlsx)</strong> — it is prefilled with all current employees.</li>
+            <li>The <strong>Main Campus Code</strong> column shows the campus currently marked as that employee’s main assignment.</li>
+            <li>Change the campus code to another campus <strong>already assigned</strong> to that employee. Do not change the first two header rows.</li>
+            <li>On import, the uploaded campus becomes the new main assignment. The previous main campus is unchecked.</li>
+            <li>Preview valid rows and errors before applying.</li>
+        </ol>
+        <p class="mt-3 text-xs text-gray-500">
+            This upload does not add a new campus. Add extra campuses on the employee profile first, then mark one as main here.
+        </p>
+    </div>
+
     <p class="text-sm">
         <a
             href="{{ route('employees.upload.template', ['type' => $selectedUploadType]) }}"

@@ -69,6 +69,58 @@ class PayrollRegisterRowBuilderTest extends TestCase
         $this->assertSame(2, $sorted[1]['index']);
     }
 
+    public function test_sort_register_rows_defaults_to_last_name(): void
+    {
+        $builder = new PayrollRegisterRowBuilder();
+
+        $sorted = $builder->sortRegisterRows([
+            [
+                'index' => 1,
+                'employee_number' => 'A-001',
+                'last_name' => 'Santos',
+                'first_name' => 'Ana',
+                'middle_name' => 'B',
+                'employee_name' => 'Santos, Ana B',
+            ],
+            [
+                'index' => 2,
+                'employee_number' => 'B-002',
+                'last_name' => 'Cruz',
+                'first_name' => 'Ben',
+                'middle_name' => 'C',
+                'employee_name' => 'Cruz, Ben C',
+            ],
+            [
+                'index' => 3,
+                'employee_number' => 'C-003',
+                'last_name' => 'Cruz',
+                'first_name' => 'Ana',
+                'middle_name' => 'A',
+                'employee_name' => 'Cruz, Ana A',
+            ],
+        ], 'employee_name');
+
+        $this->assertSame('Cruz, Ana A', $sorted[0]['employee_name']);
+        $this->assertSame('Cruz, Ben C', $sorted[1]['employee_name']);
+        $this->assertSame('Santos, Ana B', $sorted[2]['employee_name']);
+        $this->assertSame(1, $sorted[0]['index']);
+        $this->assertSame(3, $sorted[2]['index']);
+    }
+
+    public function test_format_register_employee_name_is_last_first_middle(): void
+    {
+        $builder = new PayrollRegisterRowBuilder();
+
+        $employee = new \App\Models\Employee([
+            'last_name' => 'Dela Cruz',
+            'first_name' => 'Juan',
+            'middle_name' => 'Santos',
+        ]);
+
+        $this->assertSame('Dela Cruz, Juan Santos', $builder->formatRegisterEmployeeName($employee));
+        $this->assertSame('', $builder->formatRegisterEmployeeName(null));
+    }
+
     public function test_build_layout_table_uses_staff_headers_when_configured(): void
     {
         $builder = new PayrollRegisterRowBuilder();
@@ -123,7 +175,64 @@ class PayrollRegisterRowBuilderTest extends TestCase
         ]));
 
         $this->assertSame('Antipolo', $builder->resolveCampusSheet($antipolo));
-        $this->assertSame('Cainta', $builder->resolveCampusSheet($angono));
+        $this->assertSame('Angono', $builder->resolveCampusSheet($angono));
         $this->assertSame('Cainta', $builder->resolveCampusSheet(null));
+    }
+
+    public function test_resolve_campus_sheet_uses_main_assignment_not_employee_campus(): void
+    {
+        $builder = new PayrollRegisterRowBuilder();
+
+        $cainta = new \App\Models\Campus([
+            'campus_code' => 'CA',
+            'campus_name' => 'ICCT Colleges Cainta Main Campus',
+        ]);
+        $antipolo = new \App\Models\Campus([
+            'campus_code' => 'UA',
+            'campus_name' => 'ICCT Colleges Antipolo Campus',
+        ]);
+
+        $caintaAssignment = new \App\Models\EmployeeCampusAssignment(['is_primary' => false]);
+        $caintaAssignment->setRelation('campus', $cainta);
+
+        $mainAssignment = new \App\Models\EmployeeCampusAssignment(['is_primary' => true]);
+        $mainAssignment->setRelation('campus', $antipolo);
+
+        $employee = new \App\Models\Employee;
+        $employee->setRelation('campus', $cainta);
+        $employee->setRelation('campusAssignments', collect([$caintaAssignment, $mainAssignment]));
+
+        $this->assertSame('UA', $builder->resolveCampusCode($employee));
+        $this->assertSame('Antipolo', $builder->resolveCampusSheet($employee));
+    }
+
+    public function test_resolve_campus_sheet_rolls_child_campus_up_to_under_campus(): void
+    {
+        $builder = new PayrollRegisterRowBuilder();
+
+        $cainta = new \App\Models\Campus([
+            'campus_code' => 'CA',
+            'campus_name' => 'ICCT Colleges Cainta Main Campus',
+            'parent_campus_id' => null,
+        ]);
+        $cainta->campus_id = 10;
+        $cainta->setRelation('parentCampus', null);
+
+        $greenhills = new \App\Models\Campus([
+            'campus_code' => 'GH',
+            'campus_name' => 'Greenhills',
+            'parent_campus_id' => 10,
+        ]);
+        $greenhills->campus_id = 20;
+        $greenhills->setRelation('parentCampus', $cainta);
+
+        $assignment = new \App\Models\EmployeeCampusAssignment(['is_primary' => true]);
+        $assignment->setRelation('campus', $greenhills);
+
+        $employee = new \App\Models\Employee;
+        $employee->setRelation('campusAssignments', collect([$assignment]));
+
+        $this->assertSame('GH', $builder->resolveCampusCode($employee));
+        $this->assertSame('Cainta', $builder->resolveCampusSheet($employee));
     }
 }

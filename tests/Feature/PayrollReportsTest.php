@@ -43,7 +43,8 @@ class PayrollReportsTest extends TestCase
             ->assertSee('Payroll Register Options')
             ->assertSee('payroll_batch_ids')
             ->assertSee('Employee Type')
-            ->assertSee('Staff');
+            ->assertSee('Staff')
+            ->assertSee('one worksheet per campus');
     }
 
     public function test_report_options_partial_loads_for_bir_tax_withheld(): void
@@ -215,12 +216,21 @@ class PayrollReportsTest extends TestCase
     public function test_reports_index_shows_human_resource_historical_data(): void
     {
         $user = User::query()->firstOrFail();
+        $employeeReport = Report::query()->where('title', 'Employee')->firstOrFail();
 
         $this->actingAs($user)
             ->get(route('payroll.reports.index', ['classification' => 'human-resource']))
             ->assertOk()
             ->assertSee('Human Resource')
             ->assertSee('Historical Data');
+
+        $this->actingAs($user)
+            ->get(route('payroll.reports.index', [
+                'classification' => 'human-resource',
+                'report_id' => $employeeReport->report_id,
+            ]))
+            ->assertOk()
+            ->assertSee('Full employee listing: personal, assignments, employment, salary, shift codes');
     }
 
     public function test_report_options_partial_loads_for_historical_data(): void
@@ -251,6 +261,50 @@ class PayrollReportsTest extends TestCase
             ])
             ->assertOk()
             ->assertSee('Historical Data');
+    }
+
+    public function test_report_options_partial_loads_for_employee_credentials(): void
+    {
+        $user = User::query()->firstOrFail();
+        $report = Report::query()->where('title', 'Employee')->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('payroll.reports.options', [
+                'report' => $report->report_id,
+                'classification' => 'human-resource',
+            ]))
+            ->assertOk()
+            ->assertSee('Employee Options')
+            ->assertSee('employee_ids')
+            ->assertDontSee('credential document')
+            ->assertDontSee('credential column');
+    }
+
+    public function test_generate_employee_credentials_report_preview(): void
+    {
+        $user = User::query()->firstOrFail();
+        $report = Report::query()->where('title', 'Employee')->firstOrFail();
+        $employee = Employee::query()->create([
+            'employee_number' => 'EMP-CRED-RPT',
+            'first_name' => 'Liza',
+            'middle_name' => 'M',
+            'last_name' => 'Reyes',
+            'email' => 'liza.reyes.cred@example.com',
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('payroll.reports.generate'), [
+                'classification' => 'human-resource',
+                'report_id' => $report->report_id,
+                'output_format' => 'html',
+                'employee_ids' => [$employee->employee_id],
+            ])
+            ->assertOk()
+            ->assertSee('Employee')
+            ->assertSee('Reyes, Liza M')
+            ->assertDontSee('TIN ID')
+            ->assertSee('Shift Code')
+            ->assertSee('Assignments');
     }
 
     public function test_reports_index_shows_timekeeping_attendance_view(): void

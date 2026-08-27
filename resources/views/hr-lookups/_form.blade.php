@@ -40,13 +40,16 @@
             <div>
                 <label for="{{ $fieldName }}_{{ $formContext }}" class="form-label">{{ $field['label'] }}</label>
                 <select id="{{ $fieldName }}_{{ $formContext }}" name="{{ $fieldName }}" class="form-input">
-                    <option value="">Select {{ $field['label'] }}</option>
+                    <option value="">{{ $field['placeholder'] ?? 'Select '.$field['label'] }}</option>
                     @if (! empty($field['options']))
                         @foreach ($field['options'] as $optionValue => $optionLabel)
                             <option value="{{ $optionValue }}" @selected((string) old($fieldName, $record?->{$fieldName} ?? '') === (string) $optionValue)>{{ $optionLabel }}</option>
                         @endforeach
                     @else
                         @foreach ($selectOptions[$field['source']] ?? [] as $optionValue => $optionLabel)
+                            @if ($isEdit && ! empty($field['exclude_self']) && (string) $optionValue === (string) $record->{$primaryKey})
+                                @continue
+                            @endif
                             <option value="{{ $optionValue }}" @selected((string) old($fieldName, $record?->{$fieldName} ?? '') === (string) $optionValue)>{{ $optionLabel }}</option>
                         @endforeach
                     @endif
@@ -63,6 +66,7 @@
                     value="{{ $value }}"
                     class="form-input"
                     @if ($fieldType === 'number') min="0" @endif
+                    @if (isset($field['step'])) step="{{ $field['step'] }}" @endif
                 >
                 @error($fieldName)<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>

@@ -239,5 +239,11 @@ return [
             'template_filename' => 'employee_salary_upload_template.xlsx',
             'config' => 'employee_salary_upload',
         ],
+        'employee-assignment' => [
+            'label' => 'Employee Assignment',
+            'description' => 'Update the main campus assignment for existing employees.',
+            'template_filename' => 'employee_assignment_upload_template.xlsx',
+            'config' => 'employee_assignment_upload',
+        ],
     ],
 ];

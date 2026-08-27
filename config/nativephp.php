@@ -28,7 +28,7 @@ return [
 
     'copyright' => env('NATIVEPHP_APP_COPYRIGHT', 'Copyright © ICCT Colleges'),
 
-    'description' => env('NATIVEPHP_APP_DESCRIPTION', 'ISKOLARIS school management desktop application'),
+    'description' => env('NATIVEPHP_APP_DESCRIPTION', 'People360 HR, timekeeping, and payroll desktop application'),
 
     'website' => env('NATIVEPHP_APP_WEBSITE', 'https://icct.edu.ph'),
 
@@ -83,34 +83,35 @@ return [
          * updater will only work when your application is bundled
          * for production.
          */
-        'enabled' => env('NATIVEPHP_UPDATER_ENABLED', false),
+        'enabled' => env('NATIVEPHP_UPDATER_ENABLED', true),
 
         /**
          * The updater provider to use.
          * Supported: "github", "s3", "spaces"
+         * People360 auto-update reads GitHub Releases (same as Skolaris Desktop).
          */
-        'default' => env('NATIVEPHP_UPDATER_PROVIDER', 'spaces'),
+        'default' => env('NATIVEPHP_UPDATER_PROVIDER', 'github'),
 
         'providers' => [
             'github' => [
                 'driver' => 'github',
-                'repo' => env('GITHUB_REPO'),
-                'owner' => env('GITHUB_OWNER'),
-                'token' => env('GITHUB_TOKEN'),
-                'vPrefixedTagName' => env('GITHUB_V_PREFIXED_TAG_NAME', true),
-                'private' => env('GITHUB_PRIVATE', false),
+                'repo' => env('GITHUB_REPO', 'pulse'),
+                'owner' => env('GITHUB_OWNER', 'kenjiex01'),
+                'token' => env('GITHUB_TOKEN', env('GH_TOKEN')),
+                'vPrefixedTagName' => filter_var(env('GITHUB_V_PREFIXED_TAG_NAME', true), FILTER_VALIDATE_BOOLEAN),
+                'private' => filter_var(env('GITHUB_PRIVATE', true), FILTER_VALIDATE_BOOLEAN),
                 'channel' => env('GITHUB_CHANNEL', 'latest'),
-                'releaseType' => env('GITHUB_RELEASE_TYPE', 'draft'),
+                'releaseType' => env('GITHUB_RELEASE_TYPE', 'release'),
             ],
 
             's3' => [
                 'driver' => 's3',
-                'key' => env('AWS_ACCESS_KEY_ID'),
-                'secret' => env('AWS_SECRET_ACCESS_KEY'),
-                'region' => env('AWS_DEFAULT_REGION'),
-                'bucket' => env('AWS_BUCKET'),
+                'key' => env('AWS_ACCESS_KEY_ID', env('DB_BACKUP_S3_KEY')),
+                'secret' => env('AWS_SECRET_ACCESS_KEY', env('DB_BACKUP_S3_SECRET')),
+                'region' => env('AWS_DEFAULT_REGION', env('DB_BACKUP_S3_REGION', 'ap-southeast-2')),
+                'bucket' => env('AWS_BUCKET', env('DB_BACKUP_S3_BUCKET')),
                 'endpoint' => env('AWS_ENDPOINT'),
-                'path' => env('NATIVEPHP_UPDATER_PATH', null),
+                'path' => env('NATIVEPHP_UPDATER_PATH', env('DESKTOP_INSTALLER_S3_PREFIX', 'payroll_installer')),
             ],
 
             'spaces' => [

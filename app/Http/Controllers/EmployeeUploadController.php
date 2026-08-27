@@ -93,6 +93,18 @@ class EmployeeUploadController extends Controller
                 ->with('success', $result['updated'].' salary record(s) updated successfully.');
         }
 
+        if (($staging['upload_type'] ?? 'master-file') === 'employee-assignment') {
+            SysLogService::record(
+                action: 'update',
+                table: 'tbl_employee_campus_assignments',
+                description: 'Updated '.$result['updated'].' employee main assignment(s) via bulk upload',
+            );
+
+            return redirect()
+                ->route('employees.index')
+                ->with('success', $result['updated'].' main assignment(s) updated successfully.');
+        }
+
         SysLogService::record(
             action: 'create',
             table: 'tbl_employees',

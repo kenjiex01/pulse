@@ -8,7 +8,7 @@
         <div class="relative">
             <div class="mb-2 inline-flex items-center gap-2 text-sm text-white/90">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                Skolaris Pulse
+                People360
             </div>
             <h1 class="mb-1 text-2xl font-bold sm:text-3xl">Welcome, {{ $user->name }}</h1>
             <p class="max-w-xl text-sm text-white/85 sm:text-base">

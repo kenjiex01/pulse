@@ -68,7 +68,7 @@ class PayrollRegisterReportService
             ->values()
             ->all();
 
-        $sortBy = (string) ($options['sort_by'] ?? 'employee_number');
+        $sortBy = (string) ($options['sort_by'] ?? 'employee_name');
         $employeeType = strtolower((string) ($options['employee_type'] ?? 'staff'));
         if (! in_array($employeeType, ['staff', 'admin'], true)) {
             $employeeType = 'staff';
@@ -77,8 +77,8 @@ class PayrollRegisterReportService
         $batches = PayrollBatch::query()
             ->with([
                 'payrollCalendar.payType',
-                'details.employee.campus',
-                'details.employee.campusAssignments.campus',
+                'details.employee.campus.parentCampus.parentCampus',
+                'details.employee.campusAssignments.campus.parentCampus.parentCampus',
                 'details.employee.employmentInformations.salary',
                 'details.incomes.incomeType',
                 'details.deductions.deductionType',
@@ -116,7 +116,7 @@ class PayrollRegisterReportService
                 'layout' => 'icct_per_hour',
                 'register_layout' => $employeeType,
                 'layout_config' => $layoutConfig,
-                'sheet_group' => 'period',
+                'sheet_group' => 'campus',
                 'subheaders' => $table['subheaders'],
                 'highlight_indices' => $table['highlight_indices'],
                 'register_rows' => $registerRows,

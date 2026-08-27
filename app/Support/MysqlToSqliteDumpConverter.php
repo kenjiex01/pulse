@@ -5,7 +5,7 @@ namespace App\Support;
 /**
  * Best-effort translator from a MySQL / phpMyAdmin `.sql` dump to SQLite-compatible SQL.
  *
- * Desktop Pulse runs on SQLite, but users often restore backups produced by mysqldump
+ * Desktop People360 runs on SQLite, but users often restore backups produced by mysqldump
  * (which start with `SET ...`, use backticks, `ENGINE=InnoDB`, `AUTO_INCREMENT`, etc.).
  * This converter strips MySQL-only directives, rewrites identifiers/strings, and reshapes
  * `CREATE TABLE` / `INSERT` statements so the dump imports into SQLite.

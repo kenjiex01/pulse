@@ -19,22 +19,30 @@ class PayrollRegisterExcelExporterTest extends TestCase
         ]);
 
         $this->assertSame([
+            'Angono',
             'Antipolo',
             'Binangonan',
             'Cogeo',
             'San Mateo',
             'Sumulong',
             'Taytay',
+            'Digital',
+            'Greenhills',
+            'N. Domingo',
+            'Washington Residences',
+            'Bldg 108',
+            '225 6th Floor',
             'Cainta',
+            'Unknown',
         ], array_keys($groups));
 
         $this->assertCount(1, $groups['Antipolo']);
         $this->assertCount(1, $groups['Taytay']);
-        $this->assertCount(2, $groups['Cainta']);
+        $this->assertCount(1, $groups['Unknown']);
+        $this->assertCount(1, $groups['Cainta']);
         $this->assertSame(1, $groups['Cainta'][0]['index']);
-        $this->assertSame(2, $groups['Cainta'][1]['index']);
-        $this->assertSame('C', $groups['Cainta'][0]['employee_name']);
-        $this->assertSame('D', $groups['Cainta'][1]['employee_name']);
+        $this->assertSame('D', $groups['Cainta'][0]['employee_name']);
+        $this->assertSame('C', $groups['Unknown'][0]['employee_name']);
         $this->assertSame([], $groups['Binangonan']);
         $this->assertSame([], $groups['Cogeo']);
     }

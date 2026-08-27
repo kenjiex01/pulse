@@ -146,7 +146,7 @@
                     <p class="mt-1 text-sm text-amber-900/80">
                         Replaces the current <strong>{{ strtoupper($driver) }}</strong> database with the uploaded <code class="rounded bg-white px-1.5 py-0.5 text-xs">.sql</code> file.
                         @if (in_array($driver, ['mysql', 'mariadb'], true))
-                            MySQL / phpMyAdmin dumps import directly. <strong>Pulse desktop</strong> backups (SQLite, often starting with <code class="rounded bg-white px-1 text-xs">PRAGMA</code>) are converted automatically for browser dev.
+                            MySQL / phpMyAdmin dumps import directly. <strong>People360 desktop</strong> backups (SQLite, often starting with <code class="rounded bg-white px-1 text-xs">PRAGMA</code>) are converted automatically for browser dev.
                         @else
                             MySQL / phpMyAdmin dumps are automatically converted to the desktop SQLite format.
                         @endif

@@ -97,7 +97,7 @@ class ReportSeeder extends Seeder
             ],
             [
                 'report_group_id' => $currentBatch->report_group_id,
-                'description' => 'Detailed payroll register for processed/posted batches. Choose Staff or Admin; Excel uses the ICCT days-based staff layout with one worksheet per pay period.',
+                'description' => 'Detailed payroll register for processed/posted batches. Choose Staff or Admin; Excel uses the ICCT days-based staff layout with one worksheet per main campus assignment.',
                 'options_key' => 'payreg',
                 'generator_key' => 'payreg',
                 'sort_order' => 1,
@@ -293,6 +293,32 @@ class ReportSeeder extends Seeder
         );
 
         $historicalData->fileTypes()->syncWithoutDetaching([
+            $html->report_file_type_id,
+            $excel->report_file_type_id,
+            $pdf->report_file_type_id,
+        ]);
+
+        Report::query()
+            ->where('report_classification_id', $humanResource->report_classification_id)
+            ->where('title', 'Employee Credentials')
+            ->update(['title' => 'Employee']);
+
+        $employeeCredentials = Report::query()->updateOrCreate(
+            [
+                'report_classification_id' => $humanResource->report_classification_id,
+                'title' => 'Employee',
+            ],
+            [
+                'report_group_id' => $hrReports->report_group_id,
+                'description' => 'Full employee listing: personal, assignments, employment, salary, shift codes, and loans.',
+                'options_key' => 'employee-credentials',
+                'generator_key' => 'employee-credentials',
+                'sort_order' => 2,
+                'is_active' => true,
+            ],
+        );
+
+        $employeeCredentials->fileTypes()->syncWithoutDetaching([
             $html->report_file_type_id,
             $excel->report_file_type_id,
             $pdf->report_file_type_id,

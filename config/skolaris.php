@@ -6,7 +6,7 @@ return [
     | Skolaris API connection
     |--------------------------------------------------------------------------
     |
-    | Pulse pulls faculty loading data from the Skolaris REST API (the same
+    | People360 pulls faculty loading data from the Skolaris REST API (the same
     | endpoints used by the Skolaris frontend). Authentication uses the
     | Skolaris JWT login/refresh flow. Provide a service-account credential
     | with access to the faculty assignments overview (ideally a global /
@@ -31,7 +31,7 @@ return [
     'token_ttl_minutes' => (int) env('SKOLARIS_API_TOKEN_TTL', 55),
 
     /*
-    | Desktop / Pulse app calls the Skolaris backend Pulse API directly (not the
+    | Desktop / People360 app calls the Skolaris backend Pulse API directly (not the
     | Skolaris frontend /pulse/api bridge, which returns HTML for non-browser clients).
     */
     'pulse_api_base_url' => rtrim((string) env('SKOLARIS_PULSE_API_BASE_URL', 'https://api-skolaris.icct.edu.ph/api/v1/pulse-api/v1'), '/'),

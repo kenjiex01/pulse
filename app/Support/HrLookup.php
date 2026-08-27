@@ -122,6 +122,10 @@ class HrLookup
                     ->ignore($record?->getKey(), $primaryKey);
             }
 
+            if (! empty($field['exclude_self']) && $record) {
+                $fieldRules[] = Rule::notIn([(string) $record->getKey()]);
+            }
+
             $rules[$field['name']] = $fieldRules;
         }
 
@@ -136,6 +140,10 @@ class HrLookup
         foreach ($config['fields'] as $field) {
             if (($field['type'] ?? 'text') === 'checkbox') {
                 $payload[$field['name']] = filter_var($data[$field['name']] ?? false, FILTER_VALIDATE_BOOLEAN);
+            }
+
+            if (($field['type'] ?? 'text') === 'select' && ($payload[$field['name']] ?? '') === '') {
+                $payload[$field['name']] = null;
             }
         }
 

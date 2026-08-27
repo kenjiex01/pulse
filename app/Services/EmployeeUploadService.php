@@ -75,13 +75,20 @@ class EmployeeUploadService
         $uploadType = $this->normalizeUploadType($uploadType);
         $meta = $this->uploadTypes()[$uploadType] ?? [];
         $filename = (string) ($meta['template_filename'] ?? 'employee_upload_template.xlsx');
+        $cached = storage_path('app/templates/'.$filename);
+
+        if ($uploadType === 'employee-assignment') {
+            File::ensureDirectoryExists(dirname($cached));
+            File::put($cached, $this->buildTemplateBinary($uploadType));
+
+            return $cached;
+        }
+
         $bundled = resource_path('templates/'.$filename);
 
         if (is_readable($bundled)) {
             return $bundled;
         }
-
-        $cached = storage_path('app/templates/'.$filename);
 
         if (is_readable($cached)) {
             return $cached;
@@ -125,29 +132,43 @@ class EmployeeUploadService
         $uploadType = $this->normalizeUploadType($uploadType);
         $aliases = $this->aliases($uploadType);
         $labels = $this->labels($uploadType);
-        $sample = $this->sampleRowValues($uploadType);
-        $sampleRow = array_map(fn (string $alias) => $sample[$alias] ?? '', $aliases);
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle($uploadType === 'employee-salary' ? 'Employee Salary Upload' : 'Employee Upload');
+        $sheet->setTitle(match ($uploadType) {
+            'employee-salary' => 'Employee Salary Upload',
+            'employee-assignment' => 'Employee Assignment Upload',
+            default => 'Employee Upload',
+        });
 
-        foreach ([$aliases, $labels, $sampleRow] as $rowIndex => $rowData) {
+        $headerRows = [$aliases, $labels];
+
+        if ($uploadType === 'employee-assignment') {
+            $dataRows = $this->assignmentTemplateRows($aliases);
+            $freezePane = 'A3';
+            $dataRowStart = 3;
+        } else {
+            $sample = $this->sampleRowValues($uploadType);
+            $dataRows = [array_map(fn (string $alias) => $sample[$alias] ?? '', $aliases)];
+            $freezePane = 'A4';
+            $dataRowStart = 4;
+        }
+
+        foreach (array_merge($headerRows, $dataRows) as $rowIndex => $rowData) {
             foreach ($rowData as $colIndex => $value) {
                 $coordinate = Coordinate::stringFromColumnIndex($colIndex + 1).($rowIndex + 1);
                 $sheet->setCellValueExplicit($coordinate, (string) $value, DataType::TYPE_STRING);
             }
         }
 
-        $dataRowStart = 4;
-        $dataRowEnd = 150;
+        $dataRowEnd = max($dataRowStart + 150, $dataRowStart + count($dataRows) + 20);
         $lastColumn = Coordinate::stringFromColumnIndex(count($aliases));
 
         $sheet->getStyle("A{$dataRowStart}:{$lastColumn}{$dataRowEnd}")
             ->getNumberFormat()
             ->setFormatCode(NumberFormat::FORMAT_TEXT);
 
-        $sheet->freezePane('A4');
+        $sheet->freezePane($freezePane);
 
         $writer = new Xlsx($spreadsheet);
         ob_start();
@@ -156,6 +177,52 @@ class EmployeeUploadService
         unset($spreadsheet);
 
         return (string) ob_get_clean();
+    }
+
+    /**
+     * @param  array<int, string>  $aliases
+     * @return array<int, array<int, string>>
+     */
+    private function assignmentTemplateRows(array $aliases): array
+    {
+        $employees = Employee::query()
+            ->with(['campusAssignments.campus'])
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->orderBy('middle_name')
+            ->orderBy('employee_id')
+            ->get();
+
+        return $employees->map(function (Employee $employee) use ($aliases) {
+            $main = $employee->campusAssignments->first(
+                fn ($assignment) => (bool) $assignment->is_primary
+            ) ?? $employee->campusAssignments->first();
+
+            $values = [
+                'employee_number' => (string) $employee->employee_number,
+                'employee_name' => $this->assignmentEmployeeName($employee),
+                'campus_code' => (string) ($main?->campus?->campus_code ?? ''),
+                'campus_name' => (string) ($main?->campus?->campus_name ?? ''),
+            ];
+
+            return array_map(fn (string $alias) => $values[$alias] ?? '', $aliases);
+        })->values()->all();
+    }
+
+    private function assignmentEmployeeName(Employee $employee): string
+    {
+        $last = trim((string) $employee->last_name);
+        $given = trim(implode(' ', array_filter([
+            $employee->first_name,
+            $employee->middle_name,
+            $employee->suffix,
+        ], fn ($part) => filled($part))));
+
+        if ($last === '') {
+            return $given !== '' ? $given : (string) $employee->full_name;
+        }
+
+        return $given !== '' ? "{$last}, {$given}" : $last;
     }
 
     /**
@@ -325,9 +392,11 @@ class EmployeeUploadService
         }
 
         if ($columnMap === null) {
-            $message = $uploadType === 'employee-salary'
-                ? 'Invalid salary upload template header. Download the latest Employee Salary template from Employees → Upload.'
-                : 'Invalid template header. Download the latest template from Employees → Upload (or keep employee_number and email columns).';
+            $message = match ($uploadType) {
+                'employee-salary' => 'Invalid salary upload template header. Download the latest Employee Salary template from Employees → Upload.',
+                'employee-assignment' => 'Invalid assignment upload template header. Download the latest Employee Assignment template from Employees → Upload.',
+                default => 'Invalid template header. Download the latest template from Employees → Upload (or keep employee_number and email columns).',
+            };
 
             throw ValidationException::withMessages([
                 'upload_file' => $message,
@@ -412,6 +481,10 @@ class EmployeeUploadService
             return ['employee_number', 'date_effective_from', 'pay_type'];
         }
 
+        if ($uploadType === 'employee-assignment') {
+            return ['employee_number', 'campus_code'];
+        }
+
         if ($disableRequiredFields) {
             return ['employee_number', 'email'];
         }
@@ -466,6 +539,10 @@ class EmployeeUploadService
             return $this->rowMapper->mapSalaryUploadRow($row, $lineNumber, $seenSalaryKeys);
         }
 
+        if ($uploadType === 'employee-assignment') {
+            return $this->rowMapper->mapAssignmentUploadRow($row, $lineNumber, $seenNumbers);
+        }
+
         return $this->rowMapper->mapRow($row, $lineNumber, $seenNumbers, $seenEmails, $disableRequiredFields);
     }
 
@@ -509,6 +586,10 @@ class EmployeeUploadService
 
         if (($staging['upload_type'] ?? 'master-file') === 'employee-salary') {
             return $this->commitSalaryUpload($user, $token, $staging);
+        }
+
+        if (($staging['upload_type'] ?? 'master-file') === 'employee-assignment') {
+            return $this->commitAssignmentUpload($user, $token, $staging);
         }
 
         $createdIds = [];
@@ -628,6 +709,39 @@ class EmployeeUploadService
         $this->discardStaging($user, $token);
 
         return [
+            'updated' => count($staging['valid']),
+            'employee_ids' => array_values(array_unique($employeeIds)),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $staging
+     * @return array{created: int, updated: int, employee_ids: array<int, int>}
+     */
+    private function commitAssignmentUpload(User $user, string $token, array $staging): array
+    {
+        $employeeIds = [];
+
+        DB::transaction(function () use ($staging, &$employeeIds) {
+            foreach ($staging['valid'] as $payload) {
+                $employee = Employee::query()->findOrFail($payload['employee_id']);
+                EmployeeCampusAssignmentSync::setMainCampus($employee, (int) $payload['campus_id']);
+
+                SysLogService::record(
+                    action: 'update',
+                    table: 'tbl_employee_campus_assignments',
+                    recordId: $employee->employee_id,
+                    description: 'Updated main campus assignment via upload for employee '.$payload['employee_number'],
+                );
+
+                $employeeIds[] = (int) $payload['employee_id'];
+            }
+        });
+
+        $this->discardStaging($user, $token);
+
+        return [
+            'created' => 0,
             'updated' => count($staging['valid']),
             'employee_ids' => array_values(array_unique($employeeIds)),
         ];

@@ -9,7 +9,7 @@ use RuntimeException;
 /**
  * Copy row data from a temporary SQLite file (desktop backup) into the active MySQL connection.
  *
- * Used for browser/dev restore when users upload a Pulse desktop .sql dump (PRAGMA / SQLite syntax).
+ * Used for browser/dev restore when users upload a People360 desktop .sql dump (PRAGMA / SQLite syntax).
  */
 class DesktopSqliteToMysqlImporter
 {

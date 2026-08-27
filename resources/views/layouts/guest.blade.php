@@ -13,6 +13,7 @@
 <body>
     @include('partials.full-screen-loader')
     @include('partials.full-screen-loader-fallback')
+    @include('partials.desktop-updater-overlay')
     @include('partials.desktop-installer-update-modal')
     @yield('content')
 </body>

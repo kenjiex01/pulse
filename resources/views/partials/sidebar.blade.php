@@ -15,7 +15,7 @@
             <div class="min-w-0">
                 <p class="flex items-center gap-1 truncate text-sm font-bold">
                     <svg class="h-3.5 w-3.5 shrink-0 text-[#00A3E6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                    Pulse
+                    People360
                 </p>
                 <p class="flex items-center gap-1.5 truncate text-[10px] text-white/60">
                     <span class="truncate">ISKOLARIS Desktop</span>

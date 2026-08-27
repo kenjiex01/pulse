@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\File;
 
 /**
  * Fast online check for desktop cloud work (S3 backup, installer updates).
- * Core Pulse never needs this — payroll, timekeeping, and SQLite stay local.
+ * Core People360 never needs this — payroll, timekeeping, and SQLite stay local.
  */
 final class DesktopConnectivity
 {

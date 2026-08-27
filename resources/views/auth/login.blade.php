@@ -54,7 +54,7 @@
                         <h1 class="mb-1 text-2xl font-bold leading-tight tracking-tight sm:text-3xl lg:text-4xl">
                             SKOLARIS
                             <br>
-                            <span class="text-[#00A3E6]">APP PULSE</span>
+                            <span class="text-[#00A3E6]">PEOPLE360</span>
                         </h1>
                         <div class="mb-5 mt-4 flex gap-1">
                             <span class="h-1 w-10 rounded-full bg-[#E31837]"></span>
@@ -74,7 +74,7 @@
 
                     <div class="relative z-10 mx-auto w-full max-w-sm">
                         <div class="mb-6 md:hidden">
-                            <p class="text-xs font-semibold tracking-[0.2em] text-[#0B318F]/70">DESKTOP PULSE</p>
+                            <p class="text-xs font-semibold tracking-[0.2em] text-[#0B318F]/70">PEOPLE360</p>
                         </div>
 
                         <h2 class="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">Sign in</h2>
@@ -149,7 +149,7 @@
 
             <p class="mt-4 flex items-center justify-center gap-1.5 text-center text-[10px] text-white/60">
                 <svg class="h-3 w-3 text-[#00A3E6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                ICCT Colleges Foundation Inc. · Skolaris Pulse
+                ICCT Colleges Foundation Inc. · People360
             </p>
         </div>
     </div>

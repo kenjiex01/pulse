@@ -136,6 +136,15 @@ return [
                 'output_format' => ['required', 'in:html,excel,pdf'],
             ],
         ],
+        'employee-credentials' => [
+            'label' => 'Employee',
+            'view' => 'payroll.reports.options.employee-credentials',
+            'rules' => [
+                'employee_ids' => ['nullable', 'array'],
+                'employee_ids.*' => ['integer', 'exists:tbl_employees,employee_id'],
+                'output_format' => ['required', 'in:html,excel,pdf'],
+            ],
+        ],
         'attendance-view' => [
             'label' => 'Attendance View',
             'view' => 'payroll.reports.options.attendance-view',
@@ -160,6 +169,7 @@ return [
         'bir-2316' => App\Services\Reports\Bir2316ReportService::class,
         'alphalist' => App\Services\Reports\AlphalistReportService::class,
         'historical-data' => App\Services\Reports\HistoricalDataReportService::class,
+        'employee-credentials' => App\Services\Reports\EmployeeCredentialsReportService::class,
         'attendance-view' => App\Services\Reports\AttendanceViewReportService::class,
     ],
 ];

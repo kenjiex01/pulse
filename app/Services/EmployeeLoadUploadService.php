@@ -272,7 +272,7 @@ class EmployeeLoadUploadService
                 ->value('employee_id');
 
             if ($employeeId === null) {
-                $warnings[] = "Line {$lineNumber}: Employee No. {$employeeNumber} not found in Pulse — stored without an employee link.";
+                $warnings[] = "Line {$lineNumber}: Employee No. {$employeeNumber} not found in People360 — stored without an employee link.";
             }
         }
 

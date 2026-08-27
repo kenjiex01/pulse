@@ -4,6 +4,12 @@
     $selectedCampusId = old("campus_assignments.$index.campus_id", $record['campus_id'] ?? ($wizardMode && $index === 0 ? ($wizardCampusId ?? '') : ''));
     $collegeSelectId = "campus_assignment_{$index}_college";
     $programSelectId = "campus_assignment_{$index}_program";
+    $oldMain = old("campus_assignments.$index.is_primary");
+    $isMainAssignment = $oldMain !== null
+        ? in_array($oldMain, [1, '1', true, 'on', 'yes'], true)
+        : (array_key_exists('is_primary', $record)
+            ? filter_var($record['is_primary'], FILTER_VALIDATE_BOOLEAN)
+            : $index === 0);
 @endphp
 
 <div
@@ -12,12 +18,22 @@
     data-assignment-index="{{ $index }}"
 >
     <div class="mb-4 flex items-center justify-between gap-3">
-        <h3 class="text-sm font-semibold text-gray-900">
-            Campus Assignment
-            @if ($index === 0)
-                <span class="ml-1 text-xs font-normal text-gray-500">(Primary)</span>
-            @endif
-        </h3>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <h3 class="text-sm font-semibold text-gray-900">Campus Assignment</h3>
+            <label class="inline-flex items-center gap-2 text-sm text-gray-800">
+                <input type="hidden" name="campus_assignments[{{ $index }}][is_primary]" value="0">
+                <input
+                    id="campus_assignment_{{ $index }}_is_primary"
+                    type="checkbox"
+                    name="campus_assignments[{{ $index }}][is_primary]"
+                    value="1"
+                    class="rounded border-gray-300 text-[#0B318F] focus:ring-[#0B318F]"
+                    data-main-assignment-checkbox
+                    @checked($isMainAssignment)
+                >
+                Main assignment
+            </label>
+        </div>
         @if ($canRemove ?? false)
             <button type="button" class="text-xs text-red-600 hover:text-red-800" data-campus-assignment-remove>
                 Remove

@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
+use App\Support\EncryptedEnv;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 /**
  * Thin HTTP client for the Skolaris REST API (the same endpoints used by the
@@ -243,6 +245,72 @@ class SkolarisApiService
         return array_values(array_unique($numbers));
     }
 
+    /**
+     * Pending field patches from GET /pulse-api/v1/local-employee-updates.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function listLocalEmployeeUpdates(string $status = 'pending', int $limit = 500, ?string $employeeId = null): array
+    {
+        $params = [
+            'status' => $status,
+            'limit' => min(max(1, $limit), 500),
+        ];
+
+        if ($employeeId !== null && $employeeId !== '') {
+            $params['employee_id'] = $employeeId;
+        }
+
+        $response = $this->pulseApiRequest('get', '/local-employee-updates', $params, timeoutSeconds: 60);
+        $data = $response->json('data') ?? [];
+
+        return is_array($data) ? array_values($data) : [];
+    }
+
+    /**
+     * @param  array<int, int|string>  $updateIds
+     */
+    public function markLocalEmployeeUpdatesApplied(array $updateIds): void
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $updateIds), fn (int $id) => $id > 0)));
+
+        if ($ids === []) {
+            return;
+        }
+
+        $this->pulseApiRequest('post', '/local-employee-updates/mark-applied', [
+            'update_ids' => $ids,
+        ], timeoutSeconds: 60);
+    }
+
+    /**
+     * Name/number card from GET /timekeeping/employees/{id}/attendance.
+     *
+     * @return array<string, mixed>
+     */
+    public function timekeepingEmployeeCard(int|string $skolarisEmployeeId): array
+    {
+        $id = (int) $skolarisEmployeeId;
+        if ($id <= 0) {
+            return [];
+        }
+
+        try {
+            $response = $this->pulseApiRequest(
+                'get',
+                '/timekeeping/employees/'.$id.'/attendance',
+                ['month' => now()->format('Y-m')],
+                timeoutSeconds: 30,
+            );
+        } catch (Throwable) {
+            return [];
+        }
+
+        $employee = $response->json('data.employee');
+
+        return is_array($employee) ? $employee : [];
+    }
+
     private function usesPulseApiKey(): bool
     {
         return filled(config('skolaris.pulse_api_key'));
@@ -251,9 +319,9 @@ class SkolarisApiService
     /**
      * @param  array<string, mixed>  $params
      */
-    private function pulseApiRequest(string $method, string $uri, array $params = []): Response
+    private function pulseApiRequest(string $method, string $uri, array $params = [], ?int $timeoutSeconds = null): Response
     {
-        $apiKey = (string) config('skolaris.pulse_api_key');
+        $apiKey = EncryptedEnv::reveal((string) config('skolaris.pulse_api_key'));
         $baseUrl = (string) config('skolaris.pulse_api_base_url');
 
         if ($apiKey === '' || $baseUrl === '') {
@@ -262,7 +330,7 @@ class SkolarisApiService
 
         $client = Http::baseUrl($baseUrl)
             ->acceptJson()
-            ->timeout((int) config('skolaris.timeout', 60))
+            ->timeout($timeoutSeconds ?? (int) config('skolaris.timeout', 60))
             ->withHeaders(['X-API-Key' => $apiKey]);
 
         if ($method !== 'get') {

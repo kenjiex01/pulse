@@ -78,6 +78,7 @@ trait EmployeeFormRules
             'campus_assignments.*.college' => ['nullable', 'string', 'max:150'],
             'campus_assignments.*.department' => ['nullable', 'string', 'max:150'],
             'campus_assignments.*.program' => ['nullable', 'string', 'max:150'],
+            'campus_assignments.*.is_primary' => ['nullable', 'boolean'],
             'employment_status' => ['required', Rule::in([Employee::STATUS_ACTIVE, Employee::STATUS_INACTIVE])],
             'compliance_status' => ['nullable', Rule::in(array_keys(Employee::selectableComplianceStatuses()))],
             'hire_date' => ['prohibited'],
@@ -145,8 +146,10 @@ trait EmployeeFormRules
             $this->normalizeSalaryRecords((array) $this->input('employee_salaries', [])),
             $isHybrid,
         );
-        $campusAssignments = EmployeeCampusAssignmentSync::normalizeRecords(
-            (array) $this->input('campus_assignments', []),
+        $campusAssignments = EmployeeCampusAssignmentSync::ensureSinglePrimary(
+            EmployeeCampusAssignmentSync::normalizeRecords(
+                (array) $this->input('campus_assignments', []),
+            ),
         );
 
         $extended = $this->normalizeExtendedProfile((array) $this->input('extended_profile', []));

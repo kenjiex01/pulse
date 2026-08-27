@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\DesktopUpdaterService;
 use Native\Laravel\Contracts\ProvidesPhpIni;
 use Native\Laravel\Facades\Window;
 
@@ -16,6 +17,12 @@ class NativeAppServiceProvider implements ProvidesPhpIni
             ->height(800)
             ->minWidth(1024)
             ->minHeight(640);
+
+        try {
+            app(DesktopUpdaterService::class)->checkForUpdates();
+        } catch (\Throwable) {
+            // Ignore updater failures so login still loads.
+        }
     }
 
     public function phpIni(): array

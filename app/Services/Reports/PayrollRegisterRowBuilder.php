@@ -128,7 +128,10 @@ class PayrollRegisterRowBuilder
         return [
             'index' => $index,
             'employee_number' => (string) ($employee?->employee_number ?? ''),
-            'employee_name' => $employee?->full_name ?? '',
+            'last_name' => trim((string) ($employee?->last_name ?? '')),
+            'first_name' => trim((string) ($employee?->first_name ?? '')),
+            'middle_name' => trim((string) ($employee?->middle_name ?? '')),
+            'employee_name' => $this->formatRegisterEmployeeName($employee),
             'college' => (string) ($employee?->college ?? ''),
             'program' => (string) ($employee?->program ?? ''),
             'tax_status' => (string) ($employee?->tax_status ?? ''),
@@ -249,23 +252,42 @@ class PayrollRegisterRowBuilder
 
     public function resolveCampusSheet(?\App\Models\Employee $employee): string
     {
-        $code = strtoupper(trim($this->resolveCampusCode($employee)));
+        $sheetCampus = $this->sheetCampus($employee);
+        $code = strtoupper(trim((string) ($sheetCampus?->campus_code ?? $this->resolveCampusCode($employee))));
         $default = (string) config('payroll_register_layout.excel_campus_sheet_default', 'Cainta');
         $sheets = config('payroll_register_layout.excel_campus_sheets', []);
 
-        if ($code === '') {
-            return $default;
-        }
+        if ($code !== '') {
+            foreach ($sheets as $sheetName => $codes) {
+                $codes = array_map(fn ($item) => strtoupper((string) $item), (array) $codes);
 
-        foreach ($sheets as $sheetName => $codes) {
-            $codes = array_map(fn ($item) => strtoupper((string) $item), (array) $codes);
-
-            if (in_array($code, $codes, true)) {
-                return (string) $sheetName;
+                if (in_array($code, $codes, true)) {
+                    return (string) $sheetName;
+                }
             }
         }
 
+        $campusName = trim((string) ($sheetCampus?->campus_name ?? ''));
+        if ($campusName !== '') {
+            return $this->shortCampusSheetName($campusName, $default);
+        }
+
+        if ($code !== '') {
+            return $code;
+        }
+
         return $default;
+    }
+
+    public function shortCampusSheetName(string $campusName, string $default = 'Cainta'): string
+    {
+        $name = trim(preg_replace('/\s+/', ' ', $campusName) ?? '');
+        $name = preg_replace('/^ICCT Colleges\s+/i', '', $name) ?? $name;
+        $name = preg_replace('/\s+Campus$/i', '', $name) ?? $name;
+        $name = preg_replace('/\s+Main$/i', '', $name) ?? $name;
+        $name = trim($name);
+
+        return $name !== '' ? $name : $default;
     }
 
     public function resolveCampusCode(?\App\Models\Employee $employee): string
@@ -274,27 +296,51 @@ class PayrollRegisterRowBuilder
             return '';
         }
 
-        $code = trim((string) ($employee->campus?->campus_code ?? ''));
+        $code = trim((string) ($this->mainCampus($employee)?->campus_code ?? ''));
 
         if ($code !== '') {
             return $code;
         }
 
-        $primaryAssignment = null;
+        return strtoupper(trim((string) ($employee->getAttributes()['campus'] ?? '')));
+    }
+
+    /**
+     * Campus used for Payroll Register worksheets: the assignment marked Main assignment.
+     */
+    private function mainCampus(?\App\Models\Employee $employee): ?\App\Models\Campus
+    {
+        if ($employee === null) {
+            return null;
+        }
 
         if ($employee->relationLoaded('campusAssignments')) {
-            $primaryAssignment = $employee->campusAssignments
-                ->first(fn ($assignment) => (bool) ($assignment->is_primary ?? false))
+            $assignment = $employee->campusAssignments
+                ->first(fn ($row) => (bool) ($row->is_primary ?? false))
                 ?? $employee->campusAssignments->first();
+            $fromAssignment = $assignment?->campus;
+
+            if (is_object($fromAssignment)) {
+                return $fromAssignment;
+            }
         }
 
-        $assignmentCode = trim((string) ($primaryAssignment?->campus?->campus_code ?? ''));
+        $fromEmployee = $employee->relationLoaded('campus')
+            ? $employee->getRelation('campus')
+            : $employee->campus;
 
-        if ($assignmentCode !== '') {
-            return $assignmentCode;
+        return is_object($fromEmployee) ? $fromEmployee : null;
+    }
+
+    private function sheetCampus(?\App\Models\Employee $employee): ?\App\Models\Campus
+    {
+        $campus = $this->mainCampus($employee);
+
+        if ($campus === null) {
+            return null;
         }
 
-        return strtoupper(trim((string) ($employee->getAttributes()['campus'] ?? '')));
+        return $campus->payrollRegisterCampus();
     }
 
     public function formatPeriodLabel(PayrollCalendar $calendar): string
@@ -407,14 +453,20 @@ class PayrollRegisterRowBuilder
         $allowedSort = array_keys(config('payroll_reports.sort_columns', []));
 
         if (! in_array($sortBy, $allowedSort, true)) {
-            $sortBy = 'employee_number';
+            $sortBy = 'employee_name';
         }
 
         usort($registerRows, function (array $left, array $right) use ($sortBy): int {
+            if ($sortBy === 'employee_name') {
+                return $this->compareRegisterName($left, $right);
+            }
+
             $leftValue = strtolower((string) ($left[$sortBy] ?? ''));
             $rightValue = strtolower((string) ($right[$sortBy] ?? ''));
 
-            return $leftValue <=> $rightValue;
+            $compared = $leftValue <=> $rightValue;
+
+            return $compared !== 0 ? $compared : $this->compareRegisterName($left, $right);
         });
 
         foreach ($registerRows as $index => &$registerRow) {
@@ -423,6 +475,69 @@ class PayrollRegisterRowBuilder
         unset($registerRow);
 
         return $registerRows;
+    }
+
+    /**
+     * Payroll Register name: Last Name, First Name Middle Name.
+     */
+    public function formatRegisterEmployeeName(?\App\Models\Employee $employee): string
+    {
+        if ($employee === null) {
+            return '';
+        }
+
+        $last = trim((string) ($employee->last_name ?? ''));
+        $first = trim((string) ($employee->first_name ?? ''));
+        $middle = trim((string) ($employee->middle_name ?? ''));
+        $given = trim(implode(' ', array_filter([$first, $middle], fn ($part) => $part !== '')));
+
+        if ($last === '') {
+            return $given !== '' ? $given : (string) ($employee->full_name ?? '');
+        }
+
+        return $given !== '' ? $last.', '.$given : $last;
+    }
+
+    /**
+     * @param  array<string, mixed>  $left
+     * @param  array<string, mixed>  $right
+     */
+    private function compareRegisterName(array $left, array $right): int
+    {
+        $leftLast = strtolower((string) ($left['last_name'] ?? ''));
+        $rightLast = strtolower((string) ($right['last_name'] ?? ''));
+        $byLast = $leftLast <=> $rightLast;
+
+        if ($byLast !== 0) {
+            return $byLast;
+        }
+
+        $leftFirst = strtolower((string) ($left['first_name'] ?? ''));
+        $rightFirst = strtolower((string) ($right['first_name'] ?? ''));
+        $byFirst = $leftFirst <=> $rightFirst;
+
+        if ($byFirst !== 0) {
+            return $byFirst;
+        }
+
+        $leftMiddle = strtolower((string) ($left['middle_name'] ?? ''));
+        $rightMiddle = strtolower((string) ($right['middle_name'] ?? ''));
+        $byMiddle = $leftMiddle <=> $rightMiddle;
+
+        if ($byMiddle !== 0) {
+            return $byMiddle;
+        }
+
+        $leftName = strtolower((string) ($left['employee_name'] ?? ''));
+        $rightName = strtolower((string) ($right['employee_name'] ?? ''));
+        $byName = $leftName <=> $rightName;
+
+        if ($byName !== 0) {
+            return $byName;
+        }
+
+        return strtolower((string) ($left['employee_number'] ?? ''))
+            <=> strtolower((string) ($right['employee_number'] ?? ''));
     }
 
     private function detailIsVisible(PayrollBatchDetail $detail, User $user): bool

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DesktopInstallerUpdateController;
+use App\Http\Controllers\DesktopUpdaterController;
 use App\Http\Controllers\DocumentPreviewEngineController;
 use App\Http\Controllers\DatabaseBackupController;
 use App\Http\Controllers\DatabaseController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeCredentialController;
 use App\Http\Controllers\EmployeeLoanController;
 use App\Http\Controllers\EmployeeLookupController;
+use App\Http\Controllers\EmployeeSkolarisSyncController;
 use App\Http\Controllers\EmployeeUploadController;
 use App\Http\Controllers\HrLookupController;
 use App\Http\Controllers\BirFormSettingsController;
@@ -40,6 +42,12 @@ Route::get('/', function () {
 
 Route::get('desktop/update/download', [DesktopInstallerUpdateController::class, 'download'])
     ->name('desktop.update.download');
+Route::get('desktop/updater/status', [DesktopUpdaterController::class, 'status'])
+    ->name('desktop.updater.status');
+Route::post('desktop/updater/check', [DesktopUpdaterController::class, 'check'])
+    ->name('desktop.updater.check');
+Route::post('desktop/updater/install', [DesktopUpdaterController::class, 'install'])
+    ->name('desktop.updater.install');
 
 Route::middleware('guest')->group(function () {
     Route::get('login', [LoginController::class, 'create'])->name('login');
@@ -76,6 +84,9 @@ Route::middleware('auth')->group(function () {
         Route::post('employees/upload/process', [EmployeeUploadController::class, 'processUpload'])->name('employees.upload.process');
         Route::post('employees/upload/commit', [EmployeeUploadController::class, 'commitUpload'])->name('employees.upload.commit');
         Route::post('employees/upload/discard', [EmployeeUploadController::class, 'discardStaging'])->name('employees.upload.discard');
+        Route::get('employees/sync/pending', [EmployeeSkolarisSyncController::class, 'pending'])->name('employees.sync.pending');
+        Route::get('employees/sync/preview', [EmployeeSkolarisSyncController::class, 'preview'])->name('employees.sync.preview');
+        Route::post('employees/sync/apply', [EmployeeSkolarisSyncController::class, 'apply'])->name('employees.sync.apply');
         Route::get('employees/{employee}/history', [EmployeeController::class, 'history'])->name('employees.history');
         Route::post('employees/{employee}/credentials', [EmployeeCredentialController::class, 'store'])
             ->name('employees.credentials.store');

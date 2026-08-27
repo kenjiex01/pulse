@@ -38,7 +38,7 @@
             data-tl-employee-search
         >
         <p class="mt-1 text-xs text-gray-500">
-            Pulse faculty with a matching employee number in Skolaris. Multi-select who to pull for the date range above.
+            People360 faculty with a matching employee number in Skolaris. Multi-select who to pull for the date range above.
         </p>
     </div>
 
@@ -68,7 +68,7 @@
             </label>
         @empty
             <p class="px-4 py-8 text-center text-sm text-gray-500">
-                No eligible faculty found. Employees must be faculty in Pulse with a matching employee number in Skolaris.
+                No eligible faculty found. Employees must be faculty in People360 with a matching employee number in Skolaris.
             </p>
         @endforelse
     </div>

@@ -141,6 +141,9 @@ class DesktopInstallerUpdateService
      */
     public function pendingUpdateForUi(): ?array
     {
+        if (app(DesktopUpdaterService::class)->enabled()) {
+            return null;
+        }
         $check = $this->checkIfNeeded();
 
         if ($check === null || ! ($check['available'] ?? false)) {
@@ -198,7 +201,7 @@ class DesktopInstallerUpdateService
 
     /**
      * Upload local installers for a version and write latest.json.
-     * Keeps only this version's artifacts under the prefix (deletes older Pulse installers).
+     * Keeps only this version's artifacts under the prefix (deletes older installers).
      *
      * @param  list<string>  $paths Absolute paths to dmg/exe files
      * @return array{
@@ -281,21 +284,41 @@ class DesktopInstallerUpdateService
                 'key' => $key,
                 'filename' => $downloadFilename,
                 'bytes' => filesize($path) ?: null,
+                'local_path' => $path,
             ];
+
+            $blockmap = $path.'.blockmap';
+            if (is_file($blockmap)) {
+                $blockmapName = $downloadFilename.'.blockmap';
+                $blockmapKey = $prefix === '' ? $blockmapName : $prefix.'/'.$blockmapName;
+                if (! $dryRun) {
+                    $disk->put($blockmapKey, (string) file_get_contents($blockmap), ['visibility' => 'private']);
+                }
+                $uploaded[] = $blockmapKey;
+            }
         }
 
         if ($artifacts === []) {
-            throw new \RuntimeException('No matching Pulse installers found to upload.');
+            throw new \RuntimeException('No matching People360 installers found to upload.');
         }
 
         $manifest = [
             'version' => $version,
             'published_at' => now()->toIso8601String(),
-            'artifacts' => $artifacts,
+            'artifacts' => array_map(function (array $artifact): array {
+                unset($artifact['local_path']);
+
+                return $artifact;
+            }, $artifacts),
         ];
 
         $latestKey = $prefix === '' ? 'latest.json' : $prefix.'/latest.json';
         $keepKeys = array_fill_keys([...$uploaded, $latestKey], true);
+
+        $electronMeta = $this->electronUpdaterManifestKeys($prefix, $version, $artifacts);
+        foreach (array_keys($electronMeta) as $metaKey) {
+            $keepKeys[$metaKey] = true;
+        }
 
         if (! $dryRun) {
             $disk->put(
@@ -303,6 +326,9 @@ class DesktopInstallerUpdateService
                 json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
                 ['visibility' => 'private', 'ContentType' => 'application/json'],
             );
+            foreach ($electronMeta as $metaKey => $yml) {
+                $disk->put($metaKey, $yml, ['visibility' => 'private', 'ContentType' => 'text/yaml']);
+            }
         }
 
         // After a successful upload, keep only this version's installers + latest.json.
@@ -383,12 +409,60 @@ class DesktopInstallerUpdateService
         return $deleted;
     }
 
+    /**
+     * electron-updater feed files (latest.yml / latest-mac.yml) for NativePHP AutoUpdater.
+     *
+     * @param  array<string, array{key: string, filename: string, bytes: int|null, local_path?: string}>  $artifacts
+     * @return array<string, string> S3 key => YAML body
+     */
+    private function electronUpdaterManifestKeys(string $prefix, string $version, array $artifacts): array
+    {
+        $files = [];
+        $win = $artifacts['win-x64'] ?? null;
+        $mac = $artifacts['mac-arm64-zip'] ?? $artifacts['mac-x64-zip'] ?? $artifacts['mac-arm64'] ?? $artifacts['mac-x64'] ?? null;
+
+        if (is_array($win) && ! empty($win['local_path']) && is_file((string) $win['local_path'])) {
+            $key = $prefix === '' ? 'latest.yml' : $prefix.'/latest.yml';
+            $files[$key] = $this->electronLatestYml($version, (string) $win['filename'], (string) $win['local_path']);
+        }
+
+        if (is_array($mac) && ! empty($mac['local_path']) && is_file((string) $mac['local_path'])) {
+            $key = $prefix === '' ? 'latest-mac.yml' : $prefix.'/latest-mac.yml';
+            $files[$key] = $this->electronLatestYml($version, (string) $mac['filename'], (string) $mac['local_path']);
+        }
+
+        return $files;
+    }
+
+    private function electronLatestYml(string $version, string $filename, string $localPath): string
+    {
+        $size = (int) filesize($localPath);
+        $sha512 = base64_encode((string) hash_file('sha512', $localPath, true));
+        $releaseDate = now()->toIso8601String();
+
+        return implode("\n", [
+            'version: '.$version,
+            'files:',
+            '  - url: '.$filename,
+            '    sha512: '.$sha512,
+            '    size: '.$size,
+            'path: '.$filename,
+            'sha512: '.$sha512,
+            "releaseDate: '".$releaseDate."'",
+            '',
+        ]);
+    }
+
     private function versionedDownloadFilename(string $platform, string $version, string $fallback): string
     {
+        $basename = (string) config('desktop_updater.installer_basename', 'People360');
+
         return match ($platform) {
-            'win-x64' => 'Pulse-'.$version.'-setup.exe',
-            'mac-arm64' => 'Pulse-'.$version.'-arm64.dmg',
-            'mac-x64' => 'Pulse-'.$version.'-x64.dmg',
+            'win-x64' => $basename.'-'.$version.'-setup.exe',
+            'mac-arm64' => $basename.'-'.$version.'-arm64.dmg',
+            'mac-arm64-zip' => $basename.'-'.$version.'-arm64.zip',
+            'mac-x64' => $basename.'-'.$version.'-x64.dmg',
+            'mac-x64-zip' => $basename.'-'.$version.'-x64.zip',
             default => $fallback,
         };
     }

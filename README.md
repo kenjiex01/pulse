@@ -1,4 +1,4 @@
-# Pulse
+# People360
 
 Desktop-first school management app built with Laravel and NativePHP.
 
@@ -8,7 +8,7 @@ Desktop-first school management app built with Laravel and NativePHP.
 - **NativePHP (Electron)** — desktop packaging, zero-install launch
 - **MySQL** — local development database
 - **SQLite** — embedded database for client/desktop deployment
-- **Tailwind CSS v4** — UI styled to match Skolaris Pulse
+- **Tailwind CSS v4** — UI styled to match ISKOLARIS / People360
 
 ## Features
 
@@ -36,7 +36,7 @@ php artisan key:generate
 Configure `.env` for MySQL development:
 
 ```env
-APP_NAME=Pulse
+APP_NAME=People360
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
@@ -91,15 +91,15 @@ chmod +x scripts/build-desktop.sh
 Or via npm:
 
 ```bash
-npm run desktop:mac      # ISKOLARIS-1.0.0-arm64.dmg
-npm run desktop:win      # ISKOLARIS-1.0.0-setup.exe
+npm run desktop:mac      # People360-1.0.0-arm64.dmg
+npm run desktop:win      # People360-1.0.0-setup.exe
 npm run desktop:all
 ```
 
 Output folder: `pulse/dist/`
 
-- **macOS:** `ISKOLARIS-1.0.0-arm64.dmg` — double-click to install
-- **Windows:** `ISKOLARIS-1.0.0-setup.exe` — run installer
+- **macOS:** `People360-1.0.0-arm64.dmg` — double-click to install
+- **Windows:** `People360-1.0.0-setup.exe` — run installer
 
 On first launch, the desktop app creates SQLite at `storage/app/pulse.sqlite`, runs migrations, and seeds the default admin account.
 

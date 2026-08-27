@@ -15,7 +15,7 @@ class DesktopInstallerUpdateController extends Controller
 
         $url = $updater->temporaryDownloadUrl();
         $check = $updater->checkIfNeeded();
-        $filename = is_array($check) ? (string) ($check['filename'] ?? 'Pulse-setup') : 'Pulse-setup';
+        $filename = is_array($check) ? (string) ($check['filename'] ?? 'People360-setup') : 'People360-setup';
 
         if ($url === null) {
             if ($request->expectsJson() || $request->wantsJson() || $request->ajax()) {

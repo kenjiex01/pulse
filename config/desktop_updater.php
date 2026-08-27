@@ -6,14 +6,13 @@ return [
     | Desktop installer updates (S3)
     |--------------------------------------------------------------------------
     |
-    | On desktop boot the app reads payroll_installer/latest.json. If S3 has a
-    | newer NATIVEPHP_APP_VERSION, a blocking modal requires download.
-    | Uses the same DB_BACKUP_S3_* credentials as cloud backup.
+    | On desktop boot NativePHP AutoUpdater checks GitHub Releases
+    | (kenjiex01/pulse). The old S3 latest.json modal is only a fallback
+    | when NATIVEPHP_UPDATER_ENABLED=false.
     |
-    | Installers upload as versioned object names (Pulse-{version}-setup.exe /
-    | Pulse-{version}-arm64.dmg). latest.json points at the current set.
-    | After each upload, every other object under the S3 prefix is deleted so
-    | only the version just published remains (requires s3:DeleteObject).
+    | desktop:publish-github-release attaches EXE/ZIP/DMG + latest.yml to
+    | tag v{NATIVEPHP_APP_VERSION}. After each optional S3 upload, every
+    | other object under the S3 prefix is deleted (requires s3:DeleteObject).
     |
     */
     'enabled' => (bool) env('DESKTOP_INSTALLER_UPDATE_ENABLED', true),
@@ -28,14 +27,22 @@ return [
     /** Pre-signed download URL lifetime (minutes). */
     'download_url_minutes' => (int) env('DESKTOP_INSTALLER_DOWNLOAD_URL_MINUTES', 60),
 
+    /** Filename prefix for dist/ and S3 installer objects. */
+    'installer_basename' => env('NATIVEPHP_INSTALLER_BASENAME', 'People360'),
+
+    /** When a downloaded update is ready, quit and install immediately (Skolaris Desktop behavior). */
+    'force_install' => (bool) env('NATIVEPHP_FORCE_UPDATE', true),
+
     /**
      * Local dist/ filename patterns. Capturing group 1 = semver version.
      * Used to map built files → platform before upload.
-     * S3 object keys use these versioned filenames (e.g. Pulse-0.1.48-setup.exe).
+     * Accepts People360-* (current) and Pulse-* (legacy S3/local artifacts).
      */
     'artifacts' => [
-        'win-x64' => '/^Pulse-(.+)-setup\\.exe$/i',
-        'mac-arm64' => '/^Pulse-(.+)-arm64\\.dmg$/i',
-        'mac-x64' => '/^Pulse-(.+)-x64\\.dmg$/i',
+        'win-x64' => '/^(?:People360|Pulse)-(.+)-setup\\.exe$/i',
+        'mac-arm64' => '/^(?:People360|Pulse)-(.+)-arm64\\.dmg$/i',
+        'mac-arm64-zip' => '/^(?:People360|Pulse)-(.+)-arm64\\.zip$/i',
+        'mac-x64' => '/^(?:People360|Pulse)-(.+)-x64\\.dmg$/i',
+        'mac-x64-zip' => '/^(?:People360|Pulse)-(.+)-x64\\.zip$/i',
     ],
 ];

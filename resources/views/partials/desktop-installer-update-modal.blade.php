@@ -21,17 +21,17 @@
                 <div class="min-w-0">
                     <h2 id="desktop-installer-update-title" class="text-lg font-semibold text-gray-900">Update required</h2>
                     <p class="mt-1 text-sm text-gray-600">
-                        You must install the latest Pulse desktop app before continuing. Installed
+                        You must install the latest People360 desktop app before continuing. Installed
                         <span class="font-medium text-gray-900">v{{ $desktopInstallerUpdate['current_version'] }}</span>
                         → required
                         <span class="font-medium text-gray-900">v{{ $desktopInstallerUpdate['latest_version'] }}</span>.
                     </p>
                     <p class="mt-2 text-xs text-gray-500">
                         Download <code class="rounded bg-gray-100 px-1">{{ $desktopInstallerUpdate['filename'] }}</code>,
-                        quit Pulse, then run the installer.
+                        quit People360, then run the installer.
                     </p>
                     <p class="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                        Your database on this computer is kept. After you open the new version, Pulse applies pending
+                        Your database on this computer is kept. After you open the new version, People360 applies pending
                         migrations and module updates automatically — employee/payroll data is not wiped.
                     </p>
                 </div>

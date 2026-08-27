@@ -136,7 +136,7 @@
                         <p class="mb-3 text-sm font-semibold text-gray-900">
                             {{ $assignment->campus?->campus_name ?? 'Campus' }}
                             @if ($assignment->is_primary)
-                                <span class="ml-1 text-xs font-normal text-gray-500">(Primary)</span>
+                                <span class="ml-1 text-xs font-normal text-gray-500">(Main assignment)</span>
                             @endif
                         </p>
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">

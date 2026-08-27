@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Listeners\HandleDesktopUpdaterEvents;
 use App\Models\User;
 use App\Policies\HrLookupPolicy;
 use App\Services\DatabaseBackupService;
 use App\Services\DesktopBootstrapService;
 use App\Services\DesktopCloudBackupService;
+use App\Services\DesktopUpdaterService;
 use App\Services\GovernmentTablesBootstrapService;
 use App\Services\ReferenceDataBootstrapService;
 use App\Services\SidebarNavigationService;
@@ -21,14 +23,21 @@ use App\Policies\TimekeepingEmployeeLoadPolicy;
 use App\Policies\TimekeepingEmployeeProfilePolicy;
 use App\Policies\TimekeepingPolicyPolicy;
 use App\Policies\TimeLogsPolicy;
+use App\Support\EncryptedEnv;
 use App\Support\HrLookup;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Native\Laravel\Events\AutoUpdater\DownloadProgress;
+use Native\Laravel\Events\AutoUpdater\Error;
+use Native\Laravel\Events\AutoUpdater\UpdateAvailable;
+use Native\Laravel\Events\AutoUpdater\UpdateDownloaded;
+use Native\Laravel\Events\AutoUpdater\UpdateNotAvailable;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -36,11 +45,16 @@ class AppServiceProvider extends ServiceProvider
 
     public function register(): void
     {
-        //
+        $this->app->singleton(DesktopUpdaterService::class);
     }
 
     public function boot(): void
     {
+        $this->registerDesktopUpdater();
+
+        // Decrypt API/S3 secrets into memory before any HTTP or console work uses them.
+        EncryptedEnv::revealConfiguredSecrets();
+
         $hrLookupPolicy = new HrLookupPolicy;
         $payrollMaintenancePolicy = new PayrollMaintenancePolicy;
         $payrollCalendarPolicy = new PayrollCalendarPolicy;
@@ -124,6 +138,23 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
+        View::composer(['layouts.app', 'layouts.guest'], function ($view): void {
+            try {
+                $updater = app(DesktopUpdaterService::class)->status();
+            } catch (\Throwable) {
+                $updater = [
+                    'enabled' => false,
+                    'force_install' => false,
+                    'version' => (string) config('nativephp.version', '0.0.0'),
+                    'pending' => null,
+                    'downloading' => null,
+                    'installing' => null,
+                ];
+            }
+
+            $view->with('desktopUpdater', $updater);
+        });
+
         if ($this->app->runningInConsole() && ! $this->isNativeDesktop()) {
             return;
         }
@@ -160,6 +191,17 @@ class AppServiceProvider extends ServiceProvider
         }
 
         config(['app.debug' => false]);
+    }
+
+    private function registerDesktopUpdater(): void
+    {
+        $listener = HandleDesktopUpdaterEvents::class;
+
+        Event::listen(UpdateAvailable::class, [$listener, 'handleUpdateAvailable']);
+        Event::listen(DownloadProgress::class, [$listener, 'handleDownloadProgress']);
+        Event::listen(UpdateDownloaded::class, [$listener, 'handleUpdateDownloaded']);
+        Event::listen(UpdateNotAvailable::class, [$listener, 'handleUpdateNotAvailable']);
+        Event::listen(Error::class, [$listener, 'handleError']);
     }
 
     private function isNativeDesktop(): bool

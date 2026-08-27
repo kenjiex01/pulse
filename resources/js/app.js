@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const startDesktopInstallerDownload = async (trigger) => {
         const href = trigger.getAttribute('href') || '';
-        const filename = trigger.dataset.desktopInstallerFilename || 'Pulse-installer';
+        const filename = trigger.dataset.desktopInstallerFilename || 'People360-installer';
         const statusEl = document.querySelector('[data-desktop-installer-download-status]');
 
         if (!href) {
@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 frame.remove();
                 pulseLoader.hide();
                 if (statusEl) {
-                    statusEl.textContent = 'Download started. Check your Downloads folder, then quit Pulse and run the installer.';
+                    statusEl.textContent = 'Download started. Check your Downloads folder, then quit People360 and run the installer.';
                 }
             }, 2500);
         } catch (error) {
@@ -1142,15 +1142,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 removeButton.classList.toggle('hidden', rows.length <= 1);
             }
 
-            const title = row.querySelector('h3');
-
-            if (title) {
-                const primaryBadge = index === 0
-                    ? '<span class="ml-1 text-xs font-normal text-gray-500">(Primary)</span>'
-                    : '';
-                title.innerHTML = `Campus Assignment ${primaryBadge}`;
-            }
         });
+    };
+
+    const ensureOneMainAssignment = (root) => {
+        const boxes = [...root.querySelectorAll('[data-campus-assignment-rows] [data-main-assignment-checkbox]')];
+
+        if (boxes.length === 0) {
+            return;
+        }
+
+        if (!boxes.some((box) => box.checked)) {
+            boxes[0].checked = true;
+        }
     };
 
     const initCampusAssignmentRow = (row, root) => {
@@ -1172,6 +1176,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             row.remove();
             reindexCampusAssignmentRows(root);
+            ensureOneMainAssignment(root);
         });
     };
 
@@ -1208,9 +1213,31 @@ document.addEventListener('DOMContentLoaded', () => {
             reindexCampusAssignmentRows(root);
             initCampusAssignmentRow(row, root);
             initSearchableSelects(row);
+            ensureOneMainAssignment(root);
+        });
+
+        root.addEventListener('change', (event) => {
+            const target = event.target;
+
+            if (!target.matches('[data-main-assignment-checkbox]')) {
+                return;
+            }
+
+            if (target.checked) {
+                root.querySelectorAll('[data-campus-assignment-rows] [data-main-assignment-checkbox]').forEach((box) => {
+                    if (box !== target) {
+                        box.checked = false;
+                    }
+                });
+
+                return;
+            }
+
+            ensureOneMainAssignment(root);
         });
 
         reindexCampusAssignmentRows(root);
+        ensureOneMainAssignment(root);
     };
 
     document.querySelectorAll('[data-campus-assignments-root]').forEach(initCampusAssignmentsRoot);
@@ -5266,5 +5293,419 @@ tr { page-break-inside: avoid; }
         loadOvertimeExcessPreview(form, { autofill: ! hasOldTimes });
     });
 
+    const initEmployeeSkolarisSync = () => {
+        const root = document.querySelector('[data-employee-skolaris-sync]');
+        if (!root) {
+            return;
+        }
+
+        const pendingUrl = root.dataset.pendingUrl || '';
+        const previewUrl = root.dataset.previewUrl || '';
+        const applyUrl = root.dataset.applyUrl || '';
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const rowsEl = root.querySelector('[data-employee-sync-rows]');
+        const errorEl = root.querySelector('[data-employee-sync-error]');
+        const successEl = root.querySelector('[data-employee-sync-success]');
+        const selectedCountEl = root.querySelector('[data-employee-sync-selected-count]');
+        const selectAll = root.querySelector('[data-employee-sync-select-all]');
+        const searchInput = root.querySelector('[data-employee-sync-search]');
+        const multipleBtn = root.querySelector('[data-employee-sync-multiple]');
+        const approveAllBtn = root.querySelector('[data-employee-sync-all]');
+        const countBadges = document.querySelectorAll('[data-employee-sync-count]');
+        const viewModal = document.getElementById('employee-skolaris-sync-view-modal');
+        let loaded = false;
+        let loading = false;
+
+        const setCount = (count) => {
+            const numeric = Number(count);
+            const show = count !== '—' && count !== '' && ! Number.isNaN(numeric) && numeric > 0;
+
+            countBadges.forEach((badge) => {
+                badge.textContent = show ? String(count) : '';
+                badge.classList.toggle('hidden', !show);
+                badge.classList.toggle('inline-flex', show);
+            });
+        };
+
+        const setError = (message) => {
+            if (!errorEl) {
+                return;
+            }
+
+            errorEl.textContent = message || '';
+            errorEl.classList.toggle('hidden', !message);
+        };
+
+        const setSuccess = (message) => {
+            if (!successEl) {
+                return;
+            }
+
+            successEl.textContent = message || '';
+            successEl.classList.toggle('hidden', !message);
+        };
+
+        const visibleRows = () => [...root.querySelectorAll('[data-employee-sync-row]')].filter((row) => !row.classList.contains('hidden'));
+
+        const rowNumbers = (rows) => rows
+            .map((row) => row.dataset.employeeNumber)
+            .filter(Boolean);
+
+        const selectedNumbers = () => rowNumbers(visibleRows()
+            .filter((row) => row.querySelector('[data-employee-sync-row-check]')?.checked));
+
+        const syncSelectionUi = () => {
+            const rows = visibleRows();
+            const checked = selectedNumbers();
+            if (selectedCountEl) {
+                selectedCountEl.textContent = `${checked.length} selected`;
+            }
+            if (multipleBtn) {
+                multipleBtn.disabled = checked.length === 0;
+            }
+            if (approveAllBtn) {
+                approveAllBtn.disabled = rows.length === 0;
+            }
+            if (selectAll) {
+                selectAll.checked = rows.length > 0 && rows.every((row) => row.querySelector('[data-employee-sync-row-check]')?.checked);
+            }
+        };
+
+        const formatValue = (value) => {
+            if (value === null || value === undefined || value === '') {
+                return '—';
+            }
+            if (typeof value === 'boolean') {
+                return value ? 'Yes' : 'No';
+            }
+            if (typeof value === 'object') {
+                return JSON.stringify(value, null, 2);
+            }
+
+            return String(value);
+        };
+
+        const escapeHtml = (value) => String(value)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;');
+
+        const applySearch = () => {
+            const query = (searchInput?.value || '').trim().toLowerCase();
+            root.querySelectorAll('[data-employee-sync-row]').forEach((row) => {
+                const haystack = row.dataset.searchText || '';
+                row.classList.toggle('hidden', query !== '' && !haystack.includes(query));
+            });
+            syncSelectionUi();
+        };
+
+        const renderRows = (employees) => {
+            if (!rowsEl) {
+                return;
+            }
+
+            if (!employees.length) {
+                rowsEl.innerHTML = `<tr data-employee-sync-empty><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">No employee profiles need approval from ISKOLARIS.</td></tr>`;
+                syncSelectionUi();
+                return;
+            }
+
+            rowsEl.innerHTML = employees.map((employee) => {
+                const kind = employee.kind === 'unmatched' ? 'Not in People360' : (employee.kind === 'new' ? 'New' : 'Changed');
+                const kindClass = employee.kind === 'unmatched'
+                    ? 'bg-amber-100 text-amber-800'
+                    : (employee.kind === 'new' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800');
+                const syncKey = escapeHtml(employee.employee_number || '');
+                const displayNumber = escapeHtml(employee.pulse_employee_number || employee.employee_number || '');
+                const name = escapeHtml(employee.name || '');
+                const search = escapeHtml(`${employee.employee_number || ''} ${employee.pulse_employee_number || ''} ${employee.name || ''}`.toLowerCase());
+
+                return `<tr class="border-t border-gray-100" data-employee-sync-row data-employee-number="${syncKey}" data-search-text="${search}">
+                    <td class="px-3 py-2">
+                        <input type="checkbox" class="rounded border-gray-300 text-[#00A3E6] focus:ring-[#00A3E6]" data-employee-sync-row-check value="${syncKey}">
+                    </td>
+                    <td class="px-3 py-2 font-medium text-gray-900">${displayNumber}</td>
+                    <td class="px-3 py-2 text-gray-700">${name}</td>
+                    <td class="px-3 py-2"><span class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${kindClass}">${kind}</span></td>
+                    <td class="px-3 py-2 text-gray-600">${Number(employee.change_count || 0)}</td>
+                    <td class="px-3 py-2">
+                        <div class="flex justify-end gap-2">
+                            <button type="button" class="btn-ghost !px-2 !py-1 text-xs" data-employee-sync-view data-employee-number="${syncKey}">View</button>
+                            <button type="button" class="btn-primary !px-2 !py-1 text-xs" data-employee-sync-one data-employee-number="${syncKey}">Approve</button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+
+            applySearch();
+        };
+
+        const fetchPending = async ({ refresh = false, showLoader = true } = {}) => {
+            if (!pendingUrl || loading) {
+                return;
+            }
+
+            loading = true;
+            if (showLoader) {
+                window.PulseLoader?.show('Checking ISKOLARIS employee profiles...');
+            }
+
+            try {
+                const url = new URL(pendingUrl, window.location.origin);
+                if (refresh) {
+                    url.searchParams.set('refresh', '1');
+                }
+
+                const response = await fetch(url.toString(), {
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const payload = await response.json().catch(() => ({}));
+
+                if (!response.ok || payload.ok === false) {
+                    throw new Error(payload.error || payload.message || 'Unable to load ISKOLARIS employee profiles.');
+                }
+
+                loaded = true;
+                setCount(payload.count ?? (payload.employees || []).length);
+                setError('');
+                renderRows(Array.isArray(payload.employees) ? payload.employees : []);
+            } catch (error) {
+                setCount('—');
+                setError(error.message || 'Unable to load ISKOLARIS employee profiles.');
+                if (rowsEl && !loaded) {
+                    rowsEl.innerHTML = `<tr data-employee-sync-empty><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">Unable to load profiles. Check the ISKOLARIS API key permission for employee sync.</td></tr>`;
+                }
+            } finally {
+                loading = false;
+                if (showLoader) {
+                    window.PulseLoader?.hide();
+                }
+            }
+        };
+
+        const applyNumbers = async (employeeNumbers) => {
+            const unique = [...new Set(employeeNumbers.filter(Boolean))];
+            if (!applyUrl || unique.length === 0) {
+                return;
+            }
+
+            window.PulseLoader?.show('Approving employee profiles...');
+            setSuccess('');
+            setError('');
+
+            const chunkSize = 200;
+            let created = 0;
+            let updated = 0;
+            const failed = [];
+            let lastCount = null;
+            let lastMessage = '';
+
+            try {
+                for (let offset = 0; offset < unique.length; offset += chunkSize) {
+                    const chunk = unique.slice(offset, offset + chunkSize);
+                    const response = await fetch(applyUrl, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrf,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({ employee_numbers: chunk }),
+                    });
+                    const payload = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'Approve failed.');
+                    }
+
+                    created += Number(payload.created || 0);
+                    updated += Number(payload.updated || 0);
+                    if (Array.isArray(payload.failed)) {
+                        failed.push(...payload.failed);
+                    }
+                    if (typeof payload.count === 'number') {
+                        lastCount = payload.count;
+                    }
+                    lastMessage = payload.message || lastMessage;
+                }
+
+                if (typeof lastCount === 'number') {
+                    setCount(lastCount);
+                }
+
+                if (failed.length) {
+                    setError(failed.map((item) => `${item.employee_number}: ${item.message}`).join(' '));
+                }
+
+                const summaryParts = [];
+                if (created > 0) {
+                    summaryParts.push(`${created} created`);
+                }
+                if (updated > 0) {
+                    summaryParts.push(`${updated} updated`);
+                }
+                if (failed.length) {
+                    summaryParts.push(`${failed.length} failed`);
+                }
+
+                setSuccess(summaryParts.length
+                    ? `ISKOLARIS approval finished: ${summaryParts.join(', ')}.`
+                    : (lastMessage || 'Approval finished.'));
+                await fetchPending({ refresh: true, showLoader: false });
+            } catch (error) {
+                setError(error.message || 'Approve failed.');
+            } finally {
+                window.PulseLoader?.hide();
+            }
+        };
+
+        const showPreview = async (employeeNumber) => {
+            if (!previewUrl || !viewModal) {
+                return;
+            }
+
+            const nameEl = viewModal.querySelector('[data-employee-sync-view-name]');
+            const metaEl = viewModal.querySelector('[data-employee-sync-view-meta]');
+            const bodyEl = viewModal.querySelector('[data-employee-sync-view-rows]');
+            if (nameEl) {
+                nameEl.textContent = employeeNumber;
+            }
+            if (metaEl) {
+                metaEl.textContent = 'Loading...';
+            }
+            if (bodyEl) {
+                bodyEl.innerHTML = `<tr><td colspan="3" class="px-4 py-6 text-center text-sm text-gray-500">Loading changes…</td></tr>`;
+            }
+
+            openModal(viewModal, { stack: true });
+
+            try {
+                const url = new URL(previewUrl, window.location.origin);
+                url.searchParams.set('employee_number', employeeNumber);
+                const response = await fetch(url.toString(), {
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok || payload.ok === false) {
+                    throw new Error(payload.message || 'Unable to load changes.');
+                }
+
+                if (nameEl) {
+                    nameEl.textContent = payload.name || employeeNumber;
+                }
+                if (metaEl) {
+                    const kind = payload.kind === 'new' ? 'New in People360' : 'Changed fields';
+                    metaEl.textContent = `${payload.employee_number || employeeNumber} · ${kind}`;
+                }
+
+                const changes = Array.isArray(payload.changes) ? payload.changes : [];
+                if (bodyEl) {
+                    if (!changes.length) {
+                        bodyEl.innerHTML = `<tr><td colspan="3" class="px-4 py-6 text-center text-sm text-gray-500">No field differences stored for this profile.</td></tr>`;
+                    } else {
+                        bodyEl.innerHTML = changes.map((change) => {
+                            const oldValue = formatValue(change.old);
+                            const newValue = formatValue(change.new);
+                            const oldHtml = oldValue.includes('\n')
+                                ? `<pre class="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-gray-50 p-2 text-xs">${escapeHtml(oldValue)}</pre>`
+                                : escapeHtml(oldValue);
+                            const newHtml = newValue.includes('\n')
+                                ? `<pre class="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-gray-50 p-2 text-xs">${escapeHtml(newValue)}</pre>`
+                                : escapeHtml(newValue);
+
+                            return `<tr>
+                                <td class="px-3 py-2 font-medium text-gray-900">${escapeHtml(change.label || change.field || '')}</td>
+                                <td class="px-3 py-2 align-top text-gray-600">${oldHtml}</td>
+                                <td class="px-3 py-2 align-top text-gray-900">${newHtml}</td>
+                            </tr>`;
+                        }).join('');
+                    }
+                }
+            } catch (error) {
+                if (metaEl) {
+                    metaEl.textContent = error.message || 'Unable to load changes.';
+                }
+            }
+        };
+
+        fetchPending({ showLoader: false });
+
+        document.addEventListener('click', (event) => {
+            const openTrigger = event.target.closest('[data-modal-open="employee-skolaris-sync-modal"]');
+            if (openTrigger && !loaded && !loading) {
+                fetchPending({ showLoader: true });
+            }
+        });
+
+        root.addEventListener('click', (event) => {
+            if (event.target.closest('[data-employee-sync-refresh]')) {
+                fetchPending({ refresh: true, showLoader: true });
+                return;
+            }
+
+            const viewBtn = event.target.closest('[data-employee-sync-view]');
+            if (viewBtn) {
+                showPreview(viewBtn.dataset.employeeNumber || '');
+                return;
+            }
+
+            const oneBtn = event.target.closest('[data-employee-sync-one]');
+            if (oneBtn) {
+                applyNumbers([oneBtn.dataset.employeeNumber || ''].filter(Boolean));
+                return;
+            }
+
+            if (event.target.closest('[data-employee-sync-multiple]')) {
+                applyNumbers(selectedNumbers());
+                return;
+            }
+
+            if (event.target.closest('[data-employee-sync-all]')) {
+                const numbers = rowNumbers(visibleRows());
+                if (numbers.length === 0) {
+                    return;
+                }
+
+                if (!window.confirm(`Approve all ${numbers.length} shown profile(s) from ISKOLARIS?`)) {
+                    return;
+                }
+
+                applyNumbers(numbers);
+            }
+        });
+
+        root.addEventListener('change', (event) => {
+            if (event.target.matches('[data-employee-sync-select-all]')) {
+                const checked = event.target.checked;
+                visibleRows().forEach((row) => {
+                    const box = row.querySelector('[data-employee-sync-row-check]');
+                    if (box) {
+                        box.checked = checked;
+                    }
+                });
+                syncSelectionUi();
+                return;
+            }
+
+            if (event.target.matches('[data-employee-sync-row-check]')) {
+                syncSelectionUi();
+            }
+        });
+
+        searchInput?.addEventListener('input', applySearch);
+    };
+
+    initEmployeeSkolarisSync();
     initGovernmentIdInputs();
 });

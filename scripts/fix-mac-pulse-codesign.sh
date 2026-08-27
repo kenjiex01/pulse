@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Adhoc re-sign Pulse.app so Gatekeeper on other Macs does not show "damaged".
+# Adhoc re-sign People360.app so Gatekeeper on other Macs does not show "damaged".
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP="$ROOT/dist/mac-arm64/Pulse.app"
+APP="$ROOT/dist/mac-arm64/People360.app"
 
 if [[ ! -d "$APP" ]]; then
   echo "    NOTE: No $APP — skip Mac codesign fix"
   exit 0
 fi
 
-echo "==> Adhoc re-signing Pulse.app (Gatekeeper / other Mac installs)"
+echo "==> Adhoc re-signing People360.app (Gatekeeper / other Mac installs)"
 codesign --force --deep --sign - "$APP"
 xattr -cr "$APP"
 

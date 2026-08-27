@@ -9,6 +9,7 @@
                 'college' => $assignment->college,
                 'department' => $assignment->department,
                 'program' => $assignment->program,
+                'is_primary' => (bool) $assignment->is_primary,
             ])
             ->values()
             ->all();
@@ -21,7 +22,16 @@
             'college' => old('college', $employee->college ?? ''),
             'department' => old('department', $employee->department ?? ''),
             'program' => old('program', $employee->program ?? ''),
+            'is_primary' => true,
         ]];
+    }
+
+    $hasMainAssignment = collect($assignmentRecords)->contains(
+        fn ($record) => is_array($record) && filter_var($record['is_primary'] ?? false, FILTER_VALIDATE_BOOLEAN)
+    );
+
+    if (! $hasMainAssignment && isset($assignmentRecords[0]) && is_array($assignmentRecords[0])) {
+        $assignmentRecords[0]['is_primary'] = true;
     }
 @endphp
 

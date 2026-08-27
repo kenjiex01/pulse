@@ -17,25 +17,41 @@ return [
     ],
 
     /*
-    | Excel download: one worksheet per campus. Codes not listed (and missing campus)
-    | fall under the default sheet (Cainta).
+    | Excel download: one worksheet per campus using the employee Main assignment.
+    | Missing campus falls under the default sheet. Unmapped codes still get their
+    | own tab from the campus name.
     */
     'excel_campus_sheets' => [
+        'Angono' => ['AG'],
         'Antipolo' => ['UA'],
         'Binangonan' => ['BI'],
+        'Cainta' => ['CA'],
         'Cogeo' => ['CO'],
+        'Digital' => ['DC'],
         'San Mateo' => ['SA'],
         'Sumulong' => ['SU'],
         'Taytay' => ['TA'],
+        'Greenhills' => ['GH'],
+        'N. Domingo' => ['ND'],
+        'Washington Residences' => ['WR'],
+        'Bldg 108' => ['O8'],
+        '225 6th Floor' => ['F6'],
     ],
     'excel_campus_sheet_default' => 'Cainta',
     'excel_campus_sheet_order' => [
+        'Angono',
         'Antipolo',
         'Binangonan',
         'Cogeo',
         'San Mateo',
         'Sumulong',
         'Taytay',
+        'Digital',
+        'Greenhills',
+        'N. Domingo',
+        'Washington Residences',
+        'Bldg 108',
+        '225 6th Floor',
         'Cainta',
     ],
 

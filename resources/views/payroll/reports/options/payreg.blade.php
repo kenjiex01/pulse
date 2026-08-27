@@ -6,7 +6,8 @@
     <h3 class="text-base font-semibold text-gray-900">Payroll Register Options</h3>
     <p class="text-sm text-gray-600">
         Preview, Excel, and PDF use the ICCT staff/admin payroll register column layout (days-based: basic rate, days, OT, late, gross, deductions, net).
-        Excel download uses one worksheet per selected payroll period (e.g. <strong>27-10</strong>, <strong>11-26</strong>). Empty periods are omitted.
+        Excel download uses one worksheet per campus based on each employee’s <strong>Main assignment</strong>.
+        Campuses with an <strong>Under Campus</strong> (for example Greenhills under Cainta) appear on the parent worksheet. Empty campuses are omitted.
     </p>
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -80,7 +81,7 @@
             <label for="sort-by" class="form-label">Sort By</label>
             <select id="sort-by" name="sort_by" class="form-input">
                 @foreach ($sortColumns as $key => $label)
-                    <option value="{{ $key }}" @selected(old('sort_by', 'employee_number') === $key)>{{ $label }}</option>
+                    <option value="{{ $key }}" @selected(old('sort_by', 'employee_name') === $key)>{{ $label }}</option>
                 @endforeach
             </select>
         </div>

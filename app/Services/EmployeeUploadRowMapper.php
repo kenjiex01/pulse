@@ -27,6 +27,8 @@ class EmployeeUploadRowMapper
 
     private Collection $campusesByCode;
 
+    private Collection $campusesByName;
+
     private Collection $payTypesById;
 
     private Collection $payTypesByName;
@@ -68,7 +70,11 @@ class EmployeeUploadRowMapper
         }
 
         $this->lookupsLoaded = true;
-        $this->campusesByCode = Campus::query()->pluck('campus_id', 'campus_code');
+        $campuses = Campus::query()->get();
+        $this->campusesByCode = $campuses->pluck('campus_id', 'campus_code');
+        $this->campusesByName = $campuses->keyBy(
+            fn (Campus $campus) => strtolower(trim((string) $campus->campus_name))
+        );
 
         $payTypes = PayType::query()->get();
         $this->payTypesById = $payTypes->keyBy('pay_type_id');
@@ -1495,6 +1501,105 @@ class EmployeeUploadRowMapper
                 ],
             ],
         ];
+    }
+
+    /**
+     * @param  array<string, string>  $row
+     * @param  array<string, bool>  $seenNumbers
+     * @return array{errors: array<int, string>, payload: array<string, mixed>|null}
+     */
+    public function mapAssignmentUploadRow(array $row, int $lineNumber, array &$seenNumbers): array
+    {
+        $this->ensureLookupsLoaded();
+
+        $employeeNumber = trim((string) ($row['employee_number'] ?? ''));
+        $campusValue = trim((string) ($row['campus_code'] ?? ''));
+
+        if ($employeeNumber === '') {
+            return ['errors' => ["Line {$lineNumber}: Employee Number is required."], 'payload' => null];
+        }
+
+        $dedupeKey = strtolower($employeeNumber);
+
+        if (isset($seenNumbers[$dedupeKey])) {
+            return ['errors' => ["Line {$lineNumber}: Duplicate assignment row for employee {$employeeNumber}."], 'payload' => null];
+        }
+
+        $seenNumbers[$dedupeKey] = true;
+
+        if ($campusValue === '') {
+            return ['errors' => ["Line {$lineNumber}: Main Campus Code is required for employee {$employeeNumber}."], 'payload' => null];
+        }
+
+        $employee = Employee::query()
+            ->with(['campusAssignments.campus'])
+            ->where('employee_number', $employeeNumber)
+            ->first();
+
+        if ($employee === null) {
+            return ['errors' => ["Line {$lineNumber}: Employee {$employeeNumber} was not found."], 'payload' => null];
+        }
+
+        $campusId = $this->resolveCampusId($campusValue);
+
+        if ($campusId === null) {
+            return ['errors' => ["Line {$lineNumber}: Unknown campus ({$campusValue}) for employee {$employeeNumber}."], 'payload' => null];
+        }
+
+        $assignment = $employee->campusAssignments->first(
+            fn (EmployeeCampusAssignment $rowAssignment) => (int) $rowAssignment->campus_id === $campusId
+        );
+
+        if ($assignment === null) {
+            return ['errors' => ["Line {$lineNumber}: Campus {$campusValue} is not assigned to employee {$employeeNumber}. Add it on the employee profile first."], 'payload' => null];
+        }
+
+        $currentMain = $employee->campusAssignments->first(
+            fn (EmployeeCampusAssignment $rowAssignment) => (bool) $rowAssignment->is_primary
+        ) ?? $employee->campusAssignments->first();
+
+        $campus = $assignment->campus;
+
+        return [
+            'errors' => [],
+            'payload' => [
+                'employee_id' => $employee->employee_id,
+                'employee_number' => $employeeNumber,
+                'campus_id' => $campusId,
+                'preview' => [
+                    'employee_number' => $employeeNumber,
+                    'name' => $employee->full_name,
+                    'current_campus_code' => $currentMain?->campus?->campus_code ?: '—',
+                    'campus_code' => $campus?->campus_code ?: $campusValue,
+                    'campus_name' => $campus?->campus_name ?: '',
+                ],
+            ],
+        ];
+    }
+
+    private function resolveCampusId(string $value): ?int
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if ($this->campusesByCode->has($value)) {
+            return (int) $this->campusesByCode->get($value);
+        }
+
+        $match = $this->campusesByCode->first(
+            fn ($id, $code) => strcasecmp((string) $code, $value) === 0
+        );
+
+        if ($match !== null) {
+            return (int) $match;
+        }
+
+        $byName = $this->campusesByName->get(strtolower($value));
+
+        return $byName instanceof Campus ? (int) $byName->campus_id : null;
     }
 
     /**

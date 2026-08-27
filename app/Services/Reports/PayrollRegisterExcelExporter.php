@@ -68,12 +68,19 @@ class PayrollRegisterExcelExporter
     public function groupRowsByCampusSheet(array $registerRows): array
     {
         $order = config('payroll_register_layout.excel_campus_sheet_order', [
+            'Angono',
             'Antipolo',
             'Binangonan',
             'Cogeo',
             'San Mateo',
             'Sumulong',
             'Taytay',
+            'Digital',
+            'Greenhills',
+            'N. Domingo',
+            'Washington Residences',
+            'Bldg 108',
+            '225 6th Floor',
             'Cainta',
         ]);
         $default = (string) config('payroll_register_layout.excel_campus_sheet_default', 'Cainta');
@@ -88,16 +95,19 @@ class PayrollRegisterExcelExporter
             $groups[$default] = [];
         }
 
-        foreach ($registerRows as $index => $row) {
+        foreach ($registerRows as $row) {
             $sheetName = trim((string) ($row['campus_sheet'] ?? ''));
 
-            if ($sheetName === '' || ! array_key_exists($sheetName, $groups)) {
+            if ($sheetName === '') {
                 $sheetName = $default;
+            }
+
+            if (! array_key_exists($sheetName, $groups)) {
+                $groups[$sheetName] = [];
             }
 
             $row['index'] = count($groups[$sheetName]) + 1;
             $groups[$sheetName][] = $row;
-            unset($registerRows[$index]);
         }
 
         return $groups;
@@ -152,10 +162,14 @@ class PayrollRegisterExcelExporter
         $sheet->setCellValue('A1', $companyName);
         $sheet->setCellValue('A2', $subtitle);
         $periodLine = $periodLabel !== '' ? 'Period Covered: '.$periodLabel : '';
-        if ($sheetLabel !== '' && ($meta['sheet_group'] ?? '') === 'period') {
+        $sheetGroup = (string) ($meta['sheet_group'] ?? '');
+        if ($sheetLabel !== '' && $sheetGroup === 'period') {
             $periodLine = $periodLabel !== ''
                 ? 'Period Covered: '.$periodLabel
                 : 'Payroll Period : '.$sheetLabel;
+        } elseif ($sheetLabel !== '' && $sheetGroup === 'campus') {
+            $campusLine = 'Campus: '.$sheetLabel;
+            $periodLine = $periodLine !== '' ? $periodLine.' · '.$campusLine : $campusLine;
         }
         $sheet->setCellValue('A3', $periodLine);
 

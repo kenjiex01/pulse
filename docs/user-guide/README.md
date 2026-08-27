@@ -1,6 +1,6 @@
-# Pulse — User Guide
+# People360 — User Guide
 
-**Skolaris Pulse** is the ISKOLARIS desktop application for HR, timekeeping, and payroll. This guide walks through the main screens and everyday tasks, with screenshots taken from the live system.
+**People360** is the ISKOLARIS desktop application for HR, timekeeping, and payroll. This guide walks through the main screens and everyday tasks, with screenshots taken from the live system.
 
 ---
 
@@ -23,16 +23,16 @@
 
 ### Desktop app (client deployment)
 
-Pulse ships as a **single installer** — no separate PHP, MySQL, or web server setup.
+People360 ships as a **single installer** — no separate PHP, MySQL, or web server setup.
 
 | Platform | Installer |
 |----------|-----------|
-| macOS (Apple Silicon) | `Pulse-<version>-arm64.dmg` |
-| Windows | `Pulse-<version>-setup.exe` |
+| macOS (Apple Silicon) | `People360-<version>-arm64.dmg` |
+| Windows | `People360-<version>-setup.exe` |
 
 **First launch**
 
-1. Double-click the Pulse app icon.
+1. Double-click the People360 app icon.
 2. The app creates its local database automatically (SQLite).
 3. Migrations and reference data run in the background.
 4. The login screen opens when ready.
@@ -47,7 +47,7 @@ For internal testing, developers can run `php artisan serve` and open `http://12
 
 ## 2. Signing In
 
-Open Pulse and enter your email and password on the sign-in screen.
+Open People360 and enter your email and password on the sign-in screen.
 
 ![Login screen](images/01-login.png)
 
@@ -400,7 +400,7 @@ Sample files:
 ### Back up before desktop reinstall
 
 1. **Database → Download Backup**.
-2. Install the new Pulse version.
+2. Install the new People360 version.
 3. Restore data per your IT procedure (or contact support).
 
 ---
@@ -436,8 +436,8 @@ Requires Google Chrome installed on the machine. Uses the running dev server at 
 
 | Item | Value |
 |------|-------|
-| App | Skolaris Pulse (ISKOLARIS Desktop) |
-| Screenshots | Captured from live Pulse UI |
+| App | People360 (ISKOLARIS Desktop) |
+| Screenshots | Captured from live People360 UI |
 | Last updated | July 15, 2026 |
 
 For technical setup and build instructions, see [`pulse/README.md`](../../README.md).

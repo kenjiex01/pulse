@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+PRODUCT_NAME="People360"
 TARGET="${1:-all}"
 
 if [[ "$TARGET" != "mac" && "$TARGET" != "mac-arm64" && "$TARGET" != "mac-x64" && "$TARGET" != "mac-intel" && "$TARGET" != "win" && "$TARGET" != "win-x64" && "$TARGET" != "all" ]]; then
@@ -97,6 +98,11 @@ if [[ -f "$NOTARIZE_PATCH" && -f "$NOTARIZE_JS" ]]; then
   cp "$NOTARIZE_PATCH" "$NOTARIZE_JS"
   echo "    Applied notarize skip-unless-enabled patch"
 fi
+SILENT_UPDATER_PATCH="$ROOT/scripts/patches/patch-silent-autoupdater.py"
+if [[ -f "$SILENT_UPDATER_PATCH" ]]; then
+  python3 "$SILENT_UPDATER_PATCH" "$ROOT"
+  echo "    Applied silent auto-download + auto-install updater patch"
+fi
 
 # Cursor sandbox blocks unlinking node_modules/**/.vscode (EPERM). Move those packages
 # aside, and use `npm install` instead of `npm ci` (ci deletes the whole tree first).
@@ -141,13 +147,25 @@ mac_app_is_notarized() {
   xcrun stapler validate "$app" >/dev/null 2>&1
 }
 
-run_native_build() {
-  local label="$1"
-  shift
-  ensure_production_vite_assets
-  echo "==> Building $label"
-  if ! php artisan native:build "$@" --no-interaction; then
-    echo "ERROR: native:build failed for $label"
+ensure_github_token() {
+  if [[ -z "${GITHUB_TOKEN:-}" && -z "${GH_TOKEN:-}" ]]; then
+    if command -v gh >/dev/null 2>&1; then
+      local token
+      token="$(gh auth token 2>/dev/null || true)"
+      if [[ -n "$token" ]]; then
+        export GITHUB_TOKEN="$token"
+        export GH_TOKEN="$token"
+      fi
+    fi
+  elif [[ -n "${GITHUB_TOKEN:-}" && -z "${GH_TOKEN:-}" ]]; then
+    export GH_TOKEN="$GITHUB_TOKEN"
+  elif [[ -n "${GH_TOKEN:-}" && -z "${GITHUB_TOKEN:-}" ]]; then
+    export GITHUB_TOKEN="$GH_TOKEN"
+  fi
+
+  if [[ -z "${GITHUB_TOKEN:-}" && -z "${GH_TOKEN:-}" ]]; then
+    echo "ERROR: GitHub auto-update needs a token. Run: gh auth login"
+    echo "       (or set GITHUB_TOKEN in the environment — do not commit it)"
     exit 1
   fi
 }
@@ -165,11 +183,11 @@ hdiutil_can_create_dmg() {
 
 create_mac_dmg_if_possible() {
   VERSION="$(grep -E '^NATIVEPHP_APP_VERSION=' "$ROOT/.env" | head -1 | cut -d= -f2- | tr -d '\r')"
-  local dmg="$ROOT/dist/Pulse-${VERSION}-arm64.dmg"
-  local zip="$ROOT/dist/Pulse-${VERSION}-arm64.zip"
+  local dmg="$ROOT/dist/${PRODUCT_NAME}-${VERSION}-arm64.dmg"
+  local zip="$ROOT/dist/${PRODUCT_NAME}-${VERSION}-arm64.zip"
 
-  if [[ ! -f "$zip" && ! -d "$ROOT/dist/mac-arm64/Pulse.app" ]]; then
-    echo "ERROR: Missing macOS ZIP and Pulse.app — cannot create DMG"
+  if [[ ! -f "$zip" && ! -d "$ROOT/dist/mac-arm64/${PRODUCT_NAME}.app" ]]; then
+    echo "ERROR: Missing macOS ZIP and ${PRODUCT_NAME}.app — cannot create DMG"
     return 1
   fi
 
@@ -192,9 +210,9 @@ create_mac_dmg_if_possible() {
 
 finalize_mac_desktop_artifacts() {
   VERSION="$(grep -E '^NATIVEPHP_APP_VERSION=' "$ROOT/.env" | head -1 | cut -d= -f2- | tr -d '\r')"
-  local app="$ROOT/dist/mac-arm64/Pulse.app"
-  local zip="$ROOT/dist/Pulse-${VERSION}-arm64.zip"
-  local dmg="$ROOT/dist/Pulse-${VERSION}-arm64.dmg"
+  local app="$ROOT/dist/mac-arm64/${PRODUCT_NAME}.app"
+  local zip="$ROOT/dist/${PRODUCT_NAME}-${VERSION}-arm64.zip"
+  local dmg="$ROOT/dist/${PRODUCT_NAME}-${VERSION}-arm64.dmg"
 
   if [[ ! -d "$app" ]]; then
     echo "ERROR: Missing $app after mac build"
@@ -213,6 +231,18 @@ finalize_mac_desktop_artifacts() {
 
   rm -f "$dmg" "${dmg}.blockmap" 2>/dev/null || true
   create_mac_dmg_if_possible
+}
+
+run_native_build() {
+  local label="$1"
+  shift
+  ensure_github_token
+  ensure_production_vite_assets
+  echo "==> Building $label"
+  if ! php artisan native:build "$@" --no-interaction; then
+    echo "ERROR: native:build failed for $label"
+    exit 1
+  fi
 }
 
 run_native_build_mac() {
@@ -273,8 +303,8 @@ prune_old_installers() {
     fi
 
     local versions
-    versions="$(find "$dist" -maxdepth 1 -name 'Pulse-*' -print \
-        | sed -n 's|.*/Pulse-\([0-9][0-9.]*\).*|\1|p' \
+    versions="$(find "$dist" -maxdepth 1 \( -name 'People360-*' -o -name 'Pulse-*' \) -print \
+        | sed -n 's|.*/\(People360\|Pulse\)-\([0-9][0-9.]*\).*|\2|p' \
         | sort -Vu)"
 
     if [[ -z "$versions" ]]; then
@@ -292,24 +322,24 @@ prune_old_installers() {
     echo "==> Pruning old installers (keeping $keep latest versions)"
 
     printf '%s\n' "$versions" | head -n "$to_remove" | while IFS= read -r version; do
-        echo "    Removing Pulse-$version-*"
-        rm -f "$dist"/Pulse-"$version"-*
+        echo "    Removing installer artifacts for $version"
+        rm -f "$dist"/People360-"$version"-* "$dist"/Pulse-"$version"-*
     done
 }
 
 prune_old_installers 3
 
 VERSION="$(grep -E '^NATIVEPHP_APP_VERSION=' "$ROOT/.env" | head -1 | cut -d= -f2- | tr -d '\r')"
-DMG="$ROOT/dist/Pulse-${VERSION}-arm64.dmg"
-EXE="$ROOT/dist/Pulse-${VERSION}-setup.exe"
+DMG="$ROOT/dist/${PRODUCT_NAME}-${VERSION}-arm64.dmg"
+EXE="$ROOT/dist/${PRODUCT_NAME}-${VERSION}-setup.exe"
 
 echo ""
 echo "==> Build complete. Installers are in: $ROOT/dist/"
-ls -lah "$ROOT/dist" 2>/dev/null | grep -E 'Pulse-|total' || ls -lah "$ROOT/dist" 2>/dev/null || true
+ls -lah "$ROOT/dist" 2>/dev/null | grep -E 'People360-|Pulse-|total' || ls -lah "$ROOT/dist" 2>/dev/null || true
 
 missing=0
 if [[ "$TARGET" == "all" || "$TARGET" == "mac" || "$TARGET" == "mac-arm64" ]]; then
-  ZIP="$ROOT/dist/Pulse-${VERSION}-arm64.zip"
+  ZIP="$ROOT/dist/${PRODUCT_NAME}-${VERSION}-arm64.zip"
   if [[ ! -f "$ZIP" ]]; then
     echo "ERROR: Missing macOS ZIP: $ZIP"
     missing=1
@@ -335,17 +365,12 @@ if [[ "$TARGET" == "all" || "$TARGET" == "win" || "$TARGET" == "win-x64" ]]; the
 fi
 
 if [[ "$missing" -eq 0 ]]; then
-  BUCKET="$(grep -E '^DB_BACKUP_S3_BUCKET=' "$ROOT/.env" | head -1 | cut -d= -f2- | tr -d '\r' || true)"
-  if [[ -n "${BUCKET// }" ]]; then
-    echo ""
-    echo "==> Uploading installers to S3 (prefix payroll_installer/; old versions will be deleted)"
-    if ! php artisan desktop:upload-installers --app-version="$VERSION" --no-interaction; then
-      echo "ERROR: Failed to upload installers to S3."
-      missing=1
-    fi
-  else
-    echo ""
-    echo "==> Skipping S3 installer upload (DB_BACKUP_S3_BUCKET not set)"
+  echo ""
+  echo "==> Publishing installers to GitHub Releases (auto-update feed)"
+  ensure_github_token
+  if ! php artisan desktop:publish-github-release --app-version="$VERSION" --no-interaction; then
+    echo "ERROR: Failed to publish GitHub release for auto-update."
+    missing=1
   fi
 fi
 

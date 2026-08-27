@@ -250,7 +250,7 @@ class DatabaseBackupService
             $this->importSqliteDumpWithPdo($stagingPath, $sqlFilePath);
 
             if (! $this->sqliteHasUserTables($stagingPath)) {
-                throw new RuntimeException('The uploaded SQL file did not produce any tables. Make sure it is a Pulse SQLite backup (.sql), not a MySQL or partial dump.');
+                throw new RuntimeException('The uploaded SQL file did not produce any tables. Make sure it is a People360 SQLite backup (.sql), not a MySQL or partial dump.');
             }
         } finally {
             foreach ([$stagingPath, $stagingPath.'-wal', $stagingPath.'-shm', $stagingPath.'-journal'] as $path) {
@@ -838,7 +838,7 @@ class DatabaseBackupService
 
     private function importSqliteDumpFromFile(string $databasePath, string $sqlFilePath): void
     {
-        // Windows desktop: avoid a second sqlite3 process locking the same file Pulse already uses.
+        // Windows desktop: avoid a second sqlite3 process locking the same file People360 already uses.
         if (PHP_OS_FAMILY === 'Windows') {
             $this->importSqliteDumpWithPdo($databasePath, $sqlFilePath);
             $this->assertSqliteHasTables($databasePath);

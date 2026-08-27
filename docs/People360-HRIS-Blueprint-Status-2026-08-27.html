@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>People360 — HRIS Blueprint Status Report</title>
+  <style>
+    :root {
+      --navy: #0B318F;
+      --cyan: #00A3E6;
+      --gray: #475569;
+      --bg: #f8fafc;
+      --partial: #fef3c7;
+      --pending: #fee2e2;
+      --ready: #dcfce7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Calibri, "Segoe UI", Arial, sans-serif;
+      color: #0f172a;
+      background: var(--bg);
+      line-height: 1.45;
+    }
+    .page {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 3rem;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    h1 { color: var(--navy); font-size: 1.85rem; margin: 0 0 .35rem; }
+    h2 { color: var(--navy); font-size: 1.25rem; margin: 1.75rem 0 .6rem; border-bottom: 2px solid #e2e8f0; padding-bottom: .35rem; }
+    h3 { color: var(--cyan); font-size: 1.05rem; margin: 1.25rem 0 .45rem; }
+    .subtitle { color: var(--cyan); font-size: 1.2rem; font-weight: 700; margin: 0 0 .5rem; }
+    .muted { color: #64748b; font-size: .95rem; }
+    .note { color: var(--gray); font-size: .9rem; background: #f1f5f9; padding: .75rem 1rem; border-radius: 8px; }
+    ul { margin: .4rem 0 1rem 1.2rem; }
+    li { margin: .25rem 0; color: var(--gray); }
+    table { width: 100%; border-collapse: collapse; margin: .75rem 0 1.25rem; font-size: .82rem; }
+    th { background: var(--navy); color: #fff; text-align: left; padding: .5rem .45rem; }
+    td { border: 1px solid #cbd5e1; padding: .4rem .45rem; vertical-align: top; }
+    .partial { background: var(--partial); }
+    .pending { background: var(--pending); }
+    .ready { background: var(--ready); }
+    .badge { display: inline-block; font-weight: 700; padding: .1rem .4rem; border-radius: 4px; font-size: .78rem; }
+    .badge.partial { color: #92400e; background: var(--partial); }
+    .badge.pending { color: #991b1b; background: var(--pending); }
+    .badge.ready { color: #166534; background: var(--ready); }
+    .strong-title { color: var(--navy); font-weight: 700; margin: .85rem 0 .15rem; }
+    .strong-body { color: var(--gray); font-size: .95rem; margin: 0 0 .65rem; }
+    footer { text-align: center; color: #94a3b8; font-size: .8rem; margin-top: 2rem; }
+    @media print {
+      body { background: #fff; }
+      .page { box-shadow: none; max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>People360</h1>
+    <p class="subtitle">HRIS Blueprint Status Report</p>
+    <p class="muted">Desktop + Web · What already works · What is incomplete · What is not yet built</p>
+    <p class="muted"><strong>Date:</strong> 27 August 2026 &nbsp;|&nbsp; <strong>Audience:</strong> Management, HR, and project stakeholders</p>
+    <p class="note">Compares the Philippine HRIS Software Module Blueprint (28 modules) with <strong>People360 Desktop</strong> (<code>pulse/</code>) and <strong>People360 Web</strong> (Skolaris <code>/people360</code> in <code>iskolaris-fe</code> + <code>iskolaris-be</code>). <strong>Combined</strong> = best of both. Planning guide only — not a legal review.</p>
+
+    <h2>How to read this report</h2>
+    <table>
+      <tr><th style="width:22%">Status</th><th>Meaning</th></tr>
+      <tr class="ready"><td><span class="badge ready">Ready</span></td><td>Fully matches the blueprint for day-to-day use. (None of the 28 are 100% ready yet.)</td></tr>
+      <tr class="partial"><td><span class="badge partial">Partial</span></td><td>Useful screens/workflows exist, but important blueprint items are still missing.</td></tr>
+      <tr class="pending"><td><span class="badge pending">Not yet built</span></td><td>No matching module or workflow on that product.</td></tr>
+    </table>
+    <ul>
+      <li><strong>Desktop</strong> = People360 installer app (<code>pulse/</code>)</li>
+      <li><strong>Web</strong> = browser People360 under <code>/people360</code> (<code>iskolaris-fe</code> + <code>iskolaris-be</code>)</li>
+    </ul>
+
+    <h2>Snapshot — Combined (Desktop + Web)</h2>
+    <p>Desktop is strongest for <strong>school payroll and timekeeping</strong>. Web is strongest for <strong>employee self-service, document review, attendance checker, and Job Order requests</strong>. Together they are still not a full hire-to-retire HRIS.</p>
+    <table>
+      <tr><th>Status</th><th>Count</th><th>Meaning</th></tr>
+      <tr class="ready"><td>Ready</td><td>0 of 28</td><td>No module is complete vs the full blueprint.</td></tr>
+      <tr class="partial"><td>Partial</td><td>13 of 28</td><td>Includes M16 (self-service) now that Web ESS exists.</td></tr>
+      <tr class="pending"><td>Not yet built</td><td>15 of 28</td><td>Needs new design and development on both products.</td></tr>
+    </table>
+    <ul>
+      <li><strong>Desktop:</strong> employees, payroll, time logs, BIR / SSS / PhilHealth / Pag-IBIG reports, faculty load pay.</li>
+      <li><strong>Web:</strong> employee login, profile, document upload + HR review, attendance view, Job Order (WRF) + approvals.</li>
+      <li><strong>Still missing on both:</strong> recruitment, leave filing/balances, contractors, discipline, full clearance/separation, live clock-in.</li>
+    </ul>
+
+    <h2>What already works well</h2>
+    <h3>On Desktop</h3>
+    <p class="strong-title">Payroll</p>
+    <p class="strong-body">Pay periods, compute/post, OT / ND / holiday, payslips, register, BIR 1601-C / 2316 / Alphalist.</p>
+    <p class="strong-title">Government contributions</p>
+    <p class="strong-body">SSS, PhilHealth, Pag-IBIG tables and contribution reports; employee loans.</p>
+    <p class="strong-title">Timekeeping</p>
+    <p class="strong-body">Policies, shifts, holidays, time log upload, biometric pull, attendance edit, OT for payroll.</p>
+    <p class="strong-title">Employee records &amp; faculty load</p>
+    <p class="strong-body">Faculty / staff / admin / hybrid; campuses; salary history; credentials; Skolaris load pull and faculty pay.</p>
+
+    <h3>On Web (Skolaris People360)</h3>
+    <p class="strong-title">Employee self-service (M16)</p>
+    <p class="strong-body">Login/OTP, dashboard, profile edit, own attendance &amp; loading attendance, My Requests, request approvals.</p>
+    <p class="strong-title">Documents (M04)</p>
+    <p class="strong-body">Employee upload / mark N/A; HR document review (verify, remap type, approve/reject).</p>
+    <p class="strong-title">Attendance ops (M05)</p>
+    <p class="strong-body">Timekeeping (load-based), Attendance Checker, biometric log restore.</p>
+    <p class="strong-title">Local employees, faculty load PDFs, privacy &amp; access</p>
+    <p class="strong-body">Restored desktop employees + sync APIs; faculty loading PDF module; privacy consent; users/roles; API keys; payroll backup restore (ops only).</p>
+
+    <h2>Full checklist — Desktop · Web · Combined</h2>
+    <table>
+      <tr><th>ID</th><th>Module</th><th>Priority</th><th>Desktop</th><th>Web</th><th>Combined</th></tr>
+      <tr><td>M01</td><td>Organization &amp; HR Configuration</td><td>MVP</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+      <tr><td>M02</td><td>Worker / Employee Master Data</td><td>MVP</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+      <tr><td>M03</td><td>Recruitment &amp; Applicant Tracking</td><td>MVP</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M04</td><td>Onboarding &amp; Employment Documents</td><td>MVP</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+      <tr><td>M05</td><td>Time, Attendance &amp; Scheduling</td><td>MVP</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+      <tr><td>M06</td><td>Leave &amp; Absence Management</td><td>MVP</td><td class="partial">Partial</td><td class="pending">Not yet built</td><td class="partial">Partial</td></tr>
+      <tr><td>M07</td><td>Payroll &amp; Statutory Pay</td><td>MVP</td><td class="partial">Partial</td><td class="pending">Not yet built</td><td class="partial">Partial</td></tr>
+      <tr><td>M08</td><td>Benefits &amp; Government Contributions</td><td>MVP</td><td class="partial">Partial</td><td class="pending">Not yet built</td><td class="partial">Partial</td></tr>
+      <tr><td>M09</td><td>Performance Management</td><td>Phase 2</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M10</td><td>Learning &amp; Development</td><td>Phase 2</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M11</td><td>Grievance &amp; Discipline</td><td>MVP</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M12</td><td>Separation, Clearance &amp; Retirement</td><td>MVP</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M13</td><td>Contractor &amp; Outsourced Workforce</td><td>MVP</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M14</td><td>Occupational Safety &amp; Health</td><td>MVP</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M15</td><td>Data Privacy &amp; Records</td><td>MVP</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+      <tr><td>M16</td><td>Self-Service, Requests &amp; Approvals</td><td>MVP</td><td class="pending">Not yet built</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+      <tr><td>M17</td><td>HR Compliance &amp; Legal Rules</td><td>MVP</td><td class="partial">Partial</td><td class="pending">Not yet built</td><td class="partial">Partial</td></tr>
+      <tr><td>M18</td><td>HR Analytics, Dashboards &amp; Audit</td><td>Phase 2</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+      <tr><td>M19</td><td>Faculty &amp; Academic Personnel</td><td>MVP (schools)</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+      <tr><td>M20</td><td>Faculty Load, Schedule &amp; Overload</td><td>MVP (schools)</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+      <tr><td>M21</td><td>Faculty Evaluation &amp; Promotion</td><td>Phase 2</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M22</td><td>Faculty Development &amp; Research</td><td>Phase 2</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M23</td><td>Student-Safeguarding / Conduct</td><td>Phase 2</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M24</td><td>Sales / Commission &amp; Incentive</td><td>Optional</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M25</td><td>Shift, Field &amp; Branch Workforce</td><td>Optional</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M26</td><td>Succession &amp; Workforce Planning</td><td>Phase 3</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M27</td><td>AI Assistance &amp; Automation</td><td>Phase 3</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+      <tr><td>M28</td><td>SDG / ESG Workforce Reporting</td><td>Phase 3</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
+    </table>
+
+    <h2>Suggested next steps</h2>
+    <ol>
+      <li>Leave filing &amp; balances (M06) — use Web ESS shell; Desktop already has leave types.</li>
+      <li>Finish self-service (M16) — add OT corrections, certificates, leave on top of Job Order.</li>
+      <li>Effective-dated government rates (M17 / M08) — Desktop.</li>
+      <li>Onboarding checklist (M04) — extend Web soft gate + Desktop credentials.</li>
+      <li>Separation &amp; clearance (M12).</li>
+      <li>Recruitment (M03) — if hire-to-retire is in scope.</li>
+      <li>Complete faculty gaps (M19 / M20).</li>
+      <li>Risk modules (M11 / M13 / M14).</li>
+    </ol>
+
+    <footer>
+      <p>— End of report —</p>
+      <p>Source: HRIS Blueprint (PH). Products: People360 Desktop (pulse/) + Web (iskolaris-fe/be /people360).<br>
+      Technical detail: pulse/docs/hris-blueprint-gap-analysis.md</p>
+    </footer>
+  </div>
+</body>
+</html>

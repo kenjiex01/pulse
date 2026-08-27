@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Configure Mac Developer ID signing + Apple notarization for Pulse desktop builds.
+# Configure Mac Developer ID signing + Apple notarization for People360 desktop builds.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="$ROOT/.env"
 
-echo "==> Pulse macOS signing + notarization setup"
+echo "==> People360 macOS signing + notarization setup"
 echo ""
 
 require_cmd() {

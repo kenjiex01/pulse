@@ -48,6 +48,22 @@ class EmployeePolicy
         return $user->hasSubModulePermission($subModule, 'add');
     }
 
+    public function syncFromSkolaris(User $user): bool
+    {
+        return $this->create($user) || $this->canUpdateEmployees($user);
+    }
+
+    private function canUpdateEmployees(User $user): bool
+    {
+        $subModule = $this->employeesSubModule();
+
+        if (! $subModule) {
+            return $user->isAdmin();
+        }
+
+        return $user->hasSubModulePermission($subModule, 'update');
+    }
+
     public function update(User $user, Employee $employee): bool
     {
         $subModule = $this->employeesSubModule();

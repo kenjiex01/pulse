@@ -3,7 +3,7 @@
 namespace App\Support;
 
 /**
- * Maps Pulse YTD line amounts (via Bir2316FormMapper) into PATHS Alphalist column codes.
+ * Maps People360 YTD line amounts (via Bir2316FormMapper) into PATHS Alphalist column codes.
  */
 class AlphalistColumnMapper
 {

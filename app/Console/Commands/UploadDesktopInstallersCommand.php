@@ -12,7 +12,7 @@ class UploadDesktopInstallersCommand extends Command
                             {--dist= : Dist directory (defaults to base_path/dist)}
                             {--dry-run : List planned uploads without writing to S3}';
 
-    protected $description = 'Upload Pulse desktop installers (EXE/DMG) and latest.json to S3 payroll_installer/';
+    protected $description = 'Upload People360 desktop installers (EXE/DMG/ZIP) plus latest.json / latest.yml to S3 payroll_installer/';
 
     public function handle(DesktopInstallerUpdateService $updater): int
     {
@@ -36,10 +36,18 @@ class UploadDesktopInstallersCommand extends Command
         }
 
         $dist = (string) ($this->option('dist') ?: base_path('dist'));
+        $basename = (string) config('desktop_updater.installer_basename', 'People360');
         $candidates = [
+            $dist.DIRECTORY_SEPARATOR.$basename.'-'.$version.'-setup.exe',
+            $dist.DIRECTORY_SEPARATOR.$basename.'-'.$version.'-arm64.dmg',
+            $dist.DIRECTORY_SEPARATOR.$basename.'-'.$version.'-arm64.zip',
+            $dist.DIRECTORY_SEPARATOR.$basename.'-'.$version.'-x64.dmg',
+            $dist.DIRECTORY_SEPARATOR.$basename.'-'.$version.'-x64.zip',
             $dist.DIRECTORY_SEPARATOR.'Pulse-'.$version.'-setup.exe',
             $dist.DIRECTORY_SEPARATOR.'Pulse-'.$version.'-arm64.dmg',
+            $dist.DIRECTORY_SEPARATOR.'Pulse-'.$version.'-arm64.zip',
             $dist.DIRECTORY_SEPARATOR.'Pulse-'.$version.'-x64.dmg',
+            $dist.DIRECTORY_SEPARATOR.'Pulse-'.$version.'-x64.zip',
         ];
 
         $existing = array_values(array_filter($candidates, 'is_file'));
@@ -56,7 +64,7 @@ class UploadDesktopInstallersCommand extends Command
         $dryRun = (bool) $this->option('dry-run');
         $prefix = trim((string) config('desktop_updater.s3_prefix', 'payroll_installer'), '/');
 
-        $this->info(($dryRun ? '[dry-run] ' : '').'Uploading Pulse '.$version.' → s3://'.$bucket.'/'.$prefix.'/');
+        $this->info(($dryRun ? '[dry-run] ' : '').'Uploading People360 '.$version.' → s3://'.$bucket.'/'.$prefix.'/');
 
         try {
             $result = $updater->uploadInstallers($version, $existing, $dryRun);
@@ -79,7 +87,7 @@ class UploadDesktopInstallersCommand extends Command
         }
 
         $this->line('  '.($dryRun ? 'would write' : 'wrote').': '.$result['latest_key']);
-        $this->info('Done. S3 keeps only Pulse '.$result['version'].' under '.$prefix.'/');
+        $this->info('Done. S3 keeps only People360 '.$result['version'].' under '.$prefix.'/');
 
         return self::SUCCESS;
     }

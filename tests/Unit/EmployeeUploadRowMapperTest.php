@@ -2,7 +2,9 @@
 
 namespace Tests\Unit;
 
+use App\Models\Campus;
 use App\Models\Employee;
+use App\Models\EmployeeCampusAssignment;
 use App\Services\EmployeeUploadRowMapper;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
@@ -170,6 +172,118 @@ class EmployeeUploadRowMapperTest extends TestCase
         $this->assertTrue(
             collect($result['errors'])->contains(
                 fn (string $error) => str_contains($error, 'Email already exists')
+            )
+        );
+    }
+
+    #[Test]
+    public function assignment_upload_switches_main_campus_payload(): void
+    {
+        $cainta = Campus::query()->create([
+            'campus_code' => 'CA',
+            'campus_name' => 'ICCT Colleges Cainta Main Campus',
+            'is_active' => true,
+        ]);
+        $antipolo = Campus::query()->create([
+            'campus_code' => 'UA',
+            'campus_name' => 'ICCT Colleges Antipolo Campus',
+            'is_active' => true,
+        ]);
+
+        $employee = Employee::query()->create([
+            'employee_number' => 'ASN-UPLOAD-1',
+            'first_name' => 'Ana',
+            'last_name' => 'Santos',
+            'email' => 'ana.asn@example.com',
+            'phone' => '09171234567',
+            'campus_id' => $cainta->campus_id,
+            'employment_status' => Employee::STATUS_ACTIVE,
+            'is_active' => true,
+            'is_hybrid' => false,
+        ]);
+
+        EmployeeCampusAssignment::query()->create([
+            'employee_id' => $employee->employee_id,
+            'campus_id' => $cainta->campus_id,
+            'biometric_id' => '1',
+            'is_primary' => true,
+            'sort_order' => 0,
+        ]);
+        EmployeeCampusAssignment::query()->create([
+            'employee_id' => $employee->employee_id,
+            'campus_id' => $antipolo->campus_id,
+            'biometric_id' => '2',
+            'is_primary' => false,
+            'sort_order' => 1,
+        ]);
+
+        $mapper = new EmployeeUploadRowMapper;
+        $seenNumbers = [];
+        $result = $mapper->mapAssignmentUploadRow(
+            [
+                'employee_number' => 'ASN-UPLOAD-1',
+                'campus_code' => 'UA',
+            ],
+            3,
+            $seenNumbers,
+        );
+
+        $this->assertSame([], $result['errors']);
+        $this->assertSame($antipolo->campus_id, $result['payload']['campus_id']);
+        $this->assertSame('CA', $result['payload']['preview']['current_campus_code']);
+        $this->assertSame('UA', $result['payload']['preview']['campus_code']);
+    }
+
+    #[Test]
+    public function assignment_upload_rejects_campus_not_assigned_to_employee(): void
+    {
+        $cainta = Campus::query()->create([
+            'campus_code' => 'CA',
+            'campus_name' => 'ICCT Colleges Cainta Main Campus',
+            'is_active' => true,
+        ]);
+        Campus::query()->create([
+            'campus_code' => 'TA',
+            'campus_name' => 'ICCT Colleges Taytay Campus',
+            'is_active' => true,
+        ]);
+
+        $employee = Employee::query()->create([
+            'employee_number' => 'ASN-UPLOAD-2',
+            'first_name' => 'Ben',
+            'last_name' => 'Reyes',
+            'email' => 'ben.asn@example.com',
+            'phone' => '09171234567',
+            'campus_id' => $cainta->campus_id,
+            'employment_status' => Employee::STATUS_ACTIVE,
+            'is_active' => true,
+            'is_hybrid' => false,
+        ]);
+
+        EmployeeCampusAssignment::query()->create([
+            'employee_id' => $employee->employee_id,
+            'campus_id' => $cainta->campus_id,
+            'biometric_id' => '9',
+            'is_primary' => true,
+            'sort_order' => 0,
+        ]);
+
+        $mapper = new EmployeeUploadRowMapper;
+        $seenNumbers = [];
+        $result = $mapper->mapAssignmentUploadRow(
+            [
+                'employee_number' => 'ASN-UPLOAD-2',
+                'campus_code' => 'TA',
+            ],
+            4,
+            $seenNumbers,
+        );
+
+        $this->assertNotSame([], $result['errors']);
+        $this->assertNull($result['payload']);
+        $this->assertTrue(
+            collect($result['errors'])->contains(
+                fn (string $error) => str_contains($error, 'is not assigned')
             )
         );
     }

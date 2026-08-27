@@ -78,12 +78,6 @@ class BiometricLogsS3PullService
 
         foreach ($keys as $key) {
             try {
-                if ($this->alreadyImported($key)) {
-                    $summary['files_skipped']++;
-
-                    continue;
-                }
-
                 $payload = $this->downloadAndDecode($key);
 
                 if (($payload['kind'] ?? null) !== 'attendance') {
@@ -103,8 +97,7 @@ class BiometricLogsS3PullService
                 $summary['punches_unmatched'] += $result['unmatched'];
                 $summary['punches_skipped_duplicates'] += $result['skipped_duplicates'];
 
-                // No Pulse employees matched this file yet — do not mark imported so a later pull can retry.
-                if (($result['batch_no'] ?? 0) === 0 && ($result['inserted'] ?? 0) === 0) {
+                if (($result['inserted'] ?? 0) === 0) {
                     $summary['files_skipped']++;
 
                     continue;
@@ -199,16 +192,6 @@ class BiometricLogsS3PullService
         sort($keys);
 
         return $keys;
-    }
-
-    private function alreadyImported(string $s3Key): bool
-    {
-        return RawTimekeepingTransaction::query()
-            ->where(function ($query) use ($s3Key) {
-                $query->where('filename', $s3Key)
-                    ->orWhere('filename', 's3:'.$s3Key);
-            })
-            ->exists();
     }
 
     /**
@@ -317,21 +300,6 @@ class BiometricLogsS3PullService
         }
 
         return DB::transaction(function () use ($user, $s3Key, $campus, $candidateRows, $unmatched) {
-            $dateTimes = collect($candidateRows)->map(fn (array $row) => $row['dt_datetime']);
-            $batchNo = ((int) RawTimekeepingTransaction::query()->max('batch_no')) + 1;
-
-            $transaction = RawTimekeepingTransaction::query()->create([
-                'timekeeping_transaction_type_id' => RawTimekeepingTransaction::TYPE_TIME_IN_OUT,
-                'dt_from' => $dateTimes->min()->copy(),
-                'dt_to' => $dateTimes->max()->copy(),
-                'uploaded_by_id' => $user->id,
-                'dt_uploaded' => now(),
-                'batch_no' => $batchNo,
-                'filename' => $s3Key,
-                'timecapture_format_id' => null,
-                'campus_id' => $campus->campus_id,
-            ]);
-
             $inOutRows = [];
             $batchFingerprints = [];
             $skippedDuplicates = 0;
@@ -351,7 +319,6 @@ class BiometricLogsS3PullService
 
                 $batchFingerprints[$fingerprint] = true;
                 $inOutRows[] = [
-                    'timekeeping_transaction_id' => $transaction->timekeeping_transaction_id,
                     'employee_id' => $row['employee_id'],
                     'dt_datetime' => $row['dt_datetime'],
                     'is_in' => $row['is_in'],
@@ -360,15 +327,39 @@ class BiometricLogsS3PullService
 
             $filtered = $this->filterExistingInOutRows($inOutRows);
             $skippedDuplicates += $filtered['skipped'];
-
-            foreach ($filtered['rows'] as $inOutRow) {
-                RawTimekeepingInandout::query()->create($inOutRow);
-            }
-
             $inserted = count($filtered['rows']);
 
-            if ($inserted === 0 && $skippedDuplicates > 0) {
-                // Keep empty batch marker so we do not re-download the same S3 object forever.
+            if ($inserted === 0) {
+                return [
+                    'batch_no' => 0,
+                    'inserted' => 0,
+                    'skipped_duplicates' => $skippedDuplicates,
+                    'unmatched' => $unmatched,
+                ];
+            }
+
+            $dateTimes = collect($filtered['rows'])->map(fn (array $row) => Carbon::parse($row['dt_datetime']));
+            $batchNo = ((int) RawTimekeepingTransaction::query()->max('batch_no')) + 1;
+
+            $transaction = RawTimekeepingTransaction::query()->create([
+                'timekeeping_transaction_type_id' => RawTimekeepingTransaction::TYPE_TIME_IN_OUT,
+                'dt_from' => $dateTimes->min()->copy(),
+                'dt_to' => $dateTimes->max()->copy(),
+                'uploaded_by_id' => $user->id,
+                'dt_uploaded' => now(),
+                'batch_no' => $batchNo,
+                'filename' => $s3Key,
+                'timecapture_format_id' => null,
+                'campus_id' => $campus->campus_id,
+            ]);
+
+            foreach ($filtered['rows'] as $inOutRow) {
+                RawTimekeepingInandout::query()->create([
+                    'timekeeping_transaction_id' => $transaction->timekeeping_transaction_id,
+                    'employee_id' => $inOutRow['employee_id'],
+                    'dt_datetime' => $inOutRow['dt_datetime'],
+                    'is_in' => $inOutRow['is_in'],
+                ]);
             }
 
             SysLogService::record(

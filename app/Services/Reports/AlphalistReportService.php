@@ -407,7 +407,7 @@ class AlphalistReportService
     }
 
     /**
-     * Previous employer columns are zero — Pulse does not store prior-employer YTD separately.
+     * Previous employer columns are zero — People360 does not store prior-employer YTD separately.
      *
      * @param  list<array<string, mixed>>  $rows
      * @param  array<string, mixed>  $meta

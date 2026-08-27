@@ -26,6 +26,7 @@
     @include('partials.full-screen-loader')
     @include('partials.full-screen-loader-fallback')
     @include('partials.sidebar')
+    @include('partials.desktop-updater-overlay')
     @include('partials.desktop-installer-update-modal')
     @include('partials.document-preview-engine-modal')
 
@@ -43,7 +44,7 @@
                 </button>
                 <div id="header-brand" class="flex min-w-0 items-center gap-2 text-[#0B318F]">
                     <svg class="h-5 w-5 shrink-0 text-[#00A3E6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                    <span class="truncate text-sm font-semibold sm:text-base">Skolaris Pulse</span>
+                    <span class="truncate text-sm font-semibold sm:text-base">People360</span>
                 </div>
             </div>
 
