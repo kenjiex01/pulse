@@ -11,16 +11,32 @@
 >
     <div @class([
         'mb-4 flex flex-col gap-3',
-        'sm:flex-row sm:items-end sm:justify-between' => ! empty($filters),
         'sm:justify-end' => empty($filters),
     ])>
         @if (! empty($filters))
-            <div class="flex flex-wrap items-end gap-3" data-live-table-filters>
-                {!! $filters !!}
-            </div>
-        @endif
+            <div class="flex flex-col gap-3">
+                <div class="min-w-0" data-live-table-filters>
+                    {!! $filters !!}
+                </div>
 
-        @if ($showSearch ?? true)
+                @if ($showSearch ?? true)
+                    <div class="flex justify-end">
+                        <div class="w-full sm:w-72">
+                            <label for="{{ $searchId }}" class="form-label">Search</label>
+                            <input
+                                id="{{ $searchId }}"
+                                type="search"
+                                value="{{ $search ?? '' }}"
+                                placeholder="{{ $searchPlaceholder ?? 'Search...' }}"
+                                class="form-input w-full"
+                                data-live-table-search
+                                autocomplete="off"
+                            >
+                        </div>
+                    </div>
+                @endif
+            </div>
+        @elseif ($showSearch ?? true)
             <div class="flex justify-end">
                 <label for="{{ $searchId }}" class="sr-only">{{ $searchPlaceholder ?? 'Search' }}</label>
                 <input

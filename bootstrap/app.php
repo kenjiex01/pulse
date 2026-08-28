@@ -31,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\PrepareAuthenticatedUser::class,
             \App\Http\Middleware\EnsureDesktopCloudBackup::class,
             \App\Http\Middleware\EnsureDesktopInstallerUpdate::class,
+            \App\Http\Middleware\ReleaseSessionLockForReadOnlyAjax::class,
         ]);
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureRole::class,

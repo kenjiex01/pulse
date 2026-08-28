@@ -26,8 +26,17 @@
         'searchId' => 'employee-search',
         'paginator' => $employees,
         'totalLabel' => 'employees',
-        'filters' => view('employees._filters', compact('status', 'compliance'))->render(),
-        'results' => view('employees._results', compact('employees', 'stats'))->render(),
+        'filters' => view('employees._filters', compact(
+            'status',
+            'compliance',
+            'campus',
+            'deptCollege',
+            'employmentCategory',
+            'campuses',
+            'colleges',
+            'employeeDepartments',
+        ))->render(),
+        'results' => view('employees._results', compact('employees', 'stats', 'listPermissions'))->render(),
     ])
 
     @can('syncFromSkolaris', \App\Models\Employee::class)

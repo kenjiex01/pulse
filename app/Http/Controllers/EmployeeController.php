@@ -8,8 +8,11 @@ use App\Http\Requests\Employee\WizardCampusRequest;
 use App\Http\Requests\Employee\WizardDetailsRequest;
 use App\Http\Requests\Employee\WizardReviewRequest;
 use App\Models\Campus;
+use App\Models\College;
 use App\Models\Employee;
+use App\Models\EmployeeDepartment;
 use App\Models\Role;
+use App\Models\User;
 use App\Services\EmployeeCampusAssignmentSync;
 use App\Services\EmployeeEmploymentSync;
 use App\Services\EmployeeHistoryService;
@@ -20,7 +23,10 @@ use App\Services\SysLogService;
 use App\Support\LiveTable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -40,39 +46,96 @@ class EmployeeController extends Controller
         $search = $request->string('search')->trim()->toString();
         $status = $request->string('status')->toString();
         $compliance = $request->string('compliance')->toString();
+        $campus = $request->string('campus')->toString();
+        $deptCollege = $request->string('dept_college')->toString();
+        $employmentCategory = $request->string('employment_category')->toString();
 
-        $baseQuery = Employee::query()
-            ->with([
-                'campus',
-                'employmentInformations.salary.payType',
-                'employmentInformations.salary.basicComputation',
-                'employmentInformations.salary.rateGroup',
-                'employmentInformations.salary.ndRateGroup',
-                'employmentInformations.salary.incomes.incomeType',
-                'employmentInformations.salary.deductions.deductionType',
-                'employmentInformations.previousSalaries.payType',
-                'employmentInformations.previousSalaries.basicComputation',
-                'employmentInformations.previousSalaries.rateGroup',
-                'employmentInformations.previousSalaries.ndRateGroup',
-                'employmentInformations.previousSalaries.incomes.incomeType',
-                'employmentInformations.previousSalaries.deductions.deductionType',
-            ])
+        $filteredQuery = Employee::query()
             ->search($search)
             ->when($status !== '' && $status !== 'all', fn ($query) => $query->where('employment_status', $status))
-            ->when($compliance !== '' && $compliance !== 'all', fn ($query) => $query->where('compliance_status', $compliance));
+            ->when($compliance !== '' && $compliance !== 'all', fn ($query) => $query->where('compliance_status', $compliance))
+            ->when($campus !== '' && $campus !== 'all', fn ($query) => $query->where('campus_id', (int) $campus))
+            ->when($deptCollege !== '' && $deptCollege !== 'all', function ($query) use ($deptCollege) {
+                if (str_starts_with($deptCollege, 'college:')) {
+                    $query->where('college', substr($deptCollege, 8));
+                } elseif (str_starts_with($deptCollege, 'department:')) {
+                    $query->where('department', substr($deptCollege, 11));
+                }
+            })
+            ->when($employmentCategory !== '' && $employmentCategory !== 'all', function ($query) use ($employmentCategory) {
+                $query->whereExists(function ($subQuery) use ($employmentCategory) {
+                    $subQuery->selectRaw('1')
+                        ->from('tbl_employee_employment_information')
+                        ->whereColumn(
+                            'tbl_employee_employment_information.employee_id',
+                            'tbl_employees.employee_id'
+                        )
+                        ->where('tbl_employee_employment_information.user_type', $employmentCategory)
+                        ->whereNull('tbl_employee_employment_information.deleted_at');
+                });
+            });
+
+        $listPermissions = $this->employeeListPermissions($request->user());
+
+        $statsRow = (clone $filteredQuery)
+            ->toBase()
+            ->selectRaw('count(*) as total')
+            ->selectRaw(
+                'sum(case when employment_status = ? then 1 else 0 end) as active',
+                [Employee::STATUS_ACTIVE]
+            )
+            ->selectRaw(
+                'sum(case when employment_status = ? then 1 else 0 end) as inactive',
+                [Employee::STATUS_INACTIVE]
+            )
+            ->selectRaw(
+                'sum(case when compliance_status = ? then 1 else 0 end) as pending_compliance',
+                [Employee::COMPLIANCE_PENDING]
+            )
+            ->first();
 
         $stats = [
-            'total' => (clone $baseQuery)->count(),
-            'active' => (clone $baseQuery)->where('employment_status', Employee::STATUS_ACTIVE)->count(),
-            'inactive' => (clone $baseQuery)->where('employment_status', Employee::STATUS_INACTIVE)->count(),
-            'pending_compliance' => (clone $baseQuery)->where('compliance_status', Employee::COMPLIANCE_PENDING)->count(),
+            'total' => (int) ($statsRow?->total ?? 0),
+            'active' => (int) ($statsRow?->active ?? 0),
+            'inactive' => (int) ($statsRow?->inactive ?? 0),
+            'pending_compliance' => (int) ($statsRow?->pending_compliance ?? 0),
         ];
 
-        $employees = (clone $baseQuery)
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->paginate(LiveTable::perPage($request, 25))
-            ->withQueryString();
+        $perPage = LiveTable::perPage($request, 25);
+        $page = Paginator::resolveCurrentPage();
+
+        $employees = new LengthAwarePaginator(
+            (clone $filteredQuery)
+                ->select([
+                    'employee_id',
+                    'employee_number',
+                    'first_name',
+                    'middle_name',
+                    'last_name',
+                    'suffix',
+                    'email',
+                    'college',
+                    'department',
+                    'campus',
+                    'campus_id',
+                    'employment_status',
+                    'compliance_status',
+                    'is_active',
+                ])
+                ->with([
+                    'campus:campus_id,campus_name,campus_code',
+                    'employmentInformations:employment_info_id,employee_id,user_type,position,sort_order',
+                ])
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->forPage($page, $perPage)
+                ->get(),
+            $stats['total'],
+            $perPage,
+            $page,
+            ['path' => Paginator::resolveCurrentPath()],
+        );
+        $employees->withQueryString();
 
         if (! $request->ajax()) {
             SysLogService::record(
@@ -82,7 +145,43 @@ class EmployeeController extends Controller
             );
         }
 
-        $viewData = compact('employees', 'stats', 'search', 'status', 'compliance');
+        if ($request->ajax()) {
+            return view('employees._results', compact('employees', 'stats', 'listPermissions'));
+        }
+
+        $campuses = Campus::query()
+            ->where('is_active', true)
+            ->orderBy('campus_name')
+            ->get(['campus_id', 'campus_name']);
+
+        $colleges = College::query()
+            ->active()
+            ->orderBy('college_name')
+            ->distinct()
+            ->get(['college_name'])
+            ->unique('college_name')
+            ->values();
+
+        $employeeDepartments = EmployeeDepartment::query()
+            ->active()
+            ->orderBy('sort_order')
+            ->orderBy('department_name')
+            ->get(['department_name']);
+
+        $viewData = compact(
+            'employees',
+            'stats',
+            'search',
+            'status',
+            'compliance',
+            'campus',
+            'deptCollege',
+            'employmentCategory',
+            'campuses',
+            'colleges',
+            'employeeDepartments',
+            'listPermissions',
+        );
 
         $stagingToken = (string) session('employee_upload_staging_token', '');
         $openPreview = $request->boolean('preview') && $stagingToken !== '';
@@ -92,10 +191,6 @@ class EmployeeController extends Controller
         $viewData['staging'] = $openPreview && $request->user()
             ? $this->uploadService->getStaging($request->user(), $stagingToken)
             : null;
-
-        if ($request->ajax()) {
-            return view('employees._results', $viewData);
-        }
 
         return view('employees.index', $viewData);
     }
@@ -442,5 +537,27 @@ class EmployeeController extends Controller
         return redirect()
             ->route('employees.index')
             ->with('success', 'Employee deleted successfully.');
+    }
+
+    /**
+     * @return array{canView: bool, canUpdate: bool, canDelete: bool}
+     */
+    private function employeeListPermissions(?User $user): array
+    {
+        if ($user === null) {
+            return [
+                'canView' => false,
+                'canUpdate' => false,
+                'canDelete' => false,
+            ];
+        }
+
+        $inactiveEmployee = new Employee(['employment_status' => Employee::STATUS_INACTIVE]);
+
+        return [
+            'canView' => Gate::forUser($user)->allows('viewAny', Employee::class),
+            'canUpdate' => Gate::forUser($user)->allows('update', $inactiveEmployee),
+            'canDelete' => Gate::forUser($user)->allows('delete', $inactiveEmployee),
+        ];
     }
 }

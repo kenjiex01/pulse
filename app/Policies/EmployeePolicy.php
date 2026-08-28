@@ -8,12 +8,23 @@ use App\Models\User;
 
 class EmployeePolicy
 {
+    private bool $employeesSubModuleResolved = false;
+
+    private ?SubModule $employeesSubModuleMemo = null;
+
     private function employeesSubModule(): ?SubModule
     {
-        return SubModule::query()
+        if ($this->employeesSubModuleResolved) {
+            return $this->employeesSubModuleMemo;
+        }
+
+        $this->employeesSubModuleMemo = SubModule::query()
             ->where('route_name', 'employees.index')
             ->where('is_active', true)
             ->first();
+        $this->employeesSubModuleResolved = true;
+
+        return $this->employeesSubModuleMemo;
     }
 
     private function hasAccess(User $user): bool

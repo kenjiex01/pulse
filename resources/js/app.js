@@ -3177,7 +3177,9 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput?.addEventListener('input', queueReload);
 
         root.querySelectorAll('[data-live-table-filter]').forEach((field) => {
-            field.addEventListener('change', queueReload);
+            field.addEventListener('change', () => {
+                loadResults();
+            });
         });
 
         perPageSelect?.addEventListener('change', () => {
@@ -5638,8 +5640,6 @@ tr { page-break-inside: avoid; }
                 }
             }
         };
-
-        fetchPending({ showLoader: false });
 
         document.addEventListener('click', (event) => {
             const openTrigger = event.target.closest('[data-modal-open="employee-skolaris-sync-modal"]');
