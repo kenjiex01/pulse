@@ -298,6 +298,15 @@ class PayrollReportsController extends Controller
 
         if ($outputFormat === 'pdf') {
             $baseFilename = str($report->title)->slug('_').'_'.now()->format('Ymd_His');
+            $pdfMode = (string) ($validated['payslip_pdf_mode'] ?? 'combined');
+
+            if (
+                $pdfMode === 'individual_zip'
+                && ($result->meta['layout'] ?? null) === 'payslip'
+                && method_exists($generator, 'downloadPdfZip')
+            ) {
+                return $generator->downloadPdfZip($result);
+            }
 
             return ReportPdfDownload::stream($result, $baseFilename);
         }

@@ -372,6 +372,18 @@
         @apply max-h-[70vh] overflow-y-auto px-5 py-4 sm:px-6 sm:py-5;
     }
 
+    .modal-panel-document-preview {
+        @apply flex max-h-[min(90dvh,calc(100dvh-2rem))] flex-col overflow-hidden;
+    }
+
+    .modal-panel-document-preview .modal-header {
+        @apply shrink-0;
+    }
+
+    .modal-body-document-preview {
+        @apply min-h-0 flex-1 overflow-y-auto;
+    }
+
     .modal-close-btn {
         @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700;
     }
@@ -623,4 +635,209 @@
         break-inside: avoid;
         page-break-inside: avoid;
     }
+}
+
+/* Company Documents — form designer (Skolaris-style) */
+.cd-dark-input {
+    @apply w-full rounded border border-white/10 bg-[#1e2230] px-2.5 py-[7px] text-[13px] text-white placeholder:text-white/25 focus:border-[#00A3E6]/70 focus:outline-none focus:ring-1 focus:ring-[#00A3E6]/30;
+}
+
+.cd-designer-top-tab-active::after {
+    content: '';
+    @apply absolute inset-x-0 bottom-0 h-1 rounded-t bg-white;
+}
+
+.company-document-designer [data-designer-panel="approvals"].flex {
+    display: flex;
+}
+
+.cd-designer-dragging,
+.cd-designer-dragging * {
+    cursor: grabbing !important;
+    user-select: none !important;
+}
+
+.cd-designer-drop-line {
+    @apply col-span-6 h-1 rounded-full bg-[#00A3E6] shadow-sm;
+}
+
+.cd-designer-canvas-inner {
+    width: 100%;
+}
+
+.company-document-designer .cd-designer-canvas-inner {
+    background-image: radial-gradient(circle, rgb(229 231 235 / 0.9) 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+.cd-document-preview-readonly .cd-designer-canvas-inner {
+    background-image: none;
+}
+
+.cd-designer-canvas-inner input:not([type='checkbox']):not([type='radio']),
+.cd-designer-canvas-inner textarea,
+.cd-designer-canvas-inner select {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.cd-designer-text-block {
+    overflow-wrap: break-word;
+    word-break: normal;
+}
+
+.cd-inline-merge-tag {
+    display: inline-block;
+    vertical-align: baseline;
+    max-width: none;
+    white-space: nowrap;
+    margin: 0 0.1em;
+    border-radius: 0.375rem;
+    border: 1px solid rgb(0 163 230 / 0.25);
+    background-color: rgb(0 163 230 / 0.1);
+    padding: 0.125rem 0.375rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    color: #0b318f;
+}
+
+.cd-designer-field-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.cd-document-preview-readonly input:not([type='checkbox']):not([type='radio']),
+.cd-document-preview-readonly textarea,
+.cd-document-preview-readonly select {
+    @apply bg-white text-gray-900;
+    pointer-events: none;
+    opacity: 1;
+    -webkit-text-fill-color: #111827;
+    color: #111827;
+}
+
+.cd-document-preview-readonly input:disabled,
+.cd-document-preview-readonly textarea:disabled,
+.cd-document-preview-readonly select:disabled {
+    opacity: 1;
+    -webkit-text-fill-color: #111827;
+    color: #111827;
+}
+
+.cd-document-preview-readonly input::placeholder,
+.cd-document-preview-readonly textarea::placeholder {
+    color: #111827;
+    opacity: 1;
+}
+
+.cd-document-preview-readonly label[data-preview-control] {
+    pointer-events: none;
+}
+
+.cd-document-preview-readonly [data-signature-pad],
+.cd-designer-canvas-inner [data-signature-pad] {
+    pointer-events: auto;
+}
+
+.cd-document-preview-readonly .cd-designer-field-body:has(.cd-designer-image-preview),
+.cd-document-preview-readonly .cd-designer-image-preview {
+    overflow: visible !important;
+}
+
+.cd-document-preview-readonly .cd-designer-image-preview img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Memo / company-document canvas matches legal bond paper (8.5 × 14 in @ 96dpi). */
+.company-document-preview [data-preview-canvas] {
+    width: 816px;
+    max-width: 100%;
+}
+
+.cd-legal-paper {
+    width: 100%;
+    max-width: 816px;
+    min-height: 1344px;
+    margin: 0 auto;
+    background: #fff;
+    box-sizing: border-box;
+    padding: 16px 88px;
+}
+
+.cd-legal-paper .cd-designer-canvas-inner {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.cd-designer-image-preview {
+    overflow: visible;
+}
+
+.cd-legal-page-break {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    border-top: 1px dashed #93c5fd;
+    pointer-events: none;
+    font-size: 10px;
+    line-height: 1;
+    color: #3b82f6;
+    padding-top: 4px;
+    text-align: right;
+}
+
+.cd-designer-field-body textarea {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    resize: none;
+}
+
+.cd-designer-resize-handle,
+.cd-designer-image-resize-handle {
+    touch-action: none;
+}
+
+.cd-designer-image-preview,
+.cd-designer-image-preview img {
+    background-color: transparent;
+}
+
+.cd-designer-image-preview img {
+    transform-origin: center center;
+}
+
+.cd-dark-range {
+    appearance: none;
+    height: 6px;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.18);
+    outline: none;
+}
+
+.cd-dark-range::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: #00A3E6;
+    cursor: pointer;
+    border: 0;
+}
+
+.cd-dark-range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: #00A3E6;
+    cursor: pointer;
+    border: 0;
 }

@@ -22,6 +22,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class TimeLogsController extends Controller
 {
@@ -426,11 +427,17 @@ class TimeLogsController extends Controller
                 campusId: isset($validated['campus_id']) ? (int) $validated['campus_id'] : null,
                 collectorFolder: $validated['collector_folder'] ?? null,
             );
-        } catch (RuntimeException $exception) {
+        } catch (Throwable $exception) {
+            report($exception);
+
+            $message = $exception instanceof RuntimeException
+                ? $exception->getMessage()
+                : 'S3 pull stopped because it took too long or could not reach the bucket. Try one collector folder, then try again.';
+
             return redirect()
                 ->route(TimeLogs::routeName('tab'), ['tab' => $tab, 's3_pull' => 1])
                 ->withInput()
-                ->with('error', $exception->getMessage());
+                ->with('error', $message);
         }
 
         $message = sprintf(

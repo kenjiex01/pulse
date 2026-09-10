@@ -331,6 +331,10 @@ class EmployeeUploadRowMapper
             }
         }
 
+        if (filled($row['bank_account_type'] ?? '') && ! $this->isValidBankAccountType($row['bank_account_type'])) {
+            $errors[] = "Line {$lineNumber}: Invalid account type (use savings, checking, or payroll).";
+        }
+
         foreach ([
             'tin_number' => GovernmentIdNumbers::TYPE_TIN,
             'sss_number' => GovernmentIdNumbers::TYPE_SSS,
@@ -660,6 +664,11 @@ class EmployeeUploadRowMapper
             'pagibig_number' => $this->nullable($row['pagibig_number'] ?? ''),
             'gsis_number' => $this->nullable($row['gsis_number'] ?? ''),
             'tax_status' => $this->nullable($row['tax_status'] ?? ''),
+            'bank_name' => $this->nullable($row['bank_name'] ?? ''),
+            'bank_account_number' => $this->normalizeBankAccountNumber($row['bank_account_number'] ?? ''),
+            'bank_account_type' => filled($row['bank_account_type'] ?? '')
+                ? strtolower(trim((string) $row['bank_account_type']))
+                : null,
             'emergency_contact_name' => $this->nullable($row['emergency_contact_name'] ?? ''),
             'emergency_contact_relationship' => $this->nullable($row['emergency_contact_relationship'] ?? ''),
             'emergency_contact_phone' => $this->nullable($row['emergency_contact_phone'] ?? ''),
@@ -1288,6 +1297,11 @@ class EmployeeUploadRowMapper
         ], true);
     }
 
+    private function isValidBankAccountType(string $value): bool
+    {
+        return array_key_exists(strtolower(trim($value)), Employee::selectableBankAccountTypes());
+    }
+
     private function isValidDate(string $value): bool
     {
         return $this->normalizeDate($value) !== null;
@@ -1423,6 +1437,19 @@ class EmployeeUploadRowMapper
         $trimmed = trim($value);
 
         return $trimmed === '' ? null : (float) $trimmed;
+    }
+
+    private function normalizeBankAccountNumber(string $value): ?string
+    {
+        $trimmed = trim($value);
+
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $normalized = preg_replace('/\s+/', '', $trimmed);
+
+        return $normalized === '' ? null : $normalized;
     }
 
     /**

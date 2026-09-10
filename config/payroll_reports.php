@@ -88,6 +88,7 @@ return [
                 'employee_ids' => ['required', 'array', 'min:1'],
                 'employee_ids.*' => ['integer', 'exists:tbl_employees,employee_id'],
                 'output_format' => ['required', 'in:html,excel,pdf'],
+                'payslip_pdf_mode' => ['nullable', 'in:combined,individual_zip'],
             ],
         ],
         'bir-1601c' => [

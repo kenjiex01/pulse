@@ -61,13 +61,13 @@
     <h1>People360</h1>
     <p class="subtitle">HRIS Blueprint Status Report</p>
     <p class="muted">Desktop + Web · What already works · What is incomplete · What is not yet built</p>
-    <p class="muted"><strong>Date:</strong> 27 August 2026 &nbsp;|&nbsp; <strong>Audience:</strong> Management, HR, and project stakeholders</p>
-    <p class="note">Compares the Philippine HRIS Software Module Blueprint (28 modules) with <strong>People360 Desktop</strong> (<code>pulse/</code>) and <strong>People360 Web</strong> (Skolaris <code>/people360</code> in <code>iskolaris-fe</code> + <code>iskolaris-be</code>). <strong>Combined</strong> = best of both. Planning guide only — not a legal review.</p>
+    <p class="muted"><strong>Date:</strong> 29 August 2026 &nbsp;|&nbsp; <strong>Audience:</strong> Management, HR, and project stakeholders</p>
+    <p class="note">Compares the Philippine HRIS Software Module Blueprint (28 modules) with <strong>People360 Desktop</strong> (<code>pulse/</code>) and <strong>People360 Web</strong> (Skolaris <code>/people360</code> in <code>iskolaris-fe</code> + <code>iskolaris-be</code>). <strong>Combined</strong> = best of both. Planning guide only — not a legal review. See also the <a href="People360-HRIS-Blueprint-Progress.html">Blueprint Progress dashboard</a> (Ready / Partial / Pending).</p>
 
     <h2>How to read this report</h2>
     <table>
       <tr><th style="width:22%">Status</th><th>Meaning</th></tr>
-      <tr class="ready"><td><span class="badge ready">Ready</span></td><td>Fully matches the blueprint for day-to-day use. (None of the 28 are 100% ready yet.)</td></tr>
+      <tr class="ready"><td><span class="badge ready">Ready</span></td><td>Matches the agreed product scope for day-to-day use on that surface.</td></tr>
       <tr class="partial"><td><span class="badge partial">Partial</span></td><td>Useful screens/workflows exist, but important blueprint items are still missing.</td></tr>
       <tr class="pending"><td><span class="badge pending">Not yet built</span></td><td>No matching module or workflow on that product.</td></tr>
     </table>
@@ -80,18 +80,24 @@
     <p>Desktop is strongest for <strong>school payroll and timekeeping</strong>. Web is strongest for <strong>employee self-service, document review, attendance checker, and Job Order requests</strong>. Together they are still not a full hire-to-retire HRIS.</p>
     <table>
       <tr><th>Status</th><th>Count</th><th>Meaning</th></tr>
-      <tr class="ready"><td>Ready</td><td>0 of 28</td><td>No module is complete vs the full blueprint.</td></tr>
-      <tr class="partial"><td>Partial</td><td>13 of 28</td><td>Includes M16 (self-service) now that Web ESS exists.</td></tr>
+      <tr class="ready"><td>Ready</td><td>3 of 28</td><td>M01 Organization &amp; HR Configuration; M05 Time, Attendance &amp; Scheduling; M06 Leave &amp; Absence (desktop payroll leave; Combined follows desktop).</td></tr>
+      <tr class="partial"><td>Partial</td><td>10 of 28</td><td>Includes M16 (self-service) now that Web ESS exists.</td></tr>
       <tr class="pending"><td>Not yet built</td><td>15 of 28</td><td>Needs new design and development on both products.</td></tr>
     </table>
     <ul>
       <li><strong>Desktop:</strong> employees, payroll, time logs, BIR / SSS / PhilHealth / Pag-IBIG reports, faculty load pay.</li>
       <li><strong>Web:</strong> employee login, profile, document upload + HR review, attendance view, Job Order (WRF) + approvals.</li>
-      <li><strong>Still missing on both:</strong> recruitment, leave filing/balances, contractors, discipline, full clearance/separation, live clock-in.</li>
+      <li><strong>Still missing on both:</strong> recruitment, contractors, discipline, full clearance/separation. Leave filing/balances and live clock-in — Web, not Desktop.</li>
     </ul>
 
     <h2>What already works well</h2>
     <h3>On Desktop</h3>
+    <p class="strong-title">Organization &amp; HR setup (M01)</p>
+    <p class="strong-body">Campuses, colleges, programs, departments, positions, designations, ranks, employment types, payroll calendar, holidays, users and roles. Org chart is deferred. Approval matrices will be built on Web, not Desktop.</p>
+    <p class="strong-title">Time &amp; attendance (M05)</p>
+    <p class="strong-body">Policy, shifts, holidays, time log upload, biometric S3 pull, employee attendance edit, payroll OT, faculty load hours. Live clock-in, OB, and ESS corrections will be built on Web, not Desktop.</p>
+    <p class="strong-title">Leave &amp; absence (M06)</p>
+    <p class="strong-body">Leave types, policy mapping, attendance-derived leave in payroll, manual/upload in batch. Leave filing, balances, accrual, and manager approval will be built on Web, not Desktop.</p>
     <p class="strong-title">Payroll</p>
     <p class="strong-body">Pay periods, compute/post, OT / ND / holiday, payslips, register, BIR 1601-C / 2316 / Alphalist.</p>
     <p class="strong-title">Government contributions</p>
@@ -114,12 +120,12 @@
     <h2>Full checklist — Desktop · Web · Combined</h2>
     <table>
       <tr><th>ID</th><th>Module</th><th>Priority</th><th>Desktop</th><th>Web</th><th>Combined</th></tr>
-      <tr><td>M01</td><td>Organization &amp; HR Configuration</td><td>MVP</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+      <tr><td>M01</td><td>Organization &amp; HR Configuration</td><td>MVP</td><td class="ready">Ready</td><td class="partial">Partial</td><td class="ready">Ready</td></tr>
       <tr><td>M02</td><td>Worker / Employee Master Data</td><td>MVP</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
       <tr><td>M03</td><td>Recruitment &amp; Applicant Tracking</td><td>MVP</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
       <tr><td>M04</td><td>Onboarding &amp; Employment Documents</td><td>MVP</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
-      <tr><td>M05</td><td>Time, Attendance &amp; Scheduling</td><td>MVP</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
-      <tr><td>M06</td><td>Leave &amp; Absence Management</td><td>MVP</td><td class="partial">Partial</td><td class="pending">Not yet built</td><td class="partial">Partial</td></tr>
+      <tr><td>M05</td><td>Time, Attendance &amp; Scheduling</td><td>MVP</td><td class="ready">Ready</td><td class="partial">Partial</td><td class="ready">Ready</td></tr>
+      <tr><td>M06</td><td>Leave &amp; Absence Management</td><td>MVP</td><td class="ready">Ready</td><td class="pending">Not yet built</td><td class="ready">Ready</td></tr>
       <tr><td>M07</td><td>Payroll &amp; Statutory Pay</td><td>MVP</td><td class="partial">Partial</td><td class="pending">Not yet built</td><td class="partial">Partial</td></tr>
       <tr><td>M08</td><td>Benefits &amp; Government Contributions</td><td>MVP</td><td class="partial">Partial</td><td class="pending">Not yet built</td><td class="partial">Partial</td></tr>
       <tr><td>M09</td><td>Performance Management</td><td>Phase 2</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td><td class="pending">Not yet built</td></tr>
@@ -145,8 +151,9 @@
     </table>
 
     <h2>Suggested next steps</h2>
+    <p class="note">M01 desktop is Ready. Org chart is deferred. Approval matrices will be built on Web (<code>iskolaris-fe</code> / <code>iskolaris-be</code>) by another owner — not on Desktop. M05 desktop is Ready; live clock-in, QR punch, official business, ESS time corrections, and attendance approval workflow will be built on Web — not on Desktop. M06 desktop is Ready; leave filing, balances, accrual, and manager approval will be built on Web — not on Desktop.</p>
     <ol>
-      <li>Leave filing &amp; balances (M06) — use Web ESS shell; Desktop already has leave types.</li>
+      <li>Leave filing &amp; balances (M06 web) — build on desktop leave types + web ESS shell.</li>
       <li>Finish self-service (M16) — add OT corrections, certificates, leave on top of Job Order.</li>
       <li>Effective-dated government rates (M17 / M08) — Desktop.</li>
       <li>Onboarding checklist (M04) — extend Web soft gate + Desktop credentials.</li>
@@ -158,7 +165,8 @@
 
     <footer>
       <p>— End of report —</p>
-      <p>Source: HRIS Blueprint (PH). Products: People360 Desktop (pulse/) + Web (iskolaris-fe/be /people360).<br>
+      <p>Progress dashboard: <a href="People360-HRIS-Blueprint-Progress.html">People360-HRIS-Blueprint-Progress.html</a><br>
+      Source: HRIS Blueprint (PH). Products: People360 Desktop (pulse/) + Web (iskolaris-fe/be /people360).<br>
       Technical detail: pulse/docs/hris-blueprint-gap-analysis.md</p>
     </footer>
   </div>

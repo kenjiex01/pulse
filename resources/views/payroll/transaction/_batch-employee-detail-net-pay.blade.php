@@ -1,13 +1,7 @@
 @php
-    $incomeLines = $incomes
-        ->map(fn ($income) => [
-            'label' => $income->incomeType?->description ?? $income->incomeType?->income_type_code ?? 'Income',
-            'hours' => $income->hours !== null ? (float) $income->hours : null,
-            'days' => $income->days !== null ? (float) $income->days : null,
-            'amount' => (float) $income->taxable + (float) $income->non_taxable,
-        ])
-        ->filter(fn (array $line) => $line['amount'] !== 0.0)
-        ->values();
+    use App\Support\PayrollBatchNetPayLines;
+
+    $incomeLines = PayrollBatchNetPayLines::incomeLines($incomes);
 
     $deductionLines = $deductionRows
         ->map(fn (array $deduction) => [

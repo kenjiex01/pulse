@@ -179,6 +179,7 @@
             </thead>
             <tbody>
                 @forelse ($batchEmployees as $detail)
+                    @php($belowHalfPeriod = \App\Support\PayrollBatchEmployeeAttendance::isBelowHalfPayrollPeriod($detail))
                     <tr>
                         @if ($batchEditable)
                             <td class="px-3 py-2">
@@ -193,7 +194,11 @@
                             </td>
                         @endif
                         <td class="px-3 py-2 font-medium text-gray-900">{{ $detail->employee?->employee_number ?? '—' }}</td>
-                        <td class="px-3 py-2 text-gray-600">{{ $detail->employee?->full_name ?? '—' }}</td>
+                        <td @class([
+                            'px-3 py-2',
+                            'font-medium text-red-600' => $belowHalfPeriod,
+                            'text-gray-600' => ! $belowHalfPeriod,
+                        ])>{{ $detail->employee?->full_name ?? '—' }}</td>
                         <td class="px-3 py-2 text-right">
                             <a
                                 href="{{ route(\App\Support\PayrollTransactionModule::routeName('employees.show'), [$batch, $detail->payroll_batch_detail_id]) }}?batch_employee_search={{ urlencode($batchEmployeeSearch) }}&search={{ urlencode(request('search', '')) }}"

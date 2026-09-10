@@ -83,6 +83,8 @@ def tint_status(cell, status: str):
             set_run_font(run, size=8, bold=True, color=RED)
     elif status == "Ready":
         shade_cell(cell, "DCFCE7")
+        for run in cell.paragraphs[0].runs:
+            set_run_font(run, size=8, bold=True, color=RGBColor(0x16, 0x65, 0x34))
 
 
 def add_table(doc, headers, rows, header_fill="0B318F", status_cols=None):
@@ -128,7 +130,7 @@ def main():
         size=11,
         color=RGBColor(0x64, 0x74, 0x8B),
     )
-    add_para(doc, "Date: 27 August 2026  |  Audience: Management, HR, and project stakeholders", size=10)
+    add_para(doc, "Date: 29 August 2026  |  Audience: Management, HR, and project stakeholders", size=10)
     add_para(
         doc,
         "This report compares the Philippine HRIS Software Module Blueprint (28 modules) with People360 Desktop (pulse app) and People360 Web (Skolaris /people360 in iskolaris-fe + iskolaris-be). Combined = best of both. Planning guide only — not a legal review.",
@@ -137,7 +139,7 @@ def main():
 
     add_heading(doc, "How to read this report", 2)
     add_para(doc, "Three statuses, shown for Desktop, Web, and Combined:", size=11)
-    add_bullet(doc, "Ready — Fully matches the blueprint for day-to-day use. (None of the 28 are 100% ready yet.)")
+    add_bullet(doc, "Ready — Matches the agreed product scope for day-to-day use on that surface.")
     add_bullet(doc, "Partial — Useful screens/workflows exist, but important blueprint items are still missing.")
     add_bullet(doc, "Not yet built — No matching module or workflow on that product.")
     add_bullet(doc, "Desktop = People360 installer app (pulse/). Web = browser People360 under /people360 (iskolaris-fe + iskolaris-be).")
@@ -151,19 +153,22 @@ def main():
         doc,
         ["Status", "Count", "Meaning"],
         [
-            ["Ready", "0 of 28", "No module is complete vs the full blueprint."],
-            ["Partial", "13 of 28", "Includes M16 (self-service) now that Web ESS exists."],
+            ["Ready", "3 of 28", "M01 Organization & HR Configuration; M05 Time, Attendance & Scheduling; M06 Leave & Absence (desktop; Combined follows desktop)."],
+            ["Partial", "10 of 28", "Includes M16 (self-service) now that Web ESS exists."],
             ["Not yet built", "15 of 28", "Needs new design and development on both products."],
         ],
     )
     add_para(doc, "In plain words:", bold=True, color=NAVY)
     add_bullet(doc, "Desktop: manage employees, run payroll, pull time logs, generate BIR / SSS / PhilHealth / Pag-IBIG reports, faculty load pay.")
     add_bullet(doc, "Web: employees log in, update profile, upload documents for HR review, view attendance, file Job Order (WRF) requests, and get approvals.")
-    add_bullet(doc, "Still missing on both: recruitment, leave filing/balances, contractors, discipline cases, full clearance/separation, live clock-in.")
+    add_bullet(doc, "Still missing on both: recruitment, contractors, discipline, full clearance/separation. Leave filing/balances and live clock-in — Web, not Desktop.")
 
     add_heading(doc, "What already works well", 2)
     add_heading(doc, "On Desktop", 3)
     for title, body in [
+        ("Organization & HR setup (M01)", "Campuses, colleges, programs, departments, positions, designations, ranks, employment types, payroll calendar, holidays, users and roles. Org chart deferred. Approval matrices will be built on Web, not Desktop."),
+        ("Time & attendance (M05)", "Policy, shifts, holidays, time log upload, biometric S3 pull, HR attendance edit, payroll OT, faculty load. Live clock-in, OB, and ESS corrections — Web, not Desktop."),
+        ("Leave & absence (M06)", "Leave types, policy mapping, attendance-derived leave in payroll, manual/upload in batch. Filing, balances, accrual, manager approval — Web, not Desktop."),
         ("Payroll", "Pay periods, compute/post, OT / ND / holiday, payslips, register, BIR 1601-C / 2316 / Alphalist."),
         ("Government contributions", "SSS, PhilHealth, Pag-IBIG tables and contribution reports; employee loans."),
         ("Timekeeping", "Policies, shifts, holidays, time log upload, biometric pull, attendance edit, OT for payroll."),
@@ -200,12 +205,12 @@ def main():
 
     add_heading(doc, "Full checklist — Desktop · Web · Combined", 2)
     all_rows = [
-        ["M01", "Organization & HR Configuration", "MVP", "Partial", "Partial", "Partial"],
+        ["M01", "Organization & HR Configuration", "MVP", "Ready", "Partial", "Ready"],
         ["M02", "Worker / Employee Master Data", "MVP", "Partial", "Partial", "Partial"],
         ["M03", "Recruitment & Applicant Tracking", "MVP", "Not yet built", "Not yet built", "Not yet built"],
         ["M04", "Onboarding & Employment Documents", "MVP", "Partial", "Partial", "Partial"],
-        ["M05", "Time, Attendance & Scheduling", "MVP", "Partial", "Partial", "Partial"],
-        ["M06", "Leave & Absence Management", "MVP", "Partial", "Not yet built", "Partial"],
+        ["M05", "Time, Attendance & Scheduling", "MVP", "Ready", "Partial", "Ready"],
+        ["M06", "Leave & Absence Management", "MVP", "Ready", "Not yet built", "Ready"],
         ["M07", "Payroll & Statutory Pay", "MVP", "Partial", "Not yet built", "Partial"],
         ["M08", "Benefits & Government Contributions", "MVP", "Partial", "Not yet built", "Partial"],
         ["M09", "Performance Management", "Phase 2", "Not yet built", "Not yet built", "Not yet built"],
@@ -240,11 +245,11 @@ def main():
         doc,
         ["ID", "Area", "Desktop", "Web", "What you should know"],
         [
-            ["M01", "Organization", "Partial", "Partial", "Desktop has org masters. Web has users/roles + API keys only."],
-            ["M02", "Employee master", "Partial", "Partial", "Desktop = full CRUD. Web = restored local employees + ESS profile."],
+            ["M01", "Organization", "Ready", "Partial", "Desktop org masters are ready. Org chart deferred. Approval matrices are Web (iskolaris-fe/be), not Desktop."],
+            ["M02", "Employee master", "Partial", "Partial", "Desktop = full CRUD; pending bank accounts only. Web = restored local employees + ESS profile."],
             ["M04", "Documents", "Partial", "Partial", "Web ESS upload + HR review. No full onboarding case / e-contract."],
-            ["M05", "Time & attendance", "Partial", "Partial", "Desktop import/payroll. Web checker + ESS read. No live clock-in."],
-            ["M06", "Leave", "Partial", "Not yet built", "Desktop leave types for payroll only. No filing on either product."],
+            ["M05", "Time & attendance", "Ready", "Partial", "Desktop import/process ready. Live clock-in, OB, ESS corrections, attendance approval — Web (iskolaris-fe/be), not Desktop."],
+            ["M06", "Leave", "Ready", "Not yet built", "Desktop payroll leave ready. Filing, balances, accrual, manager approval — Web (iskolaris-fe/be), not Desktop."],
             ["M07", "Payroll", "Partial", "Not yet built", "Strong on desktop. Web = SQL backup restore only."],
             ["M08", "Benefits", "Partial", "Not yet built", "Statutory tables/reports on desktop only."],
             ["M15", "Privacy", "Partial", "Partial", "Desktop sys_logs. Web privacy consent + Pulse audit."],
@@ -276,9 +281,24 @@ def main():
     add_bullet(doc, "Optional (private business) — Sales commissions; field/branch workforce ops.")
 
     add_heading(doc, "Suggested next steps", 2)
+    add_para(
+        doc,
+        "M01 desktop is Ready. Org chart is deferred. Approval matrices will be built on Web (iskolaris-fe / iskolaris-be) by another owner — not on Desktop.",
+        size=10,
+    )
+    add_para(
+        doc,
+        "M05 desktop is Ready. Live clock-in, QR punch, official business, ESS time corrections, and attendance approval workflow will be built on Web — not on Desktop.",
+        size=10,
+    )
+    add_para(
+        doc,
+        "M06 desktop is Ready. Leave filing, balances, accrual, and manager approval will be built on Web (iskolaris-fe / iskolaris-be) — not on Desktop.",
+        size=10,
+    )
     add_para(doc, "From the Combined position (Desktop payroll + Web ESS), close the biggest MVP gaps first:")
     steps = [
-        "Leave filing & balances (M06) — use Web ESS shell; Desktop already has leave types.",
+        "Leave filing & balances (M06 web) — build on desktop leave types + Web ESS shell.",
         "Finish self-service (M16) — add OT corrections, certificates, leave on top of Job Order.",
         "Effective-dated government rates (M17 / M08) — Desktop, so old payroll stays correct.",
         "Onboarding checklist (M04) — extend Web soft gate + Desktop credentials.",

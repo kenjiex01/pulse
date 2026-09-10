@@ -1,36 +1,11 @@
 @php
+    use App\Support\PayrollBatchNetPayLines;
     use App\Support\PayrollTransactionModule;
-    use App\Support\PhilhealthDeductionTypes;
 
     $activeTab = PayrollTransactionModule::resolveBatchDetailTab($activeTab ?? 'incomes');
     $hasPayrollData = $detail->incomes->isNotEmpty() || $detail->deductions->isNotEmpty();
     $incomes = $detail->incomes->sortBy(fn ($income) => $income->incomeType?->income_type_code ?? '');
-    $deductionRows = $detail->deductions
-        ->groupBy(fn ($deduction) => (int) $deduction->deduction_type_id)
-        ->map(function ($group) {
-            $first = $group->first();
-            $code = $first->deductionType?->deduction_type_code;
-            $hoursSum = $group->sum(fn ($deduction) => (float) ($deduction->hours ?? 0));
-            $daysSum = $group->sum(fn ($deduction) => (float) ($deduction->days ?? 0));
-            $hasHours = in_array($code, ['LTDE', 'UTDE'], true)
-                && $group->contains(fn ($deduction) => $deduction->hours !== null);
-            $hasDays = in_array($code, ['LTDE', 'UTDE'], true)
-                && $group->contains(fn ($deduction) => $deduction->days !== null);
-
-            return [
-                'code' => $code,
-                'description' => PhilhealthDeductionTypes::payrollBatchLabel($code, $first->deductionType?->description),
-                'hours' => $hasHours ? $hoursSum : null,
-                'show_hours' => $hasHours,
-                'minutes' => $hasHours ? (int) round($hoursSum * 60) : null,
-                'days' => $hasDays ? $daysSum : null,
-                'show_days' => $hasDays,
-                'employee_amount' => $group->sum(fn ($deduction) => (float) $deduction->employee_amount),
-                'employer_amount' => $group->sum(fn ($deduction) => (float) $deduction->employer_amount),
-            ];
-        })
-        ->sortBy('code')
-        ->values();
+    $deductionRows = PayrollBatchNetPayLines::deductionRows($detail->deductions);
     $taxableTotal = $incomes->sum(fn ($income) => (float) $income->taxable);
     $nonTaxableTotal = $incomes->sum(fn ($income) => (float) $income->non_taxable);
     $hoursTotal = $incomes->contains(fn ($income) => $income->hours !== null)

@@ -25,6 +25,24 @@ class Employee extends Model
 
     public const COMPLIANCE_WITHHELD = 'withheld';
 
+    public const BANK_ACCOUNT_TYPE_SAVINGS = 'savings';
+
+    public const BANK_ACCOUNT_TYPE_CHECKING = 'checking';
+
+    public const BANK_ACCOUNT_TYPE_PAYROLL = 'payroll';
+
+    /**
+     * @return array<string, string>
+     */
+    public static function selectableBankAccountTypes(): array
+    {
+        return [
+            self::BANK_ACCOUNT_TYPE_SAVINGS => 'Savings',
+            self::BANK_ACCOUNT_TYPE_CHECKING => 'Checking',
+            self::BANK_ACCOUNT_TYPE_PAYROLL => 'Payroll',
+        ];
+    }
+
     /**
      * @return array<string, string>
      */
@@ -75,6 +93,9 @@ class Employee extends Model
         'pagibig_number',
         'gsis_number',
         'tax_status',
+        'bank_name',
+        'bank_account_number',
+        'bank_account_type',
         'emergency_contact_name',
         'emergency_contact_relationship',
         'emergency_contact_phone',
@@ -335,6 +356,15 @@ class Employee extends Model
         return $prefix.str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
     }
 
+    public function bankAccountTypeLabel(): ?string
+    {
+        if (blank($this->bank_account_type)) {
+            return null;
+        }
+
+        return self::selectableBankAccountTypes()[$this->bank_account_type] ?? $this->bank_account_type;
+    }
+
     public function extended(string $key, mixed $default = null): mixed
     {
         return data_get($this->extended_profile, $key, $default);
@@ -408,6 +438,9 @@ class Employee extends Model
                 'pagibig_number',
                 'gsis_number',
                 'tax_status',
+                'bank_name',
+                'bank_account_number',
+                'bank_account_type',
                 'emergency_contact_name',
                 'emergency_contact_relationship',
                 'emergency_contact_phone',

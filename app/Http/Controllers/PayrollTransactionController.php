@@ -16,9 +16,12 @@ use App\Services\EmployeeOvertimeApprovalService;
 use App\Services\PayrollAttendanceDayBreakdownService;
 use App\Services\PayrollBatchService;
 use App\Services\PayrollTransactionUploadService;
+use App\Services\PayslipEmailService;
+use App\Services\Reports\ReportBatchOptionsService;
 use App\Services\SysLogService;
 use App\Support\LiveTable;
 use App\Support\PayrollTransactionModule;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +30,7 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 class PayrollTransactionController extends Controller
 {
@@ -35,6 +39,8 @@ class PayrollTransactionController extends Controller
         private readonly PayrollTransactionUploadService $uploadService,
         private readonly EmployeeOvertimeApprovalService $overtimeApprovalService,
         private readonly PayrollAttendanceDayBreakdownService $attendanceDayBreakdown,
+        private readonly ReportBatchOptionsService $batchOptions,
+        private readonly PayslipEmailService $payslipEmail,
     ) {}
 
     public function index(Request $request, string $tab): View|RedirectResponse
@@ -78,6 +84,7 @@ class PayrollTransactionController extends Controller
         $staging = null;
         $stagingToken = null;
         $viewUploadTransaction = null;
+        $postedBatches = collect();
 
         if (in_array($tab, ['batches', 'unpost-batches'], true)) {
             $batches = PayrollBatch::query()
@@ -337,6 +344,16 @@ class PayrollTransactionController extends Controller
                         .' ('.$uploadRecords->total().' records)',
                 );
             }
+        } elseif ($tab === 'payslip') {
+            $postedBatches = $this->batchOptions->postedBatchesForUser($request->user());
+
+            if (! $request->ajax()) {
+                SysLogService::record(
+                    action: 'read',
+                    table: 'trn_payroll_batches',
+                    description: 'Opened Payslip email tab',
+                );
+            }
         }
 
         $viewData = [
@@ -378,6 +395,7 @@ class PayrollTransactionController extends Controller
             'staging' => $staging,
             'stagingToken' => $stagingToken,
             'viewUploadTransaction' => $viewUploadTransaction,
+            'postedBatches' => $postedBatches ?? collect(),
         ];
 
         if ($request->ajax()) {
@@ -1361,5 +1379,78 @@ class PayrollTransactionController extends Controller
             'batch_employee_search' => $request->input('batch_employee_search'),
             'search' => $request->input('search'),
         ]));
+    }
+
+    public function sendPayslipEmail(Request $request): JsonResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        $validated = $request->validate([
+            'payroll_batch_id' => ['required', 'integer', 'exists:trn_payroll_batches,payroll_batch_id'],
+            'employee_id' => ['required', 'integer', 'exists:tbl_employees,employee_id'],
+        ]);
+
+        try {
+            $result = $this->payslipEmail->sendOne(
+                (int) $validated['payroll_batch_id'],
+                (int) $validated['employee_id'],
+                $request->user(),
+            );
+        } catch (ValidationException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($exception->errors())->flatten()->first() ?? 'Unable to send payslip email.',
+                'errors' => $exception->errors(),
+            ], 422);
+        } catch (TransportExceptionInterface $exception) {
+            report($exception);
+
+            return response()->json([
+                'success' => false,
+                'message' => self::payslipEmailTransportErrorMessage($exception),
+            ], 500);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to send payslip email. Please try again or contact support.',
+            ], 500);
+        }
+
+        return response()->json($result);
+    }
+
+    private static function payslipEmailTransportErrorMessage(TransportExceptionInterface $exception): string
+    {
+        $message = $exception->getMessage();
+
+        if (
+            str_contains($message, '535')
+            || str_contains($message, 'BadCredentials')
+            || str_contains($message, 'authenticate')
+            || str_contains($message, 'InvalidClientTokenId')
+            || str_contains($message, 'SignatureDoesNotMatch')
+            || str_contains($message, 'security token included in the request is invalid')
+        ) {
+            if (config('mail.default') === 'ses') {
+                return 'AWS email authentication failed. Check AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in pulse/.env, then restart the app.';
+            }
+
+            return 'Email authentication failed. Set a valid Google App Password in MAIL_PASSWORD inside pulse/.env, then restart the app.';
+        }
+
+        if (
+            str_contains($message, 'Email address is not verified')
+            || str_contains($message, 'MessageRejected')
+        ) {
+            return 'AWS SES rejected the email. Verify MAIL_FROM_ADDRESS (and recipient if in sandbox) in the AWS SES console, then try again.';
+        }
+
+        if (str_contains($message, 'Connection could not be established')) {
+            return 'Unable to connect to the email server. Check mail settings in pulse/.env (SMTP host/port or AWS region for SES).';
+        }
+
+        return 'Unable to send payslip email. Please verify email settings or contact support.';
     }
 }

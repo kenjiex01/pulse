@@ -79,6 +79,9 @@
             <div><p class="text-sm text-gray-600">Pag-IBIG</p><p class="mt-1 font-medium text-gray-900">{{ filled($employee->pagibig_number) ? \App\Support\GovernmentIdNumbers::format($employee->pagibig_number, \App\Support\GovernmentIdNumbers::TYPE_PAGIBIG) : $employee->displayValue($employee->pagibig_number) }}</p></div>
             <div><p class="text-sm text-gray-600">GSIS</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->gsis_number) }}</p></div>
             <div><p class="text-sm text-gray-600">Tax Status</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->tax_status) }}</p></div>
+            <div><p class="text-sm text-gray-600">Bank Name</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->bank_name) }}</p></div>
+            <div><p class="text-sm text-gray-600">Account Number</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->bank_account_number) }}</p></div>
+            <div><p class="text-sm text-gray-600">Account Type</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employee->bankAccountTypeLabel()) }}</p></div>
         </div>
     </div>
 

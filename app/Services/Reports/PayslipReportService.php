@@ -9,6 +9,8 @@ use App\Models\PayrollBatchStatus;
 use App\Models\Report;
 use App\Models\TeachingLoadSession;
 use App\Models\User;
+use App\Support\PayrollBatchNetPayLines;
+use App\Support\PayslipFilename;
 use App\Support\SpreadsheetDownload;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
@@ -38,6 +40,154 @@ class PayslipReportService
             rows: $dataset['rows'],
             meta: $dataset['meta'],
         );
+    }
+
+    public function downloadPdfZip(ReportGenerationResult $result): StreamedResponse
+    {
+        $payslips = $result->meta['payslips'] ?? [];
+        $batchLabel = (string) ($result->meta['batch_label'] ?? 'Payslip');
+        $companyName = (string) ($result->meta['company_name'] ?? config('app.name'));
+        $zipFilename = PayslipFilename::sanitize('Payslip '.$batchLabel.' '.now()->format('Ymd_His')).'.zip';
+
+        return response()->streamDownload(function () use ($payslips, $companyName, $result): void {
+            $zipPath = tempnam(sys_get_temp_dir(), 'payslip_zip_');
+
+            if ($zipPath === false) {
+                return;
+            }
+
+            $zip = new \ZipArchive();
+            $usedNames = [];
+
+            if ($zip->open($zipPath, \ZipArchive::OVERWRITE) !== true) {
+                @unlink($zipPath);
+
+                return;
+            }
+
+            foreach ($payslips as $payslip) {
+                $entryName = PayslipFilename::forPayslip($payslip);
+
+                if (isset($usedNames[$entryName])) {
+                    $entryName = PayslipFilename::forPayslipWithSuffix(
+                        $payslip,
+                        (string) ($payslip['employee_number'] ?? 'duplicate'),
+                    );
+                }
+
+                $usedNames[$entryName] = true;
+                $pdf = $this->renderSinglePayslipPdf($payslip, $companyName, $result->title);
+                $zip->addFromString($entryName, $pdf);
+            }
+
+            $zip->close();
+            readfile($zipPath);
+            @unlink($zipPath);
+        }, $zipFilename, [
+            'Content-Type' => 'application/zip',
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function buildPayslipForEmployee(int $batchId, int $employeeId, User $user): array
+    {
+        if ($batchId <= 0) {
+            throw ValidationException::withMessages([
+                'payroll_batch_id' => 'Please select a posted payroll batch.',
+            ]);
+        }
+
+        if ($employeeId <= 0) {
+            throw ValidationException::withMessages([
+                'employee_id' => 'Please select an employee.',
+            ]);
+        }
+
+        $batch = PayrollBatch::query()
+            ->with([
+                'payrollCalendar.payType',
+                'details' => fn ($query) => $query->where('employee_id', $employeeId),
+                'details.employee.employmentInformations.salary.incomes.incomeType',
+                'details.incomes.incomeType',
+                'details.deductions.deductionType',
+            ])
+            ->where('payroll_batch_id', $batchId)
+            ->where('payroll_batch_status_id', PayrollBatchStatus::POSTED)
+            ->first();
+
+        if ($batch === null) {
+            throw ValidationException::withMessages([
+                'payroll_batch_id' => 'Selected payroll batch must be posted.',
+            ]);
+        }
+
+        $detail = $batch->details->firstWhere('employee_id', $employeeId);
+
+        if ($detail === null) {
+            throw ValidationException::withMessages([
+                'employee_id' => 'Employee is not in the selected payroll batch.',
+            ]);
+        }
+
+        if (! $this->batchSupport->detailIsVisible($detail, $user)) {
+            throw ValidationException::withMessages([
+                'employee_id' => 'You do not have permission to view this employee payslip.',
+            ]);
+        }
+
+        $payslip = $this->buildPayslip($detail, $batch);
+
+        if ($payslip === null) {
+            throw ValidationException::withMessages([
+                'employee_id' => 'No payslip data found for this employee.',
+            ]);
+        }
+
+        return $payslip;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payslip
+     */
+    public function renderPayslipPdf(array $payslip, string $title = 'Payslip'): string
+    {
+        $companyName = (string) config('payslip_report.company_name', config('app.name'));
+
+        return $this->renderSinglePayslipPdf($payslip, $companyName, $title);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payslip
+     */
+    private function renderSinglePayslipPdf(array $payslip, string $companyName, string $title): string
+    {
+        $preview = [
+            'title' => $title,
+            'headers' => [],
+            'rows' => [],
+            'meta' => [
+                'layout' => 'payslip',
+                'payslips' => [$payslip],
+                'company_name' => $companyName,
+            ],
+        ];
+
+        $html = view('payroll.reports.pdf-document', ['preview' => $preview])->render();
+
+        $options = new \Dompdf\Options();
+        $options->set('isRemoteEnabled', false);
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('dpi', 96);
+
+        $dompdf = new \Dompdf\Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->render();
+
+        return $dompdf->output();
     }
 
     public function downloadExcel(ReportGenerationResult $result): StreamedResponse
@@ -162,8 +312,10 @@ class PayslipReportService
         }
 
         $layoutType = $this->resolveLayoutType($employee);
-        $earnings = $this->buildEarnings($detail, $layoutType);
-        $deductions = $this->buildDeductions($detail, $layoutType);
+        $incomeLines = PayrollBatchNetPayLines::incomeLines($detail->incomes);
+        $deductionRows = PayrollBatchNetPayLines::deductionRows($detail->deductions);
+        $earnings = PayrollBatchNetPayLines::payslipEarningsLines($incomeLines);
+        $deductions = PayrollBatchNetPayLines::payslipDeductionLines($deductionRows);
 
         if ($earnings === [] && $deductions === []) {
             return null;
@@ -178,6 +330,9 @@ class PayslipReportService
             'employee_id' => (int) $employee->employee_id,
             'employee_number' => (string) ($employee->employee_number ?? ''),
             'employee_name' => (string) $employee->full_name,
+            'last_name' => (string) ($employee->last_name ?? ''),
+            'first_name' => (string) ($employee->first_name ?? ''),
+            'middle_name' => (string) ($employee->middle_name ?? ''),
             'faculty_label' => (string) ($employee->user_type_label ?? ''),
             'layout_type' => $layoutType,
             'pay_period' => $calendar ? $this->formatPeriodLabel($calendar) : '',
@@ -199,149 +354,6 @@ class PayslipReportService
     private function resolveLayoutType(Employee $employee): string
     {
         return $employee->isFaculty() ? 'faculty' : 'staff';
-    }
-
-    /**
-     * @return array<int, array{label: string, amount: float, days: ?float}>
-     */
-    private function buildEarnings(PayrollBatchDetail $detail, string $layoutType): array
-    {
-        $grouped = [];
-
-        foreach ($detail->incomes as $income) {
-            $amount = round((float) $income->taxable + (float) $income->non_taxable, 2);
-
-            if ($amount <= 0) {
-                continue;
-            }
-
-            $code = strtoupper((string) ($income->incomeType?->income_type_code ?? ''));
-            $typeId = (int) $income->income_type_id;
-            $key = $code !== '' ? $code : "income_{$typeId}";
-            $days = (float) ($income->days ?? 0);
-
-            if (! isset($grouped[$key])) {
-                $grouped[$key] = [
-                    'label' => $this->incomeLabel($code, $income->incomeType?->description, $layoutType),
-                    'amount' => 0.0,
-                    'days' => 0.0,
-                    'sort' => $typeId,
-                ];
-            }
-
-            $grouped[$key]['amount'] += $amount;
-
-            if ($days > 0) {
-                $grouped[$key]['days'] += $days;
-            }
-        }
-
-        return collect($grouped)
-            ->map(fn (array $row) => [
-                'label' => $row['label'],
-                'amount' => round($row['amount'], 2),
-                'days' => $row['days'] > 0 ? round($row['days'], 4) : null,
-                'sort' => $row['sort'],
-            ])
-            ->sortBy('sort')
-            ->values()
-            ->map(fn (array $row) => [
-                'label' => $row['label'],
-                'amount' => $row['amount'],
-                'days' => $row['days'],
-            ])
-            ->all();
-    }
-
-    /**
-     * @return array<int, array{label: string, amount: float, mins: ?float}>
-     */
-    private function buildDeductions(PayrollBatchDetail $detail, string $layoutType): array
-    {
-        $grouped = [];
-
-        foreach ($detail->deductions as $deduction) {
-            $amount = round((float) $deduction->employee_amount, 2);
-
-            if ($amount <= 0) {
-                continue;
-            }
-
-            $code = strtoupper((string) ($deduction->deductionType?->deduction_type_code ?? ''));
-            $typeId = (int) $deduction->deduction_type_id;
-            $key = $code !== '' ? $code : "deduction_{$typeId}";
-            $mins = $this->resolveDeductionMins($deduction->hours, $code);
-
-            if (! isset($grouped[$key])) {
-                $grouped[$key] = [
-                    'label' => $this->deductionLabel($code, $deduction->deductionType?->description, $layoutType),
-                    'amount' => 0.0,
-                    'mins' => 0.0,
-                    'sort' => $typeId,
-                ];
-            }
-
-            $grouped[$key]['amount'] += $amount;
-
-            if ($mins !== null && $mins > 0) {
-                $grouped[$key]['mins'] += $mins;
-            }
-        }
-
-        return collect($grouped)
-            ->map(fn (array $row) => [
-                'label' => $row['label'],
-                'amount' => round($row['amount'], 2),
-                'mins' => $row['mins'] > 0 ? round($row['mins'], 2) : null,
-                'sort' => $row['sort'],
-            ])
-            ->sortBy('sort')
-            ->values()
-            ->map(fn (array $row) => [
-                'label' => $row['label'],
-                'amount' => $row['amount'],
-                'mins' => $row['mins'],
-            ])
-            ->all();
-    }
-
-    private function incomeLabel(string $code, ?string $description, string $layoutType): string
-    {
-        $configKey = $layoutType === 'staff' ? 'staff_income_labels' : 'faculty_income_labels';
-        $mapped = config("payslip_report.{$configKey}.{$code}");
-
-        if (is_string($mapped) && $mapped !== '') {
-            return $mapped;
-        }
-
-        return trim((string) ($description ?? $code));
-    }
-
-    private function deductionLabel(string $code, ?string $description, string $layoutType): string
-    {
-        $configKey = $layoutType === 'staff' ? 'staff_deduction_labels' : 'faculty_deduction_labels';
-        $mapped = config("payslip_report.{$configKey}.{$code}");
-
-        if (is_string($mapped) && $mapped !== '') {
-            return $mapped;
-        }
-
-        return trim((string) ($description ?? $code));
-    }
-
-    private function resolveDeductionMins(mixed $hours, string $code): ?float
-    {
-        $hoursValue = (float) ($hours ?? 0);
-
-        if ($hoursValue <= 0) {
-            return null;
-        }
-
-        if (in_array($code, ['LTDE', 'UTDE'], true)) {
-            return round($hoursValue * 60, 2);
-        }
-
-        return round($hoursValue, 2);
     }
 
     private function resolveDaysPresent(PayrollBatchDetail $detail): ?float
@@ -507,16 +519,20 @@ class PayslipReportService
 
         if ($isStaff) {
             $sheet->setCellValue('E11', 'Earnings');
-            $sheet->setCellValue('F11', 'Days');
-            $sheet->setCellValue('G11', 'Amount');
-            $sheet->setCellValue('I11', 'Deductions');
-            $sheet->setCellValue('J11', 'Mins');
-            $sheet->setCellValue('K11', 'Amount');
+            $sheet->setCellValue('F11', 'Hours');
+            $sheet->setCellValue('G11', 'Days');
+            $sheet->setCellValue('H11', 'Amount');
+            $sheet->setCellValue('J11', 'Deductions');
+            $sheet->setCellValue('K11', 'Mins');
+            $sheet->setCellValue('L11', 'Amount');
         } else {
             $sheet->setCellValue('E11', 'Earnings');
-            $sheet->setCellValue('G11', 'Amount');
-            $sheet->setCellValue('I11', 'Deductions');
-            $sheet->setCellValue('K11', 'Amount');
+            $sheet->setCellValue('F11', 'Hours');
+            $sheet->setCellValue('G11', 'Days');
+            $sheet->setCellValue('H11', 'Amount');
+            $sheet->setCellValue('J11', 'Deductions');
+            $sheet->setCellValue('K11', 'Mins');
+            $sheet->setCellValue('L11', 'Amount');
         }
 
         $row = 12;
@@ -528,24 +544,15 @@ class PayslipReportService
 
             if ($earning !== null) {
                 $sheet->setCellValue("E{$row}", $earning['label']);
-
-                if ($isStaff) {
-                    $sheet->setCellValue("F{$row}", $earning['days'] ?? '');
-                    $sheet->setCellValue("G{$row}", $earning['amount']);
-                } else {
-                    $sheet->setCellValue("G{$row}", $earning['amount']);
-                }
+                $sheet->setCellValue("F{$row}", $earning['hours'] ?? '');
+                $sheet->setCellValue("G{$row}", $earning['days'] ?? '');
+                $sheet->setCellValue("H{$row}", $earning['amount']);
             }
 
             if ($deduction !== null) {
-                $sheet->setCellValue("I{$row}", $deduction['label']);
-
-                if ($isStaff) {
-                    $sheet->setCellValue("J{$row}", $deduction['mins'] ?? '');
-                    $sheet->setCellValue("K{$row}", $deduction['amount']);
-                } else {
-                    $sheet->setCellValue("K{$row}", $deduction['amount']);
-                }
+                $sheet->setCellValue("J{$row}", $deduction['label']);
+                $sheet->setCellValue("K{$row}", isset($deduction['minutes']) ? (int) $deduction['minutes'] : '');
+                $sheet->setCellValue("L{$row}", $deduction['amount']);
             }
 
             $row++;
@@ -553,20 +560,20 @@ class PayslipReportService
 
         if ($isStaff) {
             $sheet->setCellValue('E'.($row + 1), 'New rate:');
-            $sheet->setCellValue('G'.($row + 1), $payslip['new_rate'] ?? '');
+            $sheet->setCellValue('H'.($row + 1), $payslip['new_rate'] ?? '');
             $sheet->setCellValue('E'.($row + 2), 'Total Earnings:');
-            $sheet->setCellValue('G'.($row + 2), $payslip['total_earnings'] ?? 0);
-            $sheet->setCellValue('I'.($row + 2), 'Total Deductions:');
-            $sheet->setCellValue('K'.($row + 2), $payslip['total_deductions'] ?? 0);
-            $sheet->setCellValue('J'.($row + 3), 'Net Pay:');
-            $sheet->setCellValue('K'.($row + 3), $payslip['net_pay'] ?? 0);
+            $sheet->setCellValue('H'.($row + 2), $payslip['total_earnings'] ?? 0);
+            $sheet->setCellValue('J'.($row + 2), 'Total Deductions:');
+            $sheet->setCellValue('L'.($row + 2), $payslip['total_deductions'] ?? 0);
+            $sheet->setCellValue('K'.($row + 3), 'Net Pay:');
+            $sheet->setCellValue('L'.($row + 3), $payslip['net_pay'] ?? 0);
         } else {
             $sheet->setCellValue('E'.($row + 1), 'Daily Rate:');
-            $sheet->setCellValue('G'.($row + 1), $payslip['daily_rate'] ?? '');
+            $sheet->setCellValue('H'.($row + 1), $payslip['daily_rate'] ?? '');
             $sheet->setCellValue('E'.($row + 2), 'Total Earnings:');
-            $sheet->setCellValue('G'.($row + 2), $payslip['total_earnings'] ?? 0);
-            $sheet->setCellValue('I'.($row + 2), 'Total Deductions:');
-            $sheet->setCellValue('K'.($row + 2), $payslip['total_deductions'] ?? 0);
+            $sheet->setCellValue('H'.($row + 2), $payslip['total_earnings'] ?? 0);
+            $sheet->setCellValue('J'.($row + 2), 'Total Deductions:');
+            $sheet->setCellValue('L'.($row + 2), $payslip['total_deductions'] ?? 0);
             $sheet->setCellValue('K'.($row + 3), 'Net Pay:');
             $sheet->setCellValue('L'.($row + 3), $payslip['net_pay'] ?? 0);
         }

@@ -1,11 +1,12 @@
 # People360 vs HRIS Software Module Blueprint
 
-**Source:** HRIS Software Module Blueprint for Philippine Educational Institutions and Private Businesses (14 pages).  
+**Source:** [HRIS Software Modules Blueprint (PH)](HRIS-Software-Modules-Blueprint-PH.pdf) — Philippine educational institutions and private businesses (14 pages).  
+
 **Products assessed:**
 - **Desktop** — People360 app (`pulse/`)
 - **Web** — Skolaris People360 shell (`skolaris-fe` + `skolaris-be`, routes under `/people360`)
 
-**Date:** 27 August 2026 (updated same day to include web).
+**Date:** 27 August 2026 (updated **4 September 2026** — §10 delivery timeline; M06 **Web Ready / Desktop Partial**; desktop M01, M05 marked Existing).
 
 This is a gap analysis, not a legal review. Statutory rates and rules must still be validated before production use.
 
@@ -23,8 +24,8 @@ This is a gap analysis, not a legal review. Statutory rates and rules must still
 
 | Status | Count | IDs |
 |---|---|---|
-| Full match | **0** | — |
-| Partial | **13** | M01, M02, M04, M05, M06, M07, M08, M15, **M16**, M17, M18, M19, M20 |
+| Full match | **4** | **M01**, **M05**, **M07**, **M16** (M01/M07 desktop only; M16 web only) |
+| Partial | **9** | M02, M04, **M06**, M08, M15, M17, M18, M19, M20 |
 | Pending | **15** | M03, M09, M10, M11, M12, M13, M14, M21, M22, M23, M24, M25, M26, M27, M28 |
 
 **Where People360 is today**
@@ -50,36 +51,36 @@ This is a gap analysis, not a legal review. Statutory rates and rules must still
 
 ## 2. Module map (M01–M28) — Desktop · Web · Combined
 
-| ID | Module | Priority | Desktop | Web | Combined | Notes |
-|---|---|---|---|---|---|---|
-| M01 | Organization & HR Configuration | MVP | **Partial** | **Partial** | **Partial** | Desktop: campuses, depts, positions, calendar, holidays. Web: users/roles + API keys only (org masters live on desktop / shared SIS). |
-| M02 | Worker / Employee Master Data | MVP | **Partial** | **Partial** | **Partial** | Desktop: full employee CRUD + salary/loans/credentials. Web: browse/edit restored local employees + ESS profile edit + desktop sync APIs. |
-| M03 | Recruitment & Applicant Tracking | MVP | **Pending** | **Pending** | **Pending** | |
-| M04 | Onboarding & Employment Documents | MVP | **Partial** | **Partial** | **Partial** | Desktop: document types + credentials on record. Web: ESS upload + HR document review queue + soft onboarding gate. No full onboarding case / e-contract. |
-| M05 | Time, Attendance & Scheduling | MVP | **Partial** | **Partial** | **Partial** | Desktop: policy, shifts, import, OT for payroll. Web: attendance checker, timekeeping (load-based), ESS biometric/loading attendance (read), biometric S3 restore. No live clock-in. |
-| M06 | Leave & Absence Management | MVP | **Partial** | **Pending** | **Partial** | Desktop: leave types for payroll only. Web: no leave filing. |
-| M07 | Payroll & Statutory Pay | MVP | **Partial** | **Pending** | **Partial** | Desktop: compute/post, payslips, BIR. Web: payroll SQL backup browse/restore only. |
-| M08 | Benefits & Government Contributions | MVP | **Partial** | **Pending** | **Partial** | Desktop: SSS/PhilHealth/Pag-IBIG tables + reports. Web: none. |
-| M09 | Performance Management | Phase 2 | **Pending** | **Pending** | **Pending** | |
-| M10 | Learning & Development | Phase 2 | **Pending** | **Pending** | **Pending** | |
-| M11 | Employee Relations, Grievance & Discipline | MVP | **Pending** | **Pending** | **Pending** | |
-| M12 | Separation, Clearance & Retirement | MVP | **Pending** | **Pending** | **Pending** | Desktop: inactive / soft-delete only. |
-| M13 | Contractor & Outsourced Workforce | MVP | **Pending** | **Pending** | **Pending** | |
-| M14 | Occupational Safety & Health | MVP | **Pending** | **Pending** | **Pending** | |
-| M15 | Data Privacy, Documents & Records Retention | MVP | **Partial** | **Partial** | **Partial** | Desktop: `sys_logs`, soft delete, credential files. Web: privacy policy + consent gate, Pulse audit trail. |
-| M16 | Self-Service, Requests & Approvals | MVP | **Pending** | **Partial** | **Partial** | **Web has ESS** (dashboard, profile, docs, attendance, Job Order/WRF + approvals). Desktop is HR-only. Leave ESS still missing on both. |
-| M17 | HR Compliance & Legal Rules Engine | MVP | **Partial** | **Pending** | **Partial** | Desktop: rate groups, govt tables, holidays, timekeeping policy. |
-| M18 | HR Analytics, Dashboards & Audit | Phase 2 | **Partial** | **Partial** | **Partial** | Desktop: dashboard + operational reports. Web: checker analytics + audit list. |
-| M19 | Faculty & Academic Personnel | MVP (schools) | **Partial** | **Partial** | **Partial** | Desktop: faculty/staff/admin/hybrid + rank. Web: uses same people model via local/ESS; no PRC module. |
-| M20 | Faculty Load, Schedule & Overload | MVP (schools) | **Partial** | **Partial** | **Partial** | Desktop: Skolaris pull + upload + faculty pay. Web: uploaded faculty-load PDF module + loading attendance. |
-| M21 | Faculty Evaluation, Rank & Promotion | Phase 2 | **Pending** | **Pending** | **Pending** | |
-| M22 | Faculty Development, Research & Credentials | Phase 2 | **Pending** | **Pending** | **Pending** | Credentials = file storage only. |
-| M23 | Student-Safeguarding / Faculty Conduct | Phase 2 | **Pending** | **Pending** | **Pending** | |
-| M24 | Sales / Commission & Incentive | Optional | **Pending** | **Pending** | **Pending** | |
-| M25 | Shift, Field & Branch Workforce | Optional | **Pending** | **Pending** | **Pending** | Shifts live under M05 (desktop), not a field ops module. |
-| M26 | Succession, Talent & Workforce Planning | Phase 3 | **Pending** | **Pending** | **Pending** | |
-| M27 | AI Assistance & Automation | Phase 3 | **Pending** | **Pending** | **Pending** | |
-| M28 | SDG / ESG Workforce Reporting | Phase 3 | **Pending** | **Pending** | **Pending** | |
+| ID | Module | Priority | Target date | Desktop | Web | Combined | Notes |
+|---|---|---|---|---|---|---|---|
+| M01 | Organization & HR Configuration | MVP | **Done** | **Existing** | **N/A** | **Existing** | **Desktop Ready:** campuses, colleges, programs, depts, positions, designations, ranks, employment types, calendar, holidays, users/roles. **Web N/A** — org masters are desktop-only; org chart deferred. Web admin (users/roles, API keys) is access ops, not M01 org configuration UI. |
+| M02 | Worker / Employee Master Data | MVP | Dec 2026 | **Existing** | **Partial** | **Partial** | Desktop: full employee CRUD + salary/loans/credentials + **bank accounts**. Web: browse/edit restored local employees + ESS profile edit + desktop sync APIs. |
+| M03 | Recruitment & Applicant Tracking | MVP | Dec 2026 | **Pending** | **Pending** | **Pending** | |
+| M04 | Onboarding & Employment Documents | MVP | *Deferred* | **Partial** | **Partial** | **Partial** | Desktop: document types + credentials on record. Web: ESS upload + HR document review queue + soft onboarding gate. No full onboarding case / e-contract. |
+| M05 | Time, Attendance & Scheduling | MVP | **14 Sep 2026** | **Existing** | **Partial** | **Existing** | Desktop ready: policy, shifts, holidays, time log upload, biometric S3 pull, HR attendance edit, payroll OT, faculty load hours. W2b: apply synced forms to batch. Live clock-in, QR punch, OB, ESS corrections, and attendance approval workflow are **web** (`iskolaris-fe` / `iskolaris-be`), not desktop. |
+| M06 | Leave & Absence Management | MVP | Oct 2026 | **Partial** | **Existing** | **Partial** | **Web Ready:** leave filing, balances, accrual, manager approval on ESS. **Desktop Partial:** leave types, policy mapping, attendance-derived leave in payroll, manual/upload in batch — not full blueprint scope yet. |
+| M07 | Payroll & Statutory Pay | MVP | **Done** | **Existing** | **N/A** | **Existing** | **Desktop Ready:** compute/post, payslips, BIR, register, payslip email. **Web N/A** — live payroll is desktop-only; web has SQL backup restore (ops), not M07 payroll UI. |
+| M08 | Benefits & Government Contributions | MVP | Nov–Dec 2026 | **Partial** | **Pending** | **Partial** | Desktop: SSS/PhilHealth/Pag-IBIG tables + reports. Web: none. |
+| M09 | Performance Management | Phase 2 | Dec 2026 | **Pending** | **Pending** | **Pending** | |
+| M10 | Learning & Development | Phase 2 | Dec 2026 | **Pending** | **Pending** | **Pending** | |
+| M11 | Employee Relations, Grievance & Discipline | MVP | Dec 2026 | **Pending** | **Pending** | **Pending** | |
+| M12 | Separation, Clearance & Retirement | MVP | Nov 2026 | **Pending** | **Pending** | **Pending** | Desktop: inactive / soft-delete only. |
+| M13 | Contractor & Outsourced Workforce | MVP | Dec 2026 | **Pending** | **Pending** | **Pending** | |
+| M14 | Occupational Safety & Health | MVP | Dec 2026 | **Pending** | **Pending** | **Pending** | |
+| M15 | Data Privacy, Documents & Records Retention | MVP | Dec 2026 | **Partial** | **Partial** | **Partial** | Desktop: `sys_logs`, soft delete, credential files. Web: privacy policy + consent gate, Pulse audit trail. |
+| M16 | Self-Service, Requests & Approvals | MVP | **Done** | **N/A** | **Existing** | **Existing** | **Web Ready:** ESS login, dashboard, profile, docs, attendance, Job Order/WRF + approvals, HR request queue. **Desktop N/A** — self-service lives on web only. W2 (Sep): sync approved forms → payroll batch (M05/M07 integration, not M16 desktop). |
+| M17 | HR Compliance & Legal Rules Engine | MVP | Nov–Dec 2026 | **Partial** | **Pending** | **Partial** | Desktop: rate groups, govt tables, holidays, timekeeping policy. |
+| M18 | HR Analytics, Dashboards & Audit | Phase 2 | Dec 2026 | **Partial** | **Partial** | **Partial** | Desktop: dashboard + operational reports. Web: checker analytics + audit list. |
+| M19 | Faculty & Academic Personnel | MVP (schools) | Dec 2026 | **Partial** | **Partial** | **Partial** | Desktop: faculty/staff/admin/hybrid + rank. Web: uses same people model via local/ESS; no PRC module. |
+| M20 | Faculty Load, Schedule & Overload | MVP (schools) | Dec 2026 | **Partial** | **Partial** | **Partial** | Desktop: Skolaris pull + upload + faculty pay. Web: uploaded faculty-load PDF module + loading attendance. |
+| M21 | Faculty Evaluation, Rank & Promotion | Phase 2 | Dec 2026 | **Pending** | **Pending** | **Pending** | |
+| M22 | Faculty Development, Research & Credentials | Phase 2 | Dec 2026 | **Pending** | **Pending** | **Pending** | Credentials = file storage only. |
+| M23 | Student-Safeguarding / Faculty Conduct | Phase 2 | Dec 2026 | **Pending** | **Pending** | **Pending** | |
+| M24 | Sales / Commission & Incentive | Optional | Optional | **Pending** | **Pending** | **Pending** | |
+| M25 | Shift, Field & Branch Workforce | Optional | Optional | **Pending** | **Pending** | **Pending** | Shifts live under M05 (desktop), not a field ops module. |
+| M26 | Succession, Talent & Workforce Planning | Phase 3 | Dec 2026 | **Pending** | **Pending** | **Pending** | |
+| M27 | AI Assistance & Automation | Phase 3 | Dec 2026 | **Pending** | **Pending** | **Pending** | |
+| M28 | SDG / ESG Workforce Reporting | Phase 3 | Dec 2026 | **Pending** | **Pending** | **Pending** | |
 
 ---
 
@@ -132,35 +133,42 @@ Canonical UI brand: **People360** (`/people360/*`). Code and APIs still use **Pu
 
 ## 4. Desktop People360 — what already exists (`pulse/`)
 
-### M01 — Organization & HR Configuration (Partial)
+### M01 — Organization & HR Configuration (Desktop Ready · Web N/A)
 
-**Existing:** Campuses (min wage), colleges, programs, departments, positions, designations, ranks, employment types, payroll calendar, holiday catalog, role + module permissions, users.  
-**Pending:** Job grades, cost centers, org chart, approval matrices, EDU vs BUS packaging.
+**Existing (desktop):** Campuses (min wage), colleges, programs, departments, positions, designations, ranks, employment types, payroll calendar, holiday catalog, role + module permissions, users, company documents, BIR company TIN/name.  
+**Web:** **Not applicable** — org masters and HR configuration UI are desktop-only. Web has People360 users/roles and API keys (access admin), not M01 org setup modules.  
+**Deferred:** Org chart (do not build yet). Approval matrices are a separate web feature, not M01 org configuration.
 
-### M02 — Worker / Employee Master (Partial)
+### M02 — Worker / Employee Master (Desktop Ready · Web Partial)
 
-**Existing:** Full profile, multi-campus, employment (faculty/staff/admin/hybrid), salary history, loans, credentials, bulk upload, Skolaris Approve/sync, confidential + compliance status.  
-**Pending:** Dependents as records, bank accounts, consultant/contractor worker, ESS profile (that lives on **web**).
+**Existing (desktop):** Full profile, multi-campus, employment (faculty/staff/admin/hybrid), salary history, loans, credentials, bulk upload, Skolaris Approve/sync, confidential + compliance status, **bank account (payroll disbursement)**.  
+**Partial (web):** Restored local employees, ESS profile edit, desktop sync APIs — not full master parity.
 
 ### M04 — Onboarding & documents (Partial)
 
 **Existing:** HR Document Types; upload/preview/download on employee.  
 **Pending:** Onboarding case, e-contract, acknowledgments (web soft gate helps but is not a case workflow).
 
-### M05 — Time, Attendance & Scheduling (Partial)
+### M05 — Time, Attendance & Scheduling (Existing on desktop)
 
-**Existing:** Timekeeping policy, shifts, holidays, time log upload, biometric S3 pull, attendance view/edit/approve, OT for payroll, faculty load hours.  
-**Pending:** Live clock-in, QR punch, official business, employee-initiated correction (web has checker + read-only ESS attendance).
+**Existing (desktop):** Timekeeping policy, shift codes, time capture formats, holidays, time log upload, biometric S3 pull, employee timekeeping setup (rest days), attendance view/edit, calendar, faculty load hours, manual OT for payroll.  
+**Out of desktop scope:** Live clock-in, QR/mobile punch, official business, employee-initiated time corrections, full attendance approval workflow — to be built on **web** (`iskolaris-fe` / `iskolaris-be`); not this desktop owner.  
+**Web still Partial:** Attendance checker, load-based timekeeping, ESS read-only attendance; above gaps pending on web.
 
-### M06 — Leave & Absence (Partial)
+### M06 — Leave & Absence (Web Ready · Desktop Partial)
 
-**Existing:** Leave types + payroll/policy mapping.  
-**Pending:** Filing, balances, accrual, manager approval (also **Pending** on web).
+**Existing (web):** Leave filing, balances, accrual, manager approval on ESS (`iskolaris-fe` / `iskolaris-be`).  
+**Partial (desktop):** Leave types (maintenance table), timekeeping policy leave mappings (tardiness/undertime/AWOL), attendance-derived leave lines in payroll, manual/upload leave in payroll batch, employee `is_leave` setup — usable but not marked Ready on desktop scope.
 
-### M07 / M08 — Payroll & benefits (Partial — strongest desktop)
+### M07 — Payroll & Statutory Pay (Desktop Ready · Web N/A)
 
-**Existing:** Rate groups, incomes/deductions, compute/post, payslips, register, BIR 1601-C / 2316 / Alphalist, SSS/PhilHealth/Pag-IBIG tables + reports, loans.  
-**Pending:** Maker-checker, bank/GL file, final-pay workflow, dedicated 13th-month run, effective-dated contrib tables, HMO.
+**Existing (desktop):** Rate groups, incomes/deductions, compute/post, payslips, register, BIR 1601-C / 2316 / Alphalist, payslip send by email, loans integration.  
+**Web:** **Not applicable** for live payroll — backup browse/restore only (ops), not payroll compute/post.
+
+### M08 — Benefits & Government Contributions (Partial)
+
+**Existing:** SSS/PhilHealth/Pag-IBIG tables + reports on desktop.  
+**Pending:** Effective-dated contrib tables, HMO; web has none.
 
 ### M15 / M17 / M18 (Partial)
 
@@ -169,6 +177,11 @@ As in prior analysis — audit + soft delete; rate/govt tables; operational repo
 ### M19 / M20 — Education (Partial)
 
 Faculty/staff/admin/hybrid, rank, teaching load + faculty payroll (desktop); web adds faculty-load PDF module and loading attendance.
+
+### M16 — Self-Service, Requests & Approvals (Web Ready · Desktop N/A)
+
+**Existing (web):** Login/OTP, employee dashboard, profile edit, own attendance + loading attendance, My Requests (Job Order/WRF), approval workflow (draft → approved → processed → posted), manager approvals, HR admin request queue.  
+**Desktop:** **Not applicable** — ESS is web-only (`skolaris-fe` / `iskolaris-be`). Desktop integrates via W2 sync of approved forms into payroll (M05/M07), not an M16 UI module.
 
 ---
 
@@ -200,9 +213,9 @@ Faculty/staff/admin/hybrid, rank, teaching load + faculty payroll (desktop); web
 
 | Blueprint stage | Modules | Combined status |
 |---|---|---|
-| 1 Foundation | M01, M02, RBAC, audit, documents | **Mostly there** (desktop org + employee; web users/roles + docs + consent) |
-| 2 Daily HR | M03, M04, M05, M06, M16 | **M05 + M16 partial (web ESS).** Recruitment, leave filing, full onboarding = pending |
-| 3 Payroll & compliance | M07, M08, M17 | **Strong on desktop.** Web = backups only |
+| 1 Foundation | M01, M02, RBAC, audit, documents | **M01 desktop Ready (web N/A).** M02 Existing on desktop. Web consent Partial |
+| 2 Daily HR | M03, M04, M05, M06, M16 | **M05 Existing on desktop.** **M06 + M16 Ready on web**; desktop leave/payroll lines Partial |
+| 3 Payroll & compliance | M07, M08, M17 | **M07 Existing on desktop** (web N/A). M08/M17 partial |
 | 4 Risk & outsourcing | M11–M15 | **M15 partial.** Rest pending |
 | 5 Education | M19, M20, then M21–M23 | **M19/M20 partial** (desktop pay + web load PDFs) |
 | 6 Intelligence | M09, M10, M18, M26 | Reports / audit only |
@@ -229,14 +242,14 @@ Faculty/staff/admin/hybrid, rank, teaching load + faculty payroll (desktop); web
 
 ## 8. Suggested build order (from Combined position)
 
-1. **M06** — Leave filing, balances, accrual (web ESS shell exists; desktop has leave types)  
-2. **M16 completion** — Extend web ESS beyond Job Order (OT corrections, certificates, leave) + optional desktop parity  
-3. **M17 / M08** — Effective-date + version government tables (desktop)  
-4. **M04** — Real onboarding checklist / acknowledgments (extend web soft gate + desktop credentials)  
-5. **M12** — Separation, clearance, final pay  
-6. **M03** — Recruitment (if hire-to-retire is in scope)  
-7. **M19 / M20 completion** — Licenses, qualified subjects, overload approval  
-8. **M11 / M13 / M14** — Discipline, contractors, OSH  
+1. **M05 / M07 integration (W2)** — Sync approved web forms (OT, Job Order/WRF) into desktop payroll batch  
+2. **M17 / M08** — Effective-date + version government tables (desktop)  
+3. **M12** — Separation, clearance, final pay  
+4. **M03** — Recruitment (if hire-to-retire is in scope)  
+5. **M19 / M20 completion** — Licenses, qualified subjects, overload approval  
+6. **M11 / M13 / M14** — Discipline, contractors, OSH  
+
+**Deferred (not in current plan):** **M04** Onboarding checklist / e-contract — existing document upload + review on web is enough for now.
 
 ---
 
@@ -257,12 +270,88 @@ Faculty/staff/admin/hybrid, rank, teaching load + faculty payroll (desktop); web
 
 ---
 
+## 10. Delivery timeline
+
+Planning dates assume **one desktop + web squad**, campus UAT with HR/payroll, and no major blockers (AWS SES verification, API keys, campus network).
+
+**Status key:** **Done** · **In progress** · **Planned** · **Blocked** (needs external action)
+
+### Last week completed — week of 1–7 September 2026
+
+| # | Deliverable | Status | Notes |
+|---|---|---|---|
+| **W1** | **Payslip send by email** | **Done** | Payroll Transaction → Payslip tab; PDF attach; AWS SES API (`noreply@skolaris.icct.edu.ph`, ap-southeast-2). Bulk send from posted batch with confirm + progress bar. |
+
+Also shipped: **M02 bank accounts** on employee master (create/edit/upload).
+
+### Sprint target — week of 8–14 September 2026
+
+| # | Deliverable | Blueprint | Product | Target dates | Depends on | Notes |
+|---|---|---|---|---|---|---|
+| **W2a** | **Pull approved ESS forms from People360 web** | M05 · M07 · §9 Desktop↔Web | **Desktop** + **Web BE** | **8–11 Sep** | Pulse API key with `employee_requests` scope | BE exposes `GET /pulse-api/v1/employee-requests/sync`. Desktop: extend `SkolarisApiService`, local store + “Sync from People360 web” action. |
+| **W2b** | **Apply synced forms to payroll batch** | M05 · M07 | **Desktop** | **11–14 Sep** | W2a | Map `amend_attendance` → OT / attendance lines; `job_order` / WRF → batch adjustments. Mark rows `posted` on web after payroll post. |
+
+**This-week outcome (plain words):** Payroll can **import approved web forms** (OT amendment, Job Order/WRF, etc.) into the desktop batch instead of re-keying.
+
+**Out of scope for 8–14 Sep:** Recruitment (M03), onboarding workflow (M04 — deferred), new HR form types beyond what Skolaris already publishes.
+
+---
+
+### September 2026 (after next week)
+
+| Window | Focus | Modules | Outcome |
+|---|---|---|---|
+| **15–21 Sep** | Payslip + forms hardening | M07, M05 | Fix UAT findings; idempotent sync; audit log per imported form; desktop installer **1.0.x** if needed |
+| **22–28 Sep** | Leave ↔ payroll tie-in | M06, M05 | Approved web leave visible when processing desktop batch; desktop leave lines hardening |
+| **29 Sep – 5 Oct** | Forms + leave polish | M06, M05 | UAT fixes; approved leave import to batch |
+
+---
+
+### Q4 2026 — MVP gaps (blueprint §5 pending)
+
+| Priority | Module | Target window | Notes |
+|---|---|---|---|
+| MVP | **M12** Separation / clearance | Nov 2026 | Clearance workflow + final pay hooks |
+| MVP | **M17 / M08** Effective-dated govt tables | Nov–Dec 2026 | Version SSS / PhilHealth / Pag-IBIG by effectivity date |
+| MVP | **M03** Recruitment | Dec 2026 | If hire-to-retire is in scope |
+| MVP | **M11 / M13 / M14** Discipline, contractors, OSH | Oct–Dec 2026 | Risk modules |
+| Phase 2 | M09, M10, M21–M23 | Dec 2026 | Performance, L&D, faculty eval |
+| Phase 3 | M26–M28 | Dec 2026 | Succession, AI advisory, ESG (stretch backlog) |
+| *Deferred* | *M04 Onboarding* | *TBD* | *Not in current plan — ESS document upload/review stays as-is* |
+
+---
+
+### Combined roadmap vs blueprint stages (high level)
+
+| Blueprint stage | Target “substantially complete” | Key blockers removed by |
+|---|---|---|
+| 1 Foundation | **Done** (desktop M01) | — |
+| 2 Daily HR | **Dec 2026** | M05/M07 forms bridge (**Sep 2026** W2); M06 + M16 web **Ready**; desktop leave/payroll Partial |
+| 3 Payroll & compliance | **Dec 2026** | M07 desktop **Ready**; M17 effective dates (**Nov 2026**) |
+| 4 Risk & outsourcing | **Dec 2026** | M11–M14 greenfield |
+| 5 Education | **Dec 2026** | M19/M20 completion; M21+ phase 2 stretch |
+| 6–7 Intelligence / advanced | **Dec 2026** | Reporting first; AI/ESG if capacity |
+
+---
+
+### External checklist (week of 8–14 Sep)
+
+| Item | Owner | Needed for |
+|---|---|---|
+| Pulse API key: `employee_requests` **list + sync** | Skolaris admin | W2a |
+| HR: sample **approved** OT + Job Order rows in staging | HR | W2b UAT |
+| Campus PCs on People360 **1.0.2+** with outbound HTTPS | Campus IT | W2a |
+
+---
+
 ## Document control
 
 | Item | Value |
 |---|---|
-| Blueprint | HRIS Software Module Blueprint (PH) — planning only |
+| Blueprint | `docs/HRIS-Software-Modules-Blueprint-PH.pdf` — planning only |
 | Desktop assessed | People360 (`pulse/`) |
 | Web assessed | Skolaris People360 (`skolaris-fe` + `skolaris-be`, `/people360`) |
 | Friendly report | `People360-HRIS-Blueprint-Status-2026-08-27.docx` (+ `.html`) |
-| Next update | After each module that closes a row in §2 |
+| Progress dashboard | `People360-HRIS-Blueprint-Progress.html` (+ `.docx` via `generate-hris-blueprint-progress-docx.py`; dated copy `People360-HRIS-Blueprint-Progress-2026-09-04.docx`) |
+| Last change | 4 Sep 2026 — M01 **Desktop Ready / Web N/A**; M07 **Desktop Ready / Web N/A**; M16 **Web Ready / Desktop N/A**; M06 web Ready; M02 desktop Ready. |
+| Next update | After W2 sprint (14 Sep 2026) or when a §2 module status changes |

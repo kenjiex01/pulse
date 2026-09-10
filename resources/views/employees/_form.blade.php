@@ -199,6 +199,30 @@
                     <input id="tax_status" name="tax_status" type="text" value="{{ old('tax_status', $employee->tax_status ?? '') }}" class="form-input">
                 </div>
             </div>
+
+            <h3 class="mb-3 mt-6 text-sm font-semibold text-gray-800">Bank Account (Payroll Disbursement)</h3>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                    <label for="bank_name" class="form-label">Bank Name</label>
+                    <input id="bank_name" name="bank_name" type="text" value="{{ old('bank_name', $employee->bank_name ?? '') }}" class="form-input" placeholder="e.g. BDO, BPI, Metrobank">
+                    @error('bank_name')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label for="bank_account_number" class="form-label">Account Number</label>
+                    <input id="bank_account_number" name="bank_account_number" type="text" value="{{ old('bank_account_number', $employee->bank_account_number ?? '') }}" class="form-input" inputmode="numeric" autocomplete="off">
+                    @error('bank_account_number')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label for="bank_account_type" class="form-label">Account Type</label>
+                    <select id="bank_account_type" name="bank_account_type" class="form-input">
+                        <option value="">Select account type</option>
+                        @foreach (\App\Models\Employee::selectableBankAccountTypes() as $value => $label)
+                            <option value="{{ $value }}" @selected(old('bank_account_type', $employee->bank_account_type ?? '') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    @error('bank_account_type')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                </div>
+            </div>
         </section>
     </div>
 

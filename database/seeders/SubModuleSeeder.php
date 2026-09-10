@@ -35,7 +35,7 @@ class SubModuleSeeder extends Seeder
             ],
         );
 
-        $allowedRouteNames = collect(['employees.index'])
+        $allowedRouteNames = collect(['employees.index', 'company-documents.index', 'company-documents.approvals.index'])
             ->merge(collect(HrLookup::keys())->map(fn (string $lookup) => HrLookup::routeName($lookup)))
             ->all();
 
@@ -59,6 +59,30 @@ class SubModuleSeeder extends Seeder
                 ],
             );
         }
+
+        SubModule::query()->updateOrCreate(
+            ['route_name' => 'company-documents.index'],
+            [
+                'module_id' => $humanResource->id,
+                'name' => 'Company Documents',
+                'route_pattern' => 'company-documents.*',
+                'icon' => 'company-documents',
+                'sort_order' => 2,
+                'is_active' => true,
+            ],
+        );
+
+        SubModule::query()->updateOrCreate(
+            ['route_name' => 'company-documents.approvals.index'],
+            [
+                'module_id' => $humanResource->id,
+                'name' => 'Document Approvals',
+                'route_pattern' => 'company-documents.approvals.*',
+                'icon' => 'company-documents',
+                'sort_order' => 3,
+                'is_active' => false,
+            ],
+        );
 
         $payroll = Module::query()
             ->where('name', 'Payroll')
@@ -199,6 +223,30 @@ class SubModuleSeeder extends Seeder
                     'route_pattern' => 'timekeeping.employee-load.*',
                     'icon' => 'employee-load',
                     'sort_order' => 4,
+                    'is_active' => true,
+                ],
+            );
+
+            SubModule::query()->updateOrCreate(
+                ['route_name' => 'timekeeping.memo-setup.index'],
+                [
+                    'module_id' => $timekeeping->id,
+                    'name' => 'Memo Setup',
+                    'route_pattern' => 'timekeeping.memo-setup.*',
+                    'icon' => 'memo-setup',
+                    'sort_order' => 5,
+                    'is_active' => true,
+                ],
+            );
+
+            SubModule::query()->updateOrCreate(
+                ['route_name' => 'timekeeping.memo.index'],
+                [
+                    'module_id' => $timekeeping->id,
+                    'name' => 'Memo',
+                    'route_pattern' => 'timekeeping.memo.*',
+                    'icon' => 'memo',
+                    'sort_order' => 6,
                     'is_active' => true,
                 ],
             );

@@ -112,21 +112,21 @@ $snap->addCell(2000, $headerCell)->addText('Count', $headerFont);
 $snap->addCell(4000, $headerCell)->addText('Meaning for stakeholders', $headerFont);
 $snap->addRow();
 $snap->addCell(3000, $readyBg)->addText('Fully ready', ['bold' => true, 'size' => 10]);
-$snap->addCell(2000, $readyBg)->addText('0 of 28', $cellFont);
-$snap->addCell(4000, $readyBg)->addText('No module is complete vs the full blueprint.', $cellFont);
+$snap->addCell(2000, $readyBg)->addText('3 of 28', $cellFont);
+$snap->addCell(4000, $readyBg)->addText('M01 Organization & HR Configuration; M05 Time, Attendance & Scheduling; M06 Leave & Absence (desktop; Combined follows desktop).', $cellFont);
 $snap->addRow();
 $snap->addCell(3000, $partialBg)->addText('Partial (in use)', ['bold' => true, 'size' => 10]);
-$snap->addCell(2000, $partialBg)->addText('12 of 28', $cellFont);
+$snap->addCell(2000, $partialBg)->addText('10 of 28', $cellFont);
 $snap->addCell(4000, $partialBg)->addText('Already helping daily operations; still has gaps.', $cellFont);
 $snap->addRow();
 $snap->addCell(3000, $pendingBg)->addText('Not yet built', ['bold' => true, 'size' => 10]);
-$snap->addCell(2000, $pendingBg)->addText('16 of 28', $cellFont);
+$snap->addCell(2000, $pendingBg)->addText('15 of 28', $cellFont);
 $snap->addCell(4000, $pendingBg)->addText('Needs new design and development.', $cellFont);
 
 $section->addTextBreak(1);
 $section->addText('In plain words:', ['bold' => true], $pTight);
 $section->addListItem('You can manage employees, run payroll, pull time logs, and generate BIR / SSS / PhilHealth / Pag-IBIG reports.', 0, null, null, $pTight);
-$section->addListItem('You cannot yet run recruitment, employee self-service leave filing, contractor management, discipline cases, or full clearance/separation.', 0, null, null, $pTight);
+$section->addListItem('You cannot yet run recruitment, contractor management, discipline cases, or full clearance/separation. Leave filing/balances and live clock-in will be built on Web, not Desktop.', 0, null, null, $pTight);
 $section->addListItem('Faculty teaching load and faculty payroll are already supported for schools.', 0, null, null, $pTight);
 
 // ----- What works well -----
@@ -134,6 +134,9 @@ $section->addTitle('What already works well', 2);
 $section->addText('These areas are the strongest parts of People360 today:', $p);
 
 $strong = [
+    ['Organization & HR setup (M01)', 'Campuses, colleges, programs, departments, positions, designations, ranks, employment types, payroll calendar, holidays, users and roles. Org chart is deferred. Approval matrices will be built on Web, not Desktop.'],
+    ['Time & attendance (M05)', 'Policy, shifts, holidays, time log upload, biometric S3 pull, HR attendance edit, payroll OT, faculty load. Live clock-in, OB, and ESS corrections — Web, not Desktop.'],
+    ['Leave & absence (M06)', 'Leave types, policy mapping, attendance-derived leave in payroll, manual/upload in batch. Filing, balances, accrual, manager approval — Web, not Desktop.'],
     ['Payroll', 'Pay periods, compute and post payroll, overtime / night differential / holiday pay, payslips, payroll register, BIR forms (1601-C, 2316, Alphalist).'],
     ['Government contributions', 'SSS, PhilHealth, Pag-IBIG tables and contribution reports; employee loans.'],
     ['Timekeeping', 'Policies, shifts, holidays, time log upload, biometric log pull, attendance view/edit, overtime for payroll.'],
@@ -152,11 +155,8 @@ $section->addTitle('What is partial (usable, but incomplete)', 2);
 $section->addText('These modules exist in People360 but do not yet cover the full blueprint:', $p);
 
 $partialModules = [
-    ['M01', 'Organization setup', 'Campuses, departments, positions, ranks, calendar, holidays are in. Missing: job grades, cost centers, org chart, approval matrices.'],
-    ['M02', 'Employee master', 'Rich employee profile is in. Missing: dependents as records, bank accounts, consultant/contractor as a separate worker type.'],
+    ['M02', 'Employee master', 'Rich employee profile is in. Missing: employee bank accounts for payroll disbursement (sole remaining M02 gap).'],
     ['M04', 'Onboarding & documents', 'You can define document types and upload files. Missing: onboarding checklist, e-contracts, acknowledgments, equipment/access requests.'],
-    ['M05', 'Time & attendance', 'Import and process attendance is strong. Missing: live clock-in app, QR/mobile punch, official business, employee self-service corrections.'],
-    ['M06', 'Leave', 'Leave types affect payroll. Missing: leave filing, balances, accrual, manager approval.'],
     ['M07', 'Payroll', 'Core payroll is strong. Missing: maker-checker, bank/GL disbursement file, dedicated final-pay and 13th-month runs.'],
     ['M08', 'Benefits', 'Statutory tables and reports exist. Missing: HMO enrollment, remittance reconciliation, effective-dated contribution tables.'],
     ['M15', 'Privacy & records', 'Audit logs and soft delete exist. Missing: retention rules, legal hold, data-subject request workflow.'],
@@ -190,7 +190,7 @@ $mvpPending = [
     ['M12', 'Separation & clearance', 'Resignation/termination, clearance, COE, final pay, exit interview.'],
     ['M13', 'Contractors / outsourced staff', 'Agency accreditation, deployed workers, compliance evidence.'],
     ['M14', 'Occupational Safety & Health', 'Incidents, PPE, drills, corrective actions.'],
-    ['M16', 'Employee self-service', 'Employees/faculty request leave, OT, certificates, and get approvals in-app.'],
+    ['M16', 'Employee self-service', 'Web ESS + Job Order/WRF approvals exist. Missing: leave filing, OT corrections, certificates.'],
 ];
 
 $mvpTable = $section->addTable('ModuleTable');
@@ -215,12 +215,12 @@ $section->addTitle('Full checklist (all 28 modules)', 2);
 $section->addText('Quick reference for the whole blueprint:', $p);
 
 $all = [
-    ['M01', 'Organization & HR Configuration', 'CORE', 'MVP', 'Partial'],
+    ['M01', 'Organization & HR Configuration', 'CORE', 'MVP', 'Ready'],
     ['M02', 'Worker / Employee Master Data', 'CORE', 'MVP', 'Partial'],
     ['M03', 'Recruitment & Applicant Tracking', 'CORE', 'MVP', 'Not yet built'],
     ['M04', 'Onboarding & Employment Documents', 'CORE', 'MVP', 'Partial'],
-    ['M05', 'Time, Attendance & Scheduling', 'CORE', 'MVP', 'Partial'],
-    ['M06', 'Leave & Absence Management', 'CORE', 'MVP', 'Partial'],
+    ['M05', 'Time, Attendance & Scheduling', 'CORE', 'MVP', 'Ready'],
+    ['M06', 'Leave & Absence Management', 'CORE', 'MVP', 'Ready'],
     ['M07', 'Payroll & Statutory Pay', 'CORE', 'MVP', 'Partial'],
     ['M08', 'Benefits & Government Contributions', 'CORE', 'MVP', 'Partial'],
     ['M09', 'Performance Management', 'CORE', 'Phase 2', 'Not yet built'],
@@ -230,7 +230,7 @@ $all = [
     ['M13', 'Contractor & Outsourced Workforce', 'OUTSOURCE', 'MVP', 'Not yet built'],
     ['M14', 'Occupational Safety & Health', 'CORE/OUTSOURCE', 'MVP', 'Not yet built'],
     ['M15', 'Data Privacy, Documents & Records', 'CORE', 'MVP', 'Partial'],
-    ['M16', 'Self-Service, Requests & Approvals', 'CORE', 'MVP', 'Not yet built'],
+    ['M16', 'Self-Service, Requests & Approvals', 'CORE', 'MVP', 'Partial'],
     ['M17', 'HR Compliance & Legal Rules Engine', 'CORE', 'MVP', 'Partial'],
     ['M18', 'HR Analytics, Dashboards & Audit', 'CORE', 'Phase 2', 'Partial'],
     ['M19', 'Faculty & Academic Personnel', 'EDU', 'MVP (schools)', 'Partial'],
@@ -253,7 +253,7 @@ $allTable->addCell(1600, $headerCell)->addText('Priority', $headerFont);
 $allTable->addCell(2000, $headerCell)->addText('Status', $headerFont);
 
 foreach ($all as [$id, $name, $scope, $priority, $status]) {
-    $bg = $status === 'Partial' ? $partialBg : $pendingBg;
+    $bg = $status === 'Ready' ? $readyBg : ($status === 'Partial' ? $partialBg : $pendingBg);
     $allTable->addRow();
     $allTable->addCell(800, $bg)->addText($id, ['bold' => true, 'size' => 8]);
     $allTable->addCell(3600)->addText($name, ['size' => 8]);
@@ -268,9 +268,14 @@ $section->addText(
     $p
 );
 
+$section->addText(
+    'M01 desktop is Ready. Org chart is deferred. Approval matrices will be built on Web, not Desktop. M05 desktop is Ready; live clock-in, OB, and ESS time corrections will be built on Web. M06 desktop is Ready; leave filing, balances, accrual, and manager approval will be built on Web.',
+    $p
+);
+
 $steps = [
-    '1. Employee self-service & approvals (M16) — unlocks leave, OT, and profile requests for faculty/staff.',
-    '2. Leave filing & balances (M06) — build on the leave types already in payroll.',
+    '1. Leave filing & balances (M06 web) — build on desktop leave types + Web ESS shell.',
+    '2. Finish self-service (M16) — add OT corrections, certificates, leave on top of Job Order.',
     '3. Effective-dated government rates (M17 / M08) — so old payroll stays correct after rate changes.',
     '4. Onboarding checklist (M04) — extend the documents already on the employee record.',
     '5. Separation & clearance (M12) — resignation, clearance, final pay, COE.',

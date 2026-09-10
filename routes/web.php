@@ -15,6 +15,9 @@ use App\Http\Controllers\EmployeeSkolarisSyncController;
 use App\Http\Controllers\EmployeeUploadController;
 use App\Http\Controllers\HrLookupController;
 use App\Http\Controllers\BirFormSettingsController;
+use App\Http\Controllers\CompanyDocumentDesignerController;
+use App\Http\Controllers\CompanyDocumentFormController;
+use App\Http\Controllers\CompanyDocumentSubmissionController;
 use App\Http\Controllers\GovernmentTablesController;
 use App\Http\Controllers\PayrollCalendarController;
 use App\Http\Controllers\PayrollMaintenanceController;
@@ -26,6 +29,8 @@ use App\Http\Controllers\HolidaySettingsController;
 use App\Http\Controllers\ShiftCodeController;
 use App\Http\Controllers\TimeCapturingSettingsController;
 use App\Http\Controllers\TimekeepingEmployeeLoadController;
+use App\Http\Controllers\TimekeepingMemoController;
+use App\Http\Controllers\TimekeepingMemoSetupController;
 use App\Http\Controllers\TimekeepingEmployeeProfileController;
 use App\Http\Controllers\TimekeepingPolicyController;
 use App\Http\Controllers\TimekeepingTemplateController;
@@ -118,6 +123,32 @@ Route::middleware('auth')->group(function () {
             Route::delete("hr/$lookup/{record}", [HrLookupController::class, 'destroy'])->name(HrLookup::routeName($lookup, 'destroy'));
         });
     }
+
+    Route::middleware('module:company-documents.index')->group(function () {
+        Route::get('company-documents', [CompanyDocumentFormController::class, 'index'])->name('company-documents.index');
+        Route::get('company-documents/create', [CompanyDocumentFormController::class, 'create'])->name('company-documents.create');
+        Route::post('company-documents', [CompanyDocumentFormController::class, 'store'])->name('company-documents.store');
+        Route::get('company-documents/{companyDocumentForm}', [CompanyDocumentFormController::class, 'show'])->name('company-documents.show');
+        Route::get('company-documents/{companyDocumentForm}/preview-html', [CompanyDocumentFormController::class, 'previewHtml'])->name('company-documents.preview-html');
+        Route::get('company-documents/{companyDocumentForm}/preview-pdf', [CompanyDocumentFormController::class, 'previewPdf'])->name('company-documents.preview-pdf');
+        Route::get('company-documents/{companyDocumentForm}/preview/asset', [CompanyDocumentFormController::class, 'previewAsset'])->name('company-documents.preview.asset');
+        Route::get('company-documents/{companyDocumentForm}/edit', [CompanyDocumentFormController::class, 'edit'])->name('company-documents.edit');
+        Route::put('company-documents/{companyDocumentForm}', [CompanyDocumentFormController::class, 'update'])->name('company-documents.update');
+        Route::delete('company-documents/{companyDocumentForm}', [CompanyDocumentFormController::class, 'destroy'])->name('company-documents.destroy');
+        Route::post('company-documents/{companyDocumentForm}/toggle', [CompanyDocumentFormController::class, 'toggle'])->name('company-documents.toggle');
+        Route::post('company-documents/{companyDocumentForm}/duplicate', [CompanyDocumentFormController::class, 'duplicate'])->name('company-documents.duplicate');
+
+        Route::get('company-documents/{companyDocumentForm}/designer', [CompanyDocumentDesignerController::class, 'show'])->name('company-documents.designer');
+        Route::put('company-documents/{companyDocumentForm}/designer/elements', [CompanyDocumentDesignerController::class, 'saveElements'])->name('company-documents.designer.elements');
+        Route::put('company-documents/{companyDocumentForm}/designer/approvals', [CompanyDocumentDesignerController::class, 'saveApprovals'])->name('company-documents.designer.approvals');
+        Route::post('company-documents/{companyDocumentForm}/designer/upload-image', [CompanyDocumentDesignerController::class, 'uploadImage'])->name('company-documents.designer.upload-image');
+        Route::get('company-documents/{companyDocumentForm}/designer/asset', [CompanyDocumentDesignerController::class, 'showAsset'])->name('company-documents.designer.asset');
+
+        Route::get('company-documents/{companyDocumentForm}/submissions', [CompanyDocumentSubmissionController::class, 'index'])->name('company-documents.submissions.index');
+        Route::get('company-documents/{companyDocumentForm}/submissions/create', [CompanyDocumentSubmissionController::class, 'create'])->name('company-documents.submissions.create');
+        Route::post('company-documents/{companyDocumentForm}/submissions', [CompanyDocumentSubmissionController::class, 'store'])->name('company-documents.submissions.store');
+        Route::get('company-documents/{companyDocumentForm}/submissions/{submission}', [CompanyDocumentSubmissionController::class, 'show'])->name('company-documents.submissions.show');
+    });
 
     Route::middleware('module:payroll.rate-definitions.index')->group(function () {
         $tabs = 'rate-groups|nd-rate-groups|day-types';
@@ -241,7 +272,7 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::middleware('module:payroll.transaction.index')->group(function () {
-        $tabs = 'batches|upload-transactions|unpost-batches';
+        $tabs = 'batches|upload-transactions|unpost-batches|payslip';
 
         Route::get('payroll/transaction', function () {
             return redirect()->route('payroll.transaction.tab', [
@@ -336,6 +367,9 @@ Route::middleware('auth')->group(function () {
 
         Route::delete('payroll/transaction/upload/purge', [PayrollTransactionController::class, 'destroyUploadBatches'])
             ->name('payroll.transaction.upload.destroy');
+
+        Route::post('payroll/transaction/payslips/send', [PayrollTransactionController::class, 'sendPayslipEmail'])
+            ->name('payroll.transaction.payslips.send');
     });
 
     Route::middleware('module:payroll.bir-forms.index')->group(function () {
@@ -552,6 +586,19 @@ Route::middleware('auth')->group(function () {
         Route::post('timekeeping/time-logs/upload/discard', [TimeLogsController::class, 'discardStaging'])
             ->name('timekeeping.time-logs.discard');
 
+        Route::get('timekeeping/time-logs/s3-pull', function (\Illuminate\Http\Request $request) {
+            $tab = \App\Support\TimeLogs::resolveTab($request->query('tab', 'time-in-out'));
+
+            if (\App\Support\TimeLogs::isSkolarisPullTab($tab)) {
+                $tab = 'time-in-out';
+            }
+
+            return redirect()->route('timekeeping.time-logs.tab', [
+                'tab' => $tab,
+                's3_pull' => 1,
+            ]);
+        });
+
         Route::post('timekeeping/time-logs/s3-pull', [TimeLogsController::class, 'pullBiometricLogsFromS3'])
             ->name('timekeeping.time-logs.s3-pull');
 
@@ -662,5 +709,29 @@ Route::middleware('auth')->group(function () {
 
         Route::delete('timekeeping/employee-load/purge', [TimekeepingEmployeeLoadController::class, 'destroy'])
             ->name('timekeeping.employee-load.destroy');
+    });
+
+    Route::middleware('module:timekeeping.memo-setup.index')->group(function () {
+        Route::get('timekeeping/memo-setup', [TimekeepingMemoSetupController::class, 'index'])
+            ->name('timekeeping.memo-setup.index');
+        Route::put('timekeeping/memo-setup', [TimekeepingMemoSetupController::class, 'update'])
+            ->name('timekeeping.memo-setup.update');
+    });
+
+    Route::middleware('module:timekeeping.memo.index')->group(function () {
+        Route::get('timekeeping/memo', [TimekeepingMemoController::class, 'index'])
+            ->name('timekeeping.memo.index');
+        Route::get('timekeeping/memo/{employee}/details', [TimekeepingMemoController::class, 'details'])
+            ->name('timekeeping.memo.details');
+        Route::get('timekeeping/memo/{employee}/preview', [TimekeepingMemoController::class, 'preview'])
+            ->name('timekeeping.memo.preview');
+        Route::get('timekeeping/memo/{employee}/preview-html', [TimekeepingMemoController::class, 'previewHtml'])
+            ->name('timekeeping.memo.preview-html');
+        Route::get('timekeeping/memo/{employee}/preview-pdf', [TimekeepingMemoController::class, 'previewPdf'])
+            ->name('timekeeping.memo.preview-pdf');
+        Route::post('timekeeping/memo/{employee}/send', [TimekeepingMemoController::class, 'send'])
+            ->name('timekeeping.memo.send');
+        Route::post('timekeeping/memo/batch-send', [TimekeepingMemoController::class, 'batchSend'])
+            ->name('timekeeping.memo.batch-send');
     });
 });

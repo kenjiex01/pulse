@@ -41,6 +41,23 @@ class EncryptedEnvTest extends TestCase
     }
 
     #[Test]
+    public function reveal_configured_secrets_decrypts_ses_credentials_in_memory(): void
+    {
+        $sealedKey = EncryptedEnv::seal('AKIATESTKEY');
+        $sealedSecret = EncryptedEnv::seal('secret-value');
+
+        config([
+            'services.ses.key' => $sealedKey,
+            'services.ses.secret' => $sealedSecret,
+        ]);
+
+        EncryptedEnv::revealConfiguredSecrets();
+
+        $this->assertSame('AKIATESTKEY', config('services.ses.key'));
+        $this->assertSame('secret-value', config('services.ses.secret'));
+    }
+
+    #[Test]
     public function sealed_payload_is_not_the_plain_secret(): void
     {
         $plain = 'super-secret-value';

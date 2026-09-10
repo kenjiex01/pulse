@@ -21,6 +21,8 @@ use App\Policies\PayrollTransactionPolicy;
 use App\Policies\RateDefinitionPolicy;
 use App\Policies\TimekeepingEmployeeLoadPolicy;
 use App\Policies\TimekeepingEmployeeProfilePolicy;
+use App\Policies\TimekeepingMemoPolicy;
+use App\Policies\TimekeepingMemoSetupPolicy;
 use App\Policies\TimekeepingPolicyPolicy;
 use App\Policies\TimeLogsPolicy;
 use App\Support\EncryptedEnv;
@@ -67,6 +69,8 @@ class AppServiceProvider extends ServiceProvider
         $timeLogsPolicy = new TimeLogsPolicy;
         $employeeProfilePolicy = new TimekeepingEmployeeProfilePolicy;
         $employeeLoadPolicy = new TimekeepingEmployeeLoadPolicy;
+        $memoPolicy = new TimekeepingMemoPolicy;
+        $memoSetupPolicy = new TimekeepingMemoSetupPolicy;
 
         Gate::define('hr-lookup.viewAny', fn (User $user, string $lookup) => $hrLookupPolicy->viewAny($user, $lookup));
         Gate::define('hr-lookup.create', fn (User $user, string $lookup) => $hrLookupPolicy->create($user, $lookup));
@@ -123,6 +127,12 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('employee-load.create', fn (User $user) => $employeeLoadPolicy->create($user));
         Gate::define('employee-load.update', fn (User $user, $record = null) => $employeeLoadPolicy->update($user, $record));
         Gate::define('employee-load.delete', fn (User $user, $record = null) => $employeeLoadPolicy->delete($user, $record));
+
+        Gate::define('memo.viewAny', fn (User $user) => $memoPolicy->viewAny($user));
+        Gate::define('memo.update', fn (User $user, $record = null) => $memoPolicy->update($user, $record));
+
+        Gate::define('memo-setup.viewAny', fn (User $user) => $memoSetupPolicy->viewAny($user));
+        Gate::define('memo-setup.update', fn (User $user, $record = null) => $memoSetupPolicy->update($user, $record));
 
         Paginator::defaultView('vendor.pagination.skolaris');
         Paginator::defaultSimpleView('vendor.pagination.skolaris');

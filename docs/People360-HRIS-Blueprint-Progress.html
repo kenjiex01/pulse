@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>People360 — HRIS Blueprint Progress</title>
+  <style>
+    :root {
+      --navy: #0B318F;
+      --cyan: #00A3E6;
+      --gray: #475569;
+      --ready: #16a34a;
+      --ready-bg: #dcfce7;
+      --partial: #d97706;
+      --partial-bg: #fef3c7;
+      --pending: #dc2626;
+      --pending-bg: #fee2e2;
+      --track: #e2e8f0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Calibri, "Segoe UI", Arial, sans-serif;
+      color: #0f172a;
+      background: #f1f5f9;
+      line-height: 1.45;
+    }
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 3rem;
+    }
+    .hero {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.75rem 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+      margin-bottom: 1.25rem;
+    }
+    h1 { color: var(--navy); font-size: 1.85rem; margin: 0 0 .25rem; }
+    .subtitle { color: var(--cyan); font-size: 1.15rem; font-weight: 700; margin: 0 0 .5rem; }
+    .muted { color: #64748b; font-size: .92rem; }
+    h2 { color: var(--navy); font-size: 1.15rem; margin: 0 0 .75rem; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin: 1.25rem 0;
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 1.1rem 1rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .card .num {
+      font-size: 2rem;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: .25rem;
+    }
+    .card .lbl { color: var(--gray); font-size: .88rem; }
+    .num.ready { color: var(--ready); }
+    .num.partial { color: var(--partial); }
+    .num.pending { color: var(--pending); }
+    .progress-wrap {
+      background: #fff;
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+      margin-bottom: 1.25rem;
+    }
+    .progress-bar {
+      display: flex;
+      height: 28px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: var(--track);
+      margin: .75rem 0 .5rem;
+    }
+    .progress-bar span {
+      display: block;
+      height: 100%;
+    }
+    .seg-ready { background: var(--ready); width: 14.286%; }
+    .seg-partial { background: var(--partial); width: 32.143%; }
+    .seg-pending { background: var(--pending); width: 53.571%; }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      font-size: .85rem;
+      color: var(--gray);
+    }
+    .legend i {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      margin-right: .35rem;
+      vertical-align: middle;
+    }
+    .ready-list {
+      background: var(--ready-bg);
+      border: 1px solid #86efac;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .ready-list h2 { color: #166534; }
+    .ready-item {
+      margin: .85rem 0 0;
+      padding-top: .85rem;
+      border-top: 1px solid #bbf7d0;
+    }
+    .ready-item:first-of-type { border-top: 0; padding-top: 0; margin-top: .5rem; }
+    .ready-item strong { color: var(--navy); }
+    .ready-item p { margin: .25rem 0 0; color: var(--gray); font-size: .92rem; }
+    .grid-section {
+      background: #fff;
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+      margin-bottom: 1.25rem;
+    }
+    .module-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+      gap: .55rem;
+    }
+    .mod {
+      border-radius: 8px;
+      padding: .55rem .5rem;
+      font-size: .72rem;
+      border: 1px solid transparent;
+      min-height: 72px;
+    }
+    .mod .id { font-weight: 800; font-size: .78rem; display: block; margin-bottom: .15rem; }
+    .mod .name { color: inherit; opacity: .92; line-height: 1.25; }
+    .mod.ready { background: var(--ready-bg); border-color: #86efac; color: #166534; }
+    .mod.partial { background: var(--partial-bg); border-color: #fcd34d; color: #92400e; }
+    .mod.pending { background: var(--pending-bg); border-color: #fca5a5; color: #991b1b; }
+    .mod.mvp::after {
+      content: "MVP";
+      display: inline-block;
+      margin-top: .25rem;
+      font-size: .62rem;
+      font-weight: 700;
+      padding: .05rem .3rem;
+      border-radius: 3px;
+      background: rgba(0,0,0,.08);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: .8rem; margin-top: .5rem; }
+    th { background: var(--navy); color: #fff; text-align: left; padding: .45rem .4rem; }
+    td { border: 1px solid #cbd5e1; padding: .38rem .4rem; vertical-align: top; }
+    td.ready { background: var(--ready-bg); font-weight: 700; color: #166534; }
+    td.partial { background: var(--partial-bg); color: #92400e; }
+    td.pending { background: var(--pending-bg); color: #991b1b; }
+    .links { font-size: .88rem; margin-top: 1rem; }
+    .links a { color: var(--cyan); }
+    .timeline-section {
+      background: #fff;
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+      margin-bottom: 1.25rem;
+      border-left: 4px solid var(--cyan);
+    }
+    .timeline-section h2 { margin-bottom: .35rem; }
+    .timeline-outcome {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: .75rem 1rem;
+      margin: .75rem 0 1rem;
+      font-size: .9rem;
+      color: #1e3a8a;
+    }
+    .timeline-note { font-size: .85rem; color: #64748b; margin: .5rem 0 0; }
+    footer { text-align: center; color: #94a3b8; font-size: .78rem; margin-top: 1.5rem; }
+    @media print {
+      body { background: #fff; }
+      .card, .hero, .progress-wrap, .grid-section, .ready-list { box-shadow: none; border: 1px solid #e2e8f0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="hero">
+      <h1>People360</h1>
+      <p class="subtitle">HRIS Blueprint Progress</p>
+      <p class="muted"><strong>Updated:</strong> 7 September 2026 &nbsp;|&nbsp; 28 modules (M01–M28) &nbsp;|&nbsp; Combined status = best of Desktop + Web</p>
+      <p class="muted">Desktop = <code>pulse/</code> installer &nbsp;·&nbsp; Web = Skolaris <code>/people360</code> (<code>iskolaris-fe</code> + <code>iskolaris-be</code>)</p>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="num ready">4</div>
+        <div class="lbl">Ready (Combined)</div>
+      </div>
+      <div class="card">
+        <div class="num partial">9</div>
+        <div class="lbl">Partial</div>
+      </div>
+      <div class="card">
+        <div class="num pending">15</div>
+        <div class="lbl">Not yet built</div>
+      </div>
+      <div class="card">
+        <div class="num ready">4 / 17</div>
+        <div class="lbl">MVP modules Ready</div>
+      </div>
+      <div class="card">
+        <div class="num ready">14.3%</div>
+        <div class="lbl">Overall blueprint (4 of 28)</div>
+      </div>
+    </div>
+
+    <div class="progress-wrap">
+      <h2>Combined progress — all 28 modules</h2>
+      <div class="progress-bar" aria-label="4 Ready, 9 Partial, 15 Pending">
+        <span class="seg-ready" title="Ready: 3"></span>
+        <span class="seg-partial" title="Partial: 10"></span>
+        <span class="seg-pending" title="Pending: 15"></span>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--ready)"></i>Ready — 4 (M01, M05, M07, M16)</span>
+        <span><i style="background:var(--partial)"></i>Partial — 9</span>
+        <span><i style="background:var(--pending)"></i>Not yet built — 15</span>
+      </div>
+    </div>
+
+    <div class="timeline-section">
+      <h2>Last week completed (1–7 September 2026)</h2>
+      <table>
+        <tr><th>#</th><th>Deliverable</th><th>Modules</th><th>Status</th><th>Notes</th></tr>
+        <tr><td><strong>W1</strong></td><td>Payslip send by email</td><td>M07</td><td class="ready">Done</td><td>Payroll Transaction → Payslip tab; SES API; PDF attach from posted batch</td></tr>
+      </table>
+
+      <h2 style="margin-top:1.25rem">This week — targets (8–14 September 2026)</h2>
+      <div class="timeline-outcome">
+        <strong>Target outcome:</strong> Payroll imports approved web forms (OT amendment, Job Order/WRF) into the desktop batch instead of re-keying.
+      </div>
+      <table>
+        <tr><th>#</th><th>Deliverable</th><th>Modules</th><th>Product</th><th>Dates</th><th>Depends on</th></tr>
+        <tr><td><strong>W2a</strong></td><td>Pull approved ESS forms from People360 web</td><td>M05 / M07</td><td>Desktop + Web BE</td><td>8–11 Sep</td><td>Pulse API key (employee_requests)</td></tr>
+        <tr><td><strong>W2b</strong></td><td>Apply synced forms to payroll batch</td><td>M05 / M07</td><td>Desktop</td><td>11–14 Sep</td><td>W2a complete</td></tr>
+      </table>
+      <p class="timeline-note">Out of scope this week: recruitment, onboarding workflow (<strong>M04 deferred</strong>).</p>
+
+      <h2 style="margin-top:1.25rem">External checklist (this week)</h2>
+      <table>
+        <tr><th>Item</th><th>Owner</th><th>Needed for</th></tr>
+        <tr><td>Pulse API key: employee_requests list + sync</td><td>Skolaris admin</td><td>W2a</td></tr>
+        <tr><td>HR: sample approved OT + Job Order in staging</td><td>HR</td><td>W2b UAT</td></tr>
+        <tr><td>Campus PCs People360 1.0.2+ with HTTPS</td><td>Campus IT</td><td>W2a</td></tr>
+      </table>
+      <p class="links" style="margin-top:.75rem">Full timeline (Sep–Q4, blueprint stages): <a href="hris-blueprint-gap-analysis.md">hris-blueprint-gap-analysis.md §10</a></p>
+    </div>
+
+    <div class="ready-list">
+      <h2>Desktop Ready — agreed scope (3 modules)</h2>
+      <p class="muted" style="margin:0">Gaps below each module are owned by <strong>Web</strong>, not Desktop.</p>
+      <div class="ready-item">
+        <strong>M01 — Organization &amp; HR Configuration</strong>
+        <p>Campuses, colleges, programs, departments, positions, designations, ranks, employment types, payroll calendar, holidays, users/roles. <em>Web:</em> N/A — org configuration is desktop-only. <em>Deferred:</em> org chart.</p>
+      </div>
+      <div class="ready-item">
+        <strong>M05 — Time, Attendance &amp; Scheduling</strong>
+        <p>Policy, shifts, holidays, time log upload, biometric S3 pull, HR attendance edit, payroll OT, faculty load. <em>Web:</em> live clock-in, QR punch, official business, ESS corrections, attendance approval.</p>
+      </div>
+      <div class="ready-item">
+        <strong>M07 — Payroll &amp; Statutory Pay</strong>
+        <p>Compute/post, payslips, register, BIR reports, payslip email. <em>Web:</em> N/A — live payroll is desktop-only.</p>
+      </div>
+    </div>
+
+    <div class="grid-section">
+      <h2>Module map — Combined status</h2>
+      <p class="muted" style="margin:0 0 .75rem">Green = Ready &nbsp;·&nbsp; Amber = Partial &nbsp;·&nbsp; Red = Not yet built</p>
+      <div class="module-grid">
+        <div class="mod ready mvp"><span class="id">M01</span><span class="name">Organization &amp; HR</span></div>
+        <div class="mod partial mvp"><span class="id">M02</span><span class="name">Employee Master</span></div>
+        <div class="mod pending mvp"><span class="id">M03</span><span class="name">Recruitment</span></div>
+        <div class="mod partial mvp"><span class="id">M04</span><span class="name">Onboarding &amp; Docs</span></div>
+        <div class="mod ready mvp"><span class="id">M05</span><span class="name">Time &amp; Attendance</span></div>
+        <div class="mod partial mvp"><span class="id">M06</span><span class="name">Leave &amp; Absence</span></div>
+        <div class="mod ready mvp"><span class="id">M07</span><span class="name">Payroll</span></div>
+        <div class="mod partial mvp"><span class="id">M08</span><span class="name">Benefits &amp; Govt</span></div>
+        <div class="mod pending"><span class="id">M09</span><span class="name">Performance</span></div>
+        <div class="mod pending"><span class="id">M10</span><span class="name">L&amp;D</span></div>
+        <div class="mod pending mvp"><span class="id">M11</span><span class="name">Discipline</span></div>
+        <div class="mod pending mvp"><span class="id">M12</span><span class="name">Separation</span></div>
+        <div class="mod pending mvp"><span class="id">M13</span><span class="name">Contractors</span></div>
+        <div class="mod pending mvp"><span class="id">M14</span><span class="name">OSH</span></div>
+        <div class="mod partial mvp"><span class="id">M15</span><span class="name">Privacy &amp; Records</span></div>
+        <div class="mod ready mvp"><span class="id">M16</span><span class="name">Self-Service</span></div>
+        <div class="mod partial mvp"><span class="id">M17</span><span class="name">Legal Rules</span></div>
+        <div class="mod partial"><span class="id">M18</span><span class="name">Analytics</span></div>
+        <div class="mod partial mvp"><span class="id">M19</span><span class="name">Faculty Personnel</span></div>
+        <div class="mod partial mvp"><span class="id">M20</span><span class="name">Faculty Load</span></div>
+        <div class="mod pending"><span class="id">M21</span><span class="name">Faculty Eval</span></div>
+        <div class="mod pending"><span class="id">M22</span><span class="name">Faculty Dev</span></div>
+        <div class="mod pending"><span class="id">M23</span><span class="name">Safeguarding</span></div>
+        <div class="mod pending"><span class="id">M24</span><span class="name">Sales / Comm</span></div>
+        <div class="mod pending"><span class="id">M25</span><span class="name">Field Workforce</span></div>
+        <div class="mod pending"><span class="id">M26</span><span class="name">Succession</span></div>
+        <div class="mod pending"><span class="id">M27</span><span class="name">AI</span></div>
+        <div class="mod pending"><span class="id">M28</span><span class="name">SDG / ESG</span></div>
+      </div>
+    </div>
+
+    <div class="grid-section">
+      <h2>Full checklist — Desktop · Web · Combined</h2>
+      <p class="muted" style="margin:0 0 .75rem">Target date = planned substantially complete (§10 timeline). <strong>M02:</strong> desktop Ready (bank accounts); web Partial.</p>
+      <table>
+        <tr><th>ID</th><th>Module</th><th>Target date</th><th>Desktop</th><th>Web</th><th>Combined</th></tr>
+        <tr><td>M01</td><td>Organization &amp; HR Configuration</td><td>Done</td><td class="ready">Ready</td><td>N/A</td><td class="ready">Ready</td></tr>
+        <tr><td>M02</td><td>Worker / Employee Master</td><td>Dec 2026</td><td class="ready">Ready</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+        <tr><td>M03</td><td>Recruitment &amp; ATS</td><td>Dec 2026</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M04</td><td>Onboarding &amp; Documents</td><td>Deferred</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+        <tr><td>M05</td><td>Time, Attendance &amp; Scheduling</td><td>14 Sep 2026</td><td class="ready">Ready</td><td class="partial">Partial</td><td class="ready">Ready</td></tr>
+        <tr><td>M06</td><td>Leave &amp; Absence</td><td>Oct 2026</td><td class="partial">Partial</td><td class="ready">Ready</td><td class="partial">Partial</td></tr>
+        <tr><td>M07</td><td>Payroll &amp; Statutory Pay</td><td>Done</td><td class="ready">Ready</td><td>N/A</td><td class="ready">Ready</td></tr>
+        <tr><td>M08</td><td>Benefits &amp; Government</td><td>Nov–Dec 2026</td><td class="partial">Partial</td><td class="pending">Pending</td><td class="partial">Partial</td></tr>
+        <tr><td>M09</td><td>Performance</td><td>Dec 2026</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M10</td><td>Learning &amp; Development</td><td>Dec 2026</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M11</td><td>Grievance &amp; Discipline</td><td>Dec 2026</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M12</td><td>Separation &amp; Clearance</td><td>Nov 2026</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M13</td><td>Contractors</td><td>Dec 2026</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M14</td><td>Occupational Safety &amp; Health</td><td>Dec 2026</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M15</td><td>Data Privacy &amp; Records</td><td>Dec 2026</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+        <tr><td>M16</td><td>Self-Service &amp; Approvals</td><td>Done</td><td>N/A</td><td class="ready">Ready</td><td class="ready">Ready</td></tr>
+        <tr><td>M17</td><td>HR Compliance &amp; Legal Rules</td><td>Nov–Dec 2026</td><td class="partial">Partial</td><td class="pending">Pending</td><td class="partial">Partial</td></tr>
+        <tr><td>M18</td><td>Analytics &amp; Audit</td><td>Dec 2026</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+        <tr><td>M19</td><td>Faculty &amp; Academic Personnel</td><td>Dec 2026</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+        <tr><td>M20</td><td>Faculty Load &amp; Overload</td><td>Dec 2026</td><td class="partial">Partial</td><td class="partial">Partial</td><td class="partial">Partial</td></tr>
+        <tr><td>M21</td><td>Faculty Evaluation</td><td>Dec 2026</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M22</td><td>Faculty Development</td><td>Dec 2026</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M23</td><td>Student-Safeguarding</td><td>Dec 2026</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M24</td><td>Sales / Commission</td><td>Optional</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M25</td><td>Field / Branch Workforce</td><td>Optional</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M26</td><td>Succession Planning</td><td>Dec 2026</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M27</td><td>AI Assistance</td><td>Dec 2026</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+        <tr><td>M28</td><td>SDG / ESG Reporting</td><td>Dec 2026</td><td class="pending">Pending</td><td class="pending">Pending</td><td class="pending">Pending</td></tr>
+      </table>
+      <p class="links">
+        Full gap analysis: <a href="hris-blueprint-gap-analysis.md">hris-blueprint-gap-analysis.md</a> &nbsp;·&nbsp;
+        Stakeholder report: <a href="People360-HRIS-Blueprint-Status-2026-08-27.html">Status report (HTML)</a>
+      </p>
+    </div>
+
+    <footer>
+      Source: HRIS Software Modules Blueprint (PH) · People360 Desktop + Web · 7 Sep 2026
+    </footer>
+  </div>
+</body>
+</html>

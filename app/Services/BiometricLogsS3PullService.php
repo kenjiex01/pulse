@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Campus;
+use App\Models\Employee;
 use App\Models\RawTimekeepingInandout;
 use App\Models\RawTimekeepingTransaction;
 use App\Models\User;
@@ -15,6 +16,12 @@ use Throwable;
 
 class BiometricLogsS3PullService
 {
+    /** @var array<string, Employee|null> */
+    private array $biometricCache = [];
+
+    /** @var array<string, Campus|null> */
+    private array $campusByCodeCache = [];
+
     public function __construct(
         private readonly EmployeeBiometricResolver $biometricResolver,
     ) {}
@@ -52,6 +59,10 @@ class BiometricLogsS3PullService
         if ($year < 2000 || $year > 2100 || $month < 1 || $month > 12) {
             throw new RuntimeException('Invalid year or month for S3 pull.');
         }
+
+        $this->prepareLongRunningS3();
+        $this->biometricCache = [];
+        $this->campusByCodeCache = [];
 
         $prefix = $this->monthPrefix($year, $month);
         $collectorFolder = $this->sanitizeFolder($collectorFolder);
@@ -133,6 +144,8 @@ class BiometricLogsS3PullService
             return [];
         }
 
+        $this->prepareLongRunningS3();
+
         $prefix = $this->monthPrefix($year, $month);
         $disk = Storage::disk($this->disk());
 
@@ -156,6 +169,22 @@ class BiometricLogsS3PullService
         return array_values(array_unique($folders));
     }
 
+    public function matchCampusFromCollectorFolder(string $collectorFolder): ?Campus
+    {
+        $name = trim(str_replace(['-', '_'], ' ', $collectorFolder));
+
+        if ($name === '') {
+            return null;
+        }
+
+        return $this->guessCampusFromCollectorName($name);
+    }
+
+    public function disk(): string
+    {
+        return (string) config('biometric_logs.s3.disk', 'backup-s3');
+    }
+
     public function monthPrefix(int $year, int $month): string
     {
         $root = trim((string) config('biometric_logs.s3.prefix', 'biometric_logs'), '/');
@@ -177,7 +206,7 @@ class BiometricLogsS3PullService
         try {
             $files = $disk->allFiles($searchPrefix);
         } catch (Throwable $exception) {
-            throw new RuntimeException('Unable to list S3 objects under '.$searchPrefix.': '.$exception->getMessage(), 0, $exception);
+            throw new RuntimeException($this->s3FailureMessage('list objects under '.$searchPrefix, $exception), 0, $exception);
         }
 
         $keys = [];
@@ -200,7 +229,12 @@ class BiometricLogsS3PullService
     private function downloadAndDecode(string $s3Key): array
     {
         $disk = Storage::disk($this->disk());
-        $binary = $disk->get($s3Key);
+
+        try {
+            $binary = $disk->get($s3Key);
+        } catch (Throwable $exception) {
+            throw new RuntimeException($this->s3FailureMessage('download '.$s3Key, $exception), 0, $exception);
+        }
 
         if ($binary === null || $binary === '') {
             throw new RuntimeException('Empty S3 object.');
@@ -267,7 +301,7 @@ class BiometricLogsS3PullService
                 continue;
             }
 
-            $employee = $this->biometricResolver->resolve((int) $campus->campus_id, $userId);
+            $employee = $this->resolveEmployeeCached((int) $campus->campus_id, $userId);
 
             if ($employee === null) {
                 $unmatched++;
@@ -353,13 +387,22 @@ class BiometricLogsS3PullService
                 'campus_id' => $campus->campus_id,
             ]);
 
-            foreach ($filtered['rows'] as $inOutRow) {
-                RawTimekeepingInandout::query()->create([
-                    'timekeeping_transaction_id' => $transaction->timekeeping_transaction_id,
-                    'employee_id' => $inOutRow['employee_id'],
-                    'dt_datetime' => $inOutRow['dt_datetime'],
-                    'is_in' => $inOutRow['is_in'],
-                ]);
+            $transactionId = (int) $transaction->timekeeping_transaction_id;
+            $insertRows = array_map(static function (array $inOutRow) use ($transactionId): array {
+                $dt = $inOutRow['dt_datetime'] instanceof Carbon
+                    ? $inOutRow['dt_datetime']
+                    : Carbon::parse($inOutRow['dt_datetime']);
+
+                return [
+                    'timekeeping_transaction_id' => $transactionId,
+                    'employee_id' => (int) $inOutRow['employee_id'],
+                    'dt_datetime' => $dt->format('Y-m-d H:i:s'),
+                    'is_in' => $inOutRow['is_in'] ? 1 : 0,
+                ];
+            }, $filtered['rows']);
+
+            foreach (array_chunk($insertRows, 250) as $chunk) {
+                RawTimekeepingInandout::query()->insert($chunk);
             }
 
             SysLogService::record(
@@ -391,12 +434,14 @@ class BiometricLogsS3PullService
         $code = strtoupper(trim((string) ($payload['campus_code'] ?? '')));
 
         if ($code !== '') {
-            $byCode = Campus::query()
-                ->whereRaw('UPPER(campus_code) = ?', [$code])
-                ->first();
+            if (! array_key_exists($code, $this->campusByCodeCache)) {
+                $this->campusByCodeCache[$code] = Campus::query()
+                    ->whereRaw('UPPER(campus_code) = ?', [$code])
+                    ->first();
+            }
 
-            if ($byCode !== null) {
-                return $byCode;
+            if ($this->campusByCodeCache[$code] !== null) {
+                return $this->campusByCodeCache[$code];
             }
         }
 
@@ -542,8 +587,37 @@ class BiometricLogsS3PullService
         return $folder;
     }
 
-    private function disk(): string
+    private function resolveEmployeeCached(int $campusId, string $biometricId): ?Employee
     {
-        return (string) config('biometric_logs.s3.disk', 'backup-s3');
+        $cacheKey = $campusId.'|'.$biometricId;
+
+        if (! array_key_exists($cacheKey, $this->biometricCache)) {
+            $this->biometricCache[$cacheKey] = $this->biometricResolver->resolve($campusId, $biometricId);
+        }
+
+        return $this->biometricCache[$cacheKey];
+    }
+
+    private function prepareLongRunningS3(): void
+    {
+        @set_time_limit(0);
+        @ini_set('max_execution_time', '0');
+    }
+
+    private function s3FailureMessage(string $action, Throwable $exception): string
+    {
+        $detail = $exception->getMessage();
+        $lower = strtolower($detail);
+
+        if (
+            str_contains($lower, 'timed out')
+            || str_contains($lower, 'timeout')
+            || str_contains($lower, 'curl error 28')
+            || str_contains($lower, 'operation timed out')
+        ) {
+            return 'S3 request timed out while trying to '.$action.'. Check your internet connection, then try again with one collector folder.';
+        }
+
+        return 'Unable to '.$action.': '.$detail;
     }
 }

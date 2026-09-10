@@ -6,7 +6,7 @@
     @include('partials.flash')
     @include('partials.page-header', [
         'title' => 'Payroll Transaction',
-        'description' => 'Process payroll batches, upload adjustments, and unpost posted batches.',
+        'description' => 'Process payroll batches, upload adjustments, unpost posted batches, and send payslip emails.',
         'actionModalId' => match ($moduleTab) {
             'batches' => 'payroll-batch-create-modal',
             'upload-transactions' => auth()->user()?->can('payroll-transaction.create') ? 'payroll-upload-modal' : null,
@@ -77,6 +77,10 @@
                 'uploadConfig' => $uploadConfig,
                 'uploadRecords' => $uploadRecords,
             ])->render(),
+        ])
+    @elseif ($moduleTab === 'payslip')
+        @include('payroll.transaction._payslips-tab', [
+            'postedBatches' => $postedBatches ?? collect(),
         ])
     @endif
 

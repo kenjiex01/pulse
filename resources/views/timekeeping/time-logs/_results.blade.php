@@ -62,3 +62,7 @@
         </table>
     </div>
 </div>
+
+<div class="datatable-skolaris-pagination mt-4">
+    @include('partials.data-table-pagination', ['paginator' => $records])
+</div>

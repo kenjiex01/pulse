@@ -1,5 +1,7 @@
 import { initSearchableSelects, refreshSearchableSelect } from './searchable-select.js';
 import { initGovernmentIdInputs } from './government-id-format.js';
+import { initTimekeepingMemo, reinitTimekeepingMemoTable } from './timekeeping-memo.js';
+import './company-documents.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const loader = document.getElementById('pulse-full-screen-loader');
@@ -2827,6 +2829,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initEmployeeProfileFormTabs(container);
         initEmployeeProfileSetupRoots(container);
         initEmployeeLoanForms(container);
+        reinitTimekeepingMemoTable(container);
     };
 
     const getPayrollMaintenanceFieldValue = (form, fieldName) => {
@@ -4027,6 +4030,221 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const initPayslipReportOptions = (root) => {
         initBatchEmployeePicker(root);
+
+        const payslipRoot = root.matches?.('[data-payroll-report-options="payslip"]')
+            ? root
+            : root.querySelector?.('[data-payroll-report-options="payslip"]');
+
+        if (!payslipRoot || payslipRoot.dataset.payslipPdfModeReady === '1') {
+            return;
+        }
+
+        payslipRoot.dataset.payslipPdfModeReady = '1';
+
+        const outputSelect = payslipRoot.querySelector('[data-payslip-output-format]');
+        const pdfModeWrap = payslipRoot.querySelector('[data-payslip-pdf-mode-wrap]');
+
+        const syncPdfModeVisibility = () => {
+            if (!outputSelect || !pdfModeWrap) {
+                return;
+            }
+
+            pdfModeWrap.classList.toggle('hidden', outputSelect.value !== 'pdf');
+        };
+
+        outputSelect?.addEventListener('change', syncPdfModeVisibility);
+        syncPdfModeVisibility();
+    };
+
+    const initPayslipEmailSend = (root) => {
+        if (!root || root.dataset.payslipSendBound === '1') {
+            return;
+        }
+
+        root.dataset.payslipSendBound = '1';
+
+        initBatchEmployeePicker(root);
+
+        const sendUrl = root.dataset.payslipSendUrl ?? '';
+        const batchSelect = root.querySelector('[data-payslip-batch-select]');
+        const employeeSelect = root.querySelector('[data-payslip-employee-select]');
+        const sendBtn = root.querySelector('[data-payslip-send-btn]');
+        const progressPanel = root.querySelector('[data-payslip-progress-panel]');
+        const progressBar = root.querySelector('[data-payslip-progress-bar]');
+        const progressLabel = root.querySelector('[data-payslip-progress-label]');
+        const progressDetail = root.querySelector('[data-payslip-progress-detail]');
+        const errorEl = root.querySelector('[data-payslip-send-error]');
+        const successEl = root.querySelector('[data-payslip-send-success]');
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+        const showError = (message) => {
+            if (errorEl) {
+                errorEl.textContent = message;
+                errorEl.classList.remove('hidden');
+            }
+
+            if (successEl) {
+                successEl.classList.add('hidden');
+            }
+        };
+
+        const showSuccess = (message) => {
+            if (successEl) {
+                successEl.textContent = message;
+                successEl.classList.remove('hidden');
+            }
+
+            if (errorEl) {
+                errorEl.classList.add('hidden');
+            }
+        };
+
+        const setSending = (sending) => {
+            if (sendBtn) {
+                sendBtn.disabled = sending;
+                sendBtn.textContent = sending ? 'Sending…' : 'Send Email';
+            }
+
+            if (batchSelect) {
+                batchSelect.disabled = sending;
+            }
+        };
+
+        const updateProgress = (sent, total, employeeName) => {
+            const percent = total > 0 ? Math.round((sent / total) * 100) : 0;
+
+            if (progressBar) {
+                progressBar.style.width = `${percent}%`;
+            }
+
+            if (progressLabel) {
+                progressLabel.textContent = `${sent} / ${total}`;
+            }
+
+            if (progressDetail) {
+                progressDetail.textContent = employeeName
+                    ? `Sending to ${employeeName}…`
+                    : '';
+            }
+        };
+
+        const readJsonResponse = async (response) => {
+            const raw = await response.text();
+
+            if (!raw) {
+                return {};
+            }
+
+            try {
+                return JSON.parse(raw);
+            } catch {
+                if (response.status === 419) {
+                    throw new Error('Your session expired. Refresh the page and try again.');
+                }
+
+                throw new Error('Unexpected server response. Refresh the page and try again.');
+            }
+        };
+
+        sendBtn?.addEventListener('click', async () => {
+            errorEl?.classList.add('hidden');
+            successEl?.classList.add('hidden');
+
+            const batchId = batchSelect?.value ?? '';
+            const selectedOptions = employeeSelect
+                ? Array.from(employeeSelect.selectedOptions).filter((option) => option.value)
+                : [];
+
+            if (!batchId) {
+                showError('Select a posted payroll batch.');
+
+                return;
+            }
+
+            if (selectedOptions.length === 0) {
+                showError('Select at least one employee.');
+
+                return;
+            }
+
+            if (!sendUrl) {
+                showError('Send URL is not configured.');
+
+                return;
+            }
+
+            const batchLabel = batchSelect?.selectedOptions[0]?.textContent?.trim() ?? 'the selected batch';
+            const employeeCount = selectedOptions.length;
+            const confirmMessage = employeeCount === 1
+                ? `Send payslip email to 1 employee from ${batchLabel}?`
+                : `Send payslip emails to ${employeeCount} employees from ${batchLabel}?`;
+
+            if (!window.confirm(confirmMessage)) {
+                return;
+            }
+
+            setSending(true);
+            progressPanel?.classList.remove('hidden');
+
+            const total = selectedOptions.length;
+            let sent = 0;
+            const failures = [];
+
+            for (const option of selectedOptions) {
+                const employeeId = option.value;
+                const employeeLabel = option.textContent?.trim() ?? '';
+
+                updateProgress(sent, total, employeeLabel);
+
+                try {
+                    const response = await fetch(sendUrl, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrf,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({
+                            _token: csrf,
+                            payroll_batch_id: Number(batchId),
+                            employee_id: Number(employeeId),
+                        }),
+                    });
+
+                    const payload = await readJsonResponse(response);
+
+                    if (!response.ok || !payload.success) {
+                        throw new Error(payload.message ?? `Failed to send to ${employeeLabel}.`);
+                    }
+
+                    sent += 1;
+                    updateProgress(sent, total, payload.employee_name ?? employeeLabel);
+                } catch (error) {
+                    failures.push(error.message ?? `Failed to send to ${employeeLabel}.`);
+                }
+            }
+
+            setSending(false);
+
+            if (employeeSelect) {
+                employeeSelect.disabled = false;
+            }
+
+            if (failures.length === 0) {
+                showSuccess(`Sent ${sent} payslip email${sent === 1 ? '' : 's'} successfully.`);
+
+                if (progressDetail) {
+                    progressDetail.textContent = 'Complete.';
+                }
+            } else if (sent > 0) {
+                showError(`Sent ${sent} of ${total}. ${failures.join(' ')}`);
+            } else {
+                showError(failures[0] ?? 'Unable to send payslip emails.');
+                progressPanel?.classList.add('hidden');
+            }
+        });
     };
 
     const initEmployeeMultiselect = (picker) => {
@@ -4140,7 +4358,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const disposition = response.headers.get('content-disposition') || '';
                 const isDownloadResponse = /attachment/i.test(disposition)
                     || contentType.includes('spreadsheet')
-                    || contentType.includes('application/pdf');
+                    || contentType.includes('application/pdf')
+                    || contentType.includes('application/zip');
 
                 if (! response.ok || contentType.includes('text/html') || ! isDownloadResponse) {
                     const html = await response.text();
@@ -4152,7 +4371,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const filenameMatch = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
-                const rawName = filenameMatch?.[1] || filenameMatch?.[2] || (outputFormat === 'pdf' ? 'report.pdf' : 'report.xlsx');
+                const rawName = filenameMatch?.[1] || filenameMatch?.[2] || (
+                    outputFormat === 'pdf'
+                        ? (contentType.includes('zip') ? 'payslips.zip' : 'report.pdf')
+                        : 'report.xlsx'
+                );
                 const filename = decodeURIComponent(rawName.trim());
 
                 const blob = await response.blob();
@@ -5708,4 +5931,6 @@ tr { page-break-inside: avoid; }
 
     initEmployeeSkolarisSync();
     initGovernmentIdInputs();
+    initTimekeepingMemo();
+    document.querySelectorAll('[data-payslip-send-root]').forEach(initPayslipEmailSend);
 });

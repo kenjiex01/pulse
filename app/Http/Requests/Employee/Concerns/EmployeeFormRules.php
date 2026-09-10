@@ -97,6 +97,9 @@ trait EmployeeFormRules
             'pagibig_number' => ['nullable', 'string', 'max:30', new GovernmentIdNumber(GovernmentIdNumbers::TYPE_PAGIBIG)],
             'gsis_number' => ['nullable', 'string', 'max:30'],
             'tax_status' => ['nullable', 'string', 'max:50'],
+            'bank_name' => ['nullable', 'string', 'max:150'],
+            'bank_account_number' => ['nullable', 'string', 'max:45'],
+            'bank_account_type' => ['nullable', Rule::in(array_keys(Employee::selectableBankAccountTypes()))],
             'emergency_contact_name' => ['nullable', 'string', 'max:150'],
             'emergency_contact_relationship' => ['nullable', 'string', 'max:100'],
             'emergency_contact_phone' => ['nullable', 'string', 'max:30'],
@@ -170,6 +173,10 @@ trait EmployeeFormRules
             'sss_number' => GovernmentIdNumbers::normalize($this->input('sss_number')),
             'philhealth_number' => GovernmentIdNumbers::normalize($this->input('philhealth_number')),
             'pagibig_number' => GovernmentIdNumbers::normalize($this->input('pagibig_number')),
+            'bank_account_number' => $this->normalizeBankAccountNumber($this->input('bank_account_number')),
+            'bank_account_type' => filled($this->input('bank_account_type'))
+                ? strtolower(trim((string) $this->input('bank_account_type')))
+                : null,
         ]);
     }
 
@@ -333,6 +340,7 @@ trait EmployeeFormRules
                 'gender', 'civil_status', 'nationality', 'religion', 'language_dialect',
                 'height_cm', 'weight_kg', 'tin_number', 'sss_number', 'philhealth_number',
                 'pagibig_number', 'gsis_number', 'tax_status',
+                'bank_name', 'bank_account_number', 'bank_account_type',
             ], true) => 'personal',
             in_array($root, ['campus_assignments', 'campus_id', 'college', 'department', 'program'], true) => 'assignment',
             in_array($root, ['employee_number', 'compliance_status', 'employment_informations', 'is_hybrid'], true) => 'employment',
@@ -464,5 +472,16 @@ trait EmployeeFormRules
         }
 
         return array_filter($profile, fn ($value) => $value !== null && $value !== [] && $value !== '');
+    }
+
+    protected function normalizeBankAccountNumber(mixed $value): ?string
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        $normalized = preg_replace('/\s+/', '', trim((string) $value));
+
+        return $normalized === '' ? null : $normalized;
     }
 }

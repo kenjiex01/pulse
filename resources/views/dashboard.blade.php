@@ -67,6 +67,8 @@
         @endif
     </div>
 
+    @include('dashboard._biometric-collector-status')
+
     @if ($user->isAdmin())
         <div>
             <h2 class="mb-4 text-lg font-semibold text-gray-900">Quick access</h2>

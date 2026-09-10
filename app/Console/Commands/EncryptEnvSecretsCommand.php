@@ -11,7 +11,7 @@ class EncryptEnvSecretsCommand extends Command
                             {--path= : Absolute path to the .env file (defaults to base_path(.env))}
                             {--dry-run : Show which keys would be encrypted without writing}';
 
-    protected $description = 'Encrypt configured API/S3 secrets in .env (enc:…). Plaintext values still work until migrated.';
+    protected $description = 'Encrypt configured API/S3/mail secrets in .env (enc:…). Plaintext values still work until migrated.';
 
     public function handle(): int
     {

@@ -1524,7 +1524,13 @@ class PayrollBatchService
     public function batchEmployeesQuery(PayrollBatch $batch, ?string $search = null): Builder
     {
         return PayrollBatchDetail::query()
-            ->with('employee')
+            ->with([
+                'employee.employmentInformations.salary',
+                'employee.employmentInformations.salaries',
+                'employee.timekeepingRestDays',
+                'incomes.incomeType',
+                'attendanceDays',
+            ])
             ->where('trn_payroll_batch_details.payroll_batch_id', $batch->payroll_batch_id)
             ->join('tbl_employees', 'tbl_employees.employee_id', '=', 'trn_payroll_batch_details.employee_id')
             ->when($search !== null && $search !== '', function (Builder $query) use ($search) {

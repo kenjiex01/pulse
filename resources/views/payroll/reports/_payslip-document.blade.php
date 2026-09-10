@@ -69,14 +69,11 @@
                         <thead>
                             <tr @class(['bg-slate-50' => ! $forPdf])>
                                 <th @class(['border px-2 py-1.5 text-left font-semibold' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #999;padding:4px;background:#f3f4f6;' : '' }}">Earnings</th>
-                                @if ($isStaff)
-                                    <th @class(['border px-2 py-1.5 text-right font-semibold' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #999;padding:4px;background:#f3f4f6;text-align:right;' : '' }}">Days</th>
-                                @endif
+                                <th @class(['border px-2 py-1.5 text-right font-semibold' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #999;padding:4px;background:#f3f4f6;text-align:right;' : '' }}">Hours</th>
+                                <th @class(['border px-2 py-1.5 text-right font-semibold' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #999;padding:4px;background:#f3f4f6;text-align:right;' : '' }}">Days</th>
                                 <th @class(['border px-2 py-1.5 text-right font-semibold' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #999;padding:4px;background:#f3f4f6;text-align:right;' : '' }}">Amount</th>
                                 <th @class(['border px-2 py-1.5 text-left font-semibold' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #999;padding:4px;background:#f3f4f6;' : '' }}">Deductions</th>
-                                @if ($isStaff)
-                                    <th @class(['border px-2 py-1.5 text-right font-semibold' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #999;padding:4px;background:#f3f4f6;text-align:right;' : '' }}">Mins</th>
-                                @endif
+                                <th @class(['border px-2 py-1.5 text-right font-semibold' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #999;padding:4px;background:#f3f4f6;text-align:right;' : '' }}">Mins</th>
                                 <th @class(['border px-2 py-1.5 text-right font-semibold' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #999;padding:4px;background:#f3f4f6;text-align:right;' : '' }}">Amount</th>
                             </tr>
                         </thead>
@@ -88,14 +85,11 @@
                                 @endphp
                                 <tr>
                                     <td @class(['border px-2 py-1 text-gray-800' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}">{{ $earning['label'] ?? '' }}</td>
-                                    @if ($isStaff)
-                                        <td @class(['border px-2 py-1 text-right text-gray-800' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;text-align:right;' : '' }}">{{ isset($earning['days']) ? number_format($earning['days'], 4) : '' }}</td>
-                                    @endif
+                                    <td @class(['border px-2 py-1 text-right text-gray-800' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;text-align:right;' : '' }}">{{ isset($earning['hours']) ? number_format($earning['hours'], 2) : '' }}</td>
+                                    <td @class(['border px-2 py-1 text-right text-gray-800' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;text-align:right;' : '' }}">{{ isset($earning['days']) ? number_format($earning['days'], 2) : '' }}</td>
                                     <td @class(['border px-2 py-1 text-right text-gray-800' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;text-align:right;' : '' }}">{{ isset($earning['amount']) ? number_format($earning['amount'], 2) : '' }}</td>
                                     <td @class(['border px-2 py-1 text-gray-800' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}">{{ $deduction['label'] ?? '' }}</td>
-                                    @if ($isStaff)
-                                        <td @class(['border px-2 py-1 text-right text-gray-800' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;text-align:right;' : '' }}">{{ isset($deduction['mins']) ? number_format($deduction['mins'], 2) : '' }}</td>
-                                    @endif
+                                    <td @class(['border px-2 py-1 text-right text-gray-800' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;text-align:right;' : '' }}">{{ isset($deduction['minutes']) ? number_format((int) $deduction['minutes']).' min' : '' }}</td>
                                     <td @class(['border px-2 py-1 text-right text-gray-800' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;text-align:right;' : '' }}">{{ isset($deduction['amount']) ? number_format($deduction['amount'], 2) : '' }}</td>
                                 </tr>
                             @endfor
@@ -103,42 +97,30 @@
                         <tfoot>
                             <tr @class(['font-semibold bg-slate-50' => ! $forPdf])>
                                 <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}">{{ $isStaff ? 'New rate' : 'Daily Rate' }}</td>
-                                @if ($isStaff)
-                                    <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
-                                @endif
+                                <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
+                                <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
                                 <td @class(['border px-2 py-1.5 text-right' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;text-align:right;' : '' }}">
                                     {{ $isStaff
                                         ? (isset($payslip['new_rate']) ? number_format($payslip['new_rate'], 2) : '')
                                         : (isset($payslip['daily_rate']) ? number_format($payslip['daily_rate'], 2) : '') }}
                                 </td>
                                 <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
-                                @if ($isStaff)
-                                    <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
-                                @endif
+                                <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
                                 <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
                             </tr>
                             <tr @class(['font-semibold bg-slate-50' => ! $forPdf])>
                                 <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}">Total Earnings</td>
-                                @if ($isStaff)
-                                    <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
-                                @endif
+                                <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
+                                <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
                                 <td @class(['border px-2 py-1.5 text-right' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;text-align:right;' : '' }}">{{ number_format($payslip['total_earnings'] ?? 0, 2) }}</td>
                                 <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}">Total Deductions</td>
-                                @if ($isStaff)
-                                    <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
-                                @endif
+                                <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
                                 <td @class(['border px-2 py-1.5 text-right' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;text-align:right;' : '' }}">{{ number_format($payslip['total_deductions'] ?? 0, 2) }}</td>
                             </tr>
                             <tr @class(['font-semibold' => ! $forPdf])>
-                                @if ($isStaff)
-                                    <td colspan="3" @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
-                                @else
-                                    <td colspan="2" @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
-                                @endif
+                                <td colspan="4" @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
                                 <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}">Net Pay</td>
-                                @if ($isStaff)
-                                    <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
-                                @endif
+                                <td @class(['border px-2 py-1.5' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;' : '' }}"></td>
                                 <td @class(['border px-2 py-1.5 text-right' => ! $forPdf]) style="{{ $forPdf ? 'border:1px solid #ccc;padding:4px;text-align:right;' : '' }}">{{ number_format($payslip['net_pay'] ?? 0, 2) }}</td>
                             </tr>
                         </tfoot>

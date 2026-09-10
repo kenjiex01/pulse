@@ -40,6 +40,7 @@ class ReferenceDataSeeder extends Seeder
             TimeCaptureFormatSeeder::class,
             LuTemplateSeeder::class,
             UserRequestTypeSeeder::class,
+            CompanyDocumentSampleMemoSeeder::class,
         ]);
     }
 }

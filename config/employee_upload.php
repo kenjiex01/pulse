@@ -23,6 +23,9 @@ return [
         ['alias' => 'pagibig_number', 'label' => 'Pag-IBIG'],
         ['alias' => 'gsis_number', 'label' => 'GSIS'],
         ['alias' => 'tax_status', 'label' => 'Tax Status'],
+        ['alias' => 'bank_name', 'label' => 'Bank Name'],
+        ['alias' => 'bank_account_number', 'label' => 'Account Number'],
+        ['alias' => 'bank_account_type', 'label' => 'Account Type (savings/checking/payroll)'],
 
         // Campus assignments (primary required; slots 2–5 optional)
         ['alias' => 'campus_code', 'label' => 'Campus Code', 'required' => true],
@@ -223,6 +226,9 @@ return [
         'salary_rate_group' => '1',
         'salary_hours_per_day' => '8',
         'salary_basic_taxable' => '25000',
+        'bank_name' => 'BDO',
+        'bank_account_number' => '1234567890',
+        'bank_account_type' => 'savings',
         'role' => '2',
         'country' => 'Philippines',
     ],

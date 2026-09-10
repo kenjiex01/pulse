@@ -16,6 +16,7 @@ class PayrollTransactionModule
         'batches' => 'Payroll Batches',
         'upload-transactions' => 'Upload Adjustments',
         'unpost-batches' => 'Unpost Batches',
+        'payslip' => 'Payslip',
     ];
 
     public const DEFAULT_TAB = 'batches';
@@ -117,6 +118,7 @@ class PayrollTransactionModule
             'upload.commit' => 'payroll.transaction.upload.commit',
             'upload.discard' => 'payroll.transaction.upload.discard',
             'upload.destroy' => 'payroll.transaction.upload.destroy',
+            'payslips.send' => 'payroll.transaction.payslips.send',
             'employees.incomes.store' => 'payroll.transaction.employees.incomes.store',
             'employees.deductions.store' => 'payroll.transaction.employees.deductions.store',
             'employees.shift-overrides.store' => 'payroll.transaction.employees.shift-overrides.store',

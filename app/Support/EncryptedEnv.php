@@ -23,6 +23,9 @@ class EncryptedEnv
             'DB_BACKUP_S3_SECRET',
             'BIOMETRIC_LOGS_S3_KEY',
             'BIOMETRIC_LOGS_S3_SECRET',
+            'AWS_ACCESS_KEY_ID',
+            'AWS_SECRET_ACCESS_KEY',
+            'MAIL_PASSWORD',
         ];
     }
 
@@ -41,6 +44,17 @@ class EncryptedEnv
             'backup.cloud.secret',
             'biometric_logs.s3.key',
             'biometric_logs.s3.secret',
+            'services.ses.key',
+            'services.ses.secret',
+            'filesystems.disks.s3.key',
+            'filesystems.disks.s3.secret',
+            'mail.mailers.smtp.password',
+            'cache.stores.dynamodb.key',
+            'cache.stores.dynamodb.secret',
+            'queue.connections.sqs.key',
+            'queue.connections.sqs.secret',
+            'nativephp.updater.providers.s3.key',
+            'nativephp.updater.providers.s3.secret',
         ];
     }
 

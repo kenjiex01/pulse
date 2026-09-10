@@ -2,7 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Models\DeductionType;
 use App\Models\Employee;
+use App\Models\IncomeType;
+use App\Models\PayrollBatch;
+use App\Models\PayrollBatchDetail;
+use App\Models\PayrollBatchStatus;
+use App\Models\PayrollCalendar;
+use App\Models\PayrollDeduction;
+use App\Models\PayrollIncome;
+use App\Models\PayType;
 use App\Models\Report;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -106,7 +115,210 @@ class PayrollReportsTest extends TestCase
             ->assertOk()
             ->assertSee('Payslip Options')
             ->assertSee('Posted Payroll Batch')
-            ->assertSee('data-payslip-batch-select', false);
+            ->assertSee('data-payslip-batch-select', false)
+            ->assertSee('PDF Delivery')
+            ->assertSee('data-payslip-pdf-mode-wrap', false);
+    }
+
+    public function test_generate_payslip_html_matches_batch_net_pay_labels(): void
+    {
+        $user = User::query()->firstOrFail();
+        $report = Report::query()->where('title', 'Payslip')->firstOrFail();
+        [$batch, $employee] = $this->makePostedPayslipFixture($user);
+
+        $response = $this->actingAs($user)
+            ->post(route('payroll.reports.generate'), [
+                'classification' => 'payroll',
+                'report_id' => $report->report_id,
+                'payroll_batch_id' => $batch->payroll_batch_id,
+                'employee_ids' => [$employee->employee_id],
+                'output_format' => 'html',
+            ]);
+
+        $response->assertOk();
+        $response->assertSee('Basic Income');
+        $response->assertSee('95.75');
+        $response->assertSee('15 min');
+        $response->assertSee('Late');
+        $response->assertDontSee('0.25 hrs');
+        $response->assertDontSee('1.00 days');
+        $response->assertSee('Mins');
+    }
+
+    public function test_generate_payslip_html_keeps_mins_column_without_late_deduction(): void
+    {
+        $user = User::query()->firstOrFail();
+        $report = Report::query()->where('title', 'Payslip')->firstOrFail();
+        [$batch, $employee] = $this->makePostedPayslipFixture($user, includeLate: false);
+
+        $response = $this->actingAs($user)
+            ->post(route('payroll.reports.generate'), [
+                'classification' => 'payroll',
+                'report_id' => $report->report_id,
+                'payroll_batch_id' => $batch->payroll_batch_id,
+                'employee_ids' => [$employee->employee_id],
+                'output_format' => 'html',
+            ]);
+
+        $response->assertOk();
+        $response->assertSee('Hours');
+        $response->assertSee('Mins');
+        $response->assertDontSee('Late');
+    }
+
+    public function test_generate_payslip_combined_pdf_downloads(): void
+    {
+        $user = User::query()->firstOrFail();
+        $report = Report::query()->where('title', 'Payslip')->firstOrFail();
+        [$batch, $employee] = $this->makePostedPayslipFixture($user);
+
+        $response = $this->actingAs($user)
+            ->post(route('payroll.reports.generate'), [
+                'classification' => 'payroll',
+                'report_id' => $report->report_id,
+                'payroll_batch_id' => $batch->payroll_batch_id,
+                'employee_ids' => [$employee->employee_id],
+                'output_format' => 'pdf',
+                'payslip_pdf_mode' => 'combined',
+            ]);
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', $response->streamedContent());
+    }
+
+    public function test_generate_payslip_individual_pdf_zip_downloads(): void
+    {
+        $user = User::query()->firstOrFail();
+        $report = Report::query()->where('title', 'Payslip')->firstOrFail();
+        [$batch, $employee] = $this->makePostedPayslipFixture($user);
+
+        $response = $this->actingAs($user)
+            ->post(route('payroll.reports.generate'), [
+                'classification' => 'payroll',
+                'report_id' => $report->report_id,
+                'payroll_batch_id' => $batch->payroll_batch_id,
+                'employee_ids' => [$employee->employee_id],
+                'output_format' => 'pdf',
+                'payslip_pdf_mode' => 'individual_zip',
+            ]);
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'application/zip');
+
+        $zipBinary = $response->streamedContent();
+        $zipPath = tempnam(sys_get_temp_dir(), 'payslip_test_zip_');
+        file_put_contents($zipPath, $zipBinary);
+
+        $zip = new \ZipArchive();
+        $this->assertTrue($zip->open($zipPath) === true);
+        $this->assertSame(1, $zip->numFiles);
+        $this->assertStringContainsString('Fixture Roselyn Test Jul', $zip->getNameIndex(0));
+        $this->assertStringEndsWith('.pdf', $zip->getNameIndex(0));
+
+        $pdfContent = $zip->getFromIndex(0);
+        $zip->close();
+        @unlink($zipPath);
+
+        $this->assertStringStartsWith('%PDF', $pdfContent);
+    }
+
+    public function test_generate_payslip_rejects_invalid_pdf_mode(): void
+    {
+        $user = User::query()->firstOrFail();
+        $report = Report::query()->where('title', 'Payslip')->firstOrFail();
+        [$batch, $employee] = $this->makePostedPayslipFixture($user);
+
+        $this->actingAs($user)
+            ->post(route('payroll.reports.generate'), [
+                'classification' => 'payroll',
+                'report_id' => $report->report_id,
+                'payroll_batch_id' => $batch->payroll_batch_id,
+                'employee_ids' => [$employee->employee_id],
+                'output_format' => 'pdf',
+                'payslip_pdf_mode' => 'invalid',
+            ])
+            ->assertSessionHasErrors('payslip_pdf_mode');
+    }
+
+    /**
+     * @return array{0: PayrollBatch, 1: Employee}
+     */
+    private function makePostedPayslipFixture(User $user, bool $includeLate = true): array
+    {
+        $employee = Employee::query()->create([
+            'employee_number' => 'EMP-PSLIP-001',
+            'first_name' => 'Roselyn',
+            'middle_name' => 'Test',
+            'last_name' => 'Fixture',
+            'email' => 'payslip.fixture@example.com',
+        ]);
+
+        $calendar = PayrollCalendar::query()->create([
+            'pay_type_id' => PayType::SEMI_MONTHLY,
+            'pay_year' => 2026,
+            'pay_period' => 2,
+            'dt_from' => '2026-07-27 00:00:00',
+            'dt_to' => '2026-08-10 00:00:00',
+            'calendar_month' => 7,
+            'is_regular_period' => true,
+        ]);
+
+        $batch = PayrollBatch::query()->create([
+            'payroll_calendar_id' => $calendar->payroll_calendar_id,
+            'batch_no' => 4,
+            'created_by_id' => $user->id,
+            'payroll_batch_status_id' => PayrollBatchStatus::POSTED,
+            'dt_processed' => now(),
+            'processed_by_id' => $user->id,
+            'dt_posted' => now(),
+            'posted_by_id' => $user->id,
+        ]);
+
+        $detail = PayrollBatchDetail::query()->create([
+            'payroll_batch_id' => $batch->payroll_batch_id,
+            'employee_id' => $employee->employee_id,
+        ]);
+
+        $basicType = IncomeType::query()->where('income_type_code', 'BASC')->firstOrFail();
+        PayrollIncome::query()->create([
+            'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
+            'income_type_id' => $basicType->income_type_id,
+            'hours' => 95.75,
+            'taxable' => 7181.25,
+            'non_taxable' => 0,
+            'is_editable' => false,
+            'is_deletable' => false,
+            'is_manual' => false,
+        ]);
+
+        $lateType = DeductionType::query()->where('deduction_type_code', 'LTDE')->firstOrFail();
+        if ($includeLate) {
+            PayrollDeduction::query()->create([
+                'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
+                'deduction_type_id' => $lateType->deduction_type_id,
+                'hours' => 0.25,
+                'days' => 1,
+                'employee_amount' => 18.75,
+                'employer_amount' => 0,
+                'is_editable' => false,
+                'is_deletable' => false,
+                'is_manual' => false,
+            ]);
+        }
+
+        $philType = DeductionType::query()->where('deduction_type_code', 'PHIM')->firstOrFail();
+        PayrollDeduction::query()->create([
+            'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
+            'deduction_type_id' => $philType->deduction_type_id,
+            'employee_amount' => 250,
+            'employer_amount' => 0,
+            'is_editable' => false,
+            'is_deletable' => false,
+            'is_manual' => false,
+        ]);
+
+        return [$batch->fresh(['payrollCalendar']), $employee];
     }
 
     public function test_report_options_partial_loads_for_bir_1601c(): void

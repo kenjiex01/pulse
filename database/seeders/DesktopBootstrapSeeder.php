@@ -17,6 +17,7 @@ class DesktopBootstrapSeeder extends Seeder
         $this->call([
             ModuleSeeder::class,
             SubModuleSeeder::class,
+            RoleModuleSeeder::class,
             DesktopReferenceDataSeeder::class,
         ]);
     }

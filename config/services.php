@@ -23,9 +23,9 @@ return [
     ],
 
     'ses' => [
-        'key' => env('AWS_ACCESS_KEY_ID'),
-        'secret' => env('AWS_SECRET_ACCESS_KEY'),
-        'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+        'key' => env('AWS_ACCESS_KEY_ID', env('DB_BACKUP_S3_KEY')),
+        'secret' => env('AWS_SECRET_ACCESS_KEY', env('DB_BACKUP_S3_SECRET')),
+        'region' => env('AWS_DEFAULT_REGION', env('DB_BACKUP_S3_REGION', 'us-east-1')),
     ],
 
     'slack' => [

@@ -34,7 +34,7 @@
 
         <div>
             <label for="payslip-output-format" class="form-label">Output</label>
-            <select id="payslip-output-format" name="output_format" class="form-input" required>
+            <select id="payslip-output-format" name="output_format" class="form-input" required data-payslip-output-format>
                 @foreach ($report->fileTypes as $fileType)
                     <option
                         value="{{ $fileType->code }}"
@@ -45,6 +45,27 @@
                 @endforeach
             </select>
             @error('output_format')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+        </div>
+    </div>
+
+    <div
+        class="grid grid-cols-1 gap-4 lg:grid-cols-2 {{ old('output_format') === 'pdf' ? '' : 'hidden' }}"
+        data-payslip-pdf-mode-wrap
+    >
+        <div>
+            <label for="payslip-pdf-mode" class="form-label">PDF Delivery</label>
+            <select id="payslip-pdf-mode" name="payslip_pdf_mode" class="form-input">
+                <option value="combined" @selected(old('payslip_pdf_mode', 'combined') === 'combined')>
+                    Single PDF (all selected employees)
+                </option>
+                <option value="individual_zip" @selected(old('payslip_pdf_mode') === 'individual_zip')>
+                    Individual PDFs (ZIP file)
+                </option>
+            </select>
+            <p class="mt-1 text-xs text-gray-500">
+                ZIP files use readable names: Last Name First Name Middle Name Pay Period.pdf
+            </p>
+            @error('payslip_pdf_mode')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
     </div>
 
