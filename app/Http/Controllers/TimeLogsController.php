@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Campus;
+use App\Models\PulseFacultyLoadUpload;
 use App\Models\RawTimekeepingTransaction;
 use App\Models\TeachingLoadPullBatch;
 use App\Models\TeachingLoadSession;
@@ -12,15 +13,18 @@ use App\Services\BiometricLogsS3PullService;
 use App\Services\TimeLogsDtrUploadService;
 use App\Services\TeachingLoadPullService;
 use App\Services\TimeLogsUploadService;
+use App\Services\UploadedFacultyLoadService;
 use App\Support\LiveTable;
 use App\Support\TimeLogs;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -31,6 +35,7 @@ class TimeLogsController extends Controller
         private readonly TimeLogsDtrUploadService $dtrUploadService,
         private readonly TeachingLoadPullService $teachingLoadPullService,
         private readonly BiometricLogsS3PullService $biometricLogsS3PullService,
+        private readonly UploadedFacultyLoadService $uploadedFacultyLoadService,
     ) {}
 
     public function index(Request $request, string $tab): View
@@ -41,23 +46,34 @@ class TimeLogsController extends Controller
         $config = TimeLogs::config($tab);
         $search = $request->string('search')->trim()->toString();
         $isTeachingLoads = TimeLogs::isSkolarisPullTab($tab);
+        $loadSource = $isTeachingLoads
+            ? TimeLogs::resolveLoadSource($request->string('load_source')->toString() ?: null)
+            : TimeLogs::LOAD_SOURCE_SKOLARIS;
+        $parseStatus = $request->string('parse_status')->trim()->toString();
 
-        $recordsQuery = TimeLogs::query($tab);
-
-        if ($isTeachingLoads) {
-            $recordsQuery = $recordsQuery
-                ->when($search !== '', function ($query) use ($search) {
-                    $query->where(function ($searchQuery) use ($search) {
-                        $searchQuery
-                            ->where('batch_no', 'like', '%'.$search.'%')
-                            ->orWhereHas('pulledBy', function ($userQuery) use ($search) {
-                                $userQuery->where('name', 'like', '%'.$search.'%');
-                            });
-                    });
-                })
-                ->orderByDesc('pulled_at')
-                ->orderByDesc('teaching_load_pull_batch_id');
+        if ($isTeachingLoads && TimeLogs::isUploadedLoadSource($loadSource)) {
+            $records = $this->uploadedFacultyLoadService->paginate(
+                search: $search,
+                parseStatus: $parseStatus !== '' ? $parseStatus : null,
+                perPage: LiveTable::perPage($request, 15),
+            )->withQueryString();
         } else {
+            $recordsQuery = TimeLogs::query($tab);
+
+            if ($isTeachingLoads) {
+                $recordsQuery = $recordsQuery
+                    ->when($search !== '', function ($query) use ($search) {
+                        $query->where(function ($searchQuery) use ($search) {
+                            $searchQuery
+                                ->where('batch_no', 'like', '%'.$search.'%')
+                                ->orWhereHas('pulledBy', function ($userQuery) use ($search) {
+                                    $userQuery->where('name', 'like', '%'.$search.'%');
+                                });
+                        });
+                    })
+                    ->orderByDesc('pulled_at')
+                    ->orderByDesc('teaching_load_pull_batch_id');
+            } else {
             $recordsQuery = $recordsQuery
                 ->when($search !== '', function ($query) use ($config, $search, $tab) {
                     $query->where(function ($searchQuery) use ($config, $search, $tab) {
@@ -77,11 +93,12 @@ class TimeLogsController extends Controller
                     });
                 })
                 ->orderByDesc('timekeeping_transaction_id');
-        }
+            }
 
-        $records = $recordsQuery
-            ->paginate(LiveTable::perPage($request, 15))
-            ->withQueryString();
+            $records = $recordsQuery
+                ->paginate(LiveTable::perPage($request, 15))
+                ->withQueryString();
+        }
 
         if (! $request->ajax()) {
             SysLogService::record(
@@ -98,6 +115,8 @@ class TimeLogsController extends Controller
             'records' => $records,
             'search' => $search,
             'isTeachingLoads' => $isTeachingLoads,
+            'loadSource' => $loadSource,
+            'parseStatus' => $parseStatus,
             'skolarisListError' => null,
             'pullEmployees' => $isTeachingLoads
                 ? TimeLogs::eligiblePullEmployeesQuery($request->string('pull_search')->trim()->toString())
@@ -116,7 +135,8 @@ class TimeLogsController extends Controller
             's3PullMonth' => (int) now(config('backup.cloud.timezone', 'Asia/Manila'))->format('m'),
             'openUpload' => ! $isTeachingLoads && ($request->boolean('upload') || $request->boolean('create')) && ! $request->boolean('preview') && ! $request->boolean('s3_pull'),
             'openS3Pull' => ! $isTeachingLoads && $request->boolean('s3_pull'),
-            'openPull' => $isTeachingLoads && ($request->boolean('pull') || $request->boolean('create')),
+            'openPull' => $isTeachingLoads && ! TimeLogs::isUploadedLoadSource($loadSource) && ($request->boolean('pull') || $request->boolean('create')),
+            'openUploadedLoadPull' => $isTeachingLoads && TimeLogs::isUploadedLoadSource($loadSource) && ($request->boolean('pull') || $request->boolean('create')),
             'openPreview' => ! $isTeachingLoads && $request->boolean('preview') && session('time_logs_staging_token'),
             'openViewId' => $request->input('view'),
             'openPullBatchId' => $request->integer('view_pull'),
@@ -128,6 +148,7 @@ class TimeLogsController extends Controller
             'viewPullEmployee' => null,
             'viewPullEmployeeRows' => collect(),
             'viewPullEmployeeSummary' => null,
+            'viewUploadedLoad' => null,
         ];
 
         if ($viewData['openViewId'] && ! $isTeachingLoads) {
@@ -162,6 +183,13 @@ class TimeLogsController extends Controller
                 ->find($viewData['openPullBatchId']);
         }
 
+        if ($isTeachingLoads && $request->integer('view_upload')) {
+            $viewData['viewUploadedLoad'] = PulseFacultyLoadUpload::query()
+                ->with(['items', 'uploader'])
+                ->withCount('items')
+                ->find($request->integer('view_upload'));
+        }
+
         if ($isTeachingLoads && $viewData['openPullEmployeeBatchId'] && $viewData['openPullEmployeeId']) {
             $viewData['viewPullEmployeeRows'] = TeachingLoadSession::query()
                 ->with(['employee', 'pullBatch'])
@@ -176,6 +204,10 @@ class TimeLogsController extends Controller
         }
 
         if ($request->ajax()) {
+            if ($isTeachingLoads && TimeLogs::isUploadedLoadSource($loadSource)) {
+                return view('timekeeping.time-logs._uploaded-faculty-loads-results', $viewData);
+            }
+
             return view($isTeachingLoads ? 'timekeeping.time-logs._teaching-loads-results' : 'timekeeping.time-logs._results', $viewData);
         }
 
@@ -537,6 +569,90 @@ class TimeLogsController extends Controller
         }
 
         return response()->json(array_merge(['success' => true], $progress));
+    }
+
+    public function pullUploadedFacultyLoadsFromSkolaris(Request $request): RedirectResponse
+    {
+        TimeLogs::authorize($request->user(), 'add');
+
+        $validated = $request->validate([
+            'parse_status' => ['nullable', Rule::in(['all', 'parsed', 'partial', 'failed', 'pending'])],
+            'refresh_existing' => ['nullable', 'boolean'],
+        ]);
+
+        try {
+            $result = $this->uploadedFacultyLoadService->pullFromSkolaris(
+                $request->user(),
+                parseStatus: $validated['parse_status'] ?? 'all',
+                refreshExisting: $request->boolean('refresh_existing'),
+            );
+        } catch (RuntimeException $exception) {
+            return redirect()
+                ->route(TimeLogs::routeName('tab'), [
+                    'tab' => TimeLogs::TEACHING_LOADS_TAB,
+                    'load_source' => TimeLogs::LOAD_SOURCE_UPLOADED,
+                    'pull' => 1,
+                ])
+                ->withInput()
+                ->with('error', $exception->getMessage());
+        }
+
+        $message = sprintf(
+            'Pulled uploaded faculty loads from Skolaris: %d new, %d updated, %d unchanged (%d total cached).',
+            $result['created'],
+            $result['updated'],
+            $result['skipped'],
+            $result['total'],
+        );
+
+        return redirect()
+            ->route(TimeLogs::routeName('tab'), [
+                'tab' => TimeLogs::TEACHING_LOADS_TAB,
+                'load_source' => TimeLogs::LOAD_SOURCE_UPLOADED,
+                'parse_status' => $validated['parse_status'] ?? null,
+            ])
+            ->with('success', $message);
+    }
+
+    public function destroyUploadedFacultyLoad(Request $request, PulseFacultyLoadUpload $upload): RedirectResponse
+    {
+        TimeLogs::authorize($request->user(), 'delete');
+
+        $this->uploadedFacultyLoadService->delete($upload);
+
+        return redirect()
+            ->route(TimeLogs::routeName('tab'), [
+                'tab' => TimeLogs::TEACHING_LOADS_TAB,
+                'load_source' => TimeLogs::LOAD_SOURCE_UPLOADED,
+                'search' => $request->input('search'),
+                'parse_status' => $request->input('parse_status'),
+            ])
+            ->with('success', 'Removed locally cached uploaded faculty load.');
+    }
+
+    public function downloadUploadedFacultyLoad(Request $request, PulseFacultyLoadUpload $upload): StreamedResponse
+    {
+        TimeLogs::authorize($request->user(), 'view');
+
+        $disk = PulseFacultyLoadUpload::diskName();
+
+        abort_unless(Storage::disk($disk)->exists($upload->stored_path), 404);
+
+        return Storage::disk($disk)->download($upload->stored_path, $upload->original_filename);
+    }
+
+    public function previewUploadedFacultyLoad(Request $request, PulseFacultyLoadUpload $upload): BinaryFileResponse
+    {
+        TimeLogs::authorize($request->user(), 'view');
+
+        $disk = PulseFacultyLoadUpload::diskName();
+        $path = Storage::disk($disk)->path($upload->stored_path);
+
+        abort_unless(is_readable($path), 404);
+
+        return response()->file($path, [
+            'Content-Type' => $upload->mime_type ?: 'application/pdf',
+        ]);
     }
 
 }

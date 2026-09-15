@@ -51,6 +51,49 @@ class EmployeeUploadRowMapperTest extends TestCase
     }
 
     #[Test]
+    public function gender_is_stored_as_title_case_male_and_female(): void
+    {
+        $mapper = new EmployeeUploadRowMapper;
+        $seenNumbers = [];
+        $seenEmails = [];
+
+        $male = $mapper->mapRow(
+            [
+                'employee_number' => '25-GENDER-M',
+                'email' => 'gender.male@example.com',
+                'first_name' => 'Juan',
+                'last_name' => 'Cruz',
+                'gender' => 'male',
+            ],
+            4,
+            $seenNumbers,
+            $seenEmails,
+            true,
+        );
+
+        $female = $mapper->mapRow(
+            [
+                'employee_number' => '25-GENDER-F',
+                'email' => 'gender.female@example.com',
+                'first_name' => 'Maria',
+                'last_name' => 'Santos',
+                'gender' => 'FEMALE',
+            ],
+            5,
+            $seenNumbers,
+            $seenEmails,
+            true,
+        );
+
+        $this->assertSame([], $male['errors']);
+        $this->assertSame([], $female['errors']);
+        $this->assertSame(Employee::GENDER_MALE, $male['payload']['employee']['gender']);
+        $this->assertSame(Employee::GENDER_FEMALE, $female['payload']['employee']['gender']);
+        $this->assertSame('Male', $male['payload']['employee']['gender']);
+        $this->assertSame('Female', $female['payload']['employee']['gender']);
+    }
+
+    #[Test]
     public function matching_employee_number_and_email_marks_row_as_update(): void
     {
         $employee = Employee::query()->create([
@@ -97,9 +140,9 @@ class EmployeeUploadRowMapperTest extends TestCase
     }
 
     #[Test]
-    public function employee_number_with_different_email_is_rejected(): void
+    public function existing_employee_number_with_new_email_updates_when_email_is_available(): void
     {
-        Employee::query()->create([
+        $employee = Employee::query()->create([
             'employee_number' => '25-TEST003',
             'first_name' => 'Existing',
             'last_name' => 'Person',
@@ -120,6 +163,7 @@ class EmployeeUploadRowMapperTest extends TestCase
             [
                 'employee_number' => '25-TEST003',
                 'email' => 'different@example.com',
+                'first_name' => 'Updated',
             ],
             6,
             $seenNumbers,
@@ -127,13 +171,49 @@ class EmployeeUploadRowMapperTest extends TestCase
             true,
         );
 
-        $this->assertNotSame([], $result['errors']);
-        $this->assertNull($result['payload']);
-        $this->assertTrue(
-            collect($result['errors'])->contains(
-                fn (string $error) => str_contains($error, 'different email')
-            )
+        $this->assertSame([], $result['errors']);
+        $this->assertSame($employee->employee_id, $result['payload']['existing_employee_id']);
+        $this->assertSame('Update', $result['payload']['preview']['action']);
+        $this->assertSame('different@example.com', $result['payload']['employee']['email']);
+        $this->assertSame('Updated', $result['payload']['employee']['first_name']);
+    }
+
+    #[Test]
+    public function existing_employee_number_without_email_keeps_current_email_on_update(): void
+    {
+        $employee = Employee::query()->create([
+            'employee_number' => '25-TEST003B',
+            'first_name' => 'Existing',
+            'last_name' => 'Person',
+            'email' => 'keep.me@example.com',
+            'employment_status' => Employee::STATUS_ACTIVE,
+            'compliance_status' => Employee::COMPLIANCE_PENDING,
+            'is_active' => true,
+            'is_hybrid' => false,
+            'is_confidential' => false,
+            'country' => 'Philippines',
+        ]);
+
+        $mapper = new EmployeeUploadRowMapper;
+        $seenNumbers = [];
+        $seenEmails = [];
+
+        $result = $mapper->mapRow(
+            [
+                'employee_number' => '25-TEST003B',
+                'email' => '',
+                'first_name' => 'Updated',
+            ],
+            6,
+            $seenNumbers,
+            $seenEmails,
+            true,
         );
+
+        $this->assertSame([], $result['errors']);
+        $this->assertSame($employee->employee_id, $result['payload']['existing_employee_id']);
+        $this->assertArrayNotHasKey('email', $result['payload']['employee']);
+        $this->assertSame('Updated', $result['payload']['employee']['first_name']);
     }
 
     #[Test]

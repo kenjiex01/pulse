@@ -6,6 +6,7 @@ use App\Models\CompanyDocumentElement;
 use App\Models\CompanyDocumentForm;
 use App\Models\Employee;
 use App\Support\CompanyDocumentInlineFormatting;
+use App\Support\CompanyDocumentMemoDocxExporter;
 use App\Support\CompanyDocumentMemoDompdfPreparer;
 use App\Support\CompanyDocumentMemoPdfLayout;
 use Illuminate\Support\Facades\Storage;
@@ -35,11 +36,11 @@ class CompanyDocumentMemoRenderService
      */
     public function buildSamplePreviewData(CompanyDocumentForm $form): array
     {
-        $form->loadMissing('elements');
+        $form->loadMissing(['elements', 'icctOffense']);
 
         $memoContext = $this->sampleMemoContext();
         $elements = [];
-        $previewValues = [];
+        $previewValues = $form->icctOffenseFieldDefaults();
 
         foreach ($form->elements->sortBy('sort_order') as $index => $element) {
             $elements[] = $this->mapElement($element, null, $memoContext, $index, $previewValues);
@@ -109,6 +110,7 @@ class CompanyDocumentMemoRenderService
         return View::make('shared.company-document-memo-canvas', [
             'layout' => $layout,
             'previewValues' => $preview['preview_values'],
+            'formSettings' => $preview['form']->settings_json,
         ])->render();
     }
 
@@ -172,6 +174,28 @@ class CompanyDocumentMemoRenderService
             $dompdf->render();
 
             return $dompdf->output();
+        } finally {
+            $preparer->cleanup($materialized['cleanup']);
+        }
+    }
+
+    /**
+     * @param  array{
+     *     form: CompanyDocumentForm,
+     *     elements: list<array<string, mixed>>,
+     *     preview_values: array<string, mixed>
+     * }  $preview
+     */
+    public function renderDocx(array $preview): string
+    {
+        $preparer = new CompanyDocumentMemoDompdfPreparer();
+        $materialized = $preparer->materializePreviewImages($preview);
+
+        try {
+            return (new CompanyDocumentMemoDocxExporter())->export(
+                $materialized['preview'],
+                $materialized['chroot'],
+            );
         } finally {
             $preparer->cleanup($materialized['cleanup']);
         }

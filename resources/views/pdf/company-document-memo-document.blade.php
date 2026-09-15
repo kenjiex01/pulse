@@ -4,11 +4,15 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <title>{{ $form->name }}</title>
     @php
+        use App\Support\CompanyDocumentTextStyle;
+
+        $formSettings = CompanyDocumentTextStyle::normalizeFormSettings($form->settings_json ?? null);
+        $canvasBackground = $formSettings['canvas_background_color'];
         $memoPadY = \App\Support\CompanyDocumentMemoPdfLayout::PREVIEW_BODY_PADDING;
         $memoPadX = \App\Support\CompanyDocumentMemoPdfLayout::previewSidePaddingPx();
-        $memoMarginYpt = \App\Support\CompanyDocumentMemoPdfLayout::pxToPoints($memoPadY);
-        $memoMarginXpt = \App\Support\CompanyDocumentMemoPdfLayout::pxToPoints($memoPadX);
         $memoFormWidth = \App\Support\CompanyDocumentMemoPdfLayout::legalContentWidthPx();
+        $memoPageWidth = \App\Support\CompanyDocumentMemoPdfLayout::legalPageWidthPx();
+        $memoPageHeight = \App\Support\CompanyDocumentMemoPdfLayout::legalPageHeightPx();
         $pdfMode = empty($browserPreview);
         $pdfFieldOuterW = \App\Support\CompanyDocumentMemoPdfLayout::pdfFieldBorderBoxWidth($memoFormWidth);
         $pdfFieldContentW = \App\Support\CompanyDocumentMemoPdfLayout::pdfContentBoxSize(
@@ -40,10 +44,15 @@
     <style>
         {!! '@' !!}page {
             size: legal portrait;
-            margin-top: {{ $memoMarginYpt }}pt;
-            margin-right: {{ $memoMarginXpt }}pt;
-            margin-bottom: {{ $memoMarginYpt }}pt;
-            margin-left: {{ $memoMarginXpt }}pt;
+            @if ($pdfMode)
+            margin: 0;
+            background-color: {{ $canvasBackground }};
+            @else
+            margin-top: {{ \App\Support\CompanyDocumentMemoPdfLayout::pxToPoints($memoPadY) }}pt;
+            margin-right: {{ \App\Support\CompanyDocumentMemoPdfLayout::pxToPoints($memoPadX) }}pt;
+            margin-bottom: {{ \App\Support\CompanyDocumentMemoPdfLayout::pxToPoints($memoPadY) }}pt;
+            margin-left: {{ \App\Support\CompanyDocumentMemoPdfLayout::pxToPoints($memoPadX) }}pt;
+            @endif
         }
 
         html, body {
@@ -52,6 +61,9 @@
             font-family: DejaVu Sans, sans-serif;
             color: #111827;
             font-size: 14px;
+            @if ($pdfMode)
+            background-color: {{ $canvasBackground }};
+            @endif
         }
 
         * {
@@ -60,15 +72,24 @@
         }
 
         .memo-legal-page {
-            width: {{ $pdfMode ? $memoFormWidth.'px' : '100%' }};
-            background: #ffffff;
-            page-break-after: always;
+            width: {{ $pdfMode ? $memoPageWidth.'px' : '100%' }};
+            background: {{ $canvasBackground }};
             page-break-inside: avoid;
+            @if ($pdfMode)
+            height: {{ $memoPageHeight }}px;
+            @endif
         }
 
-        .memo-legal-page:last-child {
-            page-break-after: auto;
+        .memo-legal-page:not(:last-child) {
+            page-break-after: always;
         }
+
+        @if ($pdfMode)
+        .memo-legal-page-inner {
+            width: {{ $memoPageWidth }}px;
+            padding: {{ $memoPadY }}px {{ $memoPadX }}px;
+        }
+        @endif
 
         img {
             max-width: none;
@@ -147,22 +168,22 @@
     @endphp
     @if (! empty($browserPreview))
         <div class="memo-preview-desk" data-memo-preview-desk>
-    @else
-        <table class="memo-pdf-page-shell" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
-            <tr>
-                <td align="center" style="text-align:center;">
-                    <table class="memo-pdf-form-column" width="{{ $memoFormWidth }}" cellpadding="0" cellspacing="0" border="0" style="width:{{ $memoFormWidth }}px;margin:0 auto;">
-                        <tr>
-                            <td width="{{ $memoFormWidth }}" style="width:{{ $memoFormWidth }}px;text-align:left;">
     @endif
     @foreach ($pages as $page)
         <div class="memo-legal-page">
+            @if ($pdfMode)
+                <div class="memo-legal-page-inner">
+            @endif
             @include('shared.company-document-memo-canvas', [
                 'layout' => $page,
                 'previewValues' => $previewValues,
                 'fixedCanvasHeight' => true,
                 'pdfBoxes' => $pdfMode,
+                'formSettings' => $formSettings,
             ])
+            @if ($pdfMode)
+                </div>
+            @endif
         </div>
     @endforeach
     @if (! empty($browserPreview))
@@ -185,13 +206,6 @@
                 window.addEventListener('resize', fit);
             })();
         </script>
-    @else
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
     @endif
 </body>
 </html>

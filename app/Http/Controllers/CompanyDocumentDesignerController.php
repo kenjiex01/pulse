@@ -68,6 +68,7 @@ class CompanyDocumentDesignerController extends Controller
                 'conditional' => $element->conditional_json ?? [],
                 'settings' => $this->normalizeElementSettings($element->settings_json),
             ])->values(),
+            'initialFormSettings' => CompanyDocumentTextStyle::normalizeFormSettings($companyDocumentForm->settings_json),
             'initialSteps' => $companyDocumentForm->approvals->map(fn ($approval) => [
                 'name' => $approval->name,
                 'mode' => $approval->mode,
@@ -102,11 +103,18 @@ class CompanyDocumentDesignerController extends Controller
             'elements.*.validation' => ['nullable', 'array'],
             'elements.*.conditional' => ['nullable', 'array'],
             'elements.*.settings' => ['nullable', 'array'],
+            'form_settings' => ['nullable', 'array'],
+            'form_settings.canvas_background_color' => ['nullable', 'string', 'max:7'],
         ]);
 
         $existingKeys = [];
 
         DB::transaction(function () use ($companyDocumentForm, $validated, &$existingKeys): void {
+            if (array_key_exists('form_settings', $validated)) {
+                $companyDocumentForm->update([
+                    'settings_json' => CompanyDocumentTextStyle::normalizeFormSettings($validated['form_settings']),
+                ]);
+            }
             CompanyDocumentElement::query()
                 ->where('company_document_form_id', $companyDocumentForm->company_document_form_id)
                 ->each(fn (CompanyDocumentElement $element) => $element->forceDelete());
@@ -390,6 +398,10 @@ class CompanyDocumentDesignerController extends Controller
             $normalized['font_family'] = $textStyle['font_family'];
             $normalized['font_size'] = $textStyle['font_size'];
             $normalized['font_color'] = $textStyle['font_color'];
+        }
+
+        if (array_key_exists('label_color', $settings)) {
+            $normalized['label_color'] = CompanyDocumentTextStyle::normalizeLabelColor($settings);
         }
 
         return $normalized;

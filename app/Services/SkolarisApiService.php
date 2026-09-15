@@ -246,6 +246,147 @@ class SkolarisApiService
     }
 
     /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function attendanceCheckerCampuses(?string $date = null): array
+    {
+        $params = [];
+
+        if ($date !== null && $date !== '') {
+            $params['date'] = $date;
+        }
+
+        if ($this->usesPulseApiKey()) {
+            $response = $this->pulseApiRequest('get', '/attendance-checker/campuses', $params);
+        } else {
+            $response = $this->request('get', '/employees/timekeeping/attendance-checker/campuses', $params);
+        }
+
+        return array_values($response->json('data') ?? []);
+    }
+
+    /**
+     * @param  array<int, string>|null  $employeeNumbers
+     * @return array{schedules: array<int, array<string, mixed>>, campus: array<string, mixed>|null, date: ?string}
+     */
+    public function attendanceCheckerDaily(int $campusId, string $date, ?array $employeeNumbers = null): array
+    {
+        $schedules = [];
+        $page = 1;
+        $lastPage = 1;
+        $campus = null;
+        $resolvedDate = $date;
+
+        do {
+            $params = [
+                'campus_id' => $campusId,
+                'date' => $date,
+                'page' => $page,
+                'per_page' => 50,
+            ];
+
+            if ($employeeNumbers !== null && $employeeNumbers !== []) {
+                $params['employee_numbers'] = implode(',', array_values(array_unique(array_map('strval', $employeeNumbers))));
+            }
+
+            if ($this->usesPulseApiKey()) {
+                $response = $this->pulseApiRequest('get', '/attendance-checker/daily', $params);
+            } else {
+                $response = $this->request('get', '/employees/timekeeping/attendance-checker/daily', $params);
+            }
+
+            $payload = $response->json('data') ?? [];
+            $campus = is_array($payload['campus'] ?? null) ? $payload['campus'] : $campus;
+            $resolvedDate = is_string($payload['date'] ?? null) ? $payload['date'] : $resolvedDate;
+
+            foreach ($payload['schedules'] ?? [] as $schedule) {
+                if (is_array($schedule)) {
+                    $schedules[] = $schedule;
+                }
+            }
+
+            $pagination = $response->json('meta.pagination') ?? [];
+            $lastPage = max(1, (int) ($pagination['last_page'] ?? 1));
+            $page++;
+        } while ($page <= $lastPage && $page <= 100);
+
+        return [
+            'schedules' => $schedules,
+            'campus' => $campus,
+            'date' => $resolvedDate,
+        ];
+    }
+
+    /**
+     * Uploaded faculty loading PDFs stored in Skolaris (Pulse workspace uploads).
+     *
+     * @return array{data: array<int, array<string, mixed>>, meta: array<string, mixed>}
+     */
+    public function listUploadedFacultyLoads(
+        int $page = 1,
+        int $perPage = 100,
+        ?string $search = null,
+        ?string $parseStatus = null,
+    ): array {
+        $params = [
+            'page' => max(1, $page),
+            'per_page' => min(100, max(1, $perPage)),
+        ];
+
+        if ($search !== null && trim($search) !== '') {
+            $params['search'] = trim($search);
+        }
+
+        if ($parseStatus !== null && $parseStatus !== '' && $parseStatus !== 'all') {
+            $params['parse_status'] = $parseStatus;
+        }
+
+        $response = $this->request('get', '/pulse-uploaded-faculty-loading', $params);
+
+        return [
+            'data' => array_values($response->json('data') ?? []),
+            'meta' => is_array($response->json('meta')) ? $response->json('meta') : [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getUploadedFacultyLoad(int $uploadId): array
+    {
+        $response = $this->request('get', '/pulse-uploaded-faculty-loading/'.$uploadId);
+        $data = $response->json('data');
+
+        if (! is_array($data)) {
+            throw new RuntimeException('Uploaded faculty load #'.$uploadId.' was not found in Skolaris.');
+        }
+
+        return $data;
+    }
+
+    public function downloadUploadedFacultyLoadBinary(int $uploadId): string
+    {
+        $this->assertConfigured();
+
+        $response = $this->client()
+            ->withToken($this->accessToken())
+            ->get('/pulse-uploaded-faculty-loading/'.$uploadId.'/download');
+
+        if ($response->status() === 401) {
+            Cache::forget(self::ACCESS_TOKEN_CACHE_KEY);
+            $response = $this->client()
+                ->withToken($this->accessToken(true))
+                ->get('/pulse-uploaded-faculty-loading/'.$uploadId.'/download');
+        }
+
+        if ($response->failed()) {
+            $this->throwForResponse('/pulse-uploaded-faculty-loading/'.$uploadId.'/download', $response, 'Failed to download faculty loading PDF from Skolaris.');
+        }
+
+        return $response->body();
+    }
+
+    /**
      * Pending field patches from GET /pulse-api/v1/local-employee-updates.
      *
      * @return array<int, array<string, mixed>>

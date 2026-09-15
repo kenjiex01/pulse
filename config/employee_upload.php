@@ -10,7 +10,7 @@ return [
         ['alias' => 'suffix', 'label' => 'Suffix'],
         ['alias' => 'birth_date', 'label' => 'Birth Date (YYYY-MM-DD or M/D/YYYY)'],
         ['alias' => 'place_of_birth', 'label' => 'Place of Birth'],
-        ['alias' => 'gender', 'label' => 'Sex (male/female/other)'],
+        ['alias' => 'gender', 'label' => 'Sex (Male/Female/Other)'],
         ['alias' => 'civil_status', 'label' => 'Civil Status (single/married/widowed/separated/divorced)'],
         ['alias' => 'nationality', 'label' => 'Nationality'],
         ['alias' => 'religion', 'label' => 'Religion'],

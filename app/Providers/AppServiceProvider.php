@@ -173,6 +173,7 @@ class AppServiceProvider extends ServiceProvider
         $this->disableDebugRenderingOnDesktop();
 
         $this->ensureDesktopDatabase();
+        app(ReferenceDataBootstrapService::class)->ensureCriticalLookups();
     }
 
     /**

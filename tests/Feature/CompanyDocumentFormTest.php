@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\CompanyDocumentElement;
 use App\Models\CompanyDocumentForm;
+use App\Models\LuIcctOffense;
 use App\Models\User;
+use Database\Seeders\IcctOffenseSeeder;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -24,17 +26,43 @@ class CompanyDocumentFormTest extends TestCase
 
     public function test_admin_can_view_company_documents_index(): void
     {
+        $this->seed(IcctOffenseSeeder::class);
+
         $this->actingAs(User::query()->firstOrFail())
             ->get(route('company-documents.index'))
             ->assertOk()
             ->assertSee('Company Documents', false)
+            ->assertSee('Nature of offense (memo type)', false)
             ->assertSee('Preview', false)
             ->assertSee('company-document-preview-modal', false);
+    }
+
+    public function test_memo_template_does_not_require_nature_of_offense(): void
+    {
+        $this->actingAs(User::query()->firstOrFail())
+            ->post(route('company-documents.store'), [
+                'form_context' => 'create-company-document',
+                'name' => 'General Memo Without Offense',
+                'code' => 'test_memo_no_offense',
+                'document_type' => CompanyDocumentForm::TYPE_MEMO,
+                'requires_nte' => '0',
+                'is_nte' => '0',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors('icct_offense_id');
+
+        $this->assertDatabaseHas('tbl_company_document_forms', [
+            'code' => 'test_memo_no_offense',
+            'icct_offense_id' => null,
+            'is_nte' => 0,
+        ]);
     }
 
     public function test_admin_can_create_memo_template(): void
     {
         $user = User::query()->firstOrFail();
+        $this->seed(IcctOffenseSeeder::class);
+        $offense = LuIcctOffense::query()->where('section_code', 'II.8')->firstOrFail();
 
         $this->actingAs($user)
             ->post(route('company-documents.store'), [
@@ -42,10 +70,10 @@ class CompanyDocumentFormTest extends TestCase
                 'name' => 'Test Memo Template',
                 'code' => 'test_memo_template',
                 'document_type' => CompanyDocumentForm::TYPE_MEMO,
+                'icct_offense_id' => $offense->icct_offense_id,
+                'requires_nte' => '1',
+                'is_nte' => '0',
                 'description' => 'Sample memo for testing.',
-                'allow_multiple_submissions' => '1',
-                'submit_label' => 'Submit',
-                'success_message' => 'Submitted.',
             ])
             ->assertRedirect();
 
@@ -53,7 +81,190 @@ class CompanyDocumentFormTest extends TestCase
             'code' => 'test_memo_template',
             'name' => 'Test Memo Template',
             'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'icct_offense_id' => $offense->icct_offense_id,
+            'requires_nte' => 1,
+            'is_nte' => 0,
         ]);
+    }
+
+    public function test_admin_can_set_memo_template_as_nte_when_no_other_active_nte_exists(): void
+    {
+        $user = User::query()->firstOrFail();
+        CompanyDocumentForm::query()->where('is_nte', true)->update(['is_nte' => false]);
+
+        $this->actingAs($user)
+            ->post(route('company-documents.store'), [
+                'form_context' => 'create-company-document',
+                'name' => 'Custom NTE Template',
+                'code' => 'test_set_as_nte',
+                'document_type' => CompanyDocumentForm::TYPE_MEMO,
+                'requires_nte' => '0',
+                'is_nte' => '1',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors('icct_offense_id');
+
+        $this->assertDatabaseHas('tbl_company_document_forms', [
+            'code' => 'test_set_as_nte',
+            'is_nte' => 1,
+            'requires_nte' => 0,
+            'icct_offense_id' => null,
+        ]);
+    }
+
+    public function test_create_memo_as_nte_is_blocked_when_another_active_nte_exists(): void
+    {
+        $user = User::query()->firstOrFail();
+        $existingNte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('company-documents.store'), [
+                'form_context' => 'create-company-document',
+                'name' => 'Second NTE Template',
+                'code' => 'test_second_nte',
+                'document_type' => CompanyDocumentForm::TYPE_MEMO,
+                'requires_nte' => '0',
+                'is_nte' => '1',
+            ])
+            ->assertSessionHasErrors('is_nte');
+
+        $this->assertTrue($existingNte->fresh()->is_nte);
+        $this->assertDatabaseMissing('tbl_company_document_forms', [
+            'code' => 'test_second_nte',
+        ]);
+    }
+
+    public function test_setting_nte_on_update_is_blocked_when_another_active_nte_exists(): void
+    {
+        $user = User::query()->firstOrFail();
+        $previousNte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
+        $otherForm = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+
+        $this->actingAs($user)
+            ->put(route('company-documents.update', $otherForm), [
+                'form_context' => 'edit-company-document',
+                'edit_company_document_id' => $otherForm->company_document_form_id,
+                'name' => $otherForm->name,
+                'code' => $otherForm->code,
+                'document_type' => CompanyDocumentForm::TYPE_MEMO,
+                'requires_nte' => '0',
+                'is_nte' => '1',
+            ])
+            ->assertSessionHasErrors('is_nte');
+
+        $this->assertFalse($otherForm->fresh()->is_nte);
+        $this->assertTrue($previousNte->fresh()->is_nte);
+    }
+
+    public function test_setting_nte_on_update_succeeds_after_unchecking_previous_nte(): void
+    {
+        $user = User::query()->firstOrFail();
+        $previousNte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
+        $otherForm = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+
+        $this->actingAs($user)
+            ->put(route('company-documents.update', $previousNte), [
+                'form_context' => 'edit-company-document',
+                'edit_company_document_id' => $previousNte->company_document_form_id,
+                'name' => $previousNte->name,
+                'code' => $previousNte->code,
+                'document_type' => CompanyDocumentForm::TYPE_MEMO,
+                'requires_nte' => '0',
+                'is_nte' => '0',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $this->actingAs($user)
+            ->put(route('company-documents.update', $otherForm), [
+                'form_context' => 'edit-company-document',
+                'edit_company_document_id' => $otherForm->company_document_form_id,
+                'name' => $otherForm->name,
+                'code' => $otherForm->code,
+                'document_type' => CompanyDocumentForm::TYPE_MEMO,
+                'requires_nte' => '0',
+                'is_nte' => '1',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertTrue($otherForm->fresh()->is_nte);
+        $this->assertFalse($previousNte->fresh()->is_nte);
+    }
+
+    public function test_inactive_memo_cannot_be_set_as_nte(): void
+    {
+        $user = User::query()->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form->update(['is_active' => false]);
+
+        $this->actingAs($user)
+            ->put(route('company-documents.update', $form), [
+                'form_context' => 'edit-company-document',
+                'edit_company_document_id' => $form->company_document_form_id,
+                'name' => $form->name,
+                'code' => $form->code,
+                'document_type' => CompanyDocumentForm::TYPE_MEMO,
+                'requires_nte' => '0',
+                'is_nte' => '1',
+            ])
+            ->assertSessionHasErrors('is_nte');
+
+        $this->assertFalse($form->fresh()->is_nte);
+    }
+
+    public function test_duplicate_clears_is_nte_on_copy(): void
+    {
+        $user = User::query()->firstOrFail();
+        $nte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('company-documents.duplicate', $nte))
+            ->assertRedirect();
+
+        $copy = CompanyDocumentForm::query()
+            ->where('code', '!=', $nte->code)
+            ->where('name', 'like', $nte->name.' (Copy)')
+            ->firstOrFail();
+
+        $this->assertFalse($copy->is_nte);
+        $this->assertFalse($copy->is_active);
+    }
+
+    public function test_memo_template_can_be_saved_without_requiring_nte(): void
+    {
+        $user = User::query()->firstOrFail();
+        $this->seed(IcctOffenseSeeder::class);
+        $offense = LuIcctOffense::query()->where('section_code', 'I.7')->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('company-documents.store'), [
+                'form_context' => 'create-company-document',
+                'name' => 'No NTE Memo',
+                'code' => 'test_no_nte_memo',
+                'document_type' => CompanyDocumentForm::TYPE_MEMO,
+                'icct_offense_id' => $offense->icct_offense_id,
+                'requires_nte' => '0',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('tbl_company_document_forms', [
+            'code' => 'test_no_nte_memo',
+            'requires_nte' => 0,
+        ]);
+    }
+
+    public function test_create_modal_shows_requires_nte_checkbox(): void
+    {
+        $this->actingAs(User::query()->firstOrFail())
+            ->get(route('company-documents.index'))
+            ->assertOk()
+            ->assertSee('Requires NTE (Notice to Explain)', false)
+            ->assertSee('Set as NTE (Notice to Explain)', false)
+            ->assertSee('Optional. Not all memos have a nature of offense.', false)
+            ->assertDontSee('Submit button label', false)
+            ->assertDontSee('Allow multiple submissions', false)
+            ->assertDontSee('Success message', false);
     }
 
     public function test_sample_memo_seeder_is_available_after_bootstrap(): void
@@ -61,6 +272,52 @@ class CompanyDocumentFormTest extends TestCase
         $this->assertDatabaseHas('tbl_company_document_forms', [
             'code' => 'hr_internal_memo',
         ]);
+    }
+
+    public function test_icct_code_of_offenses_templates_are_seeded(): void
+    {
+        $codes = [
+            'hr_notice_to_explain',
+            'hr_verbal_reprimand',
+            'hr_written_warning',
+            'hr_notice_of_suspension',
+            'hr_notice_of_dismissal',
+            'hr_return_to_work',
+            'hr_awol_notice',
+            'hr_uniform_infraction',
+        ];
+
+        foreach ($codes as $code) {
+            $this->assertDatabaseHas('tbl_company_document_forms', [
+                'code' => $code,
+                'document_type' => CompanyDocumentForm::TYPE_MEMO,
+                'is_active' => true,
+            ]);
+        }
+
+        $returnToWork = CompanyDocumentForm::query()->where('code', 'hr_return_to_work')->firstOrFail();
+        $this->assertGreaterThan(5, $returnToWork->elements()->count());
+        $this->assertTrue(
+            $returnToWork->elements()->where('field_key', 'vp_action')->exists(),
+            'Return to Work form should include Vice-President Approve/Disapprove.',
+        );
+
+        $nte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
+        $this->assertTrue($nte->is_nte);
+        $this->assertFalse($nte->requires_nte);
+        $this->assertTrue(
+            $nte->elements()->where('field_key', 'offense_category')->exists(),
+        );
+
+        $natureField = $nte->elements()->where('field_key', 'nature_of_offense')->firstOrFail();
+        $this->assertSame(CompanyDocumentElement::TYPE_DROPDOWN, $natureField->type);
+        $choices = $natureField->options_json['choices'] ?? [];
+        $this->assertGreaterThanOrEqual(90, count($choices));
+        $labels = array_column($choices, 'label');
+        $this->assertTrue(
+            collect($labels)->contains(fn (string $label) => str_starts_with($label, 'II.8 — ')),
+            'Nature of offense dropdown should include section II.8 from the Code of Offenses.',
+        );
     }
 
     public function test_memo_template_preview_modal_uses_pdf_iframe(): void
@@ -506,6 +763,69 @@ class CompanyDocumentFormTest extends TestCase
         $this->assertSame('Georgia, serif', $element->settings_json['font_family'] ?? null);
         $this->assertSame(18, $element->settings_json['font_size'] ?? null);
         $this->assertSame('#111827', $element->settings_json['font_color'] ?? null);
+    }
+
+    public function test_designer_canvas_background_and_field_colors_persist(): void
+    {
+        $user = User::query()->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+
+        $this->actingAs($user)
+            ->putJson(route('company-documents.designer.elements', $form), [
+                'form_settings' => [
+                    'canvas_background_color' => '#F3F4F6',
+                ],
+                'elements' => [
+                    [
+                        'type' => 'heading',
+                        'label' => 'Notice',
+                        'field_key' => 'notice_heading',
+                        'width' => 'full',
+                        'is_required' => false,
+                        'settings' => [
+                            'label_align' => 'top',
+                            'pos_x' => 0,
+                            'pos_y' => 40,
+                            'font_color' => '#0B318F',
+                        ],
+                    ],
+                    [
+                        'type' => 'short_text',
+                        'label' => 'Employee Name',
+                        'field_key' => 'employee_name',
+                        'width' => 'full',
+                        'is_required' => false,
+                        'settings' => [
+                            'label_align' => 'top',
+                            'pos_x' => 0,
+                            'pos_y' => 120,
+                            'label_color' => '#374151',
+                            'font_color' => '#111827',
+                        ],
+                    ],
+                ],
+            ])
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        $form->refresh();
+
+        $this->assertSame('#F3F4F6', $form->settings_json['canvas_background_color'] ?? null);
+
+        $heading = CompanyDocumentElement::query()
+            ->where('company_document_form_id', $form->company_document_form_id)
+            ->where('field_key', 'notice_heading')
+            ->firstOrFail();
+
+        $this->assertSame('#0B318F', $heading->settings_json['font_color'] ?? null);
+
+        $field = CompanyDocumentElement::query()
+            ->where('company_document_form_id', $form->company_document_form_id)
+            ->where('field_key', 'employee_name')
+            ->firstOrFail();
+
+        $this->assertSame('#374151', $field->settings_json['label_color'] ?? null);
+        $this->assertSame('#111827', $field->settings_json['font_color'] ?? null);
     }
 
     public function test_designer_paragraph_inline_formatting_persists(): void

@@ -3,13 +3,24 @@
 
     $key = $element->field_key;
     $oldValue = old("values.$key");
+    $offenseDefaults = isset($form) ? $form->icctOffenseFieldDefaults() : [];
+    $resolvedValue = static function (?string $old, string $fieldKey, string $fallback = '') use ($offenseDefaults): string {
+        if ($old !== null && $old !== '') {
+            return $old;
+        }
+
+        return (string) ($offenseDefaults[$fieldKey] ?? $fallback);
+    };
     $elementSettings = $element->settings_json ?? [];
+    $labelColor = CompanyDocumentTextStyle::normalizeLabelColor($elementSettings);
+    $headingColor = CompanyDocumentTextStyle::normalizeHeadingColor($elementSettings);
+    $fieldTextColor = CompanyDocumentTextStyle::normalizeFieldTextColor($elementSettings);
 @endphp
 
 <div class="space-y-1">
     @switch($element->type)
         @case('heading')
-            <h2 class="text-xl font-bold text-gray-900">{!! app(\App\Services\CompanyDocumentMergeTagService::class)->renderInlineTagsForDesign($element->label) !!}</h2>
+            <h2 class="text-xl font-bold" style="color:{{ $headingColor }}">{!! app(\App\Services\CompanyDocumentMergeTagService::class)->renderInlineTagsForDesign($element->label) !!}</h2>
             @break
         @case('paragraph')
             <p
@@ -28,25 +39,25 @@
             <p class="inline-flex items-center rounded-md border border-[#00A3E6]/25 bg-[#00A3E6]/10 px-2.5 py-1.5 text-sm font-medium text-[#0B318F]">{{ $tagValue }}</p>
             @break
         @case('long_text')
-            <label for="field_{{ $key }}" class="form-label">
+            <label for="field_{{ $key }}" class="form-label" style="color:{{ $labelColor }}">
                 {{ $element->label }}
                 @if ($element->is_required)<span class="text-red-500">*</span>@endif
             </label>
             @php
                 $defaultText = (string) (($element->settings_json ?? [])['default_text'] ?? '');
-                $fieldValue = $oldValue !== null && $oldValue !== '' ? $oldValue : $defaultText;
+                $fieldValue = $resolvedValue(is_string($oldValue) ? $oldValue : null, (string) $key, $defaultText);
             @endphp
-            <textarea id="field_{{ $key }}" name="values[{{ $key }}]" rows="4" class="form-input w-full" @required($element->is_required)>{{ $fieldValue }}</textarea>
+            <textarea id="field_{{ $key }}" name="values[{{ $key }}]" rows="4" class="form-input w-full" style="color:{{ $fieldTextColor }}" @required($element->is_required)>{{ $fieldValue }}</textarea>
             @break
         @case('date')
-            <label for="field_{{ $key }}" class="form-label">
+            <label for="field_{{ $key }}" class="form-label" style="color:{{ $labelColor }}">
                 {{ $element->label }}
                 @if ($element->is_required)<span class="text-red-500">*</span>@endif
             </label>
-            <input id="field_{{ $key }}" type="date" name="values[{{ $key }}]" value="{{ $oldValue }}" class="form-input w-full" @required($element->is_required)>
+            <input id="field_{{ $key }}" type="date" name="values[{{ $key }}]" value="{{ $oldValue }}" class="form-input w-full" style="color:{{ $fieldTextColor }}" @required($element->is_required)>
             @break
         @case('signature')
-            <label class="form-label">
+            <label class="form-label" style="color:{{ $labelColor }}">
                 {{ $element->label }}
                 @if ($element->is_required)<span class="text-red-500">*</span>@endif
             </label>
@@ -56,7 +67,7 @@
             ])
             @break
         @case('file_upload')
-            <label for="field_{{ $key }}" class="form-label">
+            <label for="field_{{ $key }}" class="form-label" style="color:{{ $labelColor }}">
                 {{ $element->label }}
                 @if ($element->is_required)<span class="text-red-500">*</span>@endif
             </label>
@@ -65,13 +76,13 @@
         @default
             @php
                 $defaultText = (string) (($element->settings_json ?? [])['default_text'] ?? '');
-                $fieldValue = $oldValue !== null && $oldValue !== '' ? $oldValue : $defaultText;
+                $fieldValue = $resolvedValue(is_string($oldValue) ? $oldValue : null, (string) $key, $defaultText);
             @endphp
-            <label for="field_{{ $key }}" class="form-label">
+            <label for="field_{{ $key }}" class="form-label" style="color:{{ $labelColor }}">
                 {{ $element->label }}
                 @if ($element->is_required)<span class="text-red-500">*</span>@endif
             </label>
-            <input id="field_{{ $key }}" type="text" name="values[{{ $key }}]" value="{{ $fieldValue }}" class="form-input w-full" @required($element->is_required)>
+            <input id="field_{{ $key }}" type="text" name="values[{{ $key }}]" value="{{ $fieldValue }}" class="form-input w-full" style="color:{{ $fieldTextColor }}" @required($element->is_required)>
     @endswitch
 
     @if ($element->help_text)

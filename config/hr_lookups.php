@@ -6,9 +6,11 @@ use App\Models\Designation;
 use App\Models\DocumentType;
 use App\Models\EmployeeDepartment;
 use App\Models\EmploymentType;
+use App\Models\LuIcctOffense;
 use App\Models\Position;
 use App\Models\Program;
 use App\Models\Rank;
+use Illuminate\Validation\Rule;
 
 return [
     'campuses' => [
@@ -215,6 +217,54 @@ return [
             ['name' => 'type_name', 'label' => 'Type Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:100'], 'unique' => true],
             ['name' => 'description', 'label' => 'Description', 'type' => 'textarea', 'rules' => ['nullable', 'string']],
             ['name' => 'is_required', 'label' => 'Required', 'type' => 'checkbox', 'default' => false, 'rules' => ['sometimes', 'boolean']],
+            ['name' => 'sort_order', 'label' => 'Sort Order', 'type' => 'number', 'rules' => ['nullable', 'integer', 'min:0']],
+            ['name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'rules' => ['sometimes', 'boolean']],
+        ],
+    ],
+    'nature-of-offenses' => [
+        'name' => 'Nature of Offense',
+        'description' => 'Maintain the Code of Offenses catalog used on company document memos.',
+        'model' => LuIcctOffense::class,
+        'primary_key' => 'icct_offense_id',
+        'log_table' => 'lu_icct_offenses',
+        'icon' => 'nature-of-offense',
+        'sort_order' => 2,
+        'after_change' => 'icct-offense-dropdowns',
+        'order' => ['sort_order' => 'asc', 'section_code' => 'asc'],
+        'search' => ['section_code', 'nature_of_offense', 'heading_label', 'category'],
+        'columns' => [
+            ['key' => 'section_code', 'label' => 'Code'],
+            ['key' => 'nature_of_offense', 'label' => 'Nature of Offense', 'clamp' => true],
+            ['key' => 'heading_label', 'label' => 'Heading'],
+            ['key' => 'category', 'label' => 'Category'],
+            ['key' => 'is_active', 'label' => 'Status', 'type' => 'boolean'],
+        ],
+        'fields' => [
+            [
+                'name' => 'heading_roman',
+                'label' => 'Heading',
+                'type' => 'select',
+                'options' => LuIcctOffense::HEADING_LABELS,
+                'placeholder' => 'Select heading',
+                'rules' => ['required', 'string', Rule::in(array_keys(LuIcctOffense::HEADING_LABELS))],
+            ],
+            [
+                'name' => 'section_number',
+                'label' => 'Section Number',
+                'type' => 'number',
+                'rules' => ['required', 'integer', 'min:1'],
+                'unique' => true,
+                'unique_with' => 'heading_roman',
+            ],
+            ['name' => 'nature_of_offense', 'label' => 'Nature of Offense', 'type' => 'textarea', 'rules' => ['required', 'string']],
+            [
+                'name' => 'category',
+                'label' => 'Category',
+                'type' => 'select',
+                'options' => LuIcctOffense::CATEGORY_OPTIONS,
+                'placeholder' => 'Select category',
+                'rules' => ['required', 'string', 'max:16', Rule::in(array_keys(LuIcctOffense::CATEGORY_OPTIONS))],
+            ],
             ['name' => 'sort_order', 'label' => 'Sort Order', 'type' => 'number', 'rules' => ['nullable', 'integer', 'min:0']],
             ['name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'rules' => ['sometimes', 'boolean']],
         ],

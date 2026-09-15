@@ -70,7 +70,8 @@
         <span class="flex-1">
             <span class="font-medium text-gray-900">Disable required fields</span>
             <span class="mt-1 block text-xs text-gray-500">
-                When checked, only filled columns are validated and saved. Employee Number and Email are still required as the unique match key.
+                Existing employees are matched by <strong>Employee Number</strong>; only filled columns are updated (blanks are ignored).
+                For <strong>new</strong> employees, check this to allow partial rows. Email is still required on create.
             </span>
         </span>
     </label>

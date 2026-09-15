@@ -178,4 +178,33 @@ class CompanyDocumentMemoRenderServiceTest extends TestCase
         $this->assertStringContainsString('Internal Memo', $html);
         $this->assertStringContainsString($employee->full_name, $html);
     }
+
+    public function test_render_pdf_html_fills_full_legal_page_with_canvas_background(): void
+    {
+        $form = CompanyDocumentForm::query()->create([
+            'code' => 'render_memo_pdf_bg',
+            'name' => 'Colored Memo',
+            'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'is_active' => true,
+            'version' => 1,
+            'settings_json' => ['canvas_background_color' => '#F3F4F6'],
+        ]);
+
+        CompanyDocumentElement::query()->create([
+            'company_document_form_id' => $form->company_document_form_id,
+            'type' => CompanyDocumentElement::TYPE_HEADING,
+            'label' => 'Internal Memo',
+            'sort_order' => 0,
+            'settings_json' => ['label_align' => 'top', 'pos_x' => 0, 'pos_y' => 16],
+        ]);
+
+        $service = app(CompanyDocumentMemoRenderService::class);
+        $preview = $service->buildSamplePreviewData($form);
+        $html = $service->renderDocumentHtml($preview, browserPreview: false);
+
+        $this->assertStringContainsString('background-color: #F3F4F6', $html);
+        $this->assertStringContainsString('height: '.CompanyDocumentMemoPdfLayout::legalPageHeightPx().'px', $html);
+        $this->assertStringContainsString('width: '.CompanyDocumentMemoPdfLayout::legalPageWidthPx().'px', $html);
+        $this->assertStringContainsString('memo-legal-page-inner', $html);
+    }
 }

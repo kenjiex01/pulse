@@ -10,7 +10,7 @@
     @include('partials.flash')
     @include('partials.page-header', [
         'title' => $config['name'],
-        'description' => 'Maintain '.$config['name'].' used in employee forms.',
+        'description' => $config['description'] ?? 'Maintain '.$config['name'].' used in employee forms.',
         'actionModalId' => auth()->user()->can('hr-lookup.create', $lookup) ? "hr-lookup-create-$lookup" : null,
         'actionLabel' => 'Add '.$config['name'],
         'actionIcon' => '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>',

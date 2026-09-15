@@ -117,9 +117,15 @@ class HrLookup
             $fieldRules = $field['rules'] ?? [];
 
             if (! empty($field['unique'])) {
-                $fieldRules[] = Rule::unique($table, $field['name'])
+                $unique = Rule::unique($table, $field['name'])
                     ->whereNull('deleted_at')
                     ->ignore($record?->getKey(), $primaryKey);
+
+                foreach ((array) ($field['unique_with'] ?? []) as $scopeColumn) {
+                    $unique->where($scopeColumn, request()->input($scopeColumn));
+                }
+
+                $fieldRules[] = $unique;
             }
 
             if (! empty($field['exclude_self']) && $record) {

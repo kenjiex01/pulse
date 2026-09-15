@@ -18,16 +18,20 @@ class TimekeepingMemoEmailService
 
     /**
      * @param  array{date_from: string, date_to: string, violation_type: string, violation_count: int, selected_dates: list<string>}  $memoContext
+     * @param  list<array{binary: string, filename: string, mime?: string}>  $attachments
      */
     public function sendForEmployee(
         Employee $employee,
         TimekeepingMemoSetup $setup,
         array $memoContext,
         CompanyDocumentForm $form,
-        string $memoPdf,
-        string $pdfFilename,
+        array $attachments,
     ): void {
         $this->ensureMailIsConfigured();
+
+        if ($attachments === []) {
+            throw new RuntimeException('No memo email attachments were generated.');
+        }
 
         $subjectTemplate = trim((string) ($setup->email_subject ?? ''));
         $bodyTemplate = trim((string) ($setup->email_body ?? ''));
@@ -48,13 +52,11 @@ class TimekeepingMemoEmailService
         $body = $this->mergeTagService->resolveInlineTags($bodyTemplate, $employee, $memoContext);
         $cc = TimekeepingMemoSetup::parseCcList($setup->email_cc);
 
-        $mail = Mail::to($email);
-        $mail->send(new TimekeepingMemoMail(
+        Mail::to($email)->send(new TimekeepingMemoMail(
             $subject,
             $body,
             (string) $form->name,
-            $memoPdf,
-            $pdfFilename,
+            $attachments,
             $cc,
         ));
     }

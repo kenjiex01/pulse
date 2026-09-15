@@ -84,7 +84,7 @@ trait EmployeeFormRules
             'hire_date' => ['prohibited'],
             'birth_date' => ['nullable', 'date'],
             'place_of_birth' => ['nullable', 'string', 'max:150'],
-            'gender' => ['nullable', Rule::in(['male', 'female', 'other'])],
+            'gender' => ['nullable', Rule::in(array_keys(Employee::selectableGenders()))],
             'civil_status' => ['nullable', Rule::in(['single', 'married', 'widowed', 'separated', 'divorced'])],
             'nationality' => ['nullable', 'string', 'max:100'],
             'religion' => ['nullable', 'string', 'max:100'],
@@ -177,6 +177,7 @@ trait EmployeeFormRules
             'bank_account_type' => filled($this->input('bank_account_type'))
                 ? strtolower(trim((string) $this->input('bank_account_type')))
                 : null,
+            'gender' => Employee::normalizeGender($this->input('gender')),
         ]);
     }
 

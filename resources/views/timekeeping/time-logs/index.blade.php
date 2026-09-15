@@ -8,17 +8,25 @@
     @endphp
 
     @include('partials.flash')
+    @php
+        $isUploadedLoads = $isTeachingLoads && ($loadSource ?? \App\Support\TimeLogs::LOAD_SOURCE_SKOLARIS) === \App\Support\TimeLogs::LOAD_SOURCE_UPLOADED;
+    @endphp
+
     @include('partials.page-header', [
         'title' => 'Time Logs',
         'description' => $isTeachingLoads
-            ? 'Pull faculty teaching loads from Skolaris and review pull history by batch and employee.'
+            ? ($isUploadedLoads
+                ? 'Pull uploaded faculty loading PDFs from Skolaris and review cached copies in People360.'
+                : 'Pull faculty teaching loads from Skolaris and review pull history by batch and employee.')
             : 'Upload and manage raw time in / time out and DTR timelog transactions from biometric or file imports.',
         'secondaryActionModalId' => auth()->user()?->can('time-logs.create') && ! $isTeachingLoads
             ? 'time-logs-s3-pull-modal'
             : null,
         'secondaryActionLabel' => 'Pull logs',
         'actionModalId' => auth()->user()?->can('time-logs.create')
-            ? ($isTeachingLoads ? 'time-logs-pull-modal' : 'time-logs-upload-modal')
+            ? ($isTeachingLoads
+                ? ($isUploadedLoads ? 'time-logs-uploaded-load-pull-modal' : 'time-logs-pull-modal')
+                : 'time-logs-upload-modal')
             : null,
         'actionLabel' => $isTeachingLoads ? 'Pull from Skolaris' : 'Upload',
     ])
@@ -56,21 +64,42 @@
         @endcan
     @endif
 
+    @if ($isTeachingLoads)
+        @include('timekeeping.time-logs._teaching-loads-source-tabs', [
+            'loadSource' => $loadSource ?? \App\Support\TimeLogs::LOAD_SOURCE_SKOLARIS,
+        ])
+    @endif
+
     @include('partials.live-data-table', [
-        'url' => route(\App\Support\TimeLogs::routeName('tab'), ['tab' => $tab]),
-        'search' => $search,
-        'searchPlaceholder' => $isTeachingLoads
-            ? 'Search pull batch...'
-            : 'Search batches, file names, or uploader...',
-        'searchId' => 'time-logs-search-'.$tab,
-        'paginator' => $records,
-        'totalLabel' => $isTeachingLoads ? 'pull batches' : 'upload batches',
-        'results' => view($isTeachingLoads ? 'timekeeping.time-logs._teaching-loads-results' : 'timekeeping.time-logs._results', [
+        'url' => route(\App\Support\TimeLogs::routeName('tab'), array_filter([
             'tab' => $tab,
-            'config' => $config,
-            'records' => $records,
-            'skolarisListError' => $skolarisListError ?? null,
-        ])->render(),
+            'load_source' => $isUploadedLoads ? \App\Support\TimeLogs::LOAD_SOURCE_UPLOADED : null,
+        ])),
+        'search' => $search,
+        'searchPlaceholder' => $isUploadedLoads
+            ? 'Faculty, campus, term, filename...'
+            : ($isTeachingLoads ? 'Search pull batch...' : 'Search batches, file names, or uploader...'),
+        'searchId' => 'time-logs-search-'.$tab.($isUploadedLoads ? '-uploaded' : ''),
+        'showSearch' => ! $isUploadedLoads,
+        'filters' => $isUploadedLoads
+            ? view('timekeeping.time-logs._uploaded-faculty-load-filters', [
+                'search' => $search,
+                'parseStatus' => $parseStatus ?? '',
+            ])->render()
+            : null,
+        'paginator' => $records,
+        'totalLabel' => $isUploadedLoads ? 'uploaded loads' : ($isTeachingLoads ? 'pull batches' : 'upload batches'),
+        'results' => view(
+            $isUploadedLoads
+                ? 'timekeeping.time-logs._uploaded-faculty-loads-results'
+                : ($isTeachingLoads ? 'timekeeping.time-logs._teaching-loads-results' : 'timekeeping.time-logs._results'),
+            [
+                'tab' => $tab,
+                'config' => $config,
+                'records' => $records,
+                'skolarisListError' => $skolarisListError ?? null,
+            ]
+        )->render(),
     ])
 
     @can('time-logs.create')
@@ -86,6 +115,15 @@
                     'pullSearch' => $pullSearch ?? '',
                     'skolarisListError' => $skolarisListError ?? null,
                 ])->render(),
+            ])
+
+            @include('partials.modal', [
+                'id' => 'time-logs-uploaded-load-pull-modal',
+                'title' => 'Pull Uploaded Faculty Loads from Skolaris',
+                'description' => 'Sync PDF uploads that were added in Skolaris into People360.',
+                'open' => $openUploadedLoadPull ?? false,
+                'panelClass' => 'max-w-xl',
+                'body' => view('timekeeping.time-logs._uploaded-faculty-load-pull-form')->render(),
             ])
         @else
             @include('partials.modal', [
@@ -180,6 +218,23 @@
             'body' => view('timekeeping.time-logs._teaching-load-pull-batch-content', [
                 'batch' => $viewPullBatch,
                 'employeeSummaries' => $employeeSummaries,
+            ])->render(),
+        ])
+    @endif
+
+    @if (($viewUploadedLoad ?? null) && $isTeachingLoads)
+        @include('partials.modal', [
+            'id' => 'uploaded-faculty-load-view-modal',
+            'title' => $viewUploadedLoad->faculty_name ?: $viewUploadedLoad->original_filename,
+            'description' => collect([
+                $viewUploadedLoad->campus_name,
+                $viewUploadedLoad->term_label,
+                $viewUploadedLoad->original_filename,
+            ])->filter()->implode(' • '),
+            'open' => true,
+            'panelClass' => 'max-w-6xl',
+            'body' => view('timekeeping.time-logs._uploaded-faculty-load-detail', [
+                'upload' => $viewUploadedLoad,
             ])->render(),
         ])
     @endif

@@ -37,6 +37,11 @@ const DEFAULT_IMAGE_OPACITY = 100;
 const DEFAULT_IMAGE_ROTATE = 0;
 const DEFAULT_PARAGRAPH_FONT_SIZE = 14;
 const DEFAULT_PARAGRAPH_FONT_COLOR = '#4B5563';
+const DEFAULT_CANVAS_BACKGROUND = '#FFFFFF';
+const DEFAULT_LABEL_COLOR = '#374151';
+const DEFAULT_HEADING_COLOR = '#111827';
+const DEFAULT_FIELD_TEXT_COLOR = '#111827';
+const TYPOGRAPHY_FIELD_TYPES = new Set(['short_text', 'long_text', 'email', 'number', 'date', 'phone', 'dropdown']);
 const PARAGRAPH_FONT_FAMILIES = [
     { value: '', label: 'System default' },
     { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
@@ -352,13 +357,45 @@ const paragraphFontSize = (element) => {
     return Math.max(8, Math.min(72, Math.round(size)));
 };
 
-const clampParagraphFontColor = (value) => {
-    const normalized = String(value || DEFAULT_PARAGRAPH_FONT_COLOR).trim().toUpperCase();
+const clampHexColor = (value, fallback) => {
+    const normalized = String(value || fallback).trim().toUpperCase();
 
-    return /^#[0-9A-F]{6}$/.test(normalized) ? normalized : DEFAULT_PARAGRAPH_FONT_COLOR;
+    return /^#[0-9A-F]{6}$/.test(normalized) ? normalized : fallback;
 };
 
+const clampParagraphFontColor = (value) => clampHexColor(value, DEFAULT_PARAGRAPH_FONT_COLOR);
+
 const paragraphFontColor = (element) => clampParagraphFontColor(normalizeSettings(element.settings).font_color ?? DEFAULT_PARAGRAPH_FONT_COLOR);
+
+const elementLabelColor = (element) => clampHexColor(normalizeSettings(element.settings).label_color, DEFAULT_LABEL_COLOR);
+
+const elementTextColor = (element) => {
+    const settings = normalizeSettings(element.settings);
+
+    if (element.type === 'heading') {
+        return clampHexColor(settings.font_color, DEFAULT_HEADING_COLOR);
+    }
+
+    if (element.type === 'paragraph') {
+        return paragraphFontColor(element);
+    }
+
+    if (TYPOGRAPHY_FIELD_TYPES.has(element.type)) {
+        return clampHexColor(settings.font_color, DEFAULT_FIELD_TEXT_COLOR);
+    }
+
+    return DEFAULT_FIELD_TEXT_COLOR;
+};
+
+const inputTextStyleAttr = (element) => {
+    const color = elementTextColor(element);
+
+    return `color:${color};-webkit-text-fill-color:${color}`;
+};
+
+const supportsTypographyColors = (type) => type === 'paragraph'
+    || type === 'heading'
+    || TYPOGRAPHY_FIELD_TYPES.has(type);
 
 const paragraphTextStyleAttr = (element) => {
     const parts = [];
@@ -372,6 +409,38 @@ const paragraphTextStyleAttr = (element) => {
     parts.push(`color:${paragraphFontColor(element)}`);
 
     return parts.join(';');
+};
+
+const buildFieldColorControlsHtml = (element) => {
+    const labelColor = elementLabelColor(element);
+    const textColor = elementTextColor(element);
+
+    return `
+        <div class="border-b border-white/[0.06] px-4 py-4">
+            <label class="mb-1.5 block text-[11px] font-medium text-white/70">Colors</label>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="mb-1 block text-[10px] text-white/50">Label color</label>
+                    <input type="color" class="cd-dark-input h-9 w-full cursor-pointer p-1" data-prop-label-color value="${escapeHtml(labelColor)}">
+                </div>
+                <div>
+                    <label class="mb-1 block text-[10px] text-white/50">Text color</label>
+                    <input type="color" class="cd-dark-input h-9 w-full cursor-pointer p-1" data-prop-font-color value="${escapeHtml(textColor)}">
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+const buildHeadingColorControlsHtml = (element) => {
+    const textColor = elementTextColor(element);
+
+    return `
+        <div class="border-b border-white/[0.06] px-4 py-4">
+            <label class="mb-1.5 block text-[11px] font-medium text-white/70">Text color</label>
+            <input type="color" class="cd-dark-input h-9 w-full cursor-pointer p-1" data-prop-font-color value="${escapeHtml(textColor)}">
+        </div>
+    `;
 };
 
 const buildParagraphTypographyControlsHtml = (element) => {
@@ -678,8 +747,9 @@ const ensureFieldKey = (element, existing) => {
 
 const fieldLabelHtml = (element) => {
     const required = element.is_required ? '<span class="text-red-500">*</span>' : '';
+    const color = elementLabelColor(element);
 
-    return `<span class="text-sm font-medium text-gray-700">${escapeHtml(element.label || '')} ${required}</span>`;
+    return `<span class="text-sm font-medium" style="color:${color}">${escapeHtml(element.label || '')} ${required}</span>`;
 };
 
 const wrapLabeledField = (element, controlHtml) => {
@@ -694,7 +764,9 @@ const wrapLabeledField = (element, controlHtml) => {
         return `<div class="flex h-full min-h-0 w-full min-w-0 flex-row-reverse items-start gap-3"><div class="w-36 shrink-0 pt-2 text-right">${label}</div><div class="flex min-h-0 min-w-0 flex-1 flex-col">${controlHtml}</div></div>`;
     }
 
-    return `<div class="flex h-full min-h-0 w-full min-w-0 flex-col"><label class="mb-1 block shrink-0 text-sm font-medium text-gray-700">${escapeHtml(element.label || '')} ${element.is_required ? '<span class="text-red-500">*</span>' : ''}</label><div class="flex min-h-0 min-w-0 flex-1 flex-col">${controlHtml}</div></div>`;
+    const labelColor = elementLabelColor(element);
+
+    return `<div class="flex h-full min-h-0 w-full min-w-0 flex-col"><label class="mb-1 block shrink-0 text-sm font-medium" style="color:${labelColor}">${escapeHtml(element.label || '')} ${element.is_required ? '<span class="text-red-500">*</span>' : ''}</label><div class="flex min-h-0 min-w-0 flex-1 flex-col">${controlHtml}</div></div>`;
 };
 
 const previewKeyFor = (element, index) => element.field_key || `preview_${index}`;
@@ -801,7 +873,7 @@ const renderFieldPreview = (element, index, previewValues = {}, assetUrlBase = '
 
     switch (element.type) {
         case 'heading':
-            return `<h3 class="cd-designer-text-block w-full max-w-full break-words text-lg font-semibold text-gray-900">${renderInlineTagsHtml(element.label || '')}</h3>`;
+            return `<h3 class="cd-designer-text-block w-full max-w-full break-words text-lg font-semibold" style="color:${elementTextColor(element)}">${renderInlineTagsHtml(element.label || '')}</h3>`;
         case 'paragraph':
             return `<p class="cd-designer-text-block cd-designer-paragraph w-full max-w-full whitespace-pre-wrap" style="${paragraphTextStyleAttr(element)}">${renderInlineTagsHtml(element.label || '')}</p>`;
         case 'divider':
@@ -832,19 +904,19 @@ const renderFieldPreview = (element, index, previewValues = {}, assetUrlBase = '
             const content = previewValue !== '' ? previewValue : defaultText;
 
             if (readonlyPreview && content !== '') {
-                return `${wrapLabeledField(element, `<div class="${PREVIEW_INPUT_CLASS.replace('focus:border-[#00A3E6] focus:outline-none focus:ring-1 focus:ring-[#00A3E6]/30', '')} min-h-[6rem] whitespace-pre-wrap">${renderInlineTagsHtml(content)}</div>`)}${helpHtml}`;
+                return `${wrapLabeledField(element, `<div class="${PREVIEW_INPUT_CLASS.replace('focus:border-[#00A3E6] focus:outline-none focus:ring-1 focus:ring-[#00A3E6]/30', '')} min-h-[6rem] whitespace-pre-wrap" style="${inputTextStyleAttr(element)}">${renderInlineTagsHtml(content)}</div>`)}${helpHtml}`;
             }
 
-            return `${wrapLabeledField(element, `<textarea rows="${element.settings?.rows || 4}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}">${escapeHtml(content)}</textarea>`)}${helpHtml}`;
+            return `${wrapLabeledField(element, `<textarea rows="${element.settings?.rows || 4}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}" style="${inputTextStyleAttr(element)}">${escapeHtml(content)}</textarea>`)}${helpHtml}`;
         }
         case 'short_text': {
             const content = previewValue !== '' ? previewValue : defaultText;
 
             if (readonlyPreview && content !== '') {
-                return `${wrapLabeledField(element, `<div class="${PREVIEW_INPUT_CLASS.replace('focus:border-[#00A3E6] focus:outline-none focus:ring-1 focus:ring-[#00A3E6]/30', '')} whitespace-pre-wrap">${renderInlineTagsHtml(content)}</div>`)}${helpHtml}`;
+                return `${wrapLabeledField(element, `<div class="${PREVIEW_INPUT_CLASS.replace('focus:border-[#00A3E6] focus:outline-none focus:ring-1 focus:ring-[#00A3E6]/30', '')} whitespace-pre-wrap" style="${inputTextStyleAttr(element)}">${renderInlineTagsHtml(content)}</div>`)}${helpHtml}`;
             }
 
-            return `${wrapLabeledField(element, `<input type="text" value="${escapeHtml(content)}" placeholder="${escapeHtml(element.placeholder || '')}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}">`)}${helpHtml}`;
+            return `${wrapLabeledField(element, `<input type="text" value="${escapeHtml(content)}" placeholder="${escapeHtml(element.placeholder || '')}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}" style="${inputTextStyleAttr(element)}">`)}${helpHtml}`;
         }
         case 'radio': {
             const choices = element.options?.choices || [];
@@ -903,15 +975,15 @@ const renderFieldPreview = (element, index, previewValues = {}, assetUrlBase = '
             }))}${helpHtml}`;
         }
         case 'date':
-            return `${wrapLabeledField(element, `<input type="date" value="${value}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}">`)}${helpHtml}`;
+            return `${wrapLabeledField(element, `<input type="date" value="${value}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}" style="${inputTextStyleAttr(element)}">`)}${helpHtml}`;
         case 'number':
-            return `${wrapLabeledField(element, `<input type="number" value="${value}" placeholder="${escapeHtml(element.placeholder || '')}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}">`)}${helpHtml}`;
+            return `${wrapLabeledField(element, `<input type="number" value="${value}" placeholder="${escapeHtml(element.placeholder || '')}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}" style="${inputTextStyleAttr(element)}">`)}${helpHtml}`;
         case 'email':
-            return `${wrapLabeledField(element, `<input type="email" value="${value}" placeholder="${escapeHtml(element.placeholder || '')}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}">`)}${helpHtml}`;
+            return `${wrapLabeledField(element, `<input type="email" value="${value}" placeholder="${escapeHtml(element.placeholder || '')}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}" style="${inputTextStyleAttr(element)}">`)}${helpHtml}`;
         case 'phone':
-            return `${wrapLabeledField(element, `<input type="tel" value="${value}" placeholder="${escapeHtml(element.placeholder || '')}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}">`)}${helpHtml}`;
+            return `${wrapLabeledField(element, `<input type="tel" value="${value}" placeholder="${escapeHtml(element.placeholder || '')}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}" style="${inputTextStyleAttr(element)}">`)}${helpHtml}`;
         default:
-            return `${wrapLabeledField(element, `<input type="text" value="${value}" placeholder="${escapeHtml(element.placeholder || '')}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}">`)}${helpHtml}`;
+            return `${wrapLabeledField(element, `<input type="text" value="${value}" placeholder="${escapeHtml(element.placeholder || '')}" ${previewControlAttrs(element, index)} class="${PREVIEW_INPUT_CLASS}" style="${inputTextStyleAttr(element)}">`)}${helpHtml}`;
     }
 };
 
@@ -951,6 +1023,7 @@ export const initCompanyDocumentDesigner = (root) => {
         const key = previewKeyFor(element, index);
         previewValues[key] = element.settings.signature_preview;
     });
+    let formSettings = parseJson(root.dataset.initialFormSettings, { canvas_background_color: DEFAULT_CANVAS_BACKGROUND });
     let steps = parseJson(root.dataset.initialSteps, []);
     let selectedIdx = null;
     let activePaletteCat = Object.keys(palette)[0] || 'BASIC';
@@ -967,6 +1040,20 @@ export const initCompanyDocumentDesigner = (root) => {
     const propertiesTitle = root.querySelector('[data-properties-title]');
     const propertiesBody = root.querySelector('[data-properties-body]');
     const canvasWrap = root.querySelector('[data-designer-canvas-wrap]');
+    const canvasBgInput = root.querySelector('[data-canvas-background-color]');
+
+    const canvasBackgroundColor = () => clampHexColor(formSettings.canvas_background_color, DEFAULT_CANVAS_BACKGROUND);
+
+    const applyCanvasBackgroundStyles = () => {
+        const background = canvasBackgroundColor();
+
+        canvas?.querySelectorAll('.cd-legal-paper, [data-designer-canvas-inner]').forEach((node) => {
+            node.style.backgroundColor = background;
+            if (node.matches('[data-designer-canvas-inner]')) {
+                node.style.backgroundImage = background.toUpperCase() === DEFAULT_CANVAS_BACKGROUND ? '' : 'none';
+            }
+        });
+    };
     const stepsRoot = root.querySelector('[data-approval-steps]');
     const stepTemplate = root.querySelector('[data-approval-step-template]');
 
@@ -1424,12 +1511,16 @@ export const initCompanyDocumentDesigner = (root) => {
 
         if (elements.length === 0) {
             canvas.innerHTML = `
-                <div class="rounded-lg border-2 border-dashed border-gray-200 p-12 text-center" data-canvas-empty>
-                    <svg class="mx-auto mb-3 h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                    <p class="text-sm font-medium text-gray-500">Drag elements from the left panel</p>
-                    <p class="mt-1 text-xs text-gray-400">Drop anywhere on the canvas — drag fields freely to align X and Y</p>
+                <div class="cd-legal-paper">
+                    <div class="rounded-lg border-2 border-dashed border-gray-200 p-12 text-center" data-canvas-empty data-designer-canvas-inner style="min-height:360px;background-image:none;">
+                        <svg class="mx-auto mb-3 h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        <p class="text-sm font-medium text-gray-500">Drag elements from the left panel</p>
+                        <p class="mt-1 text-xs text-gray-400">Drop anywhere on the canvas — drag fields freely to align X and Y</p>
+                    </div>
                 </div>
             `;
+            applyCanvasBackgroundStyles();
+
             return;
         }
 
@@ -1445,7 +1536,7 @@ export const initCompanyDocumentDesigner = (root) => {
         const pageCount = legalPageCountForHeight(maxBottom);
         const innerHeight = pageCount * LEGAL_CONTENT_HEIGHT_PX;
 
-        canvas.innerHTML = `<div class="cd-legal-paper"><div class="cd-designer-canvas-inner relative" data-designer-canvas-inner style="min-height:${innerHeight}px;">${renderLegalPageGuides(pageCount)}${elements.map((element, index) => {
+        canvas.innerHTML = `<div class="cd-legal-paper"><div class="cd-designer-canvas-inner relative" data-designer-canvas-inner style="min-height:${innerHeight}px;background-image:none;">${renderLegalPageGuides(pageCount)}${elements.map((element, index) => {
             const selected = selectedIdx === index;
             const box = fieldBoxSize(innerWidth, element);
             const widthCss = elementBoxWidthCss(innerWidth, element);
@@ -1596,6 +1687,7 @@ export const initCompanyDocumentDesigner = (root) => {
 
         mountSignaturePads(canvas);
         await restoreSignaturePreviewValues(canvas, previewValues);
+        applyCanvasBackgroundStyles();
         updateCanvasMinHeight();
     };
 
@@ -1750,7 +1842,11 @@ export const initCompanyDocumentDesigner = (root) => {
             return (element.width || 'full') === preset;
         };
 
-        const paragraphTypographyHtml = isParagraph ? buildParagraphTypographyControlsHtml(element) : '';
+        const paragraphTypographyHtml = isParagraph
+            ? buildParagraphTypographyControlsHtml(element)
+            : (element.type === 'heading'
+                ? buildHeadingColorControlsHtml(element)
+                : (TYPOGRAPHY_FIELD_TYPES.has(element.type) ? buildFieldColorControlsHtml(element) : ''));
 
         propertiesBody.innerHTML = `
             <div class="border-b border-white/[0.06] px-4 py-4">
@@ -1937,9 +2033,22 @@ export const initCompanyDocumentDesigner = (root) => {
             renderCanvas();
         });
 
-        propertiesBody.querySelector('[data-prop-font-color]')?.addEventListener('input', (event) => {
+        propertiesBody.querySelectorAll('[data-prop-font-color]').forEach((input) => {
+            input.addEventListener('input', (event) => {
+                const settings = ensureSettingsObject(element);
+                settings.font_color = clampHexColor(
+                    event.target.value,
+                    element.type === 'heading'
+                        ? DEFAULT_HEADING_COLOR
+                        : (TYPOGRAPHY_FIELD_TYPES.has(element.type) ? DEFAULT_FIELD_TEXT_COLOR : DEFAULT_PARAGRAPH_FONT_COLOR),
+                );
+                renderCanvas();
+            });
+        });
+
+        propertiesBody.querySelector('[data-prop-label-color]')?.addEventListener('input', (event) => {
             const settings = ensureSettingsObject(element);
-            settings.font_color = clampParagraphFontColor(event.target.value);
+            settings.label_color = clampHexColor(event.target.value, DEFAULT_LABEL_COLOR);
             renderCanvas();
         });
 
@@ -2121,6 +2230,11 @@ export const initCompanyDocumentDesigner = (root) => {
     };
 
     paletteSearch?.addEventListener('input', renderPalette);
+
+    canvasBgInput?.addEventListener('input', (event) => {
+        formSettings.canvas_background_color = clampHexColor(event.target.value, DEFAULT_CANVAS_BACKGROUND);
+        renderCanvas();
+    });
 
     canvasWrap?.addEventListener('click', () => {
         selectedIdx = null;
@@ -2313,10 +2427,13 @@ export const initCompanyDocumentDesigner = (root) => {
                     ...(element.type === 'merge_tag' && mergeTagKey(element) ? { tag_key: mergeTagKey(element) } : {}),
                     ...(element.settings?.default_text !== undefined ? { default_text: element.settings.default_text } : {}),
                     ...(element.type === 'signature' && settings.signature_preview ? { signature_preview: settings.signature_preview } : {}),
-                    ...(element.type === 'paragraph' ? {
-                        font_family: paragraphFontFamily(element),
-                        font_size: paragraphFontSize(element),
-                        font_color: paragraphFontColor(element),
+                    ...(supportsTypographyColors(element.type) ? {
+                        ...(element.type === 'paragraph' ? {
+                            font_family: paragraphFontFamily(element),
+                            font_size: paragraphFontSize(element),
+                        } : {}),
+                        font_color: elementTextColor(element),
+                        ...(TYPOGRAPHY_FIELD_TYPES.has(element.type) ? { label_color: elementLabelColor(element) } : {}),
                     } : {}),
                 },
             };
@@ -2330,7 +2447,12 @@ export const initCompanyDocumentDesigner = (root) => {
                 'X-CSRF-TOKEN': csrfToken(),
                 'X-Requested-With': 'XMLHttpRequest',
             },
-            body: JSON.stringify({ elements: payload }),
+            body: JSON.stringify({
+                elements: payload,
+                form_settings: {
+                    canvas_background_color: canvasBackgroundColor(),
+                },
+            }),
         });
 
         const data = await response.json().catch(() => ({}));

@@ -19,6 +19,7 @@
         data-form-description="{{ $form->description }}"
         data-submit-label="{{ $form->submit_label ?: 'Submit' }}"
         data-initial-elements='@json($initialElements)'
+        data-initial-form-settings='@json($initialFormSettings)'
         data-initial-steps='@json($initialSteps)'
         data-palette='@json($palette)'
         data-merge-tag-samples='@json($mergeTagSamples)'
@@ -84,6 +85,16 @@
                                     <p class="mt-1 whitespace-pre-wrap text-center text-sm text-gray-600" data-form-description>{{ $form->description }}</p>
                                 @endif
                                 <p class="mt-2 text-center text-xs font-medium text-[#0B318F]">Legal size bond paper (8.5 × 14 in)</p>
+                                <div class="mt-3 flex items-center justify-center gap-2">
+                                    <label for="canvas-background-color" class="text-xs font-medium text-gray-600">Canvas background</label>
+                                    <input
+                                        id="canvas-background-color"
+                                        type="color"
+                                        class="h-8 w-12 cursor-pointer rounded border border-gray-300 bg-white p-0.5"
+                                        data-canvas-background-color
+                                        value="{{ $initialFormSettings['canvas_background_color'] }}"
+                                    >
+                                </div>
                             </div>
                             <div class="bg-gray-100 p-4" data-designer-canvas></div>
                         </div>

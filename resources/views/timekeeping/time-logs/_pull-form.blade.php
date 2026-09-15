@@ -38,7 +38,7 @@
             data-tl-employee-search
         >
         <p class="mt-1 text-xs text-gray-500">
-            People360 faculty with a matching employee number in Skolaris. Multi-select who to pull for the date range above.
+            People360 faculty with a matching employee number in Skolaris. Multi-select who to pull for the date range above. Attendance Checker marks (P/A/L/U/E/M) in Skolaris are included when present.
         </p>
     </div>
 

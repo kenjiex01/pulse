@@ -2,13 +2,16 @@
 
 namespace App\Http\Requests\CompanyDocument;
 
+use App\Http\Requests\CompanyDocument\Concerns\ValidatesNteAssignment;
 use App\Models\CompanyDocumentForm;
 use App\Support\ValidationRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UpdateCompanyDocumentFormRequest extends FormRequest
 {
+    use ValidatesNteAssignment;
     public function authorize(): bool
     {
         $form = $this->route('companyDocumentForm');
@@ -35,9 +38,30 @@ class UpdateCompanyDocumentFormRequest extends FormRequest
             ],
             'description' => ['nullable', 'string'],
             'document_type' => ['required', 'string', Rule::in(array_keys(CompanyDocumentForm::documentTypes()))],
-            'allow_multiple_submissions' => ['nullable', 'boolean'],
-            'submit_label' => ['nullable', 'string', 'max:80'],
-            'success_message' => ['nullable', 'string'],
+            'icct_offense_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('lu_icct_offenses', 'icct_offense_id'),
+            ],
+            'requires_nte' => ['nullable', 'boolean'],
+            'is_nte' => ['nullable', 'boolean'],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->input('icct_offense_id') === '' || $this->boolean('is_nte')) {
+            $this->merge(['icct_offense_id' => null]);
+        }
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            /** @var CompanyDocumentForm $form */
+            $form = $this->route('companyDocumentForm');
+
+            $this->validateNteAssignment($validator, $form);
+        });
     }
 }

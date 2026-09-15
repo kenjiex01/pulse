@@ -18,6 +18,10 @@ class TimeLogs
 
     public const TEACHING_LOADS_TAB = 'teaching-loads';
 
+    public const LOAD_SOURCE_SKOLARIS = 'skolaris';
+
+    public const LOAD_SOURCE_UPLOADED = 'uploaded';
+
     /**
      * Campus codes configured for Timelogs DTR upload (see config/time_logs_dtr.php).
      *
@@ -67,6 +71,22 @@ class TimeLogs
         return (self::config($tab)['type'] ?? null) === 'skolaris_pull';
     }
 
+    public static function resolveLoadSource(?string $source): string
+    {
+        $source = $source ?: self::LOAD_SOURCE_SKOLARIS;
+
+        if (! in_array($source, [self::LOAD_SOURCE_SKOLARIS, self::LOAD_SOURCE_UPLOADED], true)) {
+            abort(404);
+        }
+
+        return $source;
+    }
+
+    public static function isUploadedLoadSource(string $source): bool
+    {
+        return $source === self::LOAD_SOURCE_UPLOADED;
+    }
+
     public static function requiresCampus(string $tab): bool
     {
         return (bool) (self::config($tab)['requires_campus'] ?? false);
@@ -103,6 +123,10 @@ class TimeLogs
             'destroy' => 'timekeeping.time-logs.destroy',
             'pull.start' => 'timekeeping.time-logs.pull.start',
             'pull.step' => 'timekeeping.time-logs.pull.step',
+            'uploads.pull' => 'timekeeping.time-logs.uploads.pull',
+            'uploads.destroy' => 'timekeeping.time-logs.uploads.destroy',
+            'uploads.download' => 'timekeeping.time-logs.uploads.download',
+            'uploads.preview' => 'timekeeping.time-logs.uploads.preview',
             's3-pull' => 'timekeeping.time-logs.s3-pull',
             's3-folders' => 'timekeeping.time-logs.s3-folders',
             default => "timekeeping.time-logs.$action",

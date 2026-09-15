@@ -12,7 +12,7 @@
     @include('partials.flash')
     @include('partials.page-header', [
         'title' => 'Company Documents',
-        'description' => 'Design dynamic memo templates with drag-and-drop fields and e-signature.',
+        'description' => 'Create memo templates. Nature of offense is optional — not all memos, including NTE, are tied to an offense.',
         'actionModalId' => auth()->user()->can('create', \App\Models\CompanyDocumentForm::class) ? 'company-document-create-modal' : null,
         'actionLabel' => 'New Memo Template',
         'actionIcon' => '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>',
@@ -54,10 +54,10 @@
         @include('partials.modal', [
             'id' => 'company-document-create-modal',
             'title' => 'New Memo Template',
-            'description' => 'Create a reusable memo template, then open the designer to add fields.',
+            'description' => 'Nature of offense is optional. Tick Set as NTE if this template is the Notice to Explain.',
             'open' => $openCreate,
-            'panelClass' => 'max-w-lg',
-            'body' => view('company-documents._create-form', compact('documentTypes'))->render(),
+            'panelClass' => 'max-w-xl',
+            'body' => view('company-documents._create-form', compact('documentTypes', 'icctOffenses'))->render(),
         ])
     @endcan
 
@@ -69,7 +69,7 @@
                 'description' => $form->name,
                 'open' => (string) $openEditId === (string) $form->company_document_form_id,
                 'panelClass' => 'max-w-lg',
-                'body' => view('company-documents._edit-form', compact('form', 'documentTypes'))->render(),
+                'body' => view('company-documents._edit-form', compact('form', 'documentTypes', 'icctOffenses'))->render(),
             ])
         @endcan
 

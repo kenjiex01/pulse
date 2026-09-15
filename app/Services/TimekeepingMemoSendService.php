@@ -73,8 +73,15 @@ class TimekeepingMemoSendService
         ];
 
         $preview = $this->memoRenderService->buildPreviewData($form, $employee, $memoContext);
-        $memoPdf = $this->memoRenderService->renderPdf($preview);
-        $pdfFilename = MemoPdfFilename::for($form, $employee, $violationType);
+        $emailAttachments = [[
+            'binary' => $this->memoRenderService->renderPdf($preview),
+            'filename' => MemoPdfFilename::for($form, $employee, $violationType),
+            'mime' => 'application/pdf',
+        ]];
+
+        if ($form->requires_nte) {
+            $emailAttachments = array_merge($emailAttachments, $this->buildNteDocxAttachment($employee, $violationType, $memoContext));
+        }
 
         $result = DB::transaction(function () use ($employee, $form, $setup, $violationType, $selectedDates, $sender, $memoContext) {
             $submission = CompanyDocumentSubmission::query()->create([
@@ -144,9 +151,35 @@ class TimekeepingMemoSendService
             ];
         });
 
-        $this->emailService->sendForEmployee($employee, $setup, $memoContext, $form, $memoPdf, $pdfFilename);
+        $this->emailService->sendForEmployee($employee, $setup, $memoContext, $form, $emailAttachments);
 
         return $result;
+    }
+
+    /**
+     * @param  array{date_from: string, date_to: string, violation_type: string, violation_count: int, selected_dates: list<string>}  $memoContext
+     * @return list<array{binary: string, filename: string}>
+     */
+    /**
+     * @param  array{date_from: string, date_to: string, violation_type: string, violation_count: int, selected_dates: list<string>}  $memoContext
+     * @return list<array{binary: string, filename: string, mime: string}>
+     */
+    private function buildNteDocxAttachment(Employee $employee, string $violationType, array $memoContext): array
+    {
+        $nteForm = CompanyDocumentForm::activeNteTemplate();
+
+        if ($nteForm === null) {
+            throw new RuntimeException('This memo requires a Notice to Explain (NTE), but no active NTE template is configured in Company Documents.');
+        }
+
+        $nteForm->load('elements');
+        $ntePreview = $this->memoRenderService->buildPreviewData($nteForm, $employee, $memoContext);
+
+        return [[
+            'binary' => $this->memoRenderService->renderDocx($ntePreview),
+            'filename' => MemoPdfFilename::docxFor($nteForm, $employee, $violationType),
+            'mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ]];
     }
 
     /**

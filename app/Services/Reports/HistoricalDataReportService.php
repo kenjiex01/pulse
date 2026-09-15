@@ -67,14 +67,12 @@ class HistoricalDataReportService
             ->values()
             ->all();
 
-        $actions = collect($options['actions'] ?? [])
-            ->filter(fn ($action) => in_array($action, ['create', 'update', 'delete'], true))
-            ->values()
-            ->all();
-
-        if ($actions === []) {
-            $actions = ['create', 'update', 'delete'];
-        }
+        $actions = $this->historyService->expandHistoryActions(
+            collect($options['actions'] ?? [])
+                ->filter(fn ($action) => in_array($action, $this->historyService->employeeHistoryActions(), true))
+                ->values()
+                ->all(),
+        );
 
         $query = SysLog::query()
             ->where('table_name', 'tbl_employees')

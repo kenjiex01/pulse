@@ -71,7 +71,11 @@
     }
 
     .searchable-select-trigger {
-        @apply flex items-center justify-between text-left;
+        @apply flex min-h-10 items-center justify-between gap-2 text-left;
+    }
+
+    .searchable-select-trigger-label {
+        @apply min-w-0 flex-1 truncate text-left;
     }
 
     .searchable-select-trigger::after {
@@ -106,7 +110,11 @@
     }
 
     .searchable-select-option {
-        @apply cursor-pointer px-3 py-2 text-sm text-gray-800 hover:bg-blue-50;
+        @apply cursor-pointer whitespace-normal px-3 py-2 text-sm leading-snug text-gray-800 hover:bg-blue-50;
+    }
+
+    .searchable-select-option-title {
+        @apply font-semibold text-[#0B318F];
     }
 
     .searchable-select-option-highlighted {

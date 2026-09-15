@@ -31,6 +31,38 @@ class Employee extends Model
 
     public const BANK_ACCOUNT_TYPE_PAYROLL = 'payroll';
 
+    public const GENDER_MALE = 'Male';
+
+    public const GENDER_FEMALE = 'Female';
+
+    public const GENDER_OTHER = 'Other';
+
+    /**
+     * @return array<string, string>
+     */
+    public static function selectableGenders(): array
+    {
+        return [
+            self::GENDER_MALE => 'Male',
+            self::GENDER_FEMALE => 'Female',
+            self::GENDER_OTHER => 'Other',
+        ];
+    }
+
+    public static function normalizeGender(mixed $value): ?string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        return match (strtolower(trim($value))) {
+            'male', 'm' => self::GENDER_MALE,
+            'female', 'f' => self::GENDER_FEMALE,
+            'other' => self::GENDER_OTHER,
+            default => null,
+        };
+    }
+
     /**
      * @return array<string, string>
      */

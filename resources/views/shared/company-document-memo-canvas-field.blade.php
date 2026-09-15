@@ -13,14 +13,18 @@
     $content = $displayValue !== '' ? $displayValue : $defaultText;
     $placeholder = trim((string) ($element['placeholder'] ?? ''));
     $fieldText = $content !== '' ? $content : $placeholder;
-    $fieldTextStyle = $content === '' && $placeholder !== '' ? 'color:#9ca3af;' : '';
+    $labelColor = CompanyDocumentTextStyle::normalizeLabelColor($settings);
+    $headingColor = CompanyDocumentTextStyle::normalizeHeadingColor($settings);
+    $fieldTextColor = CompanyDocumentTextStyle::normalizeFieldTextColor($settings);
+    $fieldTextStyle = $content === '' && $placeholder !== '' ? 'color:#9ca3af;' : 'color:'.$fieldTextColor.';';
+    $labelStyle = 'display:block;margin:0 0 4px;font-size:14px;font-weight:600;color:'.$labelColor.';line-height:1.35;';
     $requiredHtml = ! empty($element['is_required']) ? '<span style="'.$requiredStyle.'">*</span>' : '';
     $boxStyle = $inputBoxStyle.($fieldTextStyle !== '' ? $fieldTextStyle : '');
 @endphp
 
 @switch($type)
     @case(CompanyDocumentElement::TYPE_HEADING)
-        <h3 style="margin:0;width:100%;font-size:18px;font-weight:600;line-height:1.35;color:#111827;word-break:break-word;">{!! $label !!}</h3>
+        <h3 style="margin:0;width:100%;font-size:18px;font-weight:600;line-height:1.35;color:{{ $headingColor }};word-break:break-word;">{!! $label !!}</h3>
         @break
 
     @case(CompanyDocumentElement::TYPE_PARAGRAPH)

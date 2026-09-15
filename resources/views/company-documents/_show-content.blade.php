@@ -11,6 +11,20 @@
         <dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">Type</dt>
         <dd class="mt-1 text-gray-900">{{ \App\Models\CompanyDocumentForm::documentTypes()[$form->document_type] ?? $form->document_type }}</dd>
     </div>
+    @if ($form->icctOffense)
+        <div>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">Nature of offense</dt>
+            <dd class="mt-1 text-sm text-gray-900">{{ $form->icctOffense->dropdownLabel() }}</dd>
+        </div>
+    @endif
+    <div>
+        <dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">Set as NTE</dt>
+        <dd class="mt-1 text-gray-900">{{ $form->is_nte ? 'Yes — this template is the Notice to Explain' : 'No' }}</dd>
+    </div>
+    <div>
+        <dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">Requires NTE</dt>
+        <dd class="mt-1 text-gray-900">{{ $form->requires_nte ? 'Yes — Notice to Explain is required' : 'No' }}</dd>
+    </div>
     <div>
         <dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">Status</dt>
         <dd class="mt-1">{{ $form->is_active ? 'Active' : 'Inactive' }}</dd>

@@ -24,6 +24,10 @@
                                     <span class="{{ $record->{$column['key']} ? 'font-medium text-gray-900' : 'text-gray-500' }}">
                                         {{ $record->{$column['key']} ? 'Active' : 'Inactive' }}
                                     </span>
+                                @elseif (! empty($column['clamp']))
+                                    <span class="line-clamp-2 max-w-md" title="{{ \App\Support\HrLookup::columnValue($record, $column['key']) }}">
+                                        {{ \App\Support\HrLookup::columnValue($record, $column['key']) ?: '—' }}
+                                    </span>
                                 @else
                                     {{ \App\Support\HrLookup::columnValue($record, $column['key']) ?: '—' }}
                                 @endif

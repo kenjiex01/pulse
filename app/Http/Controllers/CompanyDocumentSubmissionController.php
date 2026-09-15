@@ -53,7 +53,7 @@ class CompanyDocumentSubmissionController extends Controller
                 ->with('error', 'This template is inactive.');
         }
 
-        $companyDocumentForm->load('elements');
+        $companyDocumentForm->load(['elements', 'icctOffense']);
 
         return view('company-documents.submissions.create', [
             'form' => $companyDocumentForm,

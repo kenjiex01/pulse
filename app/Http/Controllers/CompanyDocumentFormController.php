@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\CompanyDocument\StoreCompanyDocumentFormRequest;
 use App\Http\Requests\CompanyDocument\UpdateCompanyDocumentFormRequest;
 use App\Models\CompanyDocumentForm;
+use App\Models\LuIcctOffense;
 use App\Services\CompanyDocumentFileService;
 use App\Services\CompanyDocumentMemoRenderService;
 use App\Services\SysLogService;
@@ -29,7 +30,7 @@ class CompanyDocumentFormController extends Controller
         $search = $request->string('search')->trim()->toString();
 
         $forms = CompanyDocumentForm::query()
-            ->with(['elements'])
+            ->with(['elements', 'icctOffense'])
             ->withCount(['elements'])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($builder) use ($search) {
@@ -51,6 +52,7 @@ class CompanyDocumentFormController extends Controller
             'forms' => $forms,
             'search' => $search,
             'documentTypes' => CompanyDocumentForm::documentTypes(),
+            'icctOffenses' => LuIcctOffense::catalogForSelection($forms->pluck('icct_offense_id')),
             'openCreate' => $request->boolean('create'),
         ]);
     }
@@ -68,9 +70,12 @@ class CompanyDocumentFormController extends Controller
         $payload['code'] = trim((string) ($payload['code'] ?? '')) ?: $this->generateCode($payload['name']);
         $payload['created_by'] = $request->user()?->id;
         $payload['sort_order'] = (int) CompanyDocumentForm::query()->max('sort_order') + 1;
-        $payload['allow_multiple_submissions'] = $request->boolean('allow_multiple_submissions', true);
-        $payload['submit_label'] = $payload['submit_label'] ?? 'Submit';
-        $payload['success_message'] = $payload['success_message'] ?? 'Document submitted successfully.';
+        $isMemo = $payload['document_type'] === CompanyDocumentForm::TYPE_MEMO;
+        $payload['requires_nte'] = $isMemo && $request->boolean('requires_nte');
+        $payload['is_nte'] = $isMemo && $request->boolean('is_nte');
+        $payload['icct_offense_id'] = ($isMemo && ! $payload['is_nte'])
+            ? ($payload['icct_offense_id'] ?? null)
+            : null;
 
         $form = CompanyDocumentForm::query()->create($payload);
 
@@ -154,7 +159,12 @@ class CompanyDocumentFormController extends Controller
     {
         $oldValues = $companyDocumentForm->logSnapshot();
         $payload = $request->validated();
-        $payload['allow_multiple_submissions'] = $request->boolean('allow_multiple_submissions');
+        $isMemo = $payload['document_type'] === CompanyDocumentForm::TYPE_MEMO;
+        $payload['requires_nte'] = $isMemo && $request->boolean('requires_nte');
+        $payload['is_nte'] = $isMemo && $request->boolean('is_nte');
+        $payload['icct_offense_id'] = ($isMemo && ! $payload['is_nte'])
+            ? ($payload['icct_offense_id'] ?? null)
+            : null;
 
         $companyDocumentForm->update($payload);
 
@@ -206,7 +216,22 @@ class CompanyDocumentFormController extends Controller
         $this->authorize('update', $companyDocumentForm);
 
         $oldValues = $companyDocumentForm->logSnapshot();
-        $companyDocumentForm->update(['is_active' => ! $companyDocumentForm->is_active]);
+        $willActivate = ! $companyDocumentForm->is_active;
+
+        if ($willActivate && $companyDocumentForm->is_nte) {
+            $existing = CompanyDocumentForm::conflictingActiveNte($companyDocumentForm->company_document_form_id);
+
+            if ($existing !== null) {
+                return redirect()
+                    ->route('company-documents.index')
+                    ->with(
+                        'error',
+                        'Cannot activate this template as NTE. Another active memo is already set as NTE ('.$existing->name.'). Uncheck Set as NTE on that template first.',
+                    );
+            }
+        }
+
+        $companyDocumentForm->update(['is_active' => $willActivate]);
 
         SysLogService::record(
             action: 'update',
@@ -232,6 +257,7 @@ class CompanyDocumentFormController extends Controller
         $copy->code = $this->generateCode($companyDocumentForm->code.' copy');
         $copy->name = $companyDocumentForm->name.' (Copy)';
         $copy->is_active = false;
+        $copy->is_nte = false;
         $copy->version = 1;
         $copy->created_by = auth()->id();
         $copy->sort_order = (int) CompanyDocumentForm::query()->max('sort_order') + 1;

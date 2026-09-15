@@ -10,8 +10,20 @@
                 @endif
             </div>
             <p class="mt-0.5 truncate font-mono text-[11px] text-gray-400">{{ $form->code }}</p>
-            @if ($form->description)
+            @if ($form->icctOffense)
+                <p class="mt-2 line-clamp-2 text-xs font-medium text-[#0B318F]">{{ $form->icctOffense->section_code }} — {{ \Illuminate\Support\Str::limit($form->icctOffense->nature_of_offense, 80) }}</p>
+            @elseif ($form->description)
                 <p class="mt-2 line-clamp-2 text-xs text-gray-600">{{ $form->description }}</p>
+            @endif
+            @if ($form->is_nte || $form->requires_nte)
+                <div class="mt-2 flex flex-wrap gap-1.5">
+                    @if ($form->is_nte)
+                        <p class="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-800">NTE</p>
+                    @endif
+                    @if ($form->requires_nte)
+                        <p class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">Requires NTE</p>
+                    @endif
+                </div>
             @endif
         </div>
     </div>

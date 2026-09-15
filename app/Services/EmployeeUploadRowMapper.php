@@ -144,9 +144,10 @@ class EmployeeUploadRowMapper
         }
 
         $existingEmployeeId = $match['existing_employee_id'];
+        $allowPartialRow = $disableRequiredFields || $existingEmployeeId !== null;
         $errors = array_merge(
             $errors,
-            $this->validateScalars($row, $lineNumber, $disableRequiredFields, $existingEmployeeId),
+            $this->validateScalars($row, $lineNumber, $allowPartialRow, $existingEmployeeId),
         );
 
         if ($errors !== []) {
@@ -159,21 +160,21 @@ class EmployeeUploadRowMapper
         $hasSalaryData = $this->rowHasSalaryData($row, $isHybrid);
         $hasRoleData = filled($row['role'] ?? '');
 
-        if (! $disableRequiredFields || $hasEmploymentData) {
-            $errors = array_merge($errors, $this->validateEmployment($row, $lineNumber, $isHybrid, $disableRequiredFields));
+        if (! $allowPartialRow || $hasEmploymentData) {
+            $errors = array_merge($errors, $this->validateEmployment($row, $lineNumber, $isHybrid, $allowPartialRow));
         }
 
-        if (! $disableRequiredFields || $hasSalaryData) {
-            $errors = array_merge($errors, $this->validateSalaries($row, $lineNumber, $isHybrid, $disableRequiredFields));
+        if (! $allowPartialRow || $hasSalaryData) {
+            $errors = array_merge($errors, $this->validateSalaries($row, $lineNumber, $isHybrid, $allowPartialRow));
         }
 
-        if (! $disableRequiredFields || $hasCampusData) {
-            $errors = array_merge($errors, $this->validateCampusAssignments($row, $lineNumber, $disableRequiredFields, $existingEmployeeId));
+        if (! $allowPartialRow || $hasCampusData) {
+            $errors = array_merge($errors, $this->validateCampusAssignments($row, $lineNumber, $allowPartialRow, $existingEmployeeId));
         }
 
-        if ((! $disableRequiredFields || $hasRoleData) && $hasRoleData) {
+        if ((! $allowPartialRow || $hasRoleData) && $hasRoleData) {
             $errors = array_merge($errors, $this->validateRole($row, $lineNumber));
-        } elseif (! $disableRequiredFields) {
+        } elseif (! $allowPartialRow) {
             $errors = array_merge($errors, $this->validateRole($row, $lineNumber));
         }
 
@@ -215,46 +216,55 @@ class EmployeeUploadRowMapper
             $errors[] = "Line {$lineNumber}: Employee Number is required.";
         }
 
-        if ($email === '') {
-            $errors[] = "Line {$lineNumber}: Email is required.";
-        } elseif (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $errors[] = "Line {$lineNumber}: Invalid email ({$email}).";
-        }
-
-        if ($errors !== []) {
-            return ['errors' => $errors, 'existing_employee_id' => null];
-        }
-
-        $emailKey = strtolower($email);
-
-        if (isset($seenEmails[$emailKey])) {
-            $errors[] = "Line {$lineNumber}: Duplicate email in file ({$email}).";
-        }
-
-        if (isset($seenNumbers[$employeeNumber])) {
+        if ($employeeNumber !== '' && isset($seenNumbers[$employeeNumber])) {
             $errors[] = "Line {$lineNumber}: Duplicate employee number in file ({$employeeNumber}).";
         }
 
-        $matched = Employee::query()
-            ->where('employee_number', $employeeNumber)
-            ->whereRaw('LOWER(email) = ?', [$emailKey])
-            ->first();
+        $byNumber = $employeeNumber !== ''
+            ? Employee::query()->where('employee_number', $employeeNumber)->first()
+            : null;
 
-        $byNumber = Employee::query()
-            ->where('employee_number', $employeeNumber)
-            ->first();
+        $isUpdate = $byNumber !== null;
 
-        $byEmail = Employee::query()
-            ->whereRaw('LOWER(email) = ?', [$emailKey])
-            ->first();
+        if ($isUpdate) {
+            if ($email !== '') {
+                if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $errors[] = "Line {$lineNumber}: Invalid email ({$email}).";
+                } else {
+                    $emailKey = strtolower($email);
 
-        if ($matched === null) {
-            if ($byNumber !== null) {
-                $errors[] = "Line {$lineNumber}: Employee number already exists with a different email ({$employeeNumber}).";
+                    if (isset($seenEmails[$emailKey])) {
+                        $errors[] = "Line {$lineNumber}: Duplicate email in file ({$email}).";
+                    }
+
+                    $byEmail = Employee::query()
+                        ->whereRaw('LOWER(email) = ?', [$emailKey])
+                        ->first();
+
+                    if ($byEmail !== null && (int) $byEmail->employee_id !== (int) $byNumber->employee_id) {
+                        $errors[] = "Line {$lineNumber}: Email already exists on another employee ({$email}).";
+                    }
+                }
             }
+        } else {
+            if ($email === '') {
+                $errors[] = "Line {$lineNumber}: Email is required.";
+            } elseif (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $errors[] = "Line {$lineNumber}: Invalid email ({$email}).";
+            } else {
+                $emailKey = strtolower($email);
 
-            if ($byEmail !== null) {
-                $errors[] = "Line {$lineNumber}: Email already exists on another employee ({$email}).";
+                if (isset($seenEmails[$emailKey])) {
+                    $errors[] = "Line {$lineNumber}: Duplicate email in file ({$email}).";
+                }
+
+                $byEmail = Employee::query()
+                    ->whereRaw('LOWER(email) = ?', [$emailKey])
+                    ->first();
+
+                if ($byEmail !== null) {
+                    $errors[] = "Line {$lineNumber}: Email already exists on another employee ({$email}).";
+                }
             }
         }
 
@@ -262,12 +272,17 @@ class EmployeeUploadRowMapper
             return ['errors' => $errors, 'existing_employee_id' => null];
         }
 
-        $seenNumbers[$employeeNumber] = true;
-        $seenEmails[$emailKey] = true;
+        if ($employeeNumber !== '') {
+            $seenNumbers[$employeeNumber] = true;
+        }
+
+        if ($email !== '') {
+            $seenEmails[strtolower($email)] = true;
+        }
 
         return [
             'errors' => [],
-            'existing_employee_id' => $matched?->employee_id,
+            'existing_employee_id' => $isUpdate ? (int) $byNumber->employee_id : null,
         ];
     }
 
@@ -284,7 +299,7 @@ class EmployeeUploadRowMapper
         $this->ensureLookupsLoaded();
         $errors = [];
 
-        if (! $disableRequiredFields) {
+        if (! $disableRequiredFields && $existingEmployeeId === null) {
             foreach ($this->requiredColumns() as $alias) {
                 // employee_number + email already enforced in resolveEmployeeMatch()
                 if (in_array($alias, ['employee_number', 'email'], true)) {
@@ -632,7 +647,7 @@ class EmployeeUploadRowMapper
             'last_name' => $lastName !== '' ? $lastName : ($isUpdate ? null : ''),
             'suffix' => $this->nullable($row['suffix'] ?? ''),
             'is_hybrid' => filled($row['is_hybrid'] ?? '') ? $isHybrid : ($isUpdate ? null : false),
-            'email' => $email,
+            'email' => $email !== '' ? $email : ($isUpdate ? null : ''),
             'phone' => $phone !== '' ? $phone : ($isUpdate ? null : ''),
             'home_phone' => $this->nullable($row['home_phone'] ?? ''),
             'work_phone' => $this->nullable($row['work_phone'] ?? ''),
@@ -651,7 +666,7 @@ class EmployeeUploadRowMapper
                 : ($isUpdate ? null : true),
             'birth_date' => $this->nullable($row['birth_date'] ?? ''),
             'place_of_birth' => $this->nullable($row['place_of_birth'] ?? ''),
-            'gender' => $this->nullable(strtolower($row['gender'] ?? '')),
+            'gender' => Employee::normalizeGender($row['gender'] ?? ''),
             'civil_status' => $this->nullable(strtolower($row['civil_status'] ?? '')),
             'nationality' => $this->nullable($row['nationality'] ?? ''),
             'religion' => $this->nullable($row['religion'] ?? ''),
@@ -691,7 +706,7 @@ class EmployeeUploadRowMapper
             $employee = array_filter(
                 $employee,
                 function ($value, $key) {
-                    if (in_array($key, ['employee_number', 'email'], true)) {
+                    if ($key === 'employee_number') {
                         return true;
                     }
 

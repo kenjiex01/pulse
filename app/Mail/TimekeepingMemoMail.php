@@ -15,13 +15,13 @@ class TimekeepingMemoMail extends Mailable
 
     /**
      * @param  list<string>  $ccRecipients
+     * @param  list<array{binary: string, filename: string, mime?: string}>  $emailAttachments
      */
     public function __construct(
         private readonly string $resolvedSubject,
         private readonly string $resolvedBody,
         private readonly string $memoFormName,
-        private readonly string $pdfBinary,
-        private readonly string $pdfFilename,
+        private readonly array $emailAttachments,
         private readonly array $ccRecipients = [],
     ) {}
 
@@ -40,6 +40,8 @@ class TimekeepingMemoMail extends Mailable
             with: [
                 'body' => $this->resolvedBody,
                 'memoFormName' => $this->memoFormName,
+                'attachmentCount' => count($this->emailAttachments),
+                'includesNteWord' => $this->includesNteWordAttachment(),
             ],
         );
     }
@@ -49,9 +51,23 @@ class TimekeepingMemoMail extends Mailable
      */
     public function attachments(): array
     {
-        return [
-            Attachment::fromData(fn (): string => $this->pdfBinary, $this->pdfFilename)
-                ->withMime('application/pdf'),
-        ];
+        return array_map(
+            fn (array $attachment): Attachment => Attachment::fromData(
+                fn (): string => $attachment['binary'],
+                $attachment['filename'],
+            )->withMime((string) ($attachment['mime'] ?? 'application/pdf')),
+            $this->emailAttachments,
+        );
+    }
+
+    private function includesNteWordAttachment(): bool
+    {
+        foreach ($this->emailAttachments as $attachment) {
+            if (str_ends_with(strtolower((string) ($attachment['filename'] ?? '')), '.docx')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

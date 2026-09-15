@@ -620,6 +620,18 @@ Route::middleware('auth')->group(function () {
         Route::post('timekeeping/time-logs/teaching-loads/pull/step', [TimeLogsController::class, 'stepTeachingLoadPull'])
             ->name('timekeeping.time-logs.pull.step');
 
+        Route::post('timekeeping/time-logs/teaching-loads/uploads/pull', [TimeLogsController::class, 'pullUploadedFacultyLoadsFromSkolaris'])
+            ->name('timekeeping.time-logs.uploads.pull');
+
+        Route::delete('timekeeping/time-logs/teaching-loads/uploads/{upload}', [TimeLogsController::class, 'destroyUploadedFacultyLoad'])
+            ->name('timekeeping.time-logs.uploads.destroy');
+
+        Route::get('timekeeping/time-logs/teaching-loads/uploads/{upload}/download', [TimeLogsController::class, 'downloadUploadedFacultyLoad'])
+            ->name('timekeeping.time-logs.uploads.download');
+
+        Route::get('timekeeping/time-logs/teaching-loads/uploads/{upload}/preview', [TimeLogsController::class, 'previewUploadedFacultyLoad'])
+            ->name('timekeeping.time-logs.uploads.preview');
+
         Route::get('timekeeping/time-logs/{tab}', [TimeLogsController::class, 'index'])
             ->where('tab', implode('|', array_keys(\App\Support\TimeLogs::tabs())))
             ->name('timekeeping.time-logs.tab');

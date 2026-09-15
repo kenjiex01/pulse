@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\SysLogService;
 use App\Support\HrLookup;
 use App\Support\LiveTable;
+use Database\Seeders\CompanyDocumentIcctOffensesSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -68,6 +69,7 @@ class HrLookupController extends Controller
         $payload = HrLookup::validatedPayload($lookup, $validated);
 
         $record = $config['model']::query()->create($payload);
+        $this->runAfterChange($config);
 
         SysLogService::record(
             action: 'create',
@@ -95,6 +97,7 @@ class HrLookupController extends Controller
         $payload = HrLookup::validatedPayload($lookup, $validated);
 
         $model->update($payload);
+        $this->runAfterChange($config);
 
         SysLogService::record(
             action: 'update',
@@ -120,6 +123,7 @@ class HrLookupController extends Controller
         $oldValues = $model->toArray();
 
         $model->update(['is_active' => ! $model->is_active]);
+        $this->runAfterChange($config);
 
         SysLogService::record(
             action: 'update',
@@ -155,6 +159,7 @@ class HrLookupController extends Controller
         $recordId = $model->getKey();
 
         $model->delete();
+        $this->runAfterChange($config);
 
         SysLogService::record(
             action: 'delete',
@@ -167,5 +172,15 @@ class HrLookupController extends Controller
         return redirect()
             ->route(HrLookup::routeName($lookup))
             ->with('success', $config['name'].' record deleted successfully.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     */
+    private function runAfterChange(array $config): void
+    {
+        if (($config['after_change'] ?? null) === 'icct-offense-dropdowns') {
+            (new CompanyDocumentIcctOffensesSeeder)->syncOffenseNatureDropdowns();
+        }
     }
 }

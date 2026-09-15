@@ -41,4 +41,18 @@ class CompanyDocumentTextStyleTest extends TestCase
 
         $this->assertSame('font-size:14px;color:#4B5563;', $style);
     }
+
+    public function test_normalize_form_settings_defaults_canvas_background(): void
+    {
+        $settings = CompanyDocumentTextStyle::normalizeFormSettings(null);
+
+        $this->assertSame('#FFFFFF', $settings['canvas_background_color']);
+    }
+
+    public function test_normalize_label_and_field_text_colors(): void
+    {
+        $this->assertSame('#FF0000', CompanyDocumentTextStyle::normalizeLabelColor(['label_color' => '#ff0000']));
+        $this->assertSame('#00FF00', CompanyDocumentTextStyle::normalizeFieldTextColor(['font_color' => '#00ff00']));
+        $this->assertSame('#111827', CompanyDocumentTextStyle::normalizeHeadingColor([]));
+    }
 }

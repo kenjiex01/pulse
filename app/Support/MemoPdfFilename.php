@@ -20,4 +20,12 @@ class MemoPdfFilename
 
         return trim($formPart.'-'.$typePart.'-'.$employeePart, '-').'.pdf';
     }
+
+    public static function docxFor(
+        CompanyDocumentForm $form,
+        Employee $employee,
+        string $violationType,
+    ): string {
+        return (string) preg_replace('/\.pdf$/i', '.docx', self::for($form, $employee, $violationType));
+    }
 }

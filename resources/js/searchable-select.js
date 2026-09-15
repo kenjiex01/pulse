@@ -162,7 +162,20 @@ class SearchableSelect {
             const item = document.createElement('li');
             item.className = 'searchable-select-option';
             item.setAttribute('role', 'option');
-            item.textContent = option.label;
+            const nativeOption = this.select.querySelector(`option[value="${CSS.escape(option.value)}"]`);
+            const fullLabel = (nativeOption?.getAttribute('title') || option.label).trim();
+            item.title = fullLabel;
+
+            const sectionMatch = fullLabel.match(/^([IVXLC]+\.\d+)\s*—\s*(.*)$/);
+            if (sectionMatch) {
+                const code = document.createElement('span');
+                code.className = 'searchable-select-option-title';
+                code.textContent = sectionMatch[1];
+                item.appendChild(code);
+                item.appendChild(document.createTextNode(' — '+sectionMatch[2]));
+            } else {
+                item.textContent = option.label;
+            }
 
             if (option.disabled) {
                 item.classList.add('searchable-select-option-disabled');
@@ -203,6 +216,8 @@ class SearchableSelect {
         const selected = this.select.selectedOptions[0];
         const placeholder = this.select.options[0]?.value === '' ? this.select.options[0].textContent.trim() : 'Select...';
 
+        this.trigger.replaceChildren();
+
         if (!selected || selected.value === '') {
             this.trigger.textContent = placeholder;
             this.trigger.classList.add('searchable-select-trigger-placeholder');
@@ -210,7 +225,13 @@ class SearchableSelect {
             return;
         }
 
-        this.trigger.textContent = selected.textContent.trim();
+        const label = selected.textContent.trim();
+        const fullLabel = (selected.getAttribute('title') || label).trim();
+        const span = document.createElement('span');
+        span.className = 'searchable-select-trigger-label';
+        span.textContent = label;
+        span.title = fullLabel;
+        this.trigger.appendChild(span);
         this.trigger.classList.remove('searchable-select-trigger-placeholder');
     }
 

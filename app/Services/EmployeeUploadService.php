@@ -627,7 +627,7 @@ class EmployeeUploadService
                     }
 
                     SysLogService::record(
-                        action: 'edit',
+                        action: 'update',
                         table: 'tbl_employees',
                         recordId: $employee->employee_id,
                         oldValues: $oldSnapshot,

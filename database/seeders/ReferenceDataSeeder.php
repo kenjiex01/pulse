@@ -41,6 +41,9 @@ class ReferenceDataSeeder extends Seeder
             LuTemplateSeeder::class,
             UserRequestTypeSeeder::class,
             CompanyDocumentSampleMemoSeeder::class,
+            IcctOffensePenaltySeeder::class,
+            IcctOffenseSeeder::class,
+            CompanyDocumentIcctOffensesSeeder::class,
         ]);
     }
 }

@@ -10,10 +10,13 @@ use App\Models\TeachingLoadSession;
 use App\Models\TeachingLoadSyncStatus;
 use App\Models\User;
 use App\Support\TimeLogs;
+use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 class TeachingLoadPullService
 {
@@ -307,6 +310,13 @@ class TeachingLoadPullService
             $employeeNumber,
         );
 
+        $incoming = $this->mergeAttendanceCheckerLoads(
+            $employeeNumber,
+            $dateFrom,
+            $dateTo,
+            $incoming,
+        );
+
         $existing = TeachingLoadSession::query()
             ->where('employee_id', $employee->employee_id)
             ->whereDate('session_date', '>=', $dateFrom)
@@ -536,6 +546,7 @@ class TeachingLoadPullService
                 'subject_code' => $this->normalizeText($load['subject_code'] ?? null),
                 'subject_name' => $this->normalizeText($load['subject_name'] ?? null),
                 'section' => $this->normalizeText($load['section'] ?? null),
+                'campus_id' => isset($load['campus_id']) ? (int) $load['campus_id'] : null,
                 'campus_name' => $this->normalizeText($load['campus_name'] ?? null),
                 'room' => $this->normalizeText($load['room'] ?? null),
                 'schedule_day' => $this->normalizeText($load['schedule_day'] ?? null),
@@ -656,6 +667,188 @@ class TeachingLoadPullService
     private function fingerprintRows(array $rows): string
     {
         return hash('sha256', json_encode($rows, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * Merge Skolaris Attendance Checker schedules and P/A/L/U/E/M marks into pulled loads.
+     *
+     * @param  array<int, array<string, mixed>>  $loads
+     * @return array<int, array<string, mixed>>
+     */
+    private function mergeAttendanceCheckerLoads(
+        string $employeeNumber,
+        string $dateFrom,
+        string $dateTo,
+        array $loads,
+    ): array {
+        try {
+            $campusIds = $this->resolveAttendanceCheckerCampusIds($loads, $dateFrom);
+        } catch (Throwable $exception) {
+            Log::warning('Attendance checker campus lookup skipped during teaching load pull', [
+                'employee_number' => $employeeNumber,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return $loads;
+        }
+
+        if ($campusIds === []) {
+            return $loads;
+        }
+
+        $indexed = [];
+        foreach ($loads as $load) {
+            $indexed[$this->attendanceCheckerLoadKey($load, $employeeNumber)] = $load;
+        }
+
+        try {
+            $period = CarbonPeriod::create($dateFrom, $dateTo);
+        } catch (Throwable) {
+            return $loads;
+        }
+
+        foreach ($campusIds as $campusId) {
+            foreach ($period as $date) {
+                try {
+                    $payload = $this->skolaris->attendanceCheckerDaily(
+                        $campusId,
+                        $date->toDateString(),
+                        [$employeeNumber],
+                    );
+                } catch (Throwable $exception) {
+                    Log::warning('Attendance checker daily fetch skipped during teaching load pull', [
+                        'employee_number' => $employeeNumber,
+                        'campus_id' => $campusId,
+                        'date' => $date->toDateString(),
+                        'message' => $exception->getMessage(),
+                    ]);
+
+                    continue;
+                }
+
+                foreach ($payload['schedules'] as $schedule) {
+                    if (trim((string) ($schedule['employee_number'] ?? '')) !== $employeeNumber) {
+                        continue;
+                    }
+
+                    $normalized = $this->normalizeAttendanceCheckerSchedule($schedule, $employeeNumber, $payload['campus'] ?? null);
+                    $key = $this->attendanceCheckerLoadKey($normalized, $employeeNumber);
+
+                    if (isset($indexed[$key])) {
+                        if ($normalized['status_code'] !== null) {
+                            $indexed[$key]['status_code'] = $normalized['status_code'];
+                        }
+
+                        continue;
+                    }
+
+                    $indexed[$key] = $normalized;
+                }
+            }
+        }
+
+        $merged = array_values($indexed);
+        usort($merged, function (array $left, array $right): int {
+            return [$left['session_date'], $left['skolaris_offering_id'] ?? 0, $left['time_in'] ?? '', $left['subject_code'] ?? '']
+                <=> [$right['session_date'], $right['skolaris_offering_id'] ?? 0, $right['time_in'] ?? '', $right['subject_code'] ?? ''];
+        });
+
+        return $merged;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $loads
+     * @return array<int, int>
+     */
+    private function resolveAttendanceCheckerCampusIds(array $loads, string $dateFrom): array
+    {
+        $campusIds = array_values(array_unique(array_filter(array_map(
+            fn (array $load) => isset($load['campus_id']) ? (int) $load['campus_id'] : null,
+            $loads,
+        ))));
+
+        if ($campusIds !== []) {
+            return $campusIds;
+        }
+
+        $campusNames = array_values(array_unique(array_filter(array_map(
+            fn (array $load) => trim((string) ($load['campus_name'] ?? '')),
+            $loads,
+        ))));
+
+        $skolarisCampuses = $this->skolaris->attendanceCheckerCampuses($dateFrom);
+        $resolved = [];
+
+        foreach ($skolarisCampuses as $campus) {
+            if (! is_array($campus)) {
+                continue;
+            }
+
+            $campusId = (int) ($campus['campus_id'] ?? 0);
+            $campusName = trim((string) ($campus['campus_name'] ?? ''));
+
+            if ($campusId <= 0) {
+                continue;
+            }
+
+            if ($campusNames === [] || in_array($campusName, $campusNames, true)) {
+                $resolved[] = $campusId;
+            }
+        }
+
+        return array_values(array_unique($resolved));
+    }
+
+    /**
+     * @param  array<string, mixed>  $schedule
+     * @param  array<string, mixed>|null  $campus
+     * @return array<string, mixed>
+     */
+    private function normalizeAttendanceCheckerSchedule(array $schedule, string $employeeNumber, ?array $campus): array
+    {
+        $status = trim((string) ($schedule['status'] ?? ''));
+        $presentMode = trim((string) ($schedule['present_mode'] ?? ''));
+        $statusCode = null;
+
+        if ($status !== '' && $status !== 'scheduled') {
+            $statusCode = $status === 'P' && $presentMode !== ''
+                ? 'P ('.$presentMode.')'
+                : $status;
+        }
+
+        return [
+            'session_date' => (string) ($schedule['attendance_date'] ?? ''),
+            'employee_number' => $employeeNumber,
+            'skolaris_offering_id' => isset($schedule['offering_id']) ? (int) $schedule['offering_id'] : null,
+            'subject_code' => $this->normalizeText($schedule['subject_code'] ?? null),
+            'subject_name' => $this->normalizeText($schedule['subject_name'] ?? null),
+            'section' => $this->normalizeText($schedule['section'] ?? null),
+            'campus_id' => isset($campus['campus_id']) ? (int) $campus['campus_id'] : null,
+            'campus_name' => $this->normalizeText($campus['campus_name'] ?? null),
+            'room' => $this->normalizeText($schedule['room'] ?? null),
+            'schedule_day' => $this->normalizeText($schedule['schedule_day'] ?? null),
+            'class_schedule' => $this->normalizeText($schedule['schedule'] ?? null),
+            'time_in' => $this->normalizeText($schedule['scheduled_time_in'] ?? null),
+            'time_out' => $this->normalizeText($schedule['scheduled_time_out'] ?? null),
+            'total_hours' => null,
+            'total_render_hours' => null,
+            'status_code' => $statusCode,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $load
+     */
+    private function attendanceCheckerLoadKey(array $load, string $employeeNumber): string
+    {
+        return implode('|', [
+            (string) ($load['session_date'] ?? ''),
+            $employeeNumber,
+            strtolower((string) ($load['subject_code'] ?? '')),
+            strtolower((string) ($load['section'] ?? '')),
+            (string) ($load['time_in'] ?? ''),
+            (string) ($load['time_out'] ?? ''),
+        ]);
     }
 
     private function normalizeText(mixed $value): ?string

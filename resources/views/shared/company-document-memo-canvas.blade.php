@@ -1,6 +1,9 @@
 @php
     use App\Support\CompanyDocumentMemoPdfLayout;
+    use App\Support\CompanyDocumentTextStyle;
 
+    $formSettings = CompanyDocumentTextStyle::normalizeFormSettings($formSettings ?? null);
+    $canvasBackground = $formSettings['canvas_background_color'];
     $inputBoxStyle = 'display:block;width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:6px;border-top-left-radius:6px;border-top-right-radius:6px;border-bottom-right-radius:6px;border-bottom-left-radius:6px;background:#ffffff;padding:8px 12px;font-size:14px;line-height:1.45;color:#111827;white-space:pre-wrap;';
     $labelStyle = 'display:block;margin:0 0 4px;font-size:14px;font-weight:600;color:#374151;line-height:1.35;';
     $requiredStyle = 'color:#ef4444;';
@@ -22,7 +25,7 @@
 >
     <div
         class="cd-designer-canvas-inner"
-        style="position:relative;width:{{ $canvasWidthCss }};{{ $canvasHeightStyle }}"
+        style="position:relative;width:{{ $canvasWidthCss }};{{ $canvasHeightStyle }}background-color:{{ $canvasBackground }};"
     >
         @if (! empty($fixedCanvasHeight))
             <div style="width:100%;height:{{ $layout['canvas_height'] }}px;line-height:0;font-size:0;">&nbsp;</div>

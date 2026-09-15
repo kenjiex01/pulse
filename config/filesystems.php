@@ -99,4 +99,6 @@ return [
         public_path('storage') => storage_path('app/public'),
     ],
 
+    'pulse_faculty_load_disk' => env('PULSE_FACULTY_LOAD_DISK', env('FILESYSTEM_DISK', 'local')),
+
 ];

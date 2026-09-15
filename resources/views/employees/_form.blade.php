@@ -122,8 +122,8 @@
                     <label for="gender" class="form-label">Sex</label>
                     <select id="gender" name="gender" class="form-input">
                         <option value="">Select Gender</option>
-                        @foreach (['male' => 'Male', 'female' => 'Female', 'other' => 'Other'] as $value => $label)
-                            <option value="{{ $value }}" @selected(old('gender', $employee->gender ?? '') === $value)>{{ $label }}</option>
+                        @foreach (\App\Models\Employee::selectableGenders() as $value => $label)
+                            <option value="{{ $value }}" @selected(\App\Models\Employee::normalizeGender(old('gender', $employee->gender ?? '')) === $value)>{{ $label }}</option>
                         @endforeach
                     </select>
                 </div>

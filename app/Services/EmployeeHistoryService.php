@@ -9,6 +9,31 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 class EmployeeHistoryService
 {
     /**
+     * @return array<int, string>
+     */
+    public function employeeHistoryActions(): array
+    {
+        return ['create', 'update', 'edit', 'delete'];
+    }
+
+    /**
+     * @param  array<int, string>  $actions
+     * @return array<int, string>
+     */
+    public function expandHistoryActions(array $actions): array
+    {
+        if ($actions === []) {
+            return $this->employeeHistoryActions();
+        }
+
+        if (in_array('update', $actions, true) && ! in_array('edit', $actions, true)) {
+            $actions[] = 'edit';
+        }
+
+        return array_values(array_unique($actions));
+    }
+
+    /**
      * @return array<string, string>
      */
     public function fieldLabels(): array
@@ -21,7 +46,7 @@ class EmployeeHistoryService
         return SysLog::query()
             ->where('table_name', 'tbl_employees')
             ->where('record_id', $employee->employee_id)
-            ->whereIn('action', ['create', 'update', 'delete'])
+            ->whereIn('action', $this->employeeHistoryActions())
             ->with('user')
             ->orderByDesc('created_at')
             ->orderByDesc('id')
@@ -109,7 +134,7 @@ class EmployeeHistoryService
     {
         return match ($action) {
             'create' => 'Created',
-            'update' => 'Updated',
+            'update', 'edit' => 'Updated',
             'delete' => 'Deleted',
             default => ucfirst($action),
         };
