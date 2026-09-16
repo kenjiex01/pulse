@@ -8,17 +8,21 @@ use App\Models\EmployeeCampusAssignment;
 
 class EmployeeCampusAssignmentSync
 {
-    public static function sync(Employee $employee, array $records): void
+    public static function sync(Employee $employee, array $records, bool $removeUnlisted = true): void
     {
         $records = self::ensureSinglePrimary(self::normalizeRecords($records));
-        $existing = $employee->campusAssignments()
+        $existingByCampus = $employee->campusAssignments()
             ->orderBy('sort_order')
             ->orderBy('employee_campus_assignment_id')
-            ->get();
+            ->get()
+            ->keyBy(fn (EmployeeCampusAssignment $assignment) => (int) $assignment->campus_id);
+
+        $retainedCampusIds = [];
 
         foreach ($records as $index => $record) {
+            $campusId = (int) $record['campus_id'];
             $payload = [
-                'campus_id' => (int) $record['campus_id'],
+                'campus_id' => $campusId,
                 'biometric_id' => filled($record['biometric_id'] ?? null)
                     ? trim((string) $record['biometric_id'])
                     : null,
@@ -29,18 +33,33 @@ class EmployeeCampusAssignmentSync
                 'sort_order' => $index,
             ];
 
-            $assignment = $existing->get($index);
+            $assignment = $existingByCampus->get($campusId);
 
             if ($assignment) {
                 $assignment->update($payload);
             } else {
                 $employee->campusAssignments()->create($payload);
             }
+
+            $retainedCampusIds[] = $campusId;
         }
 
-        if ($existing->count() > count($records)) {
-            $existing
-                ->slice(count($records))
+        $primaryCampusId = collect($records)
+            ->first(fn (array $record) => (bool) ($record['is_primary'] ?? false))['campus_id'] ?? null;
+
+        if ($primaryCampusId !== null) {
+            $employee->campusAssignments()
+                ->where('campus_id', '!=', (int) $primaryCampusId)
+                ->update(['is_primary' => false]);
+        }
+
+        if ($removeUnlisted) {
+            $employee->campusAssignments()
+                ->when(
+                    $retainedCampusIds !== [],
+                    fn ($query) => $query->whereNotIn('campus_id', $retainedCampusIds),
+                )
+                ->get()
                 ->each(fn (EmployeeCampusAssignment $assignment) => $assignment->forceDelete());
         }
 

@@ -32,6 +32,105 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.PulseLoader = pulseLoader;
 
+    const isPulseDesktop = () => document.documentElement.dataset.pulseDesktop === '1';
+
+    const openPulseDesktopExternalUrl = (url) => {
+        try {
+            const electron = window.require?.('electron');
+
+            if (electron?.shell?.openExternal) {
+                electron.shell.openExternal(url);
+
+                return;
+            }
+        } catch {
+            // Browser dev — fall through.
+        }
+
+        window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
+    const startPulseDesktopDownload = (url) => {
+        const frame = document.createElement('iframe');
+        frame.setAttribute('aria-hidden', 'true');
+        frame.style.cssText = 'position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+        frame.src = url;
+        document.body.appendChild(frame);
+
+        window.setTimeout(() => frame.remove(), 5000);
+    };
+
+    const initPulseDesktopSingleWindowNavigation = () => {
+        if (! isPulseDesktop()) {
+            return;
+        }
+
+        document.addEventListener('click', (event) => {
+            const link = event.target.closest('a[href]');
+
+            if (! link) {
+                return;
+            }
+
+            const opensNewWindow = link.target === '_blank'
+                || event.metaKey
+                || event.ctrlKey
+                || event.shiftKey
+                || event.button === 1;
+
+            if (! opensNewWindow) {
+                return;
+            }
+
+            if (link.dataset.desktopInstallerDownload !== undefined) {
+                return;
+            }
+
+            const href = link.getAttribute('href') ?? '';
+
+            if (href === '' || href.startsWith('#') || href.startsWith('javascript:')) {
+                return;
+            }
+
+            let url;
+
+            try {
+                url = new URL(link.href, window.location.origin);
+            } catch {
+                return;
+            }
+
+            event.preventDefault();
+
+            if (url.origin !== window.location.origin) {
+                openPulseDesktopExternalUrl(url.href);
+
+                return;
+            }
+
+            if (link.hasAttribute('download')) {
+                startPulseDesktopDownload(url.href);
+
+                return;
+            }
+
+            pulseLoader.show('Loading...');
+            window.location.assign(url.href);
+        }, true);
+
+        document.addEventListener('submit', (event) => {
+            const form = event.target;
+
+            if (!(form instanceof HTMLFormElement) || form.target !== '_blank') {
+                return;
+            }
+
+            form.removeAttribute('target');
+        }, true);
+    };
+
+    initPulseDesktopSingleWindowNavigation();
+
     window.addEventListener('load', () => {
         pulseLoader.hide();
     });

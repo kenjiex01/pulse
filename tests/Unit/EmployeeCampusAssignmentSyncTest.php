@@ -41,6 +41,30 @@ class EmployeeCampusAssignmentSyncTest extends TestCase
     }
 
     #[Test]
+    public function sync_matches_existing_rows_by_campus_id_not_row_index(): void
+    {
+        [$employee, $cainta, $antipolo] = $this->employeeWithTwoCampuses();
+
+        EmployeeCampusAssignmentSync::sync($employee, [
+            [
+                'campus_id' => $antipolo->campus_id,
+                'biometric_id' => '999',
+                'college' => 'Updated College',
+                'is_primary' => true,
+            ],
+        ], removeUnlisted: false);
+
+        $employee->refresh()->load('campusAssignments');
+
+        $this->assertCount(2, $employee->campusAssignments);
+        $this->assertSame('999', $employee->campusAssignments->firstWhere('campus_id', $antipolo->campus_id)?->biometric_id);
+        $this->assertSame('Updated College', $employee->campusAssignments->firstWhere('campus_id', $antipolo->campus_id)?->college);
+        $this->assertSame('100', $employee->campusAssignments->firstWhere('campus_id', $cainta->campus_id)?->biometric_id);
+        $this->assertFalse((bool) $employee->campusAssignments->firstWhere('campus_id', $cainta->campus_id)?->is_primary);
+        $this->assertSame($antipolo->campus_id, $employee->campus_id);
+    }
+
+    #[Test]
     public function set_main_campus_unchecks_the_previous_main(): void
     {
         [$employee, $cainta, $antipolo] = $this->employeeWithTwoCampuses();

@@ -615,7 +615,11 @@ class EmployeeUploadService
                     }
 
                     if (! empty($payload['sync_campus'])) {
-                        EmployeeCampusAssignmentSync::sync($employee, $payload['campus_assignments'] ?? []);
+                        EmployeeCampusAssignmentSync::sync(
+                            $employee,
+                            $payload['campus_assignments'] ?? [],
+                            removeUnlisted: false,
+                        );
                     }
 
                     if (! empty($payload['sync_salary'])) {
