@@ -48,8 +48,8 @@ class CompanyDocumentDesignerController extends Controller
 
         return view('company-documents.designer', [
             'form' => $companyDocumentForm,
-            'palette' => CompanyDocumentElementCatalog::palette(),
-            'mergeTagSamples' => $this->mergeTagService->previewSamples(),
+            'palette' => CompanyDocumentElementCatalog::palette($companyDocumentForm),
+            'mergeTagSamples' => $this->mergeTagService->previewSamples($companyDocumentForm),
             'mergeTagLabels' => $this->mergeTagService->tagLabels(),
             'approvalModes' => CompanyDocumentApproval::modes(),
             'roles' => Role::query()->orderBy('name')->get(['id', 'name']),
@@ -81,7 +81,6 @@ class CompanyDocumentDesignerController extends Controller
                     'role_id' => $assignee->role_id,
                 ])->values(),
             ])->values(),
-            'palette' => CompanyDocumentElementCatalog::palette(),
         ]);
     }
 
@@ -137,7 +136,7 @@ class CompanyDocumentDesignerController extends Controller
                 CompanyDocumentElement::query()->create([
                     'company_document_form_id' => $companyDocumentForm->company_document_form_id,
                     'type' => $type,
-                    'label' => $this->normalizeElementLabel($elementData['label'] ?? null, $type),
+                    'label' => $this->normalizeElementLabel($elementData, $type),
                     'field_key' => $key,
                     'placeholder' => $elementData['placeholder'] ?? null,
                     'help_text' => $elementData['help_text'] ?? null,
@@ -407,11 +406,16 @@ class CompanyDocumentDesignerController extends Controller
         return $normalized;
     }
 
-    private function normalizeElementLabel(?string $label, string $type): ?string
+    /**
+     * @param  array<string, mixed>  $elementData
+     */
+    private function normalizeElementLabel(array $elementData, string $type): string
     {
-        if ($label === null || $label === '') {
+        if (! array_key_exists('label', $elementData)) {
             return CompanyDocumentElementCatalog::defaultLabel($type);
         }
+
+        $label = (string) ($elementData['label'] ?? '');
 
         if ($type === CompanyDocumentElement::TYPE_PARAGRAPH) {
             return CompanyDocumentInlineFormatting::sanitize($label);

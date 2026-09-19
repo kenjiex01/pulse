@@ -8,7 +8,7 @@
     </div>
 @else
     @can('memo.update')
-        <form id="memo-batch-form" method="POST" action="{{ route(\App\Support\TimekeepingMemo::routeName('batch-send'), $query) }}" data-memo-batch-form class="mb-3 flex justify-end">
+        <form id="memo-batch-form" method="POST" action="{{ route(\App\Support\TimekeepingMemo::routeName('batch-send'), $query) }}" data-memo-batch-form data-memo-send-form data-memo-send-kind="batch" class="mb-3 flex justify-end">
             @csrf
             <button type="submit" class="btn-primary" data-memo-batch-send disabled>Send Selected</button>
         </form>
@@ -68,7 +68,14 @@
                                         Preview
                                     </button>
                                     @can('memo.update')
-                                        <form method="POST" action="{{ route(\App\Support\TimekeepingMemo::routeName('send'), [$employee->employee_id] + $query) }}" class="inline">
+                                        <form
+                                            method="POST"
+                                            action="{{ route(\App\Support\TimekeepingMemo::routeName('send'), [$employee->employee_id] + $query) }}"
+                                            class="inline"
+                                            data-memo-send-form
+                                            data-memo-send-kind="single"
+                                            data-employee-name="{{ $employee->full_name }}"
+                                        >
                                             @csrf
                                             <button type="submit" class="btn-primary px-3 py-1.5 text-xs">Send</button>
                                         </form>

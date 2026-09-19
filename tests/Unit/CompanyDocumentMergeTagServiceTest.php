@@ -63,4 +63,17 @@ class CompanyDocumentMergeTagServiceTest extends TestCase
 
         $this->assertSame('', $resolved);
     }
+
+    public function test_resolve_offense_tags_from_memo_context(): void
+    {
+        $service = app(CompanyDocumentMergeTagService::class);
+
+        $context = [
+            'disciplinary_action' => 'Written Warning',
+            'offense_frequency_label' => 'Second Offense',
+        ];
+
+        $this->assertSame('Written Warning', $service->resolve('disciplinary_action', null, $context));
+        $this->assertSame('Second Offense', $service->resolve('offense_frequency', null, $context));
+    }
 }

@@ -15,6 +15,98 @@ const openMemoModal = (modal) => {
     document.body.classList.add('modal-open');
 };
 
+const closeMemoModal = (modal) => {
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.add('hidden');
+
+    if (document.querySelectorAll('.modal-overlay:not(.hidden)').length === 0) {
+        document.body.classList.remove('modal-open');
+    }
+};
+
+let pendingMemoSendForm = null;
+
+const buildMemoSendConfirmMessage = (form, root) => {
+    const kind = form.dataset.memoSendKind || 'single';
+
+    if (kind === 'batch') {
+        const count = root.querySelectorAll('[data-memo-row-checkbox]:checked').length;
+
+        return count === 1
+            ? 'Send memo to 1 selected employee?'
+            : `Send memo to ${count} selected employees?`;
+    }
+
+    const employeeName = form.dataset.employeeName || 'this employee';
+
+    if (kind === 'detail') {
+        const checkedDates = form.querySelectorAll('[data-memo-detail-checkbox]:checked').length;
+        const totalDates = form.querySelectorAll('[data-memo-detail-checkbox]').length;
+        const dateCount = checkedDates > 0 ? checkedDates : totalDates;
+
+        return dateCount === 1
+            ? `Send memo to ${employeeName} for 1 day?`
+            : `Send memo to ${employeeName} for ${dateCount} day(s)?`;
+    }
+
+    return `Send memo to ${employeeName}?`;
+};
+
+const wireSendConfirm = (root) => {
+    const confirmModal = document.getElementById('memo-send-confirm-modal');
+    const messageEl = confirmModal?.querySelector('[data-memo-send-confirm-message]');
+    const proceedButton = confirmModal?.querySelector('[data-memo-send-confirm-proceed]');
+    const cancelButton = confirmModal?.querySelector('[data-memo-send-confirm-cancel]');
+
+    if (!confirmModal || !messageEl || !proceedButton || root.dataset.memoSendConfirmBound === 'true') {
+        return;
+    }
+
+    root.dataset.memoSendConfirmBound = 'true';
+
+    root.addEventListener('submit', (event) => {
+        const form = event.target;
+
+        if (!(form instanceof HTMLFormElement) || !form.matches('[data-memo-send-form]')) {
+            return;
+        }
+
+        if (form.dataset.memoSendConfirmed === 'true') {
+            delete form.dataset.memoSendConfirmed;
+
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        pendingMemoSendForm = form;
+        messageEl.textContent = buildMemoSendConfirmMessage(form, root);
+        openMemoModal(confirmModal);
+    }, true);
+
+    proceedButton.addEventListener('click', () => {
+        if (!(pendingMemoSendForm instanceof HTMLFormElement)) {
+            return;
+        }
+
+        const form = pendingMemoSendForm;
+        pendingMemoSendForm = null;
+        closeMemoModal(confirmModal);
+        form.dataset.memoSendConfirmed = 'true';
+        form.requestSubmit();
+    });
+
+    confirmModal.addEventListener('click', (event) => {
+        if (event.target.closest('[data-modal-close]')) {
+            pendingMemoSendForm = null;
+        }
+    });
+};
+
 const updateBatchButtonState = (root) => {
     const button = root.querySelector('[data-memo-batch-send]');
     const checkboxes = root.querySelectorAll('[data-memo-row-checkbox]');
@@ -137,6 +229,7 @@ export const initTimekeepingMemo = () => {
     }
 
     wireBatchForm(root);
+    wireSendConfirm(root);
 
     if (root.dataset.memoDelegated !== 'true') {
         root.dataset.memoDelegated = 'true';

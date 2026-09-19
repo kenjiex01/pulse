@@ -90,6 +90,11 @@ class CompanyDocumentFormPolicy
         return $this->update($user, $form);
     }
 
+    public function send(User $user, CompanyDocumentForm $form): bool
+    {
+        return $this->update($user, $form) && $form->is_active;
+    }
+
     public function approve(User $user): bool
     {
         $subModule = SubModule::query()

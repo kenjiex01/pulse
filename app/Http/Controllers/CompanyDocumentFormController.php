@@ -5,12 +5,19 @@ namespace App\Http\Controllers;
 use App\Http\Requests\CompanyDocument\StoreCompanyDocumentFormRequest;
 use App\Http\Requests\CompanyDocument\UpdateCompanyDocumentFormRequest;
 use App\Models\CompanyDocumentForm;
+use App\Models\CompanyDocumentSendLog;
+use App\Models\Employee;
 use App\Models\LuIcctOffense;
+use App\Models\User;
 use App\Services\CompanyDocumentFileService;
 use App\Services\CompanyDocumentMemoRenderService;
+use App\Services\CompanyDocumentSendService;
 use App\Services\SysLogService;
+use App\Support\CompanyDocumentSendHistorySummary;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -21,6 +28,7 @@ class CompanyDocumentFormController extends Controller
     public function __construct(
         private readonly CompanyDocumentFileService $fileService,
         private readonly CompanyDocumentMemoRenderService $memoRenderService,
+        private readonly CompanyDocumentSendService $sendService,
     ) {}
 
     public function index(Request $request): View
@@ -48,12 +56,29 @@ class CompanyDocumentFormController extends Controller
             description: 'Viewed Company Documents list ('.$forms->count().' templates)',
         );
 
+        $sendHistoryByForm = CompanyDocumentSendLog::query()
+            ->with([
+                'employee:employee_id,employee_number,first_name,middle_name,last_name,suffix',
+                'sender:id,name',
+            ])
+            ->whereIn('company_document_form_id', $forms->pluck('company_document_form_id'))
+            ->orderByDesc('sent_at')
+            ->limit(500)
+            ->get()
+            ->groupBy('company_document_form_id');
+
+        $sendSummaryByForm = $sendHistoryByForm->map(
+            fn ($logs) => CompanyDocumentSendHistorySummary::byEmployee($logs),
+        );
+
         return view('company-documents.index', [
             'forms' => $forms,
             'search' => $search,
             'documentTypes' => CompanyDocumentForm::documentTypes(),
             'icctOffenses' => LuIcctOffense::catalogForSelection($forms->pluck('icct_offense_id')),
             'openCreate' => $request->boolean('create'),
+            'sendEmployees' => $this->employeesForSend($request->user()),
+            'sendSummaryByForm' => $sendSummaryByForm,
         ]);
     }
 
@@ -247,6 +272,141 @@ class CompanyDocumentFormController extends Controller
             ->with('success', $companyDocumentForm->is_active ? 'Template activated.' : 'Template deactivated.');
     }
 
+    public function send(Request $request, CompanyDocumentForm $companyDocumentForm): RedirectResponse
+    {
+        @set_time_limit(300);
+
+        $this->authorize('send', $companyDocumentForm);
+
+        $validated = $request->validate([
+            'employee_ids' => ['required', 'array', 'min:1'],
+            'employee_ids.*' => ['integer', 'exists:tbl_employees,employee_id'],
+        ]);
+
+        $result = $this->sendToEmployees($companyDocumentForm, $validated['employee_ids'], $request->user());
+
+        SysLogService::record(
+            action: 'create',
+            table: 'tbl_company_document_send_logs',
+            description: 'Sent company document "'.$companyDocumentForm->name.'" to '.$result['sent'].' employee(s)',
+        );
+
+        if ($result['sent'] === 0) {
+            return redirect()
+                ->route('company-documents.index', $request->only('search'))
+                ->with('error', $result['errors'][0] ?? 'No documents were sent.');
+        }
+
+        $message = 'Document sent to '.$result['sent'].' employee(s).';
+        if ($result['errors'] !== []) {
+            $message .= ' Some failed: '.implode('; ', array_slice($result['errors'], 0, 3));
+            if (count($result['errors']) > 3) {
+                $message .= ' (+'.(count($result['errors']) - 3).' more)';
+            }
+        }
+
+        return redirect()
+            ->route('company-documents.index', $request->only('search'))
+            ->with('success', $message);
+    }
+
+    public function sendOne(Request $request, CompanyDocumentForm $companyDocumentForm): JsonResponse
+    {
+        @set_time_limit(120);
+
+        $this->authorize('send', $companyDocumentForm);
+
+        $validated = $request->validate([
+            'employee_id' => ['required', 'integer', 'exists:tbl_employees,employee_id'],
+        ]);
+
+        $employee = Employee::query()->find($validated['employee_id']);
+        if ($employee === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Employee not found.',
+            ], 404);
+        }
+
+        try {
+            $result = $this->sendService->sendToEmployee($companyDocumentForm, $employee, $request->user());
+        } catch (ValidationException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($exception->errors())->flatten()->first() ?? 'Unable to send document.',
+                'errors' => $exception->errors(),
+            ], 422);
+        } catch (\RuntimeException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to send document. Please try again.',
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'employee_id' => (int) $employee->employee_id,
+            'employee_name' => trim($employee->full_name),
+            'submission_id' => $result['submission_id'],
+        ]);
+    }
+
+    public function sendBatchComplete(Request $request, CompanyDocumentForm $companyDocumentForm): JsonResponse
+    {
+        $this->authorize('send', $companyDocumentForm);
+
+        $validated = $request->validate([
+            'sent' => ['required', 'integer', 'min:0'],
+            'total' => ['required', 'integer', 'min:1'],
+        ]);
+
+        if ($validated['sent'] > 0) {
+            SysLogService::record(
+                action: 'create',
+                table: 'tbl_company_document_send_logs',
+                description: 'Sent company document "'.$companyDocumentForm->name.'" to '.$validated['sent'].' of '.$validated['total'].' employee(s)',
+            );
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * @param  list<int|string>  $employeeIds
+     * @return array{sent: int, errors: list<string>}
+     */
+    private function sendToEmployees(CompanyDocumentForm $form, array $employeeIds, User $sender): array
+    {
+        $sent = 0;
+        $errors = [];
+
+        foreach ($employeeIds as $employeeId) {
+            $employee = Employee::query()->find($employeeId);
+            if ($employee === null) {
+                continue;
+            }
+
+            try {
+                $this->sendService->sendToEmployee($form, $employee, $sender);
+                $sent++;
+            } catch (\RuntimeException $exception) {
+                $errors[] = trim($employee->full_name).': '.$exception->getMessage();
+            }
+        }
+
+        return [
+            'sent' => $sent,
+            'errors' => $errors,
+        ];
+    }
+
     public function duplicate(CompanyDocumentForm $companyDocumentForm): RedirectResponse
     {
         $this->authorize('create', CompanyDocumentForm::class);
@@ -292,6 +452,35 @@ class CompanyDocumentFormController extends Controller
         return redirect()
             ->route('company-documents.designer', $copy)
             ->with('success', 'Template duplicated. Review the copy before activating.');
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, Employee>
+     */
+    private function employeesForSend(?User $user)
+    {
+        $query = Employee::query()
+            ->where('employment_status', Employee::STATUS_ACTIVE)
+            ->where('is_active', true)
+            ->orderBy('last_name')
+            ->orderBy('first_name');
+
+        if ($user && ! $user->isAdmin()) {
+            $query->where(function ($q) {
+                $q->whereNull('is_confidential')
+                    ->orWhere('is_confidential', false);
+            });
+        }
+
+        return $query->get([
+            'employee_id',
+            'employee_number',
+            'first_name',
+            'middle_name',
+            'last_name',
+            'suffix',
+            'is_confidential',
+        ]);
     }
 
     private function generateCode(string $name): string

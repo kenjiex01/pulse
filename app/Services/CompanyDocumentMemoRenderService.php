@@ -17,6 +17,7 @@ class CompanyDocumentMemoRenderService
     public function __construct(
         private readonly CompanyDocumentMemoValueResolver $valueResolver,
         private readonly CompanyDocumentMergeTagService $mergeTagService,
+        private readonly CompanyDocumentOffenseMemoService $offenseMemoService,
     ) {}
 
     /**
@@ -38,7 +39,11 @@ class CompanyDocumentMemoRenderService
     {
         $form->loadMissing(['elements', 'icctOffense']);
 
-        $memoContext = $this->sampleMemoContext();
+        $memoContext = $this->offenseMemoService->enrichMemoContext(
+            $form,
+            null,
+            $this->sampleMemoContext(),
+        );
         $elements = [];
         $previewValues = $form->icctOffenseFieldDefaults();
 
@@ -64,6 +69,8 @@ class CompanyDocumentMemoRenderService
         array $memoContext,
     ): array {
         $form->loadMissing('elements');
+
+        $memoContext = $this->offenseMemoService->enrichMemoContext($form, $employee, $memoContext);
 
         $elements = [];
         $previewValues = [];

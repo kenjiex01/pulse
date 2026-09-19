@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CompanyDocumentForm;
 use App\Models\Employee;
 use App\Support\CompanyDocumentMergeTagCatalog;
 use App\Support\CompanyDocumentInlineFormatting;
@@ -17,12 +18,19 @@ class CompanyDocumentMergeTagService
     /**
      * @return array<string, string>
      */
-    public function previewSamples(): array
+    public function previewSamples(?CompanyDocumentForm $form = null): array
     {
         $samples = [];
 
-        foreach (CompanyDocumentMergeTagCatalog::tags() as $tagKey => $meta) {
+        foreach (CompanyDocumentMergeTagCatalog::baseTags() as $tagKey => $meta) {
             $samples[$tagKey] = $meta['sample'];
+        }
+
+        if ($form !== null && app(CompanyDocumentOffenseMemoService::class)->formHasOffenseNature($form)) {
+            $samples = array_merge(
+                $samples,
+                app(CompanyDocumentOffenseMemoService::class)->previewTagSamples($form),
+            );
         }
 
         return $samples;
@@ -42,6 +50,14 @@ class CompanyDocumentMergeTagService
             return $this->resolveViolationDatesTag($tagKey, $memoContext);
         }
 
+        if ($memoContext !== null && $tagKey === 'disciplinary_action') {
+            return (string) ($memoContext['disciplinary_action'] ?? '');
+        }
+
+        if ($memoContext !== null && $tagKey === 'offense_frequency') {
+            return (string) ($memoContext['offense_frequency_label'] ?? '');
+        }
+
         return match ($tagKey) {
             'employee_full_name' => $employee !== null ? trim($employee->full_name) : $this->previewSample($tagKey),
             'employee_first_name' => $employee !== null ? trim((string) $employee->first_name) : $this->previewSample($tagKey),
@@ -53,6 +69,7 @@ class CompanyDocumentMergeTagService
             'current_date' => now()->format('F j, Y'),
             'current_time' => now()->format('g:i A'),
             'current_datetime' => now()->format('F j, Y g:i A'),
+            'disciplinary_action', 'offense_frequency' => $this->previewSample($tagKey),
             default => $this->previewSample($tagKey),
         };
     }

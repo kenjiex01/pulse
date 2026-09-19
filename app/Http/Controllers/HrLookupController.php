@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\LuIcctOffenseCategory;
+use App\Models\LuIcctOffenseFrequency;
 use App\Services\SysLogService;
 use App\Support\HrLookup;
 use App\Support\LiveTable;
@@ -39,15 +41,28 @@ class HrLookupController extends Controller
             );
         }
 
+        $config['fields'] = HrLookup::fields($lookup);
+
         $viewData = [
             'lookup' => $lookup,
             'config' => $config,
             'records' => $records,
             'search' => $search,
+            'penaltyMatrix' => $lookup === 'offense-categories'
+                ? LuIcctOffenseCategory::penaltyMatrix()
+                : [],
+            'categories' => $lookup === 'offense-categories'
+                ? LuIcctOffenseCategory::catalogOrdered()
+                : collect(),
+            'frequencies' => $lookup === 'offense-categories'
+                ? LuIcctOffenseFrequency::catalogOrdered()
+                : collect(),
+            'frequencyConfig' => HrLookup::config('offense-frequencies'),
             'selectOptions' => [
                 'campuses' => HrLookup::selectOptions('campuses'),
                 'regions' => HrLookup::selectOptions('regions'),
                 'provinces' => HrLookup::selectOptions('provinces'),
+                'offense-categories' => HrLookup::selectOptions('offense-categories'),
             ],
             'openEditId' => $request->input('edit'),
         ];
@@ -69,6 +84,16 @@ class HrLookupController extends Controller
         $payload = HrLookup::validatedPayload($lookup, $validated);
 
         $record = $config['model']::query()->create($payload);
+
+        if ($lookup === 'offense-categories' && $record instanceof LuIcctOffenseCategory) {
+            $request->validate([
+                'penalties' => ['nullable', 'array'],
+                'penalties.*' => ['nullable', 'string', 'max:120'],
+            ]);
+
+            $record->syncPenalties($request->input('penalties', []));
+        }
+
         $this->runAfterChange($config);
 
         SysLogService::record(
@@ -79,8 +104,7 @@ class HrLookupController extends Controller
             description: 'Created '.$config['name'].' record: '.HrLookup::recordLabel($record, $lookup),
         );
 
-        return redirect()
-            ->route(HrLookup::routeName($lookup))
+        return $this->redirectAfterChange($lookup)
             ->with('success', $config['name'].' record created successfully.');
     }
 
@@ -97,6 +121,16 @@ class HrLookupController extends Controller
         $payload = HrLookup::validatedPayload($lookup, $validated);
 
         $model->update($payload);
+
+        if ($lookup === 'offense-categories' && $model instanceof LuIcctOffenseCategory) {
+            $request->validate([
+                'penalties' => ['nullable', 'array'],
+                'penalties.*' => ['nullable', 'string', 'max:120'],
+            ]);
+
+            $model->syncPenalties($request->input('penalties', []));
+        }
+
         $this->runAfterChange($config);
 
         SysLogService::record(
@@ -108,8 +142,7 @@ class HrLookupController extends Controller
             description: 'Updated '.$config['name'].' record: '.HrLookup::recordLabel($model, $lookup),
         );
 
-        return redirect()
-            ->route(HrLookup::routeName($lookup))
+        return $this->redirectAfterChange($lookup)
             ->with('success', $config['name'].' record updated successfully.');
     }
 
@@ -136,8 +169,7 @@ class HrLookupController extends Controller
 
         $statusLabel = $model->is_active ? 'active' : 'inactive';
 
-        return redirect()
-            ->route(HrLookup::routeName($lookup))
+        return $this->redirectAfterChange($lookup)
             ->with('success', $config['name'].' marked as '.$statusLabel.'.');
     }
 
@@ -150,9 +182,18 @@ class HrLookupController extends Controller
         $model = HrLookup::findOrFail($lookup, $record);
 
         if ($model->is_active) {
-            return redirect()
-                ->route(HrLookup::routeName($lookup))
+            return $this->redirectAfterChange($lookup)
                 ->with('error', 'Only inactive records can be deleted. Deactivate the record first.');
+        }
+
+        if ($lookup === 'offense-categories' && $model instanceof LuIcctOffenseCategory && $model->isInUse()) {
+            return $this->redirectAfterChange($lookup)
+                ->with('error', 'Cannot delete this category while it is assigned to one or more offenses.');
+        }
+
+        if ($lookup === 'offense-frequencies' && $model instanceof LuIcctOffenseFrequency && $model->isInUse()) {
+            return $this->redirectAfterChange($lookup)
+                ->with('error', 'Cannot delete this frequency while penalty cells still use it. Clear those cells first.');
         }
         $oldValues = $model->toArray();
         $label = HrLookup::recordLabel($model, $lookup);
@@ -169,9 +210,17 @@ class HrLookupController extends Controller
             description: 'Deleted '.$config['name'].' record: '.$label,
         );
 
-        return redirect()
-            ->route(HrLookup::routeName($lookup))
+        return $this->redirectAfterChange($lookup)
             ->with('success', $config['name'].' record deleted successfully.');
+    }
+
+    private function redirectAfterChange(string $lookup): RedirectResponse
+    {
+        if ($lookup === 'offense-frequencies') {
+            return redirect()->route('hr.offense-categories.index');
+        }
+
+        return redirect()->route(HrLookup::routeName($lookup));
     }
 
     /**
@@ -180,7 +229,7 @@ class HrLookupController extends Controller
     private function runAfterChange(array $config): void
     {
         if (($config['after_change'] ?? null) === 'icct-offense-dropdowns') {
-            (new CompanyDocumentIcctOffensesSeeder)->syncOffenseNatureDropdowns();
+            (new CompanyDocumentIcctOffensesSeeder)->syncOffenseBlockDropdowns();
         }
     }
 }

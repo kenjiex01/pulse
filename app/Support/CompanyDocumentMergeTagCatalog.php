@@ -4,10 +4,16 @@ namespace App\Support;
 
 class CompanyDocumentMergeTagCatalog
 {
+    /** @var list<string> */
+    public const OFFENSE_TAG_KEYS = [
+        'disciplinary_action',
+        'offense_frequency',
+    ];
+
     /**
      * @return array<string, array{label: string, sample: string}>
      */
-    public static function tags(): array
+    public static function baseTags(): array
     {
         return [
             'employee_full_name' => [
@@ -69,6 +75,31 @@ class CompanyDocumentMergeTagCatalog
         ];
     }
 
+    /**
+     * @return array<string, array{label: string, sample: string}>
+     */
+    public static function offenseTags(): array
+    {
+        return [
+            'disciplinary_action' => [
+                'label' => 'Disciplinary action',
+                'sample' => 'Written Warning',
+            ],
+            'offense_frequency' => [
+                'label' => 'Offense frequency',
+                'sample' => 'Second Offense',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, array{label: string, sample: string}>
+     */
+    public static function tags(): array
+    {
+        return array_merge(self::baseTags(), self::offenseTags());
+    }
+
     public static function label(string $tagKey): string
     {
         return self::tags()[$tagKey]['label'] ?? ucfirst(str_replace('_', ' ', $tagKey));
@@ -84,14 +115,22 @@ class CompanyDocumentMergeTagCatalog
         return array_key_exists($tagKey, self::tags());
     }
 
+    public static function isOffenseTag(string $tagKey): bool
+    {
+        return in_array($tagKey, self::OFFENSE_TAG_KEYS, true);
+    }
+
     /**
      * @return array<int, array{type: string, label: string, tag_key: string}>
      */
-    public static function paletteItems(): array
+    public static function paletteItems(bool $includeOffenseTags = false): array
     {
         $items = [];
+        $source = $includeOffenseTags
+            ? array_merge(self::offenseTags(), self::baseTags())
+            : self::baseTags();
 
-        foreach (self::tags() as $tagKey => $meta) {
+        foreach ($source as $tagKey => $meta) {
             $items[] = [
                 'type' => 'merge_tag',
                 'label' => $meta['label'],

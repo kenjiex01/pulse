@@ -27,12 +27,6 @@ class TimekeepingMemoEmailService
         CompanyDocumentForm $form,
         array $attachments,
     ): void {
-        $this->ensureMailIsConfigured();
-
-        if ($attachments === []) {
-            throw new RuntimeException('No memo email attachments were generated.');
-        }
-
         $subjectTemplate = trim((string) ($setup->email_subject ?? ''));
         $bodyTemplate = trim((string) ($setup->email_body ?? ''));
 
@@ -43,6 +37,43 @@ class TimekeepingMemoEmailService
             );
         }
 
+        $this->sendWithTemplates(
+            $employee,
+            $form,
+            $memoContext,
+            $subjectTemplate,
+            $bodyTemplate,
+            $setup->email_cc,
+            $attachments,
+        );
+    }
+
+    /**
+     * @param  array{date_from: string, date_to: string, violation_type: string, violation_count: int, selected_dates: list<string>}  $memoContext
+     * @param  list<array{binary: string, filename: string, mime?: string}>  $attachments
+     */
+    public function sendWithTemplates(
+        Employee $employee,
+        CompanyDocumentForm $form,
+        array $memoContext,
+        string $subjectTemplate,
+        string $bodyTemplate,
+        ?string $ccRaw,
+        array $attachments,
+    ): void {
+        $this->ensureMailIsConfigured();
+
+        if ($attachments === []) {
+            throw new RuntimeException('No memo email attachments were generated.');
+        }
+
+        $subjectTemplate = trim($subjectTemplate);
+        $bodyTemplate = trim($bodyTemplate);
+
+        if ($subjectTemplate === '' || $bodyTemplate === '') {
+            throw new RuntimeException('Email subject and body are required.');
+        }
+
         $email = trim((string) ($employee->email ?? ''));
         if ($email === '') {
             throw new RuntimeException('Employee has no email address on file.');
@@ -50,7 +81,7 @@ class TimekeepingMemoEmailService
 
         $subject = $this->mergeTagService->resolveInlineTags($subjectTemplate, $employee, $memoContext);
         $body = $this->mergeTagService->resolveInlineTags($bodyTemplate, $employee, $memoContext);
-        $cc = TimekeepingMemoSetup::parseCcList($setup->email_cc);
+        $cc = TimekeepingMemoSetup::parseCcList($ccRaw);
 
         Mail::to($email)->send(new TimekeepingMemoMail(
             $subject,

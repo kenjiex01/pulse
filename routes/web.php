@@ -137,6 +137,9 @@ Route::middleware('auth')->group(function () {
         Route::delete('company-documents/{companyDocumentForm}', [CompanyDocumentFormController::class, 'destroy'])->name('company-documents.destroy');
         Route::post('company-documents/{companyDocumentForm}/toggle', [CompanyDocumentFormController::class, 'toggle'])->name('company-documents.toggle');
         Route::post('company-documents/{companyDocumentForm}/duplicate', [CompanyDocumentFormController::class, 'duplicate'])->name('company-documents.duplicate');
+        Route::post('company-documents/{companyDocumentForm}/send', [CompanyDocumentFormController::class, 'send'])->name('company-documents.send');
+        Route::post('company-documents/{companyDocumentForm}/send-one', [CompanyDocumentFormController::class, 'sendOne'])->name('company-documents.send-one');
+        Route::post('company-documents/{companyDocumentForm}/send-batch-complete', [CompanyDocumentFormController::class, 'sendBatchComplete'])->name('company-documents.send-batch-complete');
 
         Route::get('company-documents/{companyDocumentForm}/designer', [CompanyDocumentDesignerController::class, 'show'])->name('company-documents.designer');
         Route::put('company-documents/{companyDocumentForm}/designer/elements', [CompanyDocumentDesignerController::class, 'saveElements'])->name('company-documents.designer.elements');

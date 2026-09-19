@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CompanyDocumentForm;
 use App\Models\Employee;
 use App\Models\PayrollBatch;
 use App\Models\PayrollBatchDetail;
@@ -89,6 +90,9 @@ class PayrollReportsController extends Controller
             'employees' => $replayValidation && $selectedReport && in_array($selectedReport->options_key, ['historical-data', 'employee-credentials', 'attendance-view'], true)
                 ? $this->employeesForReportOptions($request->user())
                 : collect(),
+            'memoForms' => $replayValidation && $selectedReport && $selectedReport->options_key === 'memo'
+                ? $this->memoFormsForReportOptions()
+                : collect(),
             'detailColumns' => config('payroll_reports.detail_columns', []),
             'sortColumns' => config('payroll_reports.sort_columns', []),
             'groupColumns' => config('payroll_reports.group_columns', []),
@@ -124,6 +128,10 @@ class PayrollReportsController extends Controller
 
         if (in_array($report->options_key, ['bir-2316', 'alphalist'], true)) {
             $viewData['payYears'] = $this->batchOptions->postedPayYearsForUser($request->user());
+        }
+
+        if ($report->options_key === 'memo') {
+            $viewData['memoForms'] = $this->memoFormsForReportOptions();
         }
 
         return view($optionsConfig['view'], $viewData);
@@ -346,5 +354,22 @@ class PayrollReportsController extends Controller
             'suffix',
             'is_confidential',
         ]);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, CompanyDocumentForm>
+     */
+    private function memoFormsForReportOptions()
+    {
+        return CompanyDocumentForm::query()
+            ->where('document_type', CompanyDocumentForm::TYPE_MEMO)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get([
+                'company_document_form_id',
+                'code',
+                'name',
+            ]);
     }
 }

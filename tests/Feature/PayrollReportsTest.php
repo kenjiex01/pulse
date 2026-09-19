@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\CompanyDocumentForm;
+use App\Models\CompanyDocumentSendLog;
 use App\Models\DeductionType;
 use App\Models\Employee;
 use App\Models\IncomeType;
@@ -517,6 +519,69 @@ class PayrollReportsTest extends TestCase
             ->assertDontSee('TIN ID')
             ->assertSee('Shift Code')
             ->assertSee('Assignments');
+    }
+
+    public function test_reports_index_shows_memo_under_human_resource(): void
+    {
+        $user = User::query()->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('payroll.reports.index', ['classification' => 'human-resource']))
+            ->assertOk()
+            ->assertSee('Memo');
+    }
+
+    public function test_report_options_partial_loads_for_memo(): void
+    {
+        $user = User::query()->firstOrFail();
+        $report = Report::query()->where('title', 'Memo')->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('payroll.reports.options', [
+                'report' => $report->report_id,
+                'classification' => 'human-resource',
+            ]))
+            ->assertOk()
+            ->assertSee('Memo Options')
+            ->assertSee('company_document_form_ids')
+            ->assertSee('Select all');
+    }
+
+    public function test_generate_memo_report_preview(): void
+    {
+        $user = User::query()->firstOrFail();
+        $report = Report::query()->where('title', 'Memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_verbal_reprimand')->firstOrFail();
+        $employee = Employee::query()->create([
+            'employee_number' => 'EMP-MEMO-RPT',
+            'first_name' => 'Ana',
+            'last_name' => 'Santos',
+            'email' => 'ana.santos.memo@example.com',
+        ]);
+
+        CompanyDocumentSendLog::query()->create([
+            'company_document_form_id' => $form->company_document_form_id,
+            'employee_id' => $employee->employee_id,
+            'submission_id' => null,
+            'sent_by_user_id' => $user->id,
+            'sent_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('payroll.reports.generate'), [
+                'classification' => 'human-resource',
+                'report_id' => $report->report_id,
+                'output_format' => 'html',
+                'date_from' => now()->subDay()->toDateString(),
+                'date_to' => now()->addDay()->toDateString(),
+                'company_document_form_ids' => [$form->company_document_form_id],
+            ])
+            ->assertOk()
+            ->assertSee('Memo')
+            ->assertSee('Ana Santos')
+            ->assertSee('Verbal Reprimand Record')
+            ->assertSee('First Offense')
+            ->assertSee('Company Documents');
     }
 
     public function test_reports_index_shows_timekeeping_attendance_view(): void

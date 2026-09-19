@@ -56,6 +56,7 @@
 
         <div id="memo-details-modal-host"></div>
         <div id="memo-preview-modal-host"></div>
+        @include('timekeeping.memo._confirm-send-modal')
         </div>
     @else
         <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-5 py-10 text-center text-sm text-gray-500">

@@ -92,13 +92,16 @@
                 'title' => 'Edit '.$config['name'],
                 'description' => 'Update record details',
                 'open' => (string) ($openEditId ?? '') === (string) $record->{$primaryKey},
-                'body' => view('hr-lookups._form', [
-                    'lookup' => $lookup,
-                    'config' => $config,
-                    'record' => $record,
-                    'selectOptions' => $selectOptions,
-                    'formContext' => "edit-$lookup-{$record->{$primaryKey}}",
-                ])->render(),
+                'body' => view(
+                    $lookup === 'offense-categories' ? 'hr-lookups.offense-categories._form' : 'hr-lookups._form',
+                    [
+                        'lookup' => $lookup,
+                        'config' => $config,
+                        'record' => $record,
+                        'selectOptions' => $selectOptions,
+                        'formContext' => "edit-$lookup-{$record->{$primaryKey}}",
+                    ],
+                )->render(),
             ])
         @endcan
     @endforeach

@@ -84,7 +84,15 @@
                                     <div class="sidebar-sub-panel">
                                         <ul class="sidebar-sub-list mt-0.5 space-y-0.5 pl-3" data-sidebar-sub-list>
                                         @foreach ($activeSubModules as $subModule)
-                                            @php $subActive = $subModule->route_pattern && request()->routeIs($subModule->route_pattern); @endphp
+                                            @php
+                                                $subActive = $subModule->route_pattern && request()->routeIs($subModule->route_pattern);
+                                                if (preg_match('/^hr\.([^.]+)\.index$/', (string) $subModule->route_name, $lookupMatches)) {
+                                                    $lookupMenuConfig = config('hr_lookups.'.$lookupMatches[1]);
+                                                    if (($lookupMenuConfig['menu'] ?? true) === false) {
+                                                        continue;
+                                                    }
+                                                }
+                                            @endphp
                                             <li data-sidebar-item="{{ $subModule->name }}">
                                                 <a
                                                     href="{{ route($subModule->route_name) }}"

@@ -2,14 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Mail\TimekeepingMemoMail;
 use App\Models\CompanyDocumentElement;
 use App\Models\CompanyDocumentForm;
+use App\Models\CompanyDocumentSendLog;
+use App\Models\Employee;
 use App\Models\LuIcctOffense;
 use App\Models\User;
 use Database\Seeders\IcctOffenseSeeder;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -727,6 +731,20 @@ class CompanyDocumentFormTest extends TestCase
             ->assertSee('Current datetime', false);
     }
 
+    public function test_designer_shows_offense_tags_for_icct_verbal_reprimand(): void
+    {
+        $user = User::query()->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_verbal_reprimand')->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('company-documents.designer', $form))
+            ->assertOk()
+            ->assertSee('Disciplinary action', false)
+            ->assertSee('Offense frequency', false)
+            ->assertSee('disciplinary_action', false)
+            ->assertSee('offense_frequency', false);
+    }
+
     public function test_designer_paragraph_font_settings_persist(): void
     {
         $user = User::query()->firstOrFail();
@@ -763,6 +781,45 @@ class CompanyDocumentFormTest extends TestCase
         $this->assertSame('Georgia, serif', $element->settings_json['font_family'] ?? null);
         $this->assertSame(18, $element->settings_json['font_size'] ?? null);
         $this->assertSame('#111827', $element->settings_json['font_color'] ?? null);
+    }
+
+    public function test_designer_empty_field_label_persists_after_save(): void
+    {
+        $user = User::query()->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+
+        $this->actingAs($user)
+            ->putJson(route('company-documents.designer.elements', $form), [
+                'elements' => [
+                    [
+                        'type' => 'long_text',
+                        'label' => '',
+                        'field_key' => 'notes',
+                        'width' => 'full',
+                        'is_required' => false,
+                        'settings' => [
+                            'label_align' => 'top',
+                            'pos_x' => 0,
+                            'pos_y' => 80,
+                            'rows' => 4,
+                        ],
+                    ],
+                ],
+            ])
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        $element = CompanyDocumentElement::query()
+            ->where('company_document_form_id', $form->company_document_form_id)
+            ->where('field_key', 'notes')
+            ->firstOrFail();
+
+        $this->assertSame('', $element->label);
+
+        $this->actingAs($user)
+            ->get(route('company-documents.designer', $form))
+            ->assertOk()
+            ->assertSee('data-initial-elements', false);
     }
 
     public function test_designer_canvas_background_and_field_colors_persist(): void
@@ -860,5 +917,122 @@ class CompanyDocumentFormTest extends TestCase
             ->firstOrFail();
 
         $this->assertSame($label, $element->label);
+    }
+
+    public function test_active_template_shows_send_button_and_modal(): void
+    {
+        $form = CompanyDocumentForm::query()->where('is_active', true)->firstOrFail();
+
+        $this->actingAs(User::query()->firstOrFail())
+            ->get(route('company-documents.index'))
+            ->assertOk()
+            ->assertSee('Send', false)
+            ->assertSee('company-document-send-modal-'.$form->company_document_form_id, false)
+            ->assertSee('Select all', false)
+            ->assertSee('Send history', false);
+    }
+
+    public function test_admin_can_send_document_to_selected_employees(): void
+    {
+        Mail::fake();
+        config(['mail.default' => 'array']);
+
+        $user = User::query()->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('is_active', true)->firstOrFail();
+
+        $employee = Employee::query()->create([
+            'employee_number' => 'DOC-SEND-FEAT-001',
+            'first_name' => 'Gina',
+            'last_name' => 'Torres',
+            'email' => 'gina.torres@example.com',
+            'employment_status' => Employee::STATUS_ACTIVE,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('company-documents.send', $form), [
+                'employee_ids' => [$employee->employee_id],
+            ])
+            ->assertRedirect(route('company-documents.index'))
+            ->assertSessionHas('success');
+
+        Mail::assertSent(TimekeepingMemoMail::class, 1);
+
+        $this->assertDatabaseHas('tbl_company_document_send_logs', [
+            'company_document_form_id' => $form->company_document_form_id,
+            'employee_id' => $employee->employee_id,
+        ]);
+    }
+
+    public function test_send_one_returns_json_for_progressive_send(): void
+    {
+        Mail::fake();
+        config(['mail.default' => 'array']);
+
+        $user = User::query()->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('is_active', true)->firstOrFail();
+
+        $employee = Employee::query()->create([
+            'employee_number' => 'DOC-SEND-ONE-001',
+            'first_name' => 'Hector',
+            'last_name' => 'Lim',
+            'email' => 'hector.lim@example.com',
+            'employment_status' => Employee::STATUS_ACTIVE,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->postJson(route('company-documents.send-one', $form), [
+                'employee_id' => $employee->employee_id,
+            ])
+            ->assertOk()
+            ->assertJson([
+                'success' => true,
+                'employee_id' => $employee->employee_id,
+            ]);
+
+        Mail::assertSent(TimekeepingMemoMail::class, 1);
+    }
+
+    public function test_send_history_lists_previously_sent_employees(): void
+    {
+        Mail::fake();
+        config(['mail.default' => 'array']);
+
+        $user = User::query()->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('is_active', true)->firstOrFail();
+
+        $employee = Employee::query()->create([
+            'employee_number' => 'DOC-SEND-HIST-001',
+            'first_name' => 'Helen',
+            'last_name' => 'Villanueva',
+            'email' => 'helen.villanueva@example.com',
+            'employment_status' => Employee::STATUS_ACTIVE,
+            'is_active' => true,
+        ]);
+
+        CompanyDocumentSendLog::query()->create([
+            'company_document_form_id' => $form->company_document_form_id,
+            'employee_id' => $employee->employee_id,
+            'sent_by_user_id' => $user->id,
+            'sent_at' => now()->subDay(),
+        ]);
+
+        CompanyDocumentSendLog::query()->create([
+            'company_document_form_id' => $form->company_document_form_id,
+            'employee_id' => $employee->employee_id,
+            'sent_by_user_id' => $user->id,
+            'sent_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('company-documents.index'))
+            ->assertOk()
+            ->assertSee('Send history', false)
+            ->assertSee('Times sent', false)
+            ->assertSee('DOC-SEND-HIST-001', false)
+            ->assertSee('Helen Villanueva', false)
+            ->assertSee('2×', false)
+            ->assertSee('Sent 2×', false);
     }
 }

@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\LuIcctOffense;
+use App\Models\LuIcctOffenseCategory;
 use Illuminate\Database\Seeder;
 
 /**
@@ -12,11 +13,14 @@ class IcctOffenseSeeder extends Seeder
 {
     public function run(): void
     {
+        $this->call(IcctOffenseCategorySeeder::class);
+
         /** @var list<array{0: string, 1: int, 2: string, 3: string}> $rows */
         $rows = require database_path('data/icct_offenses.php');
 
-        foreach ($rows as $index => [$headingRoman, $sectionNumber, $nature, $category]) {
+        foreach ($rows as $index => [$headingRoman, $sectionNumber, $nature, $categoryCode]) {
             $sectionCode = $headingRoman.'.'.$sectionNumber;
+            $categoryId = LuIcctOffenseCategory::idForCode($categoryCode);
 
             LuIcctOffense::withTrashed()->firstOrCreate(
                 ['section_code' => $sectionCode],
@@ -25,7 +29,8 @@ class IcctOffenseSeeder extends Seeder
                     'heading_label' => LuIcctOffense::headingLabel($headingRoman),
                     'section_number' => $sectionNumber,
                     'nature_of_offense' => $nature,
-                    'category' => $category,
+                    'icct_offense_category_id' => $categoryId,
+                    'category' => $categoryCode,
                     'sort_order' => $index + 1,
                     'effective_date' => LuIcctOffense::EFFECTIVE_DATE,
                     'is_active' => true,

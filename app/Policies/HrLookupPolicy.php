@@ -12,6 +12,10 @@ class HrLookupPolicy
     {
         $subModule = HrLookup::subModule($lookup);
 
+        if ($lookup === 'offense-frequencies' && ! $subModule) {
+            $subModule = HrLookup::subModule('offense-categories');
+        }
+
         if (! $subModule) {
             return $user->isAdmin();
         }

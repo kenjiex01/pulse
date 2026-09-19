@@ -1,7 +1,14 @@
 @if ($days === [])
     <p class="text-sm text-gray-500">No {{ strtolower(\App\Models\TimekeepingMemoSetup::labelForType($memoFilters['violation_type'])) }} records in this period.</p>
 @else
-    <form method="POST" action="{{ route(\App\Support\TimekeepingMemo::routeName('send'), [$employee->employee_id] + $query) }}" data-memo-detail-send-form>
+    <form
+        method="POST"
+        action="{{ route(\App\Support\TimekeepingMemo::routeName('send'), [$employee->employee_id] + $query) }}"
+        data-memo-detail-send-form
+        data-memo-send-form
+        data-memo-send-kind="detail"
+        data-employee-name="{{ $employee->full_name }}"
+    >
         @csrf
         <div class="overflow-x-auto rounded-lg border border-gray-200">
             <table class="min-w-full divide-y divide-gray-200 text-sm">

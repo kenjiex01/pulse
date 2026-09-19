@@ -7,6 +7,9 @@ use App\Models\DocumentType;
 use App\Models\EmployeeDepartment;
 use App\Models\EmploymentType;
 use App\Models\LuIcctOffense;
+use App\Models\LuIcctOffenseCategory;
+use App\Models\LuIcctOffenseFrequency;
+use App\Models\LuIcctOffensePenalty;
 use App\Models\Position;
 use App\Models\Program;
 use App\Models\Rank;
@@ -221,6 +224,93 @@ return [
             ['name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'rules' => ['sometimes', 'boolean']],
         ],
     ],
+    'offense-categories' => [
+        'name' => 'Offense Categories',
+        'description' => 'Table of Penalties — add categories or frequencies, then Edit a column to set cell penalties.',
+        'model' => LuIcctOffenseCategory::class,
+        'primary_key' => 'icct_offense_category_id',
+        'log_table' => 'lu_icct_offense_categories',
+        'icon' => 'offense-category',
+        'sort_order' => 11,
+        'after_change' => 'icct-offense-dropdowns',
+        'order' => ['sort_order' => 'asc', 'code' => 'asc'],
+        'search' => ['code', 'label'],
+        'columns' => [
+            ['key' => 'code', 'label' => 'Category'],
+            ['key' => 'label', 'label' => 'Label'],
+            ['key' => 'sort_order', 'label' => 'Sort'],
+            ['key' => 'is_active', 'label' => 'Status', 'type' => 'boolean'],
+        ],
+        'fields' => [
+            ['name' => 'code', 'label' => 'Category Code', 'type' => 'text', 'rules' => ['required', 'string', 'max:16'], 'unique' => true],
+            ['name' => 'label', 'label' => 'Label', 'type' => 'text', 'rules' => ['required', 'string', 'max:32']],
+            ['name' => 'sort_order', 'label' => 'Sort Order', 'type' => 'number', 'rules' => ['nullable', 'integer', 'min:0']],
+            ['name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'rules' => ['sometimes', 'boolean']],
+        ],
+    ],
+    'offense-frequencies' => [
+        'name' => 'Offense Frequencies',
+        'menu' => false,
+        'model' => LuIcctOffenseFrequency::class,
+        'primary_key' => 'icct_offense_frequency_id',
+        'log_table' => 'lu_icct_offense_frequencies',
+        'icon' => 'offense-frequency',
+        'sort_order' => 11,
+        'after_change' => 'icct-offense-dropdowns',
+        'order' => ['sort_order' => 'asc', 'frequency_ordinal' => 'asc'],
+        'search' => ['label'],
+        'columns' => [
+            ['key' => 'frequency_ordinal', 'label' => 'Ordinal'],
+            ['key' => 'label', 'label' => 'Label'],
+            ['key' => 'sort_order', 'label' => 'Sort'],
+            ['key' => 'is_active', 'label' => 'Status', 'type' => 'boolean'],
+        ],
+        'fields' => [
+            ['name' => 'frequency_ordinal', 'label' => 'Ordinal', 'type' => 'number', 'rules' => ['nullable', 'integer', 'min:1'], 'unique' => true],
+            ['name' => 'label', 'label' => 'Label', 'type' => 'text', 'rules' => ['required', 'string', 'max:64']],
+            ['name' => 'sort_order', 'label' => 'Sort Order', 'type' => 'number', 'rules' => ['nullable', 'integer', 'min:0']],
+            ['name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'rules' => ['sometimes', 'boolean']],
+        ],
+    ],
+    'offense-penalties' => [
+        'name' => 'Category Penalties',
+        'menu' => false,
+        'description' => 'Table of Penalties — frequency rows per category (e.g. 1st offense → Written Warning).',
+        'model' => LuIcctOffensePenalty::class,
+        'primary_key' => 'icct_offense_penalty_id',
+        'log_table' => 'lu_icct_offense_penalties',
+        'icon' => 'offense-penalty',
+        'sort_order' => 12,
+        'with' => ['offenseCategory'],
+        'order' => ['frequency_ordinal' => 'asc', 'category' => 'asc'],
+        'search' => ['category', 'frequency_label', 'penalty'],
+        'columns' => [
+            ['key' => 'category', 'label' => 'Category'],
+            ['key' => 'frequency_label', 'label' => 'Frequency'],
+            ['key' => 'penalty', 'label' => 'Penalty', 'clamp' => true],
+        ],
+        'fields' => [
+            [
+                'name' => 'icct_offense_category_id',
+                'label' => 'Category',
+                'type' => 'select',
+                'source' => 'offense-categories',
+                'placeholder' => 'Select category',
+                'rules' => ['required', 'integer', Rule::exists('lu_icct_offense_categories', 'icct_offense_category_id')->whereNull('deleted_at')],
+            ],
+            [
+                'name' => 'frequency_ordinal',
+                'label' => 'Frequency',
+                'type' => 'select',
+                'options_from' => 'offense-frequency-select',
+                'placeholder' => 'Select frequency',
+                'rules' => ['required', 'integer', 'min:1'],
+                'unique' => true,
+                'unique_with' => 'icct_offense_category_id',
+            ],
+            ['name' => 'penalty', 'label' => 'Penalty', 'type' => 'textarea', 'rules' => ['required', 'string', 'max:120']],
+        ],
+    ],
     'nature-of-offenses' => [
         'name' => 'Nature of Offense',
         'description' => 'Maintain the Code of Offenses catalog used on company document memos.',
@@ -228,8 +318,9 @@ return [
         'primary_key' => 'icct_offense_id',
         'log_table' => 'lu_icct_offenses',
         'icon' => 'nature-of-offense',
-        'sort_order' => 2,
+        'sort_order' => 13,
         'after_change' => 'icct-offense-dropdowns',
+        'with' => ['offenseCategory'],
         'order' => ['sort_order' => 'asc', 'section_code' => 'asc'],
         'search' => ['section_code', 'nature_of_offense', 'heading_label', 'category'],
         'columns' => [
@@ -261,9 +352,10 @@ return [
                 'name' => 'category',
                 'label' => 'Category',
                 'type' => 'select',
-                'options' => LuIcctOffense::CATEGORY_OPTIONS,
+                'options_from' => 'offense-category-select',
                 'placeholder' => 'Select category',
-                'rules' => ['required', 'string', 'max:16', Rule::in(array_keys(LuIcctOffense::CATEGORY_OPTIONS))],
+                'rules' => ['required', 'string', 'max:16'],
+                'dynamic_in' => 'offense-category-values',
             ],
             ['name' => 'sort_order', 'label' => 'Sort Order', 'type' => 'number', 'rules' => ['nullable', 'integer', 'min:0']],
             ['name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'rules' => ['sometimes', 'boolean']],

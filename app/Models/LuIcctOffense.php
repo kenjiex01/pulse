@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
@@ -13,6 +14,14 @@ class LuIcctOffense extends Model
     use SoftDeletes;
 
     public const EFFECTIVE_DATE = '2011-02-16';
+
+    /** Severity ranges on specific offenses — not penalty-matrix categories. */
+    /** @var array<string, string> */
+    public const COMBO_CATEGORY_OPTIONS = [
+        'B - C' => 'B - C',
+        'B - D' => 'B - D',
+        'C - D' => 'C - D',
+    ];
 
     /** @var array<string, string> */
     public const HEADING_LABELS = [
@@ -26,17 +35,6 @@ class LuIcctOffense extends Model
         'VIII' => 'VIII. Others (repeat infractions within 12 months)',
     ];
 
-    /** @var array<string, string> */
-    public const CATEGORY_OPTIONS = [
-        'A' => 'A',
-        'B' => 'B',
-        'B - C' => 'B - C',
-        'B - D' => 'B - D',
-        'C' => 'C',
-        'C - D' => 'C - D',
-        'D' => 'D',
-    ];
-
     protected $table = 'lu_icct_offenses';
 
     protected $primaryKey = 'icct_offense_id';
@@ -47,6 +45,7 @@ class LuIcctOffense extends Model
         'section_number',
         'section_code',
         'nature_of_offense',
+        'icct_offense_category_id',
         'category',
         'sort_order',
         'effective_date',
@@ -57,6 +56,7 @@ class LuIcctOffense extends Model
     {
         return [
             'section_number' => 'integer',
+            'icct_offense_category_id' => 'integer',
             'sort_order' => 'integer',
             'effective_date' => 'date',
             'is_active' => 'boolean',
@@ -84,7 +84,47 @@ class LuIcctOffense extends Model
             if ($offense->sort_order === null || $offense->sort_order === '') {
                 $offense->sort_order = (int) self::withTrashed()->max('sort_order') + 1;
             }
+
+            if ($offense->isDirty('category') && ! $offense->isDirty('icct_offense_category_id')) {
+                $offense->icct_offense_category_id = LuIcctOffenseCategory::idForCode((string) $offense->category);
+            }
+
+            if ($offense->icct_offense_category_id) {
+                $category = $offense->relationLoaded('offenseCategory')
+                    ? $offense->offenseCategory
+                    : LuIcctOffenseCategory::query()->find($offense->icct_offense_category_id);
+
+                if ($category !== null) {
+                    $offense->category = $category->code;
+                }
+            } elseif (array_key_exists((string) $offense->category, self::COMBO_CATEGORY_OPTIONS)) {
+                $offense->icct_offense_category_id = null;
+            }
         });
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function categorySelectOptions(): array
+    {
+        return LuIcctOffenseCategory::codeSelectOptions() + self::COMBO_CATEGORY_OPTIONS;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function allowedCategoryValues(): array
+    {
+        return array_values(array_unique(array_merge(
+            LuIcctOffenseCategory::allowedCategoryCodes(),
+            array_keys(self::COMBO_CATEGORY_OPTIONS),
+        )));
+    }
+
+    public function offenseCategory(): BelongsTo
+    {
+        return $this->belongsTo(LuIcctOffenseCategory::class, 'icct_offense_category_id', 'icct_offense_category_id')->withTrashed();
     }
 
     public function scopeActive(Builder $query): Builder

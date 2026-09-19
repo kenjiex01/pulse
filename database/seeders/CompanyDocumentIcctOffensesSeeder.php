@@ -5,6 +5,8 @@ namespace Database\Seeders;
 use App\Models\CompanyDocumentElement;
 use App\Models\CompanyDocumentForm;
 use App\Models\LuIcctOffense;
+use App\Models\LuIcctOffenseCategory;
+use App\Models\LuIcctOffenseFrequency;
 use App\Models\LuIcctOffensePenalty;
 use Illuminate\Database\Seeder;
 
@@ -402,10 +404,57 @@ class CompanyDocumentIcctOffensesSeeder extends Seeder
         return ['Run IcctOffenseSeeder to load the Code of Offenses catalog.'];
     }
 
+    public function syncOffenseBlockDropdowns(): void
+    {
+        $this->syncOffenseNatureDropdowns();
+        $this->syncOffenseCategoryDropdowns();
+        $this->syncOffenseFrequencyDropdowns();
+    }
+
     public function syncOffenseNatureDropdowns(): void
     {
-        $choices = $this->offenseNatureChoices();
+        $this->syncDropdownField('nature_of_offense', $this->offenseNatureChoices(), [
+            'label' => 'Nature of offense',
+            'help_text' => 'Select from the ICCT Code of Offenses (effective February 16, 2011).',
+        ]);
+    }
 
+    public function syncOffenseCategoryDropdowns(): void
+    {
+        $choices = array_values(array_unique(array_merge(
+            LuIcctOffenseCategory::allowedCategoryCodes(),
+            array_keys(LuIcctOffense::COMBO_CATEGORY_OPTIONS),
+        )));
+
+        $this->syncDropdownField('offense_category', $choices, [
+            'label' => 'Category',
+            'help_text' => 'Penalty tier from the Table of Penalties.',
+        ]);
+    }
+
+    public function syncOffenseFrequencyDropdowns(): void
+    {
+        $choices = LuIcctOffenseFrequency::catalogOrdered()
+            ->pluck('label')
+            ->values()
+            ->all();
+
+        if ($choices === []) {
+            $choices = $this->frequencyChoices();
+        }
+
+        $this->syncDropdownField('offense_frequency', $choices, [
+            'label' => 'Frequency',
+            'help_text' => 'Offense frequency under the selected category.',
+        ]);
+    }
+
+    /**
+     * @param  list<string>  $choices
+     * @param  array<string, string>  $meta
+     */
+    private function syncDropdownField(string $fieldKey, array $choices, array $meta): void
+    {
         if ($choices === [] || $choices === ['Run IcctOffenseSeeder to load the Code of Offenses catalog.']) {
             return;
         }
@@ -427,14 +476,12 @@ class CompanyDocumentIcctOffensesSeeder extends Seeder
 
         CompanyDocumentElement::query()
             ->whereIn('company_document_form_id', $formIds)
-            ->where('field_key', 'nature_of_offense')
-            ->update([
+            ->where('field_key', $fieldKey)
+            ->update(array_merge([
                 'type' => CompanyDocumentElement::TYPE_DROPDOWN,
-                'label' => 'Nature of offense',
-                'help_text' => 'Select from the ICCT Code of Offenses (effective February 16, 2011).',
                 'is_required' => true,
                 'options_json' => $optionsJson,
-            ]);
+            ], $meta));
     }
 
     /**
@@ -442,6 +489,15 @@ class CompanyDocumentIcctOffensesSeeder extends Seeder
      */
     private function frequencyChoices(): array
     {
+        $fromDb = LuIcctOffenseFrequency::catalogOrdered()
+            ->pluck('label')
+            ->values()
+            ->all();
+
+        if ($fromDb !== []) {
+            return $fromDb;
+        }
+
         return [
             'First Offense',
             'Second Offense',

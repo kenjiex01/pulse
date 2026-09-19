@@ -23,7 +23,7 @@
         <h2 class="mb-3 text-xl font-bold tracking-wide text-gray-800">SKOLARIS</h2>
 
         <div class="mx-auto mb-3 h-1.5 w-48 overflow-hidden rounded-full bg-gray-200">
-            <div class="animate-loading-bar h-full rounded-full bg-[#00A3E6]"></div>
+            <div id="pulse-loader-progress-bar" class="animate-loading-bar h-full w-0 rounded-full bg-[#00A3E6] transition-[width] duration-300 ease-out"></div>
         </div>
 
         <p id="pulse-loader-text" class="text-sm font-medium text-gray-500">{{ $loaderText ?? 'Loading...' }}</p>

@@ -85,7 +85,6 @@ class HrNatureOfOffenseLookupTest extends TestCase
     public function test_admin_can_edit_a_nature_of_offense(): void
     {
         $offense = LuIcctOffense::query()->where('section_code', 'II.8')->firstOrFail();
-
         $this->actingAs(User::query()->firstOrFail())
             ->put(route('hr.nature-of-offenses.update', $offense->icct_offense_id), [
                 'form_context' => 'edit-nature-of-offenses-'.$offense->icct_offense_id,

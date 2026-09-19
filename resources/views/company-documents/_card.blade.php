@@ -58,6 +58,19 @@
             </button>
         @endcan
 
+        @can('send', $form)
+            <button
+                type="button"
+                class="btn-secondary !px-3 !py-1.5 text-xs"
+                title="Send document to employees"
+                data-modal-open="company-document-send-modal-{{ $form->company_document_form_id }}"
+                data-company-document-send-open
+            >
+                <svg class="mr-1 inline h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                Send
+            </button>
+        @endcan
+
         @can('update', $form)
             <form method="POST" action="{{ route('company-documents.toggle', $form) }}" class="inline">
                 @csrf

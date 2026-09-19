@@ -324,6 +324,27 @@ class ReportSeeder extends Seeder
             $pdf->report_file_type_id,
         ]);
 
+        $memoReport = Report::query()->updateOrCreate(
+            [
+                'report_classification_id' => $humanResource->report_classification_id,
+                'title' => 'Memo',
+            ],
+            [
+                'report_group_id' => $hrReports->report_group_id,
+                'description' => 'Memo send log by date range and company document template.',
+                'options_key' => 'memo',
+                'generator_key' => 'memo',
+                'sort_order' => 3,
+                'is_active' => true,
+            ],
+        );
+
+        $memoReport->fileTypes()->syncWithoutDetaching([
+            $html->report_file_type_id,
+            $excel->report_file_type_id,
+            $pdf->report_file_type_id,
+        ]);
+
         $attendanceReports = ReportGroup::query()->updateOrCreate(
             [
                 'report_classification_id' => $timekeeping->report_classification_id,

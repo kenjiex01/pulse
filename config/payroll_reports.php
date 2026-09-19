@@ -157,6 +157,17 @@ return [
                 'output_format' => ['required', 'in:html,excel,pdf'],
             ],
         ],
+        'memo' => [
+            'label' => 'Memo',
+            'view' => 'payroll.reports.options.memo',
+            'rules' => [
+                'date_from' => ['required', 'date'],
+                'date_to' => ['required', 'date', 'after_or_equal:date_from'],
+                'company_document_form_ids' => ['required', 'array', 'min:1'],
+                'company_document_form_ids.*' => ['integer', 'exists:tbl_company_document_forms,company_document_form_id'],
+                'output_format' => ['required', 'in:html,excel,pdf'],
+            ],
+        ],
     ],
 
     'generators' => [
@@ -172,5 +183,6 @@ return [
         'historical-data' => App\Services\Reports\HistoricalDataReportService::class,
         'employee-credentials' => App\Services\Reports\EmployeeCredentialsReportService::class,
         'attendance-view' => App\Services\Reports\AttendanceViewReportService::class,
+        'memo' => App\Services\Reports\MemoReportService::class,
     ],
 ];

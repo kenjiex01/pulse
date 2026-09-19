@@ -6,6 +6,7 @@ import './company-documents.js';
 document.addEventListener('DOMContentLoaded', () => {
     const loader = document.getElementById('pulse-full-screen-loader');
     const loaderText = document.getElementById('pulse-loader-text');
+    const loaderProgressBar = document.getElementById('pulse-loader-progress-bar');
 
     const pulseLoader = {
         show(text = 'Loading...') {
@@ -15,6 +16,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (loaderText) {
                 loaderText.textContent = text;
+            }
+
+            if (loaderProgressBar) {
+                loaderProgressBar.classList.add('animate-loading-bar');
+                loaderProgressBar.style.width = '';
+            }
+
+            loader.classList.remove('hidden');
+            loader.setAttribute('aria-hidden', 'false');
+        },
+        showProgress(current, total, detail = '') {
+            if (!loader) {
+                return;
+            }
+
+            const safeTotal = Math.max(0, Number(total) || 0);
+            const safeCurrent = Math.min(Math.max(0, Number(current) || 0), safeTotal || 0);
+            const percent = safeTotal > 0 ? Math.round((safeCurrent / safeTotal) * 100) : 0;
+            const label = safeTotal > 0 ? `${safeCurrent} / ${safeTotal}` : '0 / 0';
+
+            if (loaderText) {
+                loaderText.textContent = detail ? `${label} — ${detail}` : label;
+            }
+
+            if (loaderProgressBar) {
+                loaderProgressBar.classList.remove('animate-loading-bar');
+                loaderProgressBar.style.width = `${percent}%`;
             }
 
             loader.classList.remove('hidden');
@@ -27,6 +55,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             loader.classList.add('hidden');
             loader.setAttribute('aria-hidden', 'true');
+
+            if (loaderProgressBar) {
+                loaderProgressBar.classList.add('animate-loading-bar');
+                loaderProgressBar.style.width = '';
+            }
         },
     };
 
@@ -4406,6 +4439,66 @@ document.addEventListener('DOMContentLoaded', () => {
         scope.querySelectorAll?.('[data-employee-multiselect]').forEach(initEmployeeMultiselect);
     };
 
+    const initReportDocumentMultiselect = (picker) => {
+        if (!picker || picker.dataset.reportDocumentMultiselectReady === '1') {
+            return;
+        }
+
+        picker.dataset.reportDocumentMultiselectReady = '1';
+
+        const searchInput = picker.querySelector('[data-report-document-multiselect-search]');
+        const selectAll = picker.querySelector('[data-report-document-multiselect-select-all]');
+        const countLabel = picker.querySelector('[data-report-document-multiselect-count]');
+
+        const updateSelectedCount = () => {
+            const checked = picker.querySelectorAll('[data-report-document-multiselect-row]:checked').length;
+
+            if (countLabel) {
+                countLabel.textContent = `${checked} selected`;
+            }
+
+            return checked;
+        };
+
+        picker.querySelectorAll('[data-report-document-multiselect-row]').forEach((checkbox) => {
+            checkbox.addEventListener('change', updateSelectedCount);
+        });
+
+        selectAll?.addEventListener('change', () => {
+            picker.querySelectorAll('[data-report-document-multiselect-item]:not([hidden]) [data-report-document-multiselect-row]').forEach((checkbox) => {
+                checkbox.checked = selectAll.checked;
+            });
+            updateSelectedCount();
+        });
+
+        searchInput?.addEventListener('input', () => {
+            const term = (searchInput.value || '').trim().toLowerCase();
+
+            picker.querySelectorAll('[data-report-document-multiselect-item]').forEach((item) => {
+                const haystack = item.dataset.reportDocumentSearchText || '';
+                item.hidden = term !== '' && !haystack.includes(term);
+            });
+
+            if (selectAll) {
+                selectAll.checked = false;
+            }
+        });
+
+        updateSelectedCount();
+    };
+
+    const initReportDocumentMultiselects = (scope = document) => {
+        if (!scope) {
+            return;
+        }
+
+        if (scope.matches?.('[data-report-document-multiselect]')) {
+            initReportDocumentMultiselect(scope);
+        }
+
+        scope.querySelectorAll?.('[data-report-document-multiselect]').forEach(initReportDocumentMultiselect);
+    };
+
     const initPayrollReportsRoot = (root) => {
         const classificationSelect = root.querySelector('[data-payroll-report-classification]');
         const reportSelect = root.querySelector('[data-payroll-report-select]');
@@ -4530,6 +4623,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 initSssBatchMonthYearGuard(optionsPanel);
                 initPayslipReportOptions(optionsPanel);
                 initEmployeeMultiselects(optionsPanel);
+                initReportDocumentMultiselects(optionsPanel);
             } catch {
                 optionsPanel.innerHTML = '<p class="text-sm text-red-600">Unable to load report options.</p>';
             }
@@ -4547,11 +4641,13 @@ document.addEventListener('DOMContentLoaded', () => {
             initSssBatchMonthYearGuard(optionsPanel);
             initPayslipReportOptions(optionsPanel);
             initEmployeeMultiselects(optionsPanel);
+            initReportDocumentMultiselects(optionsPanel);
         }
     };
 
     document.querySelectorAll('[data-payroll-reports-root]').forEach(initPayrollReportsRoot);
     initEmployeeMultiselects(document);
+    initReportDocumentMultiselects(document);
     syncEmployeeLoadPurgeSelection();
 
     const syncPayrollUploadPurgeSelection = () => {

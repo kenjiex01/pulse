@@ -77,6 +77,24 @@ class CompanyDocumentForm extends Model
         ];
     }
 
+    /**
+     * Template-level Nature of Offense (Edit Template) or offense block on the memo form.
+     */
+    public function hasOffenseNatureConfigured(): bool
+    {
+        if ($this->icct_offense_id !== null) {
+            return true;
+        }
+
+        if ($this->relationLoaded('elements')) {
+            return $this->elements->contains(
+                fn (CompanyDocumentElement $element) => $element->field_key === 'nature_of_offense',
+            );
+        }
+
+        return $this->elements()->where('field_key', 'nature_of_offense')->exists();
+    }
+
     public function elements(): HasMany
     {
         return $this->hasMany(CompanyDocumentElement::class, 'company_document_form_id', 'company_document_form_id')
@@ -92,6 +110,12 @@ class CompanyDocumentForm extends Model
     public function submissions(): HasMany
     {
         return $this->hasMany(CompanyDocumentSubmission::class, 'company_document_form_id', 'company_document_form_id');
+    }
+
+    public function sendLogs(): HasMany
+    {
+        return $this->hasMany(CompanyDocumentSendLog::class, 'company_document_form_id', 'company_document_form_id')
+            ->orderByDesc('sent_at');
     }
 
     public function creator(): BelongsTo

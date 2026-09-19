@@ -2,13 +2,18 @@
 
 namespace App\Support;
 
+use App\Models\CompanyDocumentForm;
+use App\Services\CompanyDocumentOffenseMemoService;
+
 class CompanyDocumentElementCatalog
 {
     /**
      * @return array<string, array<int, array{type: string, label: string, tag_key?: string}>>
      */
-    public static function palette(): array
+    public static function palette(?CompanyDocumentForm $form = null): array
     {
+        $includeOffenseTags = app(CompanyDocumentOffenseMemoService::class)->formHasOffenseNature($form);
+
         return [
             'BASIC' => [
                 ['type' => 'heading', 'label' => 'Heading'],
@@ -27,13 +32,7 @@ class CompanyDocumentElementCatalog
             'DATE' => [
                 ['type' => 'date', 'label' => 'Date'],
             ],
-            'CHOICE' => [
-                ['type' => 'dropdown', 'label' => 'Dropdown'],
-                ['type' => 'radio', 'label' => 'Radio'],
-                ['type' => 'checkbox', 'label' => 'Checkbox'],
-                ['type' => 'yes_no', 'label' => 'Yes / No'],
-            ],
-            'TAGS' => CompanyDocumentMergeTagCatalog::paletteItems(),
+            'TAGS' => CompanyDocumentMergeTagCatalog::paletteItems($includeOffenseTags),
             'ADVANCED' => [
                 ['type' => 'file_upload', 'label' => 'File upload'],
                 ['type' => 'signature', 'label' => 'Signature'],
@@ -51,6 +50,13 @@ class CompanyDocumentElementCatalog
             }
         }
 
-        return ucfirst(str_replace('_', ' ', $type));
+        $legacyLabels = [
+            'dropdown' => 'Dropdown',
+            'radio' => 'Radio',
+            'checkbox' => 'Checkbox',
+            'yes_no' => 'Yes / No',
+        ];
+
+        return $legacyLabels[$type] ?? ucfirst(str_replace('_', ' ', $type));
     }
 }

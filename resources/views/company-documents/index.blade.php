@@ -10,6 +10,12 @@
     @endphp
 
     @include('partials.flash')
+
+    @if (request('send_notice'))
+        <div class="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            {{ request('send_notice') }}
+        </div>
+    @endif
     @include('partials.page-header', [
         'title' => 'Company Documents',
         'description' => 'Create memo templates. Nature of offense is optional — not all memos, including NTE, are tied to an offense.',
@@ -91,6 +97,21 @@
                 'panelClass' => 'max-w-4xl modal-panel-document-preview',
                 'bodyClass' => 'modal-body-document-preview',
                 'body' => view('company-documents._preview-content', compact('form'))->render(),
+            ])
+        @endcan
+
+        @can('send', $form)
+            @include('partials.modal', [
+                'id' => 'company-document-send-modal-'.$form->company_document_form_id,
+                'title' => 'Send Document',
+                'description' => $form->name,
+                'open' => false,
+                'panelClass' => 'max-w-xl',
+                'body' => view('company-documents._send-form', [
+                    'form' => $form,
+                    'sendEmployees' => $sendEmployees,
+                    'sendSummary' => ($sendSummaryByForm[$form->company_document_form_id] ?? collect()),
+                ])->render(),
             ])
         @endcan
     @endforeach

@@ -39,8 +39,9 @@ class IcctOffensePenaltyTest extends TestCase
             LuIcctOffensePenalty::penaltyFor('A', 5),
         );
 
-        $this->assertNull(LuIcctOffensePenalty::penaltyFor('D', 2));
-        $this->assertNull(LuIcctOffensePenalty::penaltyFor('C', 3));
+        $this->assertSame('Dismissal', LuIcctOffensePenalty::penaltyFor('D', 2));
+        $this->assertSame('Dismissal', LuIcctOffensePenalty::penaltyFor('C', 3));
+        $this->assertSame('Dismissal', LuIcctOffensePenalty::penaltyFor('B', 6));
     }
 
     #[Test]

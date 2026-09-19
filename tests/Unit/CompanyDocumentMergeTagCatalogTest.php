@@ -26,5 +26,18 @@ class CompanyDocumentMergeTagCatalogTest extends TestCase
         $this->assertContains('current_date', array_column($items, 'tag_key'));
         $this->assertContains('current_time', array_column($items, 'tag_key'));
         $this->assertContains('current_datetime', array_column($items, 'tag_key'));
+        $this->assertNotContains('disciplinary_action', array_column($items, 'tag_key'));
+        $this->assertNotContains('offense_frequency', array_column($items, 'tag_key'));
+    }
+
+    public function test_offense_palette_includes_disciplinary_tags(): void
+    {
+        $items = CompanyDocumentMergeTagCatalog::paletteItems(true);
+        $tagKeys = array_column($items, 'tag_key');
+
+        $this->assertContains('disciplinary_action', $tagKeys);
+        $this->assertContains('offense_frequency', $tagKeys);
+        $this->assertSame('disciplinary_action', $tagKeys[0] ?? null);
+        $this->assertSame('offense_frequency', $tagKeys[1] ?? null);
     }
 }

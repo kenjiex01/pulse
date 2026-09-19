@@ -3,6 +3,9 @@
 namespace App\Support;
 
 use App\Models\Campus;
+use App\Models\LuIcctOffense;
+use App\Models\LuIcctOffenseCategory;
+use App\Models\LuIcctOffenseFrequency;
 use App\Models\Province;
 use App\Models\Region;
 use App\Models\SubModule;
@@ -62,6 +65,10 @@ class HrLookup
     {
         $subModule = self::subModule($lookup);
 
+        if ($lookup === 'offense-frequencies' && ! $subModule) {
+            $subModule = self::subModule('offense-categories');
+        }
+
         if (! $subModule) {
             if (! $user->isAdmin()) {
                 abort(403, 'You do not have permission to access this page.');
@@ -106,6 +113,28 @@ class HrLookup
         return $config['model']::query()->findOrFail($id);
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function fields(string $lookup): array
+    {
+        $fields = self::config($lookup)['fields'];
+
+        return array_map(function (array $field): array {
+            if (($field['options_from'] ?? null) === 'offense-category-select') {
+                $field['options'] = LuIcctOffense::categorySelectOptions();
+            }
+
+            if (($field['options_from'] ?? null) === 'offense-frequency-select') {
+                $field['options'] = LuIcctOffenseFrequency::catalogOrdered()
+                    ->pluck('label', 'frequency_ordinal')
+                    ->all();
+            }
+
+            return $field;
+        }, $fields);
+    }
+
     public static function validationRules(string $lookup, ?Model $record = null): array
     {
         $config = self::config($lookup);
@@ -113,8 +142,12 @@ class HrLookup
         $table = (new $config['model'])->getTable();
         $rules = [];
 
-        foreach ($config['fields'] as $field) {
+        foreach (self::fields($lookup) as $field) {
             $fieldRules = $field['rules'] ?? [];
+
+            if (($field['dynamic_in'] ?? null) === 'offense-category-values') {
+                $fieldRules[] = Rule::in(LuIcctOffense::allowedCategoryValues());
+            }
 
             if (! empty($field['unique'])) {
                 $unique = Rule::unique($table, $field['name'])
@@ -140,10 +173,10 @@ class HrLookup
 
     public static function validatedPayload(string $lookup, array $data): array
     {
-        $config = self::config($lookup);
-        $payload = Arr::only($data, collect($config['fields'])->pluck('name')->all());
+        $fields = self::fields($lookup);
+        $payload = Arr::only($data, collect($fields)->pluck('name')->all());
 
-        foreach ($config['fields'] as $field) {
+        foreach ($fields as $field) {
             if (($field['type'] ?? 'text') === 'checkbox') {
                 $payload[$field['name']] = filter_var($data[$field['name']] ?? false, FILTER_VALIDATE_BOOLEAN);
             }
@@ -164,6 +197,7 @@ class HrLookup
             'provinces' => Province::query()->with('region')->where('is_active', true)->orderBy('province_name')->get()
                 ->mapWithKeys(fn ($province) => [$province->province_id => $province->province_name.' ('.($province->region?->region_name ?? '—').')'])
                 ->all(),
+            'offense-categories' => LuIcctOffenseCategory::selectOptions(),
             default => [],
         };
     }
