@@ -59,11 +59,7 @@
                 </tr>
             </thead>
             <tbody data-employee-sync-rows>
-                <tr data-employee-sync-empty>
-                    <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">
-                        Loading profiles from ISKOLARIS…
-                    </td>
-                </tr>
+                @include('partials.table-skeleton-rows', ['columns' => 6, 'rows' => 6])
             </tbody>
         </table>
     </div>

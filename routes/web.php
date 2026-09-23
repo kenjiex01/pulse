@@ -61,6 +61,8 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('dashboard/biometric-collector-status', [DashboardController::class, 'biometricCollectorStatus'])
+        ->name('dashboard.biometric-collector-status');
     Route::post('logout', [LoginController::class, 'destroy'])->name('logout');
 
     Route::get('document-preview/engine/status', [DocumentPreviewEngineController::class, 'status'])

@@ -13,9 +13,7 @@
                 </tr>
             </thead>
             <tbody data-employee-sync-view-rows>
-                <tr>
-                    <td colspan="3" class="px-4 py-6 text-center text-sm text-gray-500">Loading changes…</td>
-                </tr>
+                @include('partials.table-skeleton-rows', ['columns' => 3, 'rows' => 5])
             </tbody>
         </table>
     </div>

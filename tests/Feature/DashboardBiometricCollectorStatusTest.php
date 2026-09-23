@@ -81,7 +81,12 @@ class DashboardBiometricCollectorStatusTest extends TestCase
             'campus_id' => $cainta->campus_id,
         ]);
 
-        $response = $this->actingAs($user)->get(route('dashboard'));
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-dashboard-biometric-skeleton', false);
+
+        $response = $this->actingAs($user)->get(route('dashboard.biometric-collector-status'));
 
         $response->assertOk()
             ->assertSee('Biometric Collector — S3 status')

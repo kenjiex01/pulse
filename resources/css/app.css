@@ -195,11 +195,15 @@
     }
 
     .datatable-skolaris-loading {
-        @apply absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/70 backdrop-blur-[1px];
+        @apply absolute inset-0 z-10 overflow-auto rounded-lg bg-white/95 p-1;
     }
 
-    .datatable-skolaris-loading-spinner {
-        @apply h-8 w-8 animate-spin rounded-full border-2 border-[#0B318F]/20 border-t-[#0B318F];
+    .datatable-skolaris-loading .table-skeleton {
+        @apply h-full min-h-[18rem];
+    }
+
+    .datatable-skolaris-results-loading {
+        @apply pointer-events-none opacity-40;
     }
 
     .datatable-skolaris-per-page {

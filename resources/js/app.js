@@ -1,6 +1,7 @@
 import { initSearchableSelects, refreshSearchableSelect } from './searchable-select.js';
 import { initGovernmentIdInputs } from './government-id-format.js';
 import { initTimekeepingMemo, reinitTimekeepingMemoTable } from './timekeeping-memo.js';
+import { pulseTableSkeletonHtml, pulseTableSkeletonRowsHtml } from './table-skeleton.js';
 import './company-documents.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1932,7 +1933,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         panel.dataset.loaded = 'loading';
-        panel.innerHTML = '<div class="py-6 text-center text-sm text-gray-500">Loading…</div>';
+        panel.innerHTML = pulseTableSkeletonHtml();
 
         try {
             const response = await fetch(fetchUrl, {
@@ -3220,12 +3221,13 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const setLoading = (isLoading) => {
-            if (!loading) {
-                return;
+            if (loading) {
+                loading.classList.toggle('hidden', !isLoading);
+                loading.setAttribute('aria-hidden', isLoading ? 'false' : 'true');
             }
 
-            loading.classList.toggle('hidden', !isLoading);
-            loading.setAttribute('aria-hidden', isLoading ? 'false' : 'true');
+            results?.classList.toggle('datatable-skolaris-results-loading', isLoading);
+            results?.setAttribute('aria-busy', isLoading ? 'true' : 'false');
         };
 
         const buildUrl = (pageUrl = null) => {
@@ -4977,7 +4979,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const formTypeId = select.value || '0';
-        container.innerHTML = '<div class="py-6 text-center text-sm text-gray-500">Loading approval routes…</div>';
+        container.innerHTML = pulseTableSkeletonHtml(4, 6);
 
         try {
             const response = await fetch(`${baseUrl}?form_type_id=${encodeURIComponent(formTypeId)}`, {
@@ -5867,8 +5869,9 @@ tr { page-break-inside: avoid; }
             }
 
             loading = true;
-            if (showLoader) {
-                window.PulseLoader?.show('Checking ISKOLARIS employee profiles...');
+
+            if (rowsEl) {
+                rowsEl.innerHTML = pulseTableSkeletonRowsHtml(6, 6);
             }
 
             try {
@@ -5902,9 +5905,6 @@ tr { page-break-inside: avoid; }
                 }
             } finally {
                 loading = false;
-                if (showLoader) {
-                    window.PulseLoader?.hide();
-                }
             }
         };
 
@@ -6001,7 +6001,7 @@ tr { page-break-inside: avoid; }
                 metaEl.textContent = 'Loading...';
             }
             if (bodyEl) {
-                bodyEl.innerHTML = `<tr><td colspan="3" class="px-4 py-6 text-center text-sm text-gray-500">Loading changes…</td></tr>`;
+                bodyEl.innerHTML = pulseTableSkeletonRowsHtml(3, 5);
             }
 
             openModal(viewModal, { stack: true });
@@ -6124,8 +6124,42 @@ tr { page-break-inside: avoid; }
         searchInput?.addEventListener('input', applySearch);
     };
 
+    const initDashboardBiometricStatus = () => {
+        const root = document.querySelector('[data-dashboard-biometric-status]');
+
+        if (!root) {
+            return;
+        }
+
+        const statusUrl = root.dataset.statusUrl ?? '';
+
+        if (statusUrl === '') {
+            return;
+        }
+
+        fetch(statusUrl, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Failed to load biometric collector status.');
+                }
+
+                return response.text();
+            })
+            .then((html) => {
+                root.innerHTML = html;
+            })
+            .catch(() => {
+                root.innerHTML = '<div class="mt-8 rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">Unable to load Biometric Collector status.</div>';
+            });
+    };
+
     initEmployeeSkolarisSync();
     initGovernmentIdInputs();
     initTimekeepingMemo();
     document.querySelectorAll('[data-payslip-send-root]').forEach(initPayslipEmailSend);
+    initDashboardBiometricStatus();
 });

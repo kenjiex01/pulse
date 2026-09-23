@@ -462,9 +462,11 @@
             data-lazy-url="{{ route('employees.history', ['employee' => $employee->employee_id, 'page' => request('page')]) }}"
             @if ($activeTab === 'history') data-lazy-pending="true" @endif
         >
-            <div class="py-6 text-center text-sm text-gray-500">
-                {{ $activeTab === 'history' ? 'Loading change history…' : 'Open this tab to load change history.' }}
-            </div>
+            @if ($activeTab === 'history')
+                @include('partials.table-skeleton', ['columns' => 5, 'rows' => 8])
+            @else
+                <div class="py-6 text-center text-sm text-gray-500">Open this tab to load change history.</div>
+            @endif
         </div>
     @endif
 

@@ -78,5 +78,12 @@
             </div>
         </main>
     </div>
+
+    <template id="pulse-table-skeleton-template">
+        @include('partials.table-skeleton', ['columns' => 6, 'rows' => 8, 'plain' => true])
+    </template>
+    <template id="pulse-table-skeleton-rows-template">
+        @include('partials.table-skeleton-rows', ['columns' => 6, 'rows' => 8])
+    </template>
 </body>
 </html>

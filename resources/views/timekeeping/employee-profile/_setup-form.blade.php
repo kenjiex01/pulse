@@ -41,7 +41,7 @@
             @if ($activeTab === 'approval') data-lazy-pending="true" @endif
         >
             @if ($activeTab === 'approval')
-                <div class="py-6 text-center text-sm text-gray-500">Loading approval settings…</div>
+                @include('partials.table-skeleton', ['columns' => 4, 'rows' => 6])
             @else
                 <div class="py-6 text-center text-sm text-gray-500">Open this tab to load approval settings.</div>
             @endif
@@ -64,7 +64,7 @@
         @if ($activeTab === 'attendance') data-lazy-pending="true" @endif
     >
         @if ($activeTab === 'attendance')
-            <div class="py-6 text-center text-sm text-gray-500">Loading attendance view…</div>
+            @include('partials.table-skeleton', ['columns' => 6, 'rows' => 8])
         @else
             <div class="py-6 text-center text-sm text-gray-500">Open this tab to load attendance view.</div>
         @endif
@@ -83,7 +83,7 @@
         @if ($activeTab === 'calendar') data-lazy-pending="true" @endif
     >
         @if ($activeTab === 'calendar')
-            <div class="py-6 text-center text-sm text-gray-500">Loading calendar view…</div>
+            @include('partials.table-skeleton', ['columns' => 5, 'rows' => 8])
         @else
             <div class="py-6 text-center text-sm text-gray-500">Open this tab to load calendar view.</div>
         @endif
@@ -97,7 +97,7 @@
         @if ($activeTab === 'employee-load') data-lazy-pending="true" @endif
     >
         @if ($activeTab === 'employee-load')
-            <div class="py-6 text-center text-sm text-gray-500">Loading employee load…</div>
+            @include('partials.table-skeleton', ['columns' => 6, 'rows' => 8])
         @else
             <div class="py-6 text-center text-sm text-gray-500">Open this tab to load employee load.</div>
         @endif

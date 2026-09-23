@@ -312,32 +312,36 @@ class BiometricCollectorDashboardService
         $byCampus = [];
 
         RawTimekeepingTransaction::query()
+            ->selectRaw('campus_id, MAX(dt_uploaded) as last_pulled_at')
             ->where('filename', 'like', 'biometric_logs/%')
-            ->orderBy('timekeeping_transaction_id')
-            ->chunkById(500, function ($transactions) use (&$byCampus): void {
-                foreach ($transactions as $transaction) {
-                    $campusId = $transaction->campus_id !== null
-                        ? (int) $transaction->campus_id
-                        : null;
+            ->whereNotNull('campus_id')
+            ->groupBy('campus_id')
+            ->get()
+            ->each(function ($row) use (&$byCampus): void {
+                $byCampus[(int) $row->campus_id] = Carbon::parse($row->last_pulled_at);
+            });
 
-                    if ($campusId === null) {
-                        $folder = basename(dirname((string) $transaction->filename));
-                        $campus = $this->biometricLogsS3PullService->matchCampusFromCollectorFolder($folder);
-                        $campusId = $campus !== null ? (int) $campus->campus_id : null;
-                    }
+        RawTimekeepingTransaction::query()
+            ->where('filename', 'like', 'biometric_logs/%')
+            ->whereNull('campus_id')
+            ->orderByDesc('dt_uploaded')
+            ->get(['filename', 'dt_uploaded'])
+            ->each(function (RawTimekeepingTransaction $transaction) use (&$byCampus): void {
+                $folder = basename(dirname((string) $transaction->filename));
+                $campus = $this->biometricLogsS3PullService->matchCampusFromCollectorFolder($folder);
 
-                    if ($campusId === null) {
-                        continue;
-                    }
-
-                    $uploadedAt = Carbon::parse($transaction->dt_uploaded);
-                    $existing = $byCampus[$campusId] ?? null;
-
-                    if ($existing === null || $uploadedAt->gt($existing)) {
-                        $byCampus[$campusId] = $uploadedAt;
-                    }
+                if ($campus === null) {
+                    return;
                 }
-            }, 'timekeeping_transaction_id');
+
+                $campusId = (int) $campus->campus_id;
+                $uploadedAt = Carbon::parse($transaction->dt_uploaded);
+                $existing = $byCampus[$campusId] ?? null;
+
+                if ($existing === null || $uploadedAt->gt($existing)) {
+                    $byCampus[$campusId] = $uploadedAt;
+                }
+            });
 
         return collect($byCampus)->map(fn (Carbon $value) => $value->toDateTimeString());
     }

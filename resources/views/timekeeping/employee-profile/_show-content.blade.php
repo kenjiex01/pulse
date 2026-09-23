@@ -102,9 +102,11 @@
         ])) }}"
         @if ($activeTab === 'attendance') data-lazy-pending="true" @endif
     >
-        <div class="py-6 text-center text-sm text-gray-500">
-            {{ $activeTab === 'attendance' ? 'Loading attendance view…' : 'Open this tab to load attendance view.' }}
-        </div>
+        @if ($activeTab === 'attendance')
+            @include('partials.table-skeleton', ['columns' => 6, 'rows' => 8])
+        @else
+            <div class="py-6 text-center text-sm text-gray-500">Open this tab to load attendance view.</div>
+        @endif
     </div>
 
     <div
@@ -119,9 +121,11 @@
         ])) }}"
         @if ($activeTab === 'calendar') data-lazy-pending="true" @endif
     >
-        <div class="py-6 text-center text-sm text-gray-500">
-            {{ $activeTab === 'calendar' ? 'Loading calendar view…' : 'Open this tab to load calendar view.' }}
-        </div>
+        @if ($activeTab === 'calendar')
+            @include('partials.table-skeleton', ['columns' => 5, 'rows' => 8])
+        @else
+            <div class="py-6 text-center text-sm text-gray-500">Open this tab to load calendar view.</div>
+        @endif
     </div>
 
     <div
@@ -131,9 +135,11 @@
         data-lazy-url="{{ route(TimekeepingEmployeeProfile::routeName('employee-load'), $employee->employee_id) }}"
         @if ($activeTab === 'employee-load') data-lazy-pending="true" @endif
     >
-        <div class="py-6 text-center text-sm text-gray-500">
-            {{ $activeTab === 'employee-load' ? 'Loading employee load…' : 'Open this tab to load employee load.' }}
-        </div>
+        @if ($activeTab === 'employee-load')
+            @include('partials.table-skeleton', ['columns' => 6, 'rows' => 8])
+        @else
+            <div class="py-6 text-center text-sm text-gray-500">Open this tab to load employee load.</div>
+        @endif
     </div>
 
     @can('employee-profile.update')

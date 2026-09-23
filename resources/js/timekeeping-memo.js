@@ -1,4 +1,5 @@
 import { initCompanyDocumentPreview } from './company-document-designer.js';
+import { pulseTableSkeletonHtml } from './table-skeleton.js';
 
 const openMemoModal = (modal) => {
     if (!modal) {
@@ -174,7 +175,7 @@ const openDetailsModal = async (button, host) => {
         return;
     }
 
-    host.innerHTML = '<div class="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-500">Loading...</div>';
+    host.innerHTML = pulseTableSkeletonHtml(5, 6);
 
     const response = await fetch(url, {
         headers: {
@@ -198,7 +199,7 @@ const openPreviewModal = async (url, host) => {
         return;
     }
 
-    host.innerHTML = '<div class="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-500">Loading preview...</div>';
+    host.innerHTML = pulseTableSkeletonHtml(4, 5);
 
     const response = await fetch(url, {
         headers: {

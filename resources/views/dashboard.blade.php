@@ -67,7 +67,13 @@
         @endif
     </div>
 
-    @include('dashboard._biometric-collector-status')
+    <div
+        id="dashboard-biometric-collector-status"
+        data-dashboard-biometric-status
+        data-status-url="{{ route('dashboard.biometric-collector-status') }}"
+    >
+        @include('dashboard._biometric-collector-status-skeleton')
+    </div>
 
     @if ($user->isAdmin())
         <div>
