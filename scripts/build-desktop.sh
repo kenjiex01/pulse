@@ -322,7 +322,7 @@ prune_old_installers() {
 
     local versions
     versions="$(find "$dist" -maxdepth 1 \( -name 'People360-*' -o -name 'Pulse-*' \) -print \
-        | sed -n 's|.*/\(People360\|Pulse\)-\([0-9][0-9.]*\).*|\2|p' \
+        | sed -n 's/.*People360-\([0-9][0-9.]*\).*/\1/p; s/.*Pulse-\([0-9][0-9.]*\).*/\1/p' \
         | sort -Vu)"
 
     if [[ -z "$versions" ]]; then

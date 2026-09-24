@@ -32,18 +32,37 @@ class People360LanBeacon
         File::ensureDirectoryExists(dirname($log));
 
         if (PHP_OS_FAMILY === 'Windows') {
-            self::allowWindowsFirewall();
-            $script = storage_path('app/people360-lan-serve.cmd');
-            File::put($script, "@echo off\r\n".
-                'cd /d '.escapeshellarg(base_path())."\r\n".
-                escapeshellarg($php).' '.escapeshellarg($artisan).' people360:lan-serve >> '.escapeshellarg($log)." 2>&1\r\n");
-            pclose(popen('cmd.exe /C start "People360 LAN" /MIN '.escapeshellarg($script), 'r'));
+            $this->spawnHiddenWindowsLanServe($php, $artisan, $log);
 
             return;
         }
 
         $command = escapeshellarg($php).' '.escapeshellarg($artisan).' people360:lan-serve >> '.escapeshellarg($log).' 2>&1 &';
         exec($command);
+    }
+
+    private function spawnHiddenWindowsLanServe(string $php, string $artisan, string $log): void
+    {
+        $phpWin = dirname($php).DIRECTORY_SEPARATOR.'php-win.exe';
+        if (is_file($phpWin)) {
+            $php = $phpWin;
+        }
+
+        $inner = 'cd /d '.escapeshellarg(base_path())
+            .' && '.escapeshellarg($php)
+            .' '.escapeshellarg($artisan)
+            .' people360:lan-serve >> '.escapeshellarg($log).' 2>&1';
+
+        $vbs = storage_path('app/people360-lan-serve.vbs');
+        File::put($vbs, "Set WshShell = CreateObject(\"WScript.Shell\")\r\n".
+            'WshShell.Run "'.str_replace('"', '""', 'cmd /c '.$inner).'", 0, False'."\r\n");
+
+        $cmdScript = storage_path('app/people360-lan-serve.cmd');
+        if (is_file($cmdScript)) {
+            File::delete($cmdScript);
+        }
+
+        pclose(popen('wscript.exe //B //Nologo '.escapeshellarg($vbs), 'r'));
     }
 
     public static function allowWindowsFirewall(): void
