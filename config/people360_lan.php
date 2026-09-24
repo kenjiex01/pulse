@@ -16,7 +16,7 @@ return [
 
     'http_port' => (int) env('PEOPLE360_LAN_HTTP_PORT', 47837),
 
-    'discover_timeout_seconds' => (float) env('PEOPLE360_LAN_DISCOVER_TIMEOUT', 1.5),
+    'discover_timeout_seconds' => (float) env('PEOPLE360_LAN_DISCOVER_TIMEOUT', 2.5),
 
     'max_database_bytes' => (int) env('PEOPLE360_LAN_MAX_DATABASE_BYTES', 512 * 1024 * 1024),
 

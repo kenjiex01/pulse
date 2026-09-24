@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\People360LanNetworks;
 use App\Support\People360LanProtocol;
 use App\Support\People360LanUdp;
 use RuntimeException;
@@ -53,6 +54,11 @@ class People360LanClient
             $machineId = (string) ($identity['machine_id'] ?? '');
 
             if ($machineId === '' || $address === null) {
+                continue;
+            }
+
+            $existing = $peers[$machineId]['address'] ?? null;
+            if ($existing !== null && $existing !== '127.0.0.1' && $address === '127.0.0.1') {
                 continue;
             }
 
@@ -163,24 +169,11 @@ class People360LanClient
     {
         $targets = ['127.0.0.1:'.$port, '255.255.255.255:'.$port];
 
-        if (! function_exists('net_get_interfaces')) {
-            return $targets;
-        }
+        foreach (People360LanNetworks::probeTargets(People360LanNetworks::localAddresses()) as $network) {
+            $targets[] = $network['broadcast'].':'.$port;
 
-        foreach (net_get_interfaces() ?: [] as $info) {
-            foreach ($info['unicast'] ?? [] as $unicast) {
-                $ip = (string) ($unicast['address'] ?? '');
-                $mask = (string) ($unicast['netmask'] ?? '');
-
-                if (! filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) || ! filter_var($mask, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-                    continue;
-                }
-
-                $maskLong = ip2long($mask);
-                $broadcast = long2ip((ip2long($ip) & $maskLong) | ((~$maskLong) & 0xFFFFFFFF));
-                if (is_string($broadcast)) {
-                    $targets[] = $broadcast.':'.$port;
-                }
+            foreach ($network['hosts'] as $host) {
+                $targets[] = $host.':'.$port;
             }
         }
 

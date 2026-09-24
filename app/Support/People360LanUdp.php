@@ -60,7 +60,13 @@ class People360LanUdp
         $port = 0;
         $bytes = @socket_recvfrom($this->socket, $buffer, 8192, 0, $host, $port);
 
-        if ($bytes === false || $bytes < 1 || ! is_string($host) || $host === '') {
+        if ($bytes === false) {
+            socket_clear_error($this->socket);
+
+            return null;
+        }
+
+        if ($bytes < 1 || ! is_string($host) || $host === '') {
             return null;
         }
 

@@ -33,6 +33,7 @@
                         <p class="mt-1 text-sm text-gray-600">
                             Lists computers on the same network that have People360 open.
                             Choose one to work in that computer's database. Disconnect saves your changes back to that computer.
+                            On Windows, choose Yes if a firewall prompt appears, then click Refresh.
                         </p>
                     </div>
                     <a href="{{ route('database.index') }}" class="btn-secondary inline-flex shrink-0 items-center justify-center text-sm">Refresh</a>
