@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Database\People360LanConnection;
 use App\Listeners\HandleDesktopUpdaterEvents;
 use App\Models\User;
 use App\Policies\HrLookupPolicy;
@@ -53,6 +54,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        People360LanConnection::register();
+
         $this->registerDesktopUpdater();
 
         // Decrypt API/S3 secrets into memory before any HTTP or console work uses them.

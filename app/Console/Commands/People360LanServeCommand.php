@@ -6,12 +6,17 @@ use App\Services\People360LanBeacon;
 use App\Services\People360LanIdentity;
 use App\Services\People360LanSnapshot;
 use App\Support\People360LanProtocol;
+use App\Support\People360LanSql;
 use App\Support\People360LanUdp;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
+use PDO;
+use Throwable;
 
 class People360LanServeCommand extends Command
 {
+    private ?PDO $remotePdo = null;
+
     protected $signature = 'people360:lan-serve';
 
     protected $description = 'Announce this People360 desktop on the local network and serve its database to a chosen admin computer';
@@ -129,6 +134,15 @@ class People360LanServeCommand extends Command
             return;
         }
 
+        if ($method === 'POST' && $path === '/v1/release') {
+            if ($this->remotePdo?->inTransaction()) {
+                $this->remotePdo->rollBack();
+            }
+            $this->respond($client, 200, 'ok');
+
+            return;
+        }
+
         if (! $identity->isSqlite()) {
             $this->respond($client, 409, 'This People360 computer is not using a desktop database file.');
 
@@ -146,6 +160,24 @@ class People360LanServeCommand extends Command
                 if (is_file($temporary)) {
                     File::delete($temporary);
                 }
+            }
+
+            return;
+        }
+
+        if ($method === 'POST' && $path === '/v1/sql') {
+            try {
+                $payload = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+                $sql = (string) ($payload['sql'] ?? '');
+                if ($sql === '' || preg_match('/^\s*(attach|detach|load_extension)\b/i', $sql) === 1) {
+                    $this->respond($client, 400, 'That statement is not allowed.');
+
+                    return;
+                }
+                $result = $this->runSql($identity, $sql, People360LanSql::decode(is_array($payload['bindings'] ?? null) ? $payload['bindings'] : []));
+                $this->respond($client, 200, json_encode($result, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE), 'application/json');
+            } catch (Throwable $exception) {
+                $this->respond($client, 500, $exception->getMessage());
             }
 
             return;
@@ -170,6 +202,46 @@ class People360LanServeCommand extends Command
         }
 
         $this->respond($client, 404, 'Not found');
+    }
+
+    /**
+     * @param  array<int|string, mixed>  $bindings
+     * @return array{rows: list<array<string, mixed>>, row_count: int, last_insert_id: string, in_transaction: bool}
+     */
+    private function runSql(People360LanIdentity $identity, string $sql, array $bindings): array
+    {
+        $pdo = $this->remotePdo($identity);
+        $statement = $pdo->prepare($sql);
+        $statement->execute($bindings);
+        try {
+            $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable) {
+            $rows = [];
+        }
+
+        return [
+            'rows' => is_array($rows) ? $rows : [],
+            'row_count' => $statement->rowCount(),
+            'last_insert_id' => (string) $pdo->lastInsertId(),
+            'in_transaction' => $pdo->inTransaction(),
+        ];
+    }
+
+    private function remotePdo(People360LanIdentity $identity): PDO
+    {
+        if ($this->remotePdo instanceof PDO) {
+            return $this->remotePdo;
+        }
+
+        $pdo = new PDO('sqlite:'.$identity->databasePath(), null, null, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]);
+        $pdo->exec('PRAGMA busy_timeout = 5000');
+        $pdo->exec('PRAGMA foreign_keys = ON');
+        $this->remotePdo = $pdo;
+
+        return $pdo;
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Support\People360LanNetworks;
 use App\Support\People360LanProtocol;
+use App\Support\People360LanSql;
 use App\Support\People360LanUdp;
 use RuntimeException;
 
@@ -84,6 +85,47 @@ class People360LanClient
         return $list;
     }
 
+    public function ping(string $address, int $port): void
+    {
+        $this->runSql($address, $port, 'SELECT 1', []);
+    }
+
+    public function release(string $address, int $port): void
+    {
+        try {
+            $this->request('POST', $address, $port, '/v1/release');
+        } catch (RuntimeException) {
+            // Disconnect still returns this computer to its own database.
+        }
+    }
+
+    /**
+     * @param  array<int|string, mixed>  $bindings
+     * @return array{rows: list<array<string, mixed>>, row_count: int, last_insert_id: string, in_transaction: bool}
+     */
+    public function runSql(string $address, int $port, string $sql, array $bindings): array
+    {
+        $this->assertPeer($address, $port);
+        $payload = json_encode([
+            'sql' => $sql,
+            'bindings' => People360LanSql::encode($bindings),
+        ], JSON_THROW_ON_ERROR);
+
+        $body = $this->request('POST', $address, $port, '/v1/sql', $payload, 'application/json');
+        $decoded = json_decode($body, true);
+
+        if (! is_array($decoded) || ! isset($decoded['rows']) || ! is_array($decoded['rows'])) {
+            throw new RuntimeException('That People360 computer sent an invalid database response.');
+        }
+
+        return [
+            'rows' => array_values(array_filter($decoded['rows'], 'is_array')),
+            'row_count' => (int) ($decoded['row_count'] ?? 0),
+            'last_insert_id' => (string) ($decoded['last_insert_id'] ?? '0'),
+            'in_transaction' => (bool) ($decoded['in_transaction'] ?? false),
+        ];
+    }
+
     public function downloadDatabase(string $address, int $port): string
     {
         $this->assertPeer($address, $port);
@@ -112,7 +154,7 @@ class People360LanClient
         $this->request('PUT', $address, $port, '/v1/database', (string) file_get_contents($path));
     }
 
-    private function request(string $method, string $address, int $port, string $path, string $body = ''): string
+    private function request(string $method, string $address, int $port, string $path, string $body = '', string $contentType = 'application/octet-stream'): string
     {
         $socket = @stream_socket_client('tcp://'.$address.':'.$port, $errno, $error, 5);
 
@@ -128,7 +170,7 @@ class People360LanClient
             "Connection: close\r\n";
 
         if ($body !== '') {
-            $header .= "Content-Type: application/octet-stream\r\n".
+            $header .= 'Content-Type: '.$contentType."\r\n".
                 'Content-Length: '.strlen($body)."\r\n";
         }
 

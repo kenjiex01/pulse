@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Database\People360LanConnection;
 use App\Services\DatabaseBackupService;
 use App\Services\DesktopCloudBackupService;
 use App\Services\People360LanBeacon;
@@ -68,14 +69,7 @@ class DatabaseController extends Controller
         }
 
         try {
-            $downloaded = $client->downloadDatabase($validated['address'], (int) $validated['http_port']);
-            $directory = storage_path('app/lan-databases');
-            File::ensureDirectoryExists($directory);
-            $path = $directory.DIRECTORY_SEPARATOR.$validated['machine_id'].'.sqlite';
-            if (is_file($path)) {
-                File::delete($path);
-            }
-            File::move($downloaded, $path);
+            $client->ping($validated['address'], (int) $validated['http_port']);
         } catch (RuntimeException $exception) {
             return redirect()
                 ->route('database.index')
@@ -89,7 +83,6 @@ class DatabaseController extends Controller
                 'address' => $validated['address'],
                 'http_port' => (int) $validated['http_port'],
                 'version' => $validated['version'] ?? '',
-                'path' => $path,
             ],
         ]);
 
@@ -112,33 +105,19 @@ class DatabaseController extends Controller
             return redirect()->route('database.index');
         }
 
-        try {
-            $client->uploadDatabase(
-                (string) $remote['address'],
-                (int) $remote['http_port'],
-                (string) $remote['path'],
-            );
-        } catch (RuntimeException $exception) {
-            return redirect()
-                ->route('database.index')
-                ->with('error', 'Still connected. Could not save the database back to that computer: '.$exception->getMessage());
-        }
-
-        if (is_file((string) $remote['path'])) {
-            File::delete((string) $remote['path']);
-        }
-
+        $client->release((string) $remote['address'], (int) $remote['http_port']);
         session()->forget('people360_lan_database');
+        People360LanConnection::useLocal();
 
         SysLogService::record(
             action: 'update',
             table: 'database_backup',
-            description: 'Disconnected from People360 database on '.($remote['hostname'] ?? 'another computer').' and saved it back',
+            description: 'Disconnected from People360 database on '.($remote['hostname'] ?? 'another computer'),
         );
 
         return redirect()
             ->route('database.index')
-            ->with('success', 'Saved the database back to '.($remote['hostname'] ?? 'that computer').' and returned to this computer.');
+            ->with('success', 'Disconnected from '.($remote['hostname'] ?? 'that computer').'. This computer is using its own database again.');
     }
 
     public function resetCloudBackupMarker(DesktopCloudBackupService $backupService): RedirectResponse

@@ -32,7 +32,8 @@
                         <h2 class="text-lg font-semibold text-[#0B318F]">People360 on this network</h2>
                         <p class="mt-1 text-sm text-gray-600">
                             Lists computers on the same network that have People360 open.
-                            Choose one to work in that computer's database. Disconnect saves your changes back to that computer.
+                            Connect switches this window to that computer's database. Changes are stored there as you work.
+                            Disconnect returns this window to its own database.
                             On Windows, choose Yes if a firewall prompt appears, then click Refresh.
                         </p>
                     </div>
@@ -42,10 +43,10 @@
                 @if ($lanConnection)
                     <div class="rounded-xl border border-[#0B318F]/20 bg-[#0B318F]/5 px-4 py-3 text-sm text-[#0B318F]">
                         <p class="font-medium">Connected to {{ $lanConnection['hostname'] }} ({{ $lanConnection['address'] }})</p>
-                        <p class="mt-1 text-[#0B318F]/80">This People360 window is using that computer's database.</p>
+                        <p class="mt-1 text-[#0B318F]/80">This window is using that computer's database. Changes are stored on that computer.</p>
                         <form method="POST" action="{{ route('database.lan.disconnect') }}" class="mt-3">
                             @csrf
-                            <button type="submit" class="btn-primary text-sm">Disconnect and save back</button>
+                            <button type="submit" class="btn-primary text-sm">Disconnect</button>
                         </form>
                     </div>
                 @endif

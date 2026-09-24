@@ -7,7 +7,6 @@ use App\Services\People360LanClient;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
-use PDO;
 use Tests\TestCase;
 
 class People360LanDatabaseTest extends TestCase
@@ -45,14 +44,8 @@ class People360LanDatabaseTest extends TestCase
 
     public function test_admin_can_connect_to_a_private_network_desktop_database(): void
     {
-        $source = storage_path('framework/testing/lan-download.sqlite');
-        @unlink($source);
-        $pdo = new PDO('sqlite:'.$source);
-        $pdo->exec('create table sample (id integer)');
-        $pdo = null;
-
         $client = Mockery::mock(People360LanClient::class);
-        $client->shouldReceive('downloadDatabase')->once()->andReturn($source);
+        $client->shouldReceive('ping')->once()->with('192.168.1.20', 47837);
         $this->app->instance(People360LanClient::class, $client);
 
         $response = $this->actingAs(User::query()->firstOrFail())->post(route('database.lan.connect'), [
@@ -65,13 +58,36 @@ class People360LanDatabaseTest extends TestCase
 
         $response->assertRedirect(route('database.index'));
         $response->assertSessionHas('people360_lan_database.hostname', 'PAYROLL-PC');
-        $this->assertFileExists(storage_path('app/lan-databases/'.str_repeat('c', 32).'.sqlite'));
+        $response->assertSessionHas('people360_lan_database.address', '192.168.1.20');
+        $this->assertNull(session('people360_lan_database.path'));
+    }
+
+    public function test_disconnect_returns_to_this_computer_without_copying_the_database(): void
+    {
+        $client = Mockery::mock(People360LanClient::class);
+        $client->shouldReceive('release')->once()->with('192.168.1.20', 47837);
+        $this->app->instance(People360LanClient::class, $client);
+
+        $response = $this->actingAs(User::query()->firstOrFail())
+            ->withSession([
+                'people360_lan_database' => [
+                    'machine_id' => str_repeat('e', 32),
+                    'hostname' => 'PAYROLL-PC',
+                    'address' => '192.168.1.20',
+                    'http_port' => 47837,
+                    'version' => '1.0.12',
+                ],
+            ])
+            ->post(route('database.lan.disconnect'));
+
+        $response->assertRedirect(route('database.index'));
+        $response->assertSessionMissing('people360_lan_database');
     }
 
     public function test_connect_rejects_a_public_address(): void
     {
         $client = Mockery::mock(People360LanClient::class);
-        $client->shouldReceive('downloadDatabase')->never();
+        $client->shouldReceive('ping')->never();
         $this->app->instance(People360LanClient::class, $client);
 
         $response = $this->actingAs(User::query()->firstOrFail())->post(route('database.lan.connect'), [
