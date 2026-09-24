@@ -72,6 +72,8 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('role:admin')->group(function () {
         Route::get('database', [DatabaseController::class, 'index'])->name('database.index');
+        Route::post('database/lan/connect', [DatabaseController::class, 'connectLan'])->name('database.lan.connect');
+        Route::post('database/lan/disconnect', [DatabaseController::class, 'disconnectLan'])->name('database.lan.disconnect');
         Route::post('database/cloud-backup/reset-marker', [DatabaseController::class, 'resetCloudBackupMarker'])
             ->name('database.cloud-backup.reset-marker');
         Route::post('database/upload-sql', [DatabaseController::class, 'uploadSql'])

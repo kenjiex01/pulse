@@ -18,6 +18,7 @@ class PayrollHoursWorkedPayrollService
 {
     public function __construct(
         private readonly PayrollAttendanceHoursWorkedService $attendanceHoursWorked,
+        private readonly HolidayPayService $holidayPay,
     ) {}
 
     /**
@@ -72,11 +73,32 @@ class PayrollHoursWorkedPayrollService
     {
         $rows = $this->mergedRowsForDetail($detail, $salary);
 
-        if ($rows->isEmpty()) {
+        $totals = $rows->isEmpty()
+            ? ['by_income_type' => [], 'has_overtime' => false]
+            : $this->computeIncomeTotals($salary, $rows);
+
+        $absentHoliday = $this->holidayPay->absentHolidayIncomeForDetail($detail, $salary);
+
+        if ($absentHoliday !== null) {
+            $incomeTypeId = (int) $absentHoliday['income_type_id'];
+
+            if (! isset($totals['by_income_type'][$incomeTypeId])) {
+                $totals['by_income_type'][$incomeTypeId] = [
+                    'taxable' => 0.0,
+                    'non_taxable' => 0.0,
+                    'hours' => 0.0,
+                ];
+            }
+
+            $totals['by_income_type'][$incomeTypeId]['taxable'] += (float) $absentHoliday['taxable'];
+            $totals['by_income_type'][$incomeTypeId]['non_taxable'] += (float) $absentHoliday['non_taxable'];
+        }
+
+        if ($totals['by_income_type'] === []) {
             return null;
         }
 
-        return $this->computeIncomeTotals($salary, $rows);
+        return $totals;
     }
 
     /**

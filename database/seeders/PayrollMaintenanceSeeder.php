@@ -26,6 +26,7 @@ class PayrollMaintenanceSeeder extends Seeder
             ['income_class_id' => 1, 'income_type_code' => 'BASC', 'description' => 'Basic Income', 'is_non_taxable' => false, 'is_in_compensation_limit' => false, 'breakdown_in_ytd_report' => false, 'is_default_basic' => true, 'is_active' => true],
             ['income_class_id' => 4, 'income_type_code' => '13TH', 'description' => '13th Month Pay', 'is_non_taxable' => true, 'is_in_compensation_limit' => true, 'breakdown_in_ytd_report' => false, 'is_default_basic' => false, 'is_active' => true],
             ['income_class_id' => 3, 'income_type_code' => 'OVRT', 'description' => 'Overtime Pay', 'is_non_taxable' => false, 'is_in_compensation_limit' => false, 'breakdown_in_ytd_report' => false, 'is_default_basic' => false, 'is_active' => true],
+            ['income_class_id' => 3, 'income_type_code' => 'HOLI', 'description' => 'Holiday Pay', 'is_non_taxable' => false, 'is_in_compensation_limit' => false, 'breakdown_in_ytd_report' => false, 'is_default_basic' => false, 'is_active' => true],
             ['income_class_id' => 2, 'income_type_code' => 'DEMN', 'description' => 'Deminimis Benefit', 'is_non_taxable' => true, 'is_in_compensation_limit' => true, 'breakdown_in_ytd_report' => false, 'is_default_basic' => false, 'is_active' => true],
             ['income_class_id' => 4, 'income_type_code' => 'OTHR', 'description' => 'Other Income', 'is_non_taxable' => true, 'is_in_compensation_limit' => false, 'breakdown_in_ytd_report' => false, 'is_default_basic' => false, 'is_active' => true],
         ];

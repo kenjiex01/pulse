@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo('/login');
         $middleware->redirectUsersTo('/dashboard');
         $middleware->web(append: [
+            \App\Http\Middleware\UseConnectedPeople360Database::class,
             \App\Http\Middleware\PrepareAuthenticatedUser::class,
             \App\Http\Middleware\EnsureDesktopCloudBackup::class,
             \App\Http\Middleware\EnsureDesktopInstallerUpdate::class,

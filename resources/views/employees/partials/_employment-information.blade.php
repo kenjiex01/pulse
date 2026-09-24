@@ -3,10 +3,14 @@
         'is_hybrid',
         request()->has('is_hybrid') ? request()->boolean('is_hybrid') : ($employee->is_hybrid ?? false),
     );
+    $employmentModels = $employee->employmentInformations->sortBy('sort_order')->values();
+    $lastLogDate = $employee->employee_id
+        ? \App\Services\EmployeeEmploymentSync::lastLogDate($employee->employee_id)
+        : null;
     $employmentRecords = old('employment_informations');
 
     if ($employmentRecords === null) {
-        $employmentRecords = $employee->employmentInformations
+        $employmentRecords = $employmentModels
             ->map(fn ($info) => [
                 'user_type' => $info->user_type,
                 'position' => $info->position,
@@ -14,6 +18,9 @@
                 'rank' => $info->rank,
                 'employment_type' => $info->employment_type,
                 'hire_date' => optional($info->hire_date)->format('Y-m-d'),
+                'date_effective_from' => optional($info->date_effective_from)->format('Y-m-d'),
+                'last_payroll_date' => optional($info->last_payroll_date)->format('Y-m-d'),
+                'separation_date' => optional($info->separation_date)->format('Y-m-d'),
             ])
             ->values()
             ->all();
@@ -27,12 +34,16 @@
             'rank' => '',
             'employment_type' => '',
             'hire_date' => '',
+            'date_effective_from' => now()->format('Y-m-d'),
+            'last_payroll_date' => '',
+            'separation_date' => '',
         ]];
     }
 @endphp
 
 <section class="employee-tab-section" data-employment-information-root data-is-hybrid="{{ $isHybridChecked ? '1' : '0' }}">
-    <h2 class="mb-4 text-lg font-semibold text-gray-900">Employment Information</h2>
+    <h2 class="mb-2 text-lg font-semibold text-gray-900">Employment Information</h2>
+    <p class="mb-4 text-sm text-gray-600">Changing employment settings archives the current row under Previous Employment. A new Effectivity From closes the prior period the day before that date.</p>
 
     <div class="mb-4">
         <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 px-3 py-3">
@@ -80,6 +91,8 @@
                     'formOptions' => $formOptions,
                     'isHybrid' => true,
                     'fixedCategory' => 'faculty',
+                    'previousEmployments' => $employmentModels->get(0)?->previousEmployments ?? collect(),
+                    'lastLogDate' => $lastLogDate,
                 ])
                 @include('employees.partials._employment-information-row', [
                     'index' => 1,
@@ -87,6 +100,8 @@
                     'formOptions' => $formOptions,
                     'isHybrid' => true,
                     'fixedCategory' => 'staff',
+                    'previousEmployments' => $employmentModels->get(1)?->previousEmployments ?? collect(),
+                    'lastLogDate' => $lastLogDate,
                 ])
             </div>
         @else
@@ -96,6 +111,8 @@
                     'record' => $employmentRecords[0] ?? [],
                     'formOptions' => $formOptions,
                     'isHybrid' => false,
+                    'previousEmployments' => $employmentModels->first()?->previousEmployments ?? collect(),
+                    'lastLogDate' => $lastLogDate,
                 ])
             </div>
         @endif

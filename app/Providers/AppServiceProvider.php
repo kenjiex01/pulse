@@ -6,6 +6,7 @@ use App\Listeners\HandleDesktopUpdaterEvents;
 use App\Models\User;
 use App\Policies\HrLookupPolicy;
 use App\Services\DatabaseBackupService;
+use App\Services\People360LanBeacon;
 use App\Services\DesktopBootstrapService;
 use App\Services\DesktopCloudBackupService;
 use App\Services\DesktopUpdaterService;
@@ -174,6 +175,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->ensureDesktopDatabase();
         app(ReferenceDataBootstrapService::class)->ensureCriticalLookups();
+        app(People360LanBeacon::class)->ensureRunning();
     }
 
     /**
@@ -215,6 +217,16 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(Error::class, [$listener, 'handleError']);
     }
 
+    private function pinSessionDatabase(): void
+    {
+        $default = (string) config('database.default');
+
+        config([
+            'database.connections.people360_session' => config('database.connections.'.$default),
+            'session.connection' => 'people360_session',
+        ]);
+    }
+
     private function isNativeDesktop(): bool
     {
         return (bool) config('nativephp-internal.running', env('NATIVEPHP_RUNNING', false));
@@ -222,6 +234,15 @@ class AppServiceProvider extends ServiceProvider
 
     private function ensureDesktopDatabase(): void
     {
+        if ($this->isNativeDesktop()) {
+            config([
+                'database.default' => 'sqlite',
+                'database.connections.sqlite.database' => storage_path('app/pulse.sqlite'),
+            ]);
+        }
+
+        $this->pinSessionDatabase();
+
         if (! $this->isNativeDesktop() || self::$desktopDatabaseEnsured) {
             return;
         }
@@ -245,6 +266,7 @@ class AppServiceProvider extends ServiceProvider
             'database.default' => 'sqlite',
             'database.connections.sqlite.database' => $databasePath,
         ]);
+        $this->pinSessionDatabase();
         DB::purge('sqlite');
         DB::reconnect('sqlite');
 

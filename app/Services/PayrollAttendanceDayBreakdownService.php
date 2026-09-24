@@ -6,6 +6,7 @@ use App\Models\PayrollAttendanceDay;
 use App\Models\PayrollBatchDetail;
 use App\Models\ShiftCode;
 use App\Models\TimekeepingPolicy;
+use App\Support\EmployeePayrollPeriod;
 use Carbon\CarbonInterface;
 
 /**
@@ -46,7 +47,13 @@ class PayrollAttendanceDayBreakdownService
         $from = $calendar?->dt_from;
         $to = $calendar?->dt_to;
 
-        if ($from === null || $to === null) {
+        if ($from === null || $to === null || $detail->employee === null) {
+            return ['LTDE' => [], 'UTDE' => [], 'OVRT' => []];
+        }
+
+        $to = EmployeePayrollPeriod::effectiveEnd($detail->employee, $from, $to);
+
+        if ($to === null) {
             return ['LTDE' => [], 'UTDE' => [], 'OVRT' => []];
         }
 

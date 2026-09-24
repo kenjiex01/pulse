@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Employee;
 use App\Models\PayrollAttendanceDay;
 use App\Models\PayrollBatchDetail;
+use App\Support\EmployeePayrollPeriod;
 use Carbon\CarbonImmutable;
 
 /**
@@ -28,6 +29,12 @@ class PayrollAttendanceDayPersistenceService
         $this->clearForDetail($detail);
 
         if ($employee === null || $from === null || $to === null) {
+            return;
+        }
+
+        $to = EmployeePayrollPeriod::effectiveEnd($employee, $from, $to);
+
+        if ($to === null) {
             return;
         }
 

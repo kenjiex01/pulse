@@ -170,4 +170,60 @@ class EmployeeSalaryHistorySyncTest extends TestCase
             EmployeeSalary::query()->where('employment_info_id', $faculty->employment_info_id)->count(),
         );
     }
+
+    #[Test]
+    public function it_closes_previous_salary_the_day_before_an_earlier_effectivity_date(): void
+    {
+        $employee = Employee::query()->create([
+            'employee_number' => 'EFF-003',
+            'first_name' => 'Earlier',
+            'middle_name' => 'Date',
+            'last_name' => 'History',
+            'email' => 'earlier.date.history@example.com',
+            'phone' => '09170000003',
+            'campus_id' => Campus::query()->value('campus_id'),
+            'employment_status' => Employee::STATUS_ACTIVE,
+            'is_active' => true,
+            'is_hybrid' => false,
+        ]);
+
+        $employment = EmployeeEmploymentInformation::query()->create([
+            'employee_id' => $employee->employee_id,
+            'user_type' => EmployeeEmploymentInformation::TYPE_STAFF,
+            'sort_order' => 0,
+        ]);
+
+        $salaryPayload = fn (string $from, float $basic) => [
+            'employment_index' => 0,
+            'date_effective_from' => $from,
+            'basic_computation_id' => BasicComputation::LEAVES,
+            'pay_type_id' => PayType::SEMI_MONTHLY,
+            'rate_group_id' => RateGroup::query()->value('rate_group_id'),
+            'days_per_period' => 10,
+            'hours_per_day' => 8,
+            'incomes' => [[
+                'income_type_id' => 1,
+                'taxable' => $basic,
+                'non_taxable' => 0,
+            ]],
+        ];
+
+        EmployeeSalarySync::sync($employee, [$salaryPayload('2024-10-28', 15600)], false);
+        EmployeeSalarySync::sync($employee, [$salaryPayload('2024-10-01', 15600)], false);
+
+        $previousSalary = EmployeeSalary::query()
+            ->where('employment_info_id', $employment->employment_info_id)
+            ->whereDate('date_effective_from', '2024-10-28')
+            ->whereDate('date_effective_to', '2024-09-30')
+            ->first();
+
+        $currentSalary = EmployeeSalary::query()
+            ->where('employment_info_id', $employment->employment_info_id)
+            ->whereDate('date_effective_from', '2024-10-01')
+            ->whereNull('date_effective_to')
+            ->first();
+
+        $this->assertNotNull($previousSalary);
+        $this->assertNotNull($currentSalary);
+    }
 }

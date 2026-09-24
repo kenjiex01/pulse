@@ -207,6 +207,7 @@ class Employee extends Model
     public function employmentInformations(): HasMany
     {
         return $this->hasMany(EmployeeEmploymentInformation::class, 'employee_id', 'employee_id')
+            ->whereNull('lineage_employment_info_id')
             ->orderBy('sort_order')
             ->orderBy('employment_info_id');
     }
@@ -498,6 +499,10 @@ class Employee extends Model
                         'rank' => $info->rank,
                         'employment_type' => $info->employment_type,
                         'hire_date' => $info->hire_date?->format('Y-m-d'),
+                        'date_effective_from' => $info->date_effective_from?->format('Y-m-d'),
+                        'date_effective_to' => $info->date_effective_to?->format('Y-m-d'),
+                        'last_payroll_date' => $info->last_payroll_date?->format('Y-m-d'),
+                        'separation_date' => $info->separation_date?->format('Y-m-d'),
                         'sort_order' => $info->sort_order,
                     ])
                     ->values()
@@ -535,6 +540,7 @@ class Employee extends Model
                             'hours_per_day' => $salary->hours_per_day,
                             'use_basic_income_as_hourly_rate' => $salary->use_basic_income_as_hourly_rate,
                             'is_above_minimum_wage_earner' => $salary->is_above_minimum_wage_earner,
+                            'is_fixed_rate' => $salary->is_fixed_rate,
                             'incomes' => $salary->incomes
                                 ->map(fn (EmployeeSalaryIncome $income) => [
                                     'code' => $income->incomeType?->income_type_code,

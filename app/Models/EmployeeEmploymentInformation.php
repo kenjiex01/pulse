@@ -30,6 +30,11 @@ class EmployeeEmploymentInformation extends Model
         'rank',
         'employment_type',
         'hire_date',
+        'date_effective_from',
+        'date_effective_to',
+        'last_payroll_date',
+        'separation_date',
+        'lineage_employment_info_id',
         'sort_order',
     ];
 
@@ -37,6 +42,10 @@ class EmployeeEmploymentInformation extends Model
     {
         return [
             'hire_date' => 'date',
+            'date_effective_from' => 'date',
+            'date_effective_to' => 'date',
+            'last_payroll_date' => 'date',
+            'separation_date' => 'date',
             'sort_order' => 'integer',
         ];
     }
@@ -46,6 +55,12 @@ class EmployeeEmploymentInformation extends Model
         static::deleting(function (EmployeeEmploymentInformation $info) {
             if ($info->isForceDeleting()) {
                 return;
+            }
+
+            if ($info->lineage_employment_info_id === null) {
+                $info->previousEmployments()->each(
+                    fn (EmployeeEmploymentInformation $previous) => $previous->delete()
+                );
             }
 
             $info->salaries()->each(fn (EmployeeSalary $salary) => $salary->delete());
@@ -78,6 +93,14 @@ class EmployeeEmploymentInformation extends Model
             ->whereNotNull('date_effective_to')
             ->orderByDesc('date_effective_from')
             ->orderByDesc('employee_salary_id');
+    }
+
+    public function previousEmployments(): HasMany
+    {
+        return $this->hasMany(self::class, 'lineage_employment_info_id', 'employment_info_id')
+            ->whereNotNull('date_effective_to')
+            ->orderByDesc('date_effective_from')
+            ->orderByDesc('employment_info_id');
     }
 
     public function getUserTypeLabelAttribute(): string

@@ -831,7 +831,7 @@ class EmployeeUploadRowMapper
             'date_effective_from', 'date_effective_to', 'date_effective',
             'pay_type', 'basic_computation', 'rate_group', 'nd_rate_group',
             'days_per_period', 'hours_per_day', 'use_basic_income_as_hourly_rate',
-            'is_above_minimum_wage_earner', 'basic_taxable', 'basic_non_taxable',
+            'is_above_minimum_wage_earner', 'is_fixed_rate', 'basic_taxable', 'basic_non_taxable',
             'incomes', 'deductions',
         ] as $suffix) {
             if (filled($row[$prefix.$suffix] ?? '')) {
@@ -1051,6 +1051,7 @@ class EmployeeUploadRowMapper
                 : 8.0,
             'use_basic_income_as_hourly_rate' => $this->parseBoolean($row[$prefix.'use_basic_income_as_hourly_rate'] ?? '', false),
             'is_above_minimum_wage_earner' => $this->parseBoolean($row[$prefix.'is_above_minimum_wage_earner'] ?? '', false),
+            'is_fixed_rate' => $this->parseBoolean($row[$prefix.'is_fixed_rate'] ?? '', false),
             'incomes' => $this->parseIncomes($row, $prefix),
             'deductions' => $this->parseDeductions($row, $prefix),
         ];

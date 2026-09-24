@@ -119,6 +119,7 @@ class EmployeeBankAccountTest extends TestCase
             'employment_informations' => [[
                 'user_type' => 'staff',
                 'position' => 'Clerk',
+                'date_effective_from' => '2026-01-01',
             ]],
             'employee_salaries' => [[
                 'date_effective_from' => '2026-01-01',

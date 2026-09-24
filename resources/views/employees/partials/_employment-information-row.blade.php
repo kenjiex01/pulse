@@ -8,17 +8,58 @@
     $panelTitle = $fixedCategory
         ? ($categoryLabels[$fixedCategory] ?? ucfirst($fixedCategory)).' Employment'
         : 'Employment Information';
+    $previousEmployments = $previousEmployments ?? collect();
+    $lastLogDate = $lastLogDate ?? null;
+    $effectiveFrom = old(
+        "employment_informations.$index.date_effective_from",
+        $record['date_effective_from'] ?? now()->format('Y-m-d'),
+    );
+    $lastPayrollDate = old(
+        "employment_informations.$index.last_payroll_date",
+        $record['last_payroll_date'] ?? '',
+    );
+    $separationDate = \App\Services\EmployeeEmploymentSync::separationDate(
+        filled($lastPayrollDate) ? $lastPayrollDate : null,
+        $lastLogDate,
+    );
 @endphp
 
 <div
     class="rounded-lg border border-gray-200 bg-gray-50/70 p-4"
     data-employment-info-panel
     data-employment-index="{{ $index }}"
+    data-employment-panel
+    @if ($lastLogDate) data-last-log-date="{{ $lastLogDate }}" @endif
     @if ($fixedCategory) data-fixed-category="{{ $fixedCategory }}" @endif
 >
     <h3 class="mb-4 text-sm font-semibold text-gray-900">{{ $panelTitle }}</h3>
 
+    <div class="employee-salary-tab-bar" data-employment-scope-tabs>
+        <button type="button" class="employee-salary-subtab-btn employee-salary-subtab-btn-active" data-employment-scope-tab="current">Current Employment</button>
+        <button type="button" class="employee-salary-subtab-btn" data-employment-scope-tab="previous">Previous Employment</button>
+    </div>
+
+    <div data-employment-scope-panel="current">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+            <label class="form-label">Effectivity From <span class="text-red-500">*</span></label>
+            <input
+                type="date"
+                name="employment_informations[{{ $index }}][date_effective_from]"
+                value="{{ $effectiveFrom }}"
+                class="form-input"
+                required
+            >
+            @error("employment_informations.$index.date_effective_from")<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+        </div>
+        <div>
+            <label class="form-label">Effectivity To</label>
+            <input type="text" value="Present" readonly class="form-input bg-gray-50" tabindex="-1">
+            <p class="mt-1 text-xs text-gray-500">Auto-closed when employment settings change, or the day before a new effectivity date.</p>
+        </div>
+    </div>
+
+    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
             <label class="form-label">Category (User Type) <span class="text-red-500">*</span></label>
             @if ($fixedCategory)
@@ -105,9 +146,41 @@
             <input
                 type="date"
                 name="employment_informations[{{ $index }}][hire_date]"
-                value="{{ old("employment_informations.$index.hire_date", isset($record['hire_date']) ? (\Illuminate\Support\Carbon::parse($record['hire_date'])->format('Y-m-d')) : '') }}"
+                value="{{ old("employment_informations.$index.hire_date", isset($record['hire_date']) && $record['hire_date'] !== '' ? (\Illuminate\Support\Carbon::parse($record['hire_date'])->format('Y-m-d')) : '') }}"
                 class="form-input"
             >
         </div>
+
+        <div>
+            <label class="form-label">Last Payroll Date</label>
+            <input
+                type="date"
+                name="employment_informations[{{ $index }}][last_payroll_date]"
+                value="{{ $lastPayrollDate }}"
+                class="form-input"
+                data-employment-last-payroll
+            >
+            @error("employment_informations.$index.last_payroll_date")<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+        </div>
+
+        <div>
+            <label class="form-label">Separation Date</label>
+            <input
+                type="date"
+                value="{{ $separationDate }}"
+                class="form-input bg-gray-50"
+                data-employment-separation
+                readonly
+                tabindex="-1"
+            >
+            <p class="mt-1 text-xs text-gray-500">Filled from the last time log when Last Payroll Date is set, and never later than that date.</p>
+        </div>
+    </div>
+    </div>
+
+    <div class="hidden" data-employment-scope-panel="previous">
+        @include('employees.partials._employment-information-previous', [
+            'previousEmployments' => $previousEmployments,
+        ])
     </div>
 </div>

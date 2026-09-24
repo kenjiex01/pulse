@@ -1742,6 +1742,112 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const syncEmploymentSeparationDate = (panel) => {
+        const payrollInput = panel.querySelector('[data-employment-last-payroll]');
+        const separationInput = panel.querySelector('[data-employment-separation]');
+
+        if (!payrollInput || !separationInput) {
+            return;
+        }
+
+        const payrollDate = payrollInput.value;
+        const lastLogDate = panel.dataset.lastLogDate || '';
+
+        if (!payrollDate || !lastLogDate) {
+            separationInput.value = '';
+
+            return;
+        }
+
+        separationInput.value = lastLogDate < payrollDate ? lastLogDate : payrollDate;
+    };
+
+    const initEmploymentInformationPanel = (panel) => {
+        syncEmploymentSeparationDate(panel);
+
+        const payrollInput = panel.querySelector('[data-employment-last-payroll]');
+
+        if (payrollInput && payrollInput.dataset.separationBound !== 'true') {
+            payrollInput.dataset.separationBound = 'true';
+            payrollInput.addEventListener('input', () => syncEmploymentSeparationDate(panel));
+            payrollInput.addEventListener('change', () => syncEmploymentSeparationDate(panel));
+        }
+
+        const previousScope = panel.querySelector('[data-employment-scope-panel="previous"]');
+
+        if (!previousScope || previousScope.dataset.previousEmploymentInitialized === 'true') {
+            return;
+        }
+
+        previousScope.dataset.previousEmploymentInitialized = 'true';
+        previousScope.querySelectorAll('[data-client-paginate]').forEach(initClientPagination);
+
+        const rows = previousScope.querySelectorAll('[data-previous-employment-select]');
+        const details = previousScope.querySelectorAll('[data-previous-employment-detail]');
+
+        const selectPreviousEmployment = (employmentId) => {
+            rows.forEach((row) => {
+                row.classList.toggle(
+                    'employee-salary-previous-row-selected',
+                    row.dataset.previousEmploymentSelect === employmentId,
+                );
+            });
+
+            details.forEach((detail) => {
+                detail.classList.toggle('hidden', detail.dataset.previousEmploymentDetail !== employmentId);
+            });
+        };
+
+        rows.forEach((row) => {
+            row.addEventListener('click', () => {
+                selectPreviousEmployment(row.dataset.previousEmploymentSelect);
+            });
+
+            row.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    selectPreviousEmployment(row.dataset.previousEmploymentSelect);
+                }
+            });
+        });
+
+        if (rows[0]) {
+            selectPreviousEmployment(rows[0].dataset.previousEmploymentSelect);
+        }
+    };
+
+    if (document.body.dataset.employeeEmploymentScopeTabsBound !== 'true') {
+        document.body.dataset.employeeEmploymentScopeTabsBound = 'true';
+
+        document.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-employment-scope-tab]');
+
+            if (!button) {
+                return;
+            }
+
+            event.preventDefault();
+
+            const container = button.closest('[data-employment-panel]');
+
+            if (!container) {
+                return;
+            }
+
+            const tabId = button.dataset.employmentScopeTab;
+
+            container.querySelectorAll('[data-employment-scope-tab]').forEach((item) => {
+                item.classList.toggle('employee-salary-subtab-btn-active', item === button);
+            });
+
+            container.querySelectorAll('[data-employment-scope-panel]').forEach((tabPanel) => {
+                tabPanel.classList.toggle('hidden', tabPanel.dataset.employmentScopePanel !== tabId);
+            });
+        });
+    }
+
+    document.querySelectorAll('[data-employment-panel]').forEach(initEmploymentInformationPanel);
+
     const initEmployeeSalaryPreviousPanel = (panel) => {
         const previousScope = panel.querySelector('[data-salary-scope-panel="previous"]');
 

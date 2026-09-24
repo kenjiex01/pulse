@@ -82,9 +82,10 @@ class RateDefinitionSeeder extends Seeder
 
         $basicIncome = IncomeType::query()->where('income_type_code', 'BASC')->first();
         $overtimeIncome = IncomeType::query()->where('income_type_code', 'OVRT')->first();
+        $holidayIncome = IncomeType::query()->where('income_type_code', 'HOLI')->first();
         $computationBasisId = ComputationBasis::query()->where('computation_basis_id', 7)->value('computation_basis_id');
 
-        if ($basicIncome && $overtimeIncome && $computationBasisId) {
+        if ($basicIncome && $overtimeIncome && $holidayIncome && $computationBasisId) {
             RateGroupDayType::query()->where('rate_group_id', $rateGroup->rate_group_id)->delete();
 
             $regularRates = [
@@ -104,13 +105,21 @@ class RateDefinitionSeeder extends Seeder
                 [8, 2, 1.6900],
             ];
 
+            $holidayDayTypeIds = [1, 5, 6, 7];
+
             foreach ($regularRates as [$dayTypeId, $timeTypeId, $rate]) {
+                $incomeTypeId = match (true) {
+                    $timeTypeId === 1 && in_array($dayTypeId, $holidayDayTypeIds, true) => $holidayIncome->income_type_id,
+                    $timeTypeId === 1 => $basicIncome->income_type_id,
+                    default => $overtimeIncome->income_type_id,
+                };
+
                 RateGroupDayType::query()->create([
                     'rate_group_id' => $rateGroup->rate_group_id,
                     'day_type_id' => $dayTypeId,
                     'time_type_id' => $timeTypeId,
                     'computation_basis_id' => $computationBasisId,
-                    'income_type_id' => $timeTypeId === 1 ? $basicIncome->income_type_id : $overtimeIncome->income_type_id,
+                    'income_type_id' => $incomeTypeId,
                     'rate' => $rate,
                     'is_taxable' => true,
                 ]);

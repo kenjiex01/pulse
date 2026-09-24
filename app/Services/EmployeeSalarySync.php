@@ -75,19 +75,13 @@ class EmployeeSalarySync
             $currentFrom = $current->date_effective_from?->toDateString();
             $closeDate = Carbon::parse($effectiveFrom)->subDay()->toDateString();
 
-            if ($currentFrom !== null && $currentFrom <= $closeDate) {
-                // New later effectivity date — close previous day before the new from-date.
-                $current->update(['date_effective_to' => $closeDate]);
-            } elseif ($currentFrom !== null && $currentFrom === $effectiveFrom) {
+            if ($currentFrom !== null && $currentFrom === $effectiveFrom) {
                 // Same effectivity date but salary content changed (e.g. 25000 → 25000.01).
                 // Never force-delete: archive the old row as previous (from = to) and insert a new current.
                 $current->update(['date_effective_to' => $currentFrom]);
             } else {
-                // New from is earlier than the open current — keep history by closing the open row
-                // on its own start date, then create the earlier/new current row.
-                $current->update([
-                    'date_effective_to' => $currentFrom ?? $effectiveFrom,
-                ]);
+                // Different effectivity date — close the open row the day before the new from-date.
+                $current->update(['date_effective_to' => $closeDate]);
             }
 
             $current = null;
@@ -121,6 +115,7 @@ class EmployeeSalarySync
             'hours_per_day' => $salaryData['hours_per_day'] ?? null,
             'use_basic_income_as_hourly_rate' => ! empty($salaryData['use_basic_income_as_hourly_rate']),
             'is_above_minimum_wage_earner' => ! empty($salaryData['is_above_minimum_wage_earner']),
+            'is_fixed_rate' => ! empty($salaryData['is_fixed_rate']),
             'rate_group_id' => $salaryData['rate_group_id'] ?? null,
             'nd_rate_group_id' => $salaryData['nd_rate_group_id'] ?? null,
         ];
@@ -196,13 +191,14 @@ class EmployeeSalarySync
             'hours_per_day',
             'use_basic_income_as_hourly_rate',
             'is_above_minimum_wage_earner',
+            'is_fixed_rate',
             'rate_group_id',
             'nd_rate_group_id',
         ] as $field) {
             $currentValue = $current->{$field};
             $nextValue = $headerPayload[$field] ?? null;
 
-            if (in_array($field, ['use_basic_income_as_hourly_rate', 'is_above_minimum_wage_earner'], true)) {
+            if (in_array($field, ['use_basic_income_as_hourly_rate', 'is_above_minimum_wage_earner', 'is_fixed_rate'], true)) {
                 if ((bool) $currentValue !== (bool) $nextValue) {
                     return true;
                 }

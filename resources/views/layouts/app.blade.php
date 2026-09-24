@@ -74,6 +74,13 @@
     <div class="app-main-offset min-h-screen pt-14 transition-[margin] duration-300 ease-in-out">
         <main class="overflow-x-hidden p-4 sm:p-6">
             <div class="page-shell">
+                @if (is_array(session('people360_lan_database')))
+                    <div class="mb-4 rounded-lg border border-[#0B318F]/20 bg-[#0B318F]/5 px-4 py-3 text-sm text-[#0B318F]">
+                        Using the database on <strong>{{ session('people360_lan_database.hostname') }}</strong>
+                        ({{ session('people360_lan_database.address') }}).
+                        <a href="{{ route('database.index') }}" class="font-medium underline">Open Database to disconnect</a>
+                    </div>
+                @endif
                 @yield('content')
             </div>
         </main>

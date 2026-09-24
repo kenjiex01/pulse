@@ -123,7 +123,36 @@
                             <div><p class="text-sm text-gray-600">Rank</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employmentInfo->rank) }}</p></div>
                             <div><p class="text-sm text-gray-600">Employment Type</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employmentInfo->employment_type) }}</p></div>
                             <div><p class="text-sm text-gray-600">Hire Date</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->hire_date?->format('M d, Y') ?: '—' }}</p></div>
+                            <div><p class="text-sm text-gray-600">Effectivity From</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->date_effective_from?->format('M d, Y') ?: '—' }}</p></div>
+                            <div><p class="text-sm text-gray-600">Effectivity To</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->date_effective_to?->format('M d, Y') ?: 'Present' }}</p></div>
+                            <div><p class="text-sm text-gray-600">Last Payroll Date</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->last_payroll_date?->format('M d, Y') ?: '—' }}</p></div>
+                            <div><p class="text-sm text-gray-600">Separation Date</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->separation_date?->format('M d, Y') ?: '—' }}</p></div>
                         </div>
+                        @if ($employmentInfo->previousEmployments->isNotEmpty())
+                            <div class="mt-4 overflow-x-auto rounded-lg border border-gray-200 bg-white">
+                                <p class="px-3 py-2 text-sm font-semibold text-gray-900">Previous Employment</p>
+                                <table class="table-skolaris min-w-full text-sm">
+                                    <thead>
+                                        <tr>
+                                            <th class="px-3 py-2 text-left">Effectivity From</th>
+                                            <th class="px-3 py-2 text-left">Effectivity To</th>
+                                            <th class="px-3 py-2 text-left">Position</th>
+                                            <th class="px-3 py-2 text-left">Separation Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($employmentInfo->previousEmployments as $previousEmployment)
+                                            <tr>
+                                                <td class="px-3 py-2">{{ $previousEmployment->date_effective_from?->format('M d, Y') ?: '—' }}</td>
+                                                <td class="px-3 py-2">{{ $previousEmployment->date_effective_to?->format('M d, Y') ?: '—' }}</td>
+                                                <td class="px-3 py-2">{{ $employee->displayValue($previousEmployment->position) }}</td>
+                                                <td class="px-3 py-2">{{ $previousEmployment->separation_date?->format('M d, Y') ?: '—' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
                     </div>
                 @endforeach
             </div>
@@ -174,6 +203,7 @@
                             <div><p class="text-sm text-gray-600">Hours Per Day</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employmentInfo->salary->hours_per_day) }}</p></div>
                             <div><p class="text-sm text-gray-600">Use Basic Income as Hourly Rate</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->salary->use_basic_income_as_hourly_rate ? 'Yes' : 'No' }}</p></div>
                             <div><p class="text-sm text-gray-600">Is Above minimum wage earner</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->salary->is_above_minimum_wage_earner ? 'Yes' : 'No' }}</p></div>
+                            <div><p class="text-sm text-gray-600">Is Fixed Rate</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->salary->is_fixed_rate ? 'Yes' : 'No' }}</p></div>
                             <div><p class="text-sm text-gray-600">Night Diff. Rate Group</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employmentInfo->salary->ndRateGroup?->description) }}</p></div>
                             <div><p class="text-sm text-gray-600">Hourly Rate</p><p class="mt-1 font-medium text-gray-900">@php($hourlyRate = $employmentInfo->salary->hourlyRate()){{ $hourlyRate !== null ? number_format($hourlyRate, 2) : '—' }}</p></div>
                         </div>

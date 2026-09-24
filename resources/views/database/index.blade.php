@@ -22,8 +22,88 @@
 
         @include('partials.page-header', [
             'title' => 'Database',
-            'description' => 'Download a SQL backup or restore the database from an uploaded .sql file.',
+            'description' => 'Download a SQL backup, restore from a .sql file, or connect to another People360 computer on this network.',
         ])
+
+        <div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+            <div class="space-y-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h2 class="text-lg font-semibold text-[#0B318F]">People360 on this network</h2>
+                        <p class="mt-1 text-sm text-gray-600">
+                            Lists computers on the same network that have People360 open.
+                            Choose one to work in that computer's database. Disconnect saves your changes back to that computer.
+                        </p>
+                    </div>
+                    <a href="{{ route('database.index') }}" class="btn-secondary inline-flex shrink-0 items-center justify-center text-sm">Refresh</a>
+                </div>
+
+                @if ($lanConnection)
+                    <div class="rounded-xl border border-[#0B318F]/20 bg-[#0B318F]/5 px-4 py-3 text-sm text-[#0B318F]">
+                        <p class="font-medium">Connected to {{ $lanConnection['hostname'] }} ({{ $lanConnection['address'] }})</p>
+                        <p class="mt-1 text-[#0B318F]/80">This People360 window is using that computer's database.</p>
+                        <form method="POST" action="{{ route('database.lan.disconnect') }}" class="mt-3">
+                            @csrf
+                            <button type="submit" class="btn-primary text-sm">Disconnect and save back</button>
+                        </form>
+                    </div>
+                @endif
+
+                @if ($lanError)
+                    <p class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{{ $lanError }}</p>
+                @endif
+
+                <div class="overflow-x-auto rounded-lg border border-gray-200">
+                    <table class="table-skolaris min-w-full text-sm">
+                        <thead>
+                            <tr>
+                                <th class="px-3 py-2 text-left">Computer</th>
+                                <th class="px-3 py-2 text-left">Address</th>
+                                <th class="px-3 py-2 text-left">Version</th>
+                                <th class="px-3 py-2 text-left">Database</th>
+                                <th class="px-3 py-2 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($lanPeers as $peer)
+                                <tr>
+                                    <td class="px-3 py-2 font-medium text-gray-900">
+                                        {{ $peer['hostname'] }}
+                                        @if ($peer['is_self'])
+                                            <span class="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">This computer</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-3 py-2 text-gray-600">{{ $peer['address'] }}</td>
+                                    <td class="px-3 py-2 text-gray-600">{{ $peer['version'] !== '' ? $peer['version'] : '—' }}</td>
+                                    <td class="px-3 py-2 text-gray-600">{{ strtoupper($peer['database']) }}</td>
+                                    <td class="px-3 py-2 text-right">
+                                        @if ($peer['is_self'] || $peer['database'] !== 'sqlite' || $lanConnection)
+                                            <span class="text-xs text-gray-400">—</span>
+                                        @else
+                                            <form method="POST" action="{{ route('database.lan.connect') }}">
+                                                @csrf
+                                                <input type="hidden" name="machine_id" value="{{ $peer['machine_id'] }}">
+                                                <input type="hidden" name="hostname" value="{{ $peer['hostname'] }}">
+                                                <input type="hidden" name="address" value="{{ $peer['address'] }}">
+                                                <input type="hidden" name="http_port" value="{{ $peer['http_port'] }}">
+                                                <input type="hidden" name="version" value="{{ $peer['version'] }}">
+                                                <button type="submit" class="btn-primary !px-3 !py-1.5 text-xs">Connect</button>
+                                            </form>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="px-3 py-6 text-center text-gray-500">
+                                        No other People360 computers answered. Open People360 on the computer you want, then refresh.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
         <div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
             <div class="flex flex-col gap-6 sm:flex-row sm:items-start">
