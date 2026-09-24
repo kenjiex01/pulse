@@ -95,7 +95,7 @@
                             @empty
                                 <tr>
                                     <td colspan="5" class="px-3 py-6 text-center text-gray-500">
-                                        No other People360 computers answered. Open People360 on the computer you want, then refresh.
+                                        No other People360 computers answered. Open People360 on the other computer, then refresh. On Windows, allow People360 on private networks if a firewall prompt appears.
                                     </td>
                                 </tr>
                             @endforelse

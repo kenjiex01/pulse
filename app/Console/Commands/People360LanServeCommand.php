@@ -2,9 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Services\People360LanBeacon;
 use App\Services\People360LanIdentity;
 use App\Services\People360LanSnapshot;
 use App\Support\People360LanProtocol;
+use App\Support\People360LanUdp;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 
@@ -24,37 +26,44 @@ class People360LanServeCommand extends Command
 
         $udpPort = (int) config('people360_lan.udp_port');
         $httpPort = (int) config('people360_lan.http_port');
-        $udp = stream_socket_server('udp://0.0.0.0:'.$udpPort, $udpError, $udpMessage, STREAM_SERVER_BIND);
-        $tcp = stream_socket_server('tcp://0.0.0.0:'.$httpPort, $tcpError, $tcpMessage);
+        People360LanBeacon::allowWindowsFirewall();
 
-        if ($udp === false || $tcp === false) {
-            $this->error($udpMessage ?: $tcpMessage ?: 'Could not listen for People360 network connections.');
+        try {
+            $udp = People360LanUdp::bind($udpPort);
+        } catch (\Throwable $exception) {
+            $this->error($exception->getMessage());
 
             return self::FAILURE;
         }
 
-        stream_set_blocking($udp, false);
+        $tcp = stream_socket_server('tcp://0.0.0.0:'.$httpPort, $tcpError, $tcpMessage);
+
+        if ($tcp === false) {
+            $udp->close();
+            $this->error($tcpMessage ?: 'Could not listen for People360 network connections.');
+
+            return self::FAILURE;
+        }
+
         stream_set_blocking($tcp, false);
         $this->info('People360 is visible on this network (UDP '.$udpPort.', HTTP '.$httpPort.').');
 
         while (true) {
-            $read = [$udp, $tcp];
-            $write = null;
-            $except = null;
-
             if ($this->heartbeatExpired()) {
+                $udp->close();
+
                 return self::SUCCESS;
             }
 
-            if (stream_select($read, $write, $except, 2) <= 0) {
-                continue;
-            }
-
-            if (in_array($udp, $read, true)) {
+            if ($udp->wait(1, 0)) {
                 $this->replyToDiscover($udp, $identity);
             }
 
-            if (in_array($tcp, $read, true)) {
+            $read = [$tcp];
+            $write = null;
+            $except = null;
+
+            if (@stream_select($read, $write, $except, 0, 200000) > 0) {
                 $client = @stream_socket_accept($tcp, 0);
                 if (is_resource($client)) {
                     $this->handleHttp($client, $identity, $snapshot);
@@ -75,18 +84,19 @@ class People360LanServeCommand extends Command
         return time() - (int) File::get($heartbeat) > 180;
     }
 
-    /**
-     * @param  resource  $udp
-     */
-    private function replyToDiscover($udp, People360LanIdentity $identity): void
+    private function replyToDiscover(People360LanUdp $udp, People360LanIdentity $identity): void
     {
-        $packet = stream_socket_recvfrom($udp, 512, 0, $peer);
-        if ($packet !== People360LanProtocol::DISCOVER || ! is_string($peer) || $peer === '') {
+        $packet = $udp->receive();
+
+        if ($packet === null || $packet['payload'] !== People360LanProtocol::DISCOVER) {
             return;
         }
 
-        $hello = People360LanProtocol::helloPacket($identity->payload());
-        stream_socket_sendto($udp, $hello, 0, $peer);
+        $udp->send(
+            People360LanProtocol::helloPacket($identity->payload()),
+            $packet['host'],
+            $packet['port'],
+        );
     }
 
     /**

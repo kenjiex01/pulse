@@ -103,6 +103,7 @@ export default {
         shortcutName: '${productName}',
         uninstallDisplayName: '${productName}',
         createDesktopShortcut: 'always',
+        include: 'build/people360-firewall.nsh',
     },
     protocols: deepLinkProtocol ? {
         name: deepLinkProtocol,

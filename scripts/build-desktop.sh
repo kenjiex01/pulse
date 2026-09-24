@@ -92,6 +92,12 @@ if [[ -f "$EB_PATCH" && -f "$EB_CONFIG" ]]; then
   cp "$EB_PATCH" "$EB_CONFIG"
   echo "    Applied electron-builder mac ZIP-only patch (DMG via scripts/make-mac-dmg.sh)"
 fi
+FIREWALL_NSH="$ROOT/scripts/nsis/people360-firewall.nsh"
+FIREWALL_NSH_DEST="$ROOT/vendor/nativephp/electron/resources/js/build/people360-firewall.nsh"
+if [[ -f "$FIREWALL_NSH" ]]; then
+  cp "$FIREWALL_NSH" "$FIREWALL_NSH_DEST"
+  echo "    Applied Windows firewall rules for People360 LAN discovery"
+fi
 NOTARIZE_JS="$ROOT/vendor/nativephp/electron/resources/js/build/notarize.js"
 NOTARIZE_PATCH="$ROOT/scripts/patches/notarize.js"
 if [[ -f "$NOTARIZE_PATCH" && -f "$NOTARIZE_JS" ]]; then

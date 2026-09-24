@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\People360LanProtocol;
+use App\Support\People360LanUdp;
 use RuntimeException;
 
 class People360LanClient
@@ -16,16 +17,11 @@ class People360LanClient
     {
         $timeout = (float) config('people360_lan.discover_timeout_seconds', 1.5);
         $udpPort = (int) config('people360_lan.udp_port');
-        $socket = stream_socket_server('udp://0.0.0.0:0', $errno, $error);
-
-        if ($socket === false) {
-            throw new RuntimeException('Could not scan the network: '.$error);
-        }
-
-        stream_set_blocking($socket, false);
+        $socket = People360LanUdp::bind(0);
 
         foreach ($this->broadcastTargets($udpPort) as $target) {
-            stream_socket_sendto($socket, People360LanProtocol::DISCOVER, 0, $target);
+            [$host, $port] = explode(':', $target, 2);
+            $socket->send(People360LanProtocol::DISCOVER, $host, (int) $port);
         }
 
         $selfId = $this->identity->payload()['machine_id'];
@@ -33,9 +29,6 @@ class People360LanClient
         $deadline = microtime(true) + $timeout;
 
         while (microtime(true) < $deadline) {
-            $read = [$socket];
-            $write = null;
-            $except = null;
             $remaining = $deadline - microtime(true);
 
             if ($remaining <= 0) {
@@ -45,18 +38,18 @@ class People360LanClient
             $seconds = (int) $remaining;
             $microseconds = (int) (($remaining - $seconds) * 1_000_000);
 
-            if (stream_select($read, $write, $except, $seconds, $microseconds) <= 0) {
+            if (! $socket->wait($seconds, $microseconds)) {
                 continue;
             }
 
-            $packet = stream_socket_recvfrom($socket, 8192, 0, $peer);
-            $identity = People360LanProtocol::parseHello((string) $packet);
+            $packet = $socket->receive();
+            $identity = People360LanProtocol::parseHello((string) ($packet['payload'] ?? ''));
 
             if ($identity === null || ($identity['app'] ?? '') !== 'People360') {
                 continue;
             }
 
-            $address = $this->peerAddress((string) $peer);
+            $address = $this->peerAddress((string) ($packet['host'] ?? ''));
             $machineId = (string) ($identity['machine_id'] ?? '');
 
             if ($machineId === '' || $address === null) {
@@ -74,7 +67,7 @@ class People360LanClient
             ];
         }
 
-        fclose($socket);
+        $socket->close();
 
         $list = array_values($peers);
         usort($list, function (array $left, array $right): int {
