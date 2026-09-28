@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\TimekeepingMemoSetup;
 use App\Services\SysLogService;
 use App\Services\TimekeepingMemoAttendanceService;
 use App\Services\TimekeepingMemoPreviewService;
@@ -323,7 +324,9 @@ class TimekeepingMemoController extends Controller
         $dateFrom = $request->string('date_from')->trim()->toString();
         $dateTo = $request->string('date_to')->trim()->toString();
         $violationType = $this->attendanceService->normalizeViolationType($request->input('violation_type'));
-        $minCount = max(1, (int) $request->input('min_count', 1));
+        $setupCount = $this->occurrenceCountFor($violationType);
+        $requestedCount = $request->filled('min_count') ? (int) $request->input('min_count') : $setupCount;
+        $minCount = max($setupCount, $requestedCount);
 
         $applied = $dateFrom !== '' && $dateTo !== '';
 
@@ -381,5 +384,14 @@ class TimekeepingMemoController extends Controller
             ->filter(fn (array $row) => $row['count'] >= $filters['min_count'])
             ->sortBy(fn (array $row) => strtolower(trim($row['employee']->full_name)))
             ->values();
+    }
+
+    private function occurrenceCountFor(string $violationType): int
+    {
+        $count = TimekeepingMemoSetup::query()
+            ->where('violation_type', $violationType)
+            ->value('occurrence_count');
+
+        return max(1, (int) ($count ?? 1));
     }
 }

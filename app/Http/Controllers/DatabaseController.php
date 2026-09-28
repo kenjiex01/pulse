@@ -27,15 +27,7 @@ class DatabaseController extends Controller
             description: 'Opened database backup page',
         );
 
-        $peers = [];
-        $lanError = null;
-
-        try {
-            app(People360LanBeacon::class)->ensureRunning();
-            $peers = app(People360LanClient::class)->discover();
-        } catch (\Throwable $exception) {
-            $lanError = $exception->getMessage();
-        }
+        [$peers, $lanError] = $this->discoverLanPeers(promptWindowsFirewall: false);
 
         return view('database.index', [
             'driver' => config('database.default'),
@@ -43,7 +35,56 @@ class DatabaseController extends Controller
             'lanPeers' => $peers,
             'lanError' => $lanError,
             'lanConnection' => session('people360_lan_database'),
+            'lanFirewallReady' => People360LanBeacon::windowsFirewallReady(),
         ]);
+    }
+
+    public function refreshLanPeers(): RedirectResponse
+    {
+        [$peers, $lanError] = $this->discoverLanPeers(promptWindowsFirewall: true);
+
+        SysLogService::record(
+            action: 'read',
+            table: 'database_backup',
+            description: 'Refreshed People360 computers on this network ('.count($peers).' found)',
+        );
+
+        if ($lanError !== null) {
+            return redirect()
+                ->route('database.index')
+                ->with('error', $lanError);
+        }
+
+        $message = count($peers) > 0
+            ? 'Network list updated ('.count($peers).' computer'.(count($peers) === 1 ? '' : 's').' found).'
+            : 'Network list updated. No other People360 computers answered yet.';
+
+        if (PHP_OS_FAMILY === 'Windows' && ! People360LanBeacon::windowsFirewallReady()) {
+            $message .= ' If a Windows security prompt appeared, choose Yes, then click Refresh again.';
+        }
+
+        return redirect()
+            ->route('database.index')
+            ->with('success', $message);
+    }
+
+    /**
+     * @return array{0: list<array<string, mixed>>, 1: string|null}
+     */
+    private function discoverLanPeers(bool $promptWindowsFirewall): array
+    {
+        $peers = [];
+        $lanError = null;
+
+        try {
+            app(People360LanBeacon::class)->ensureRunning();
+            People360LanBeacon::allowWindowsFirewall($promptWindowsFirewall);
+            $peers = app(People360LanClient::class)->discover();
+        } catch (\Throwable $exception) {
+            $lanError = $exception->getMessage();
+        }
+
+        return [$peers, $lanError];
     }
 
     public function connectLan(Request $request, People360LanClient $client): RedirectResponse

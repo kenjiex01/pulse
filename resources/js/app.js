@@ -6263,9 +6263,40 @@ tr { page-break-inside: avoid; }
             });
     };
 
+    const initBiometricS3AutoPullHeartbeat = () => {
+        const root = document.documentElement;
+
+        if (root.dataset.biometricS3AutoPullEnabled !== '1') {
+            return;
+        }
+
+        const tickUrl = root.dataset.biometricS3AutoPullTickUrl;
+        const intervalMinutes = Math.max(1, Number.parseInt(root.dataset.biometricS3AutoPullInterval || '5', 10) || 5);
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+        if (!tickUrl || !csrfToken) {
+            return;
+        }
+
+        const ping = () => {
+            fetch(tickUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+            }).catch(() => {});
+        };
+
+        window.setInterval(ping, intervalMinutes * 60 * 1000);
+    };
+
     initEmployeeSkolarisSync();
     initGovernmentIdInputs();
     initTimekeepingMemo();
     document.querySelectorAll('[data-payslip-send-root]').forEach(initPayslipEmailSend);
     initDashboardBiometricStatus();
+    initBiometricS3AutoPullHeartbeat();
 });

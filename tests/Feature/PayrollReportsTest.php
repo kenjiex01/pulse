@@ -551,7 +551,7 @@ class PayrollReportsTest extends TestCase
     {
         $user = User::query()->firstOrFail();
         $report = Report::query()->where('title', 'Memo')->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_verbal_reprimand')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
         $employee = Employee::query()->create([
             'employee_number' => 'EMP-MEMO-RPT',
             'first_name' => 'Ana',

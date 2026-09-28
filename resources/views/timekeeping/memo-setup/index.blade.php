@@ -7,7 +7,7 @@
 
     @include('partials.page-header', [
         'title' => 'Memo Setup',
-        'description' => 'Choose memo templates and configure the email subject, intro body, and optional CC for each violation type. The rendered memo document is included in the email automatically.',
+        'description' => 'Choose memo templates, the occurrence count required before a memo can be sent, and the email subject, intro body, and optional CC for each violation type. The rendered memo document is included in the email automatically.',
     ])
 
     <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
@@ -20,6 +20,7 @@
                     $setup = $setups->get($type);
                     $typeLabel = \App\Models\TimekeepingMemoSetup::labelForType($type);
                     $formField = $type.'_form_id';
+                    $countField = $type.'_occurrence_count';
                     $subjectField = $type.'_email_subject';
                     $bodyField = $type.'_email_body';
                     $ccField = $type.'_email_cc';
@@ -39,6 +40,25 @@
                             </select>
                             <p class="mt-1 text-xs text-gray-500">Templates come from Human Resource → Company Documents (memo type).</p>
                             @error($formField)
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label for="{{ $countField }}" class="form-label">Count <span class="text-red-600">*</span></label>
+                            <input
+                                type="number"
+                                id="{{ $countField }}"
+                                name="{{ $countField }}"
+                                value="{{ old($countField, $setup?->occurrence_count ?? 1) }}"
+                                class="form-input w-full max-w-xs"
+                                min="1"
+                                max="999"
+                                step="1"
+                                required
+                            >
+                            <p class="mt-1 text-xs text-gray-500">Send a memo when the employee reaches this many {{ strtolower($typeLabel) }} occurrences in the selected period.</p>
+                            @error($countField)
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                             @enderror
                         </div>

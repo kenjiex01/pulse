@@ -37,18 +37,7 @@ class CompanyDocumentSendService
 
         $form->load('elements');
         $memoContext = $this->defaultMemoContext();
-        $preview = $this->memoRenderService->buildPreviewData($form, $employee, $memoContext);
-
-        $emailAttachments = [[
-            'binary' => $this->memoRenderService->renderPdf($preview),
-            'filename' => MemoPdfFilename::forStandalone($form, $employee),
-            'mime' => 'application/pdf',
-        ]];
-
-        if ($form->requires_nte) {
-            $emailAttachments = array_merge($emailAttachments, $this->buildNteDocxAttachment($employee, $memoContext));
-        }
-
+        $emailAttachments = $this->buildEmailAttachments($form, $employee, $memoContext);
         $emailTemplates = $this->resolveEmailTemplates($form);
 
         $result = DB::transaction(function () use ($employee, $form, $sender, $memoContext) {
@@ -122,6 +111,79 @@ class CompanyDocumentSendService
         );
 
         return $result;
+    }
+
+    /**
+     * @param  list<int>  $employeeIds
+     * @param  list<string>  $emails
+     */
+    public function sendCopiesToAdditionalEmails(
+        CompanyDocumentForm $form,
+        array $employeeIds,
+        array $emails,
+        User $sender,
+    ): int {
+        if ($emails === [] || $employeeIds === []) {
+            return 0;
+        }
+
+        if (! $form->is_active) {
+            throw new RuntimeException('This document template is inactive.');
+        }
+
+        $form->load('elements');
+        $memoContext = $this->defaultMemoContext();
+        $attachments = [];
+
+        foreach ($employeeIds as $employeeId) {
+            $employee = Employee::query()->find($employeeId);
+            if ($employee === null) {
+                continue;
+            }
+
+            $attachments = array_merge($attachments, $this->buildEmailAttachments($form, $employee, $memoContext));
+        }
+
+        if ($attachments === []) {
+            throw new RuntimeException('No documents were generated for the selected employees.');
+        }
+
+        $documentName = trim($form->name) !== '' ? trim($form->name) : trim($form->code);
+        $copyCount = count(array_unique($employeeIds));
+        $subject = $documentName;
+        $body = $copyCount === 1
+            ? "Please find attached a copy of {$documentName}."
+            : "Please find attached {$copyCount} copies of {$documentName}.";
+
+        $sent = 0;
+
+        foreach ($emails as $email) {
+            $this->emailService->sendToAddress($email, $form, $subject, $body, $attachments);
+            $sent++;
+        }
+
+        return $sent;
+    }
+
+    /**
+     * @param  array{date_from: string, date_to: string, violation_type: string, violation_count: int, selected_dates: list<string>}  $memoContext
+     * @return list<array{binary: string, filename: string, mime: string}>
+     */
+    private function buildEmailAttachments(CompanyDocumentForm $form, Employee $employee, array $memoContext): array
+    {
+        $preview = $this->memoRenderService->buildPreviewData($form, $employee, $memoContext);
+
+        $attachments = [[
+            'binary' => $this->memoRenderService->renderPdf($preview),
+            'filename' => MemoPdfFilename::forStandalone($form, $employee),
+            'mime' => 'application/pdf',
+        ]];
+
+        if ($form->requires_nte) {
+            $attachments = array_merge($attachments, $this->buildNteDocxAttachment($employee, $memoContext));
+        }
+
+        return $attachments;
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Models\CompanyDocumentElement;
 use App\Models\CompanyDocumentForm;
 use App\Models\CompanyDocumentSendLog;
 use App\Models\Employee;
@@ -92,19 +93,17 @@ class CompanyDocumentOffenseMemoServiceTest extends TestCase
         $this->assertSame('Dismissal', $context['disciplinary_action']);
     }
 
-    public function test_icct_verbal_reprimand_shows_offense_tags_via_offense_block(): void
+    public function test_absences_tardiness_memo_body_includes_offense_merge_tags(): void
     {
-        $form = CompanyDocumentForm::query()->where('code', 'hr_verbal_reprimand')->firstOrFail();
-        $form->load('elements');
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
-        $this->assertNull($form->icct_offense_id);
-        $this->assertTrue($form->hasOffenseNatureConfigured());
+        $body = $form->elements()
+            ->where('type', CompanyDocumentElement::TYPE_PARAGRAPH)
+            ->pluck('label')
+            ->implode("\n");
 
-        $palette = \App\Support\CompanyDocumentElementCatalog::palette($form);
-        $tagKeys = array_column($palette['TAGS'], 'tag_key');
-
-        $this->assertContains('disciplinary_action', $tagKeys);
-        $this->assertContains('offense_frequency', $tagKeys);
+        $this->assertStringContainsString('{{disciplinary_action}}', $body);
+        $this->assertStringContainsString('{{offense_frequency}}', $body);
     }
 
     public function test_offense_tags_appear_when_template_has_nature_of_offense(): void

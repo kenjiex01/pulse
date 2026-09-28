@@ -83,7 +83,28 @@ class TimekeepingMemoEmailService
         $body = $this->mergeTagService->resolveInlineTags($bodyTemplate, $employee, $memoContext);
         $cc = TimekeepingMemoSetup::parseCcList($ccRaw);
 
-        Mail::to($email)->send(new TimekeepingMemoMail(
+        $this->sendToAddress($email, $form, $subject, $body, $attachments, $cc);
+    }
+
+    /**
+     * @param  list<array{binary: string, filename: string, mime?: string}>  $attachments
+     * @param  list<string>  $cc
+     */
+    public function sendToAddress(
+        string $to,
+        CompanyDocumentForm $form,
+        string $subject,
+        string $body,
+        array $attachments,
+        array $cc = [],
+    ): void {
+        $this->ensureMailIsConfigured();
+
+        if ($attachments === []) {
+            throw new RuntimeException('No email attachments were generated.');
+        }
+
+        Mail::to($to)->send(new TimekeepingMemoMail(
             $subject,
             $body,
             (string) $form->name,

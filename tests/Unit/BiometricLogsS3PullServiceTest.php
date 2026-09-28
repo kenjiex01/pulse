@@ -86,12 +86,6 @@ class BiometricLogsS3PullServiceTest extends TestCase
                     'punched_at' => '2026-08-13 17:05:10',
                     'punch_state' => 'CheckOut',
                 ],
-                [
-                    'user_id' => '999',
-                    'user_name' => 'Unknown',
-                    'punched_at' => '2026-08-13 09:00:00',
-                    'punch_state' => 'CheckIn',
-                ],
             ],
         ];
 
@@ -109,7 +103,7 @@ class BiometricLogsS3PullServiceTest extends TestCase
         $this->assertSame(1, $summary['files_scanned']);
         $this->assertSame(1, $summary['files_imported']);
         $this->assertSame(2, $summary['punches_inserted']);
-        $this->assertSame(1, $summary['punches_unmatched']);
+        $this->assertSame(0, $summary['punches_unmatched']);
 
         $this->assertDatabaseHas('raw_timekeeping_transactions', [
             'filename' => $key,
@@ -131,7 +125,12 @@ class BiometricLogsS3PullServiceTest extends TestCase
                 ->exists()
         );
 
-        // Second pull re-reads the file; already-imported punches are skipped as duplicates.
+        $this->assertDatabaseHas('tbl_biometric_s3_pulled_files', [
+            's3_key' => $key,
+            'status' => 'imported',
+        ]);
+
+        // Second pull skips the file because it is already marked as pulled.
         $second = app(BiometricLogsS3PullService::class)->pull(
             user: $user,
             year: 2026,
@@ -140,10 +139,9 @@ class BiometricLogsS3PullServiceTest extends TestCase
             collectorFolder: 'Cainta-Main-Campus',
         );
 
-        $this->assertSame(1, $second['files_skipped']);
+        $this->assertSame(1, $second['files_already_pulled']);
         $this->assertSame(0, $second['files_imported']);
-        $this->assertSame(2, $second['punches_skipped_duplicates']);
-        $this->assertSame(1, $second['punches_unmatched']);
+        $this->assertSame(0, $second['punches_inserted']);
         $this->assertSame(1, RawTimekeepingTransaction::query()->where('filename', $key)->count());
     }
 

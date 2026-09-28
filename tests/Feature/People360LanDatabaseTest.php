@@ -42,6 +42,27 @@ class People360LanDatabaseTest extends TestCase
         $response->assertSee('192.168.1.20');
     }
 
+    public function test_refresh_lan_peers_rediscoveries_and_redirects_with_success(): void
+    {
+        $client = Mockery::mock(People360LanClient::class);
+        $client->shouldReceive('discover')->once()->andReturn([[
+            'hostname' => 'HR-PC',
+            'machine_id' => str_repeat('f', 32),
+            'version' => '1.0.8',
+            'address' => '192.168.1.30',
+            'http_port' => 47837,
+            'database' => 'sqlite',
+            'is_self' => false,
+        ]]);
+        $this->app->instance(People360LanClient::class, $client);
+
+        $response = $this->actingAs(User::query()->firstOrFail())
+            ->post(route('database.lan.refresh'));
+
+        $response->assertRedirect(route('database.index'));
+        $response->assertSessionHas('success');
+    }
+
     public function test_admin_can_connect_to_a_private_network_desktop_database(): void
     {
         $client = Mockery::mock(People360LanClient::class);

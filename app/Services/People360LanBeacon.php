@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 
 class People360LanBeacon
 {
@@ -11,8 +12,6 @@ class People360LanBeacon
         if (! config('people360_lan.enabled', true) || app()->runningUnitTests()) {
             return;
         }
-
-        self::allowWindowsFirewall();
 
         File::put(storage_path('app/people360-lan.heartbeat'), (string) time());
 
@@ -29,6 +28,12 @@ class People360LanBeacon
             $this->stopListener($port);
             usleep(300000);
         }
+
+        if ($this->lanSpawnRecentlyAttempted()) {
+            return;
+        }
+
+        $this->markLanSpawnAttempted();
 
         $php = PHP_BINARY;
         $artisan = base_path('artisan');
@@ -123,6 +128,21 @@ class People360LanBeacon
         return (string) $decoded['version'];
     }
 
+    private function lanSpawnRecentlyAttempted(): bool
+    {
+        $path = storage_path('app/people360-lan-spawn.lock');
+        if (! is_file($path)) {
+            return false;
+        }
+
+        return (time() - (int) trim((string) File::get($path))) < 60;
+    }
+
+    private function markLanSpawnAttempted(): void
+    {
+        File::put(storage_path('app/people360-lan-spawn.lock'), (string) time());
+    }
+
     private function stopListener(int $port): void
     {
         if (PHP_OS_FAMILY === 'Windows') {
@@ -154,26 +174,49 @@ class People360LanBeacon
         }
     }
 
-    public static function allowWindowsFirewall(): void
+    public static function windowsFirewallReady(): bool
+    {
+        if (PHP_OS_FAMILY !== 'Windows') {
+            return true;
+        }
+
+        return self::firewallRuleExists('People360 LAN') && self::firewallRuleExists('People360 LAN HTTP');
+    }
+
+    /**
+     * @param  bool  $promptIfNeeded  When true (Database → Refresh), show the Windows admin prompt until firewall rules exist.
+     */
+    public static function allowWindowsFirewall(bool $promptIfNeeded = false): void
     {
         if (PHP_OS_FAMILY !== 'Windows') {
             return;
         }
 
-        static $attempted = false;
-        if ($attempted || (self::firewallRuleExists('People360 LAN') && self::firewallRuleExists('People360 LAN HTTP'))) {
+        if (self::windowsFirewallReady()) {
+            self::writeFirewallMarker(['status' => 'ok']);
+
             return;
         }
-        $attempted = true;
 
         $commands = self::windowsFirewallCommands();
         foreach ($commands as $command) {
             exec($command);
         }
 
-        if (self::firewallRuleExists('People360 LAN') && self::firewallRuleExists('People360 LAN HTTP')) {
+        if (self::windowsFirewallReady()) {
+            self::writeFirewallMarker(['status' => 'ok']);
+
             return;
         }
+
+        if (! $promptIfNeeded) {
+            return;
+        }
+
+        self::writeFirewallMarker([
+            'status' => 'elevation_prompted',
+            'elevation_prompted_at' => now()->toIso8601String(),
+        ]);
 
         $script = storage_path('app/people360-lan-firewall.cmd');
         File::ensureDirectoryExists(dirname($script));
@@ -181,6 +224,31 @@ class People360LanBeacon
 
         $powershell = 'Start-Process -FilePath '.escapeshellarg($script).' -Verb RunAs -WindowStyle Hidden';
         exec('powershell.exe -NoProfile -ExecutionPolicy Bypass -Command '.escapeshellarg($powershell));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function readFirewallMarker(): array
+    {
+        $path = storage_path('app/settings/people360-lan-firewall.json');
+        if (! is_file($path)) {
+            return [];
+        }
+
+        $decoded = json_decode((string) File::get($path), true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private static function writeFirewallMarker(array $data): void
+    {
+        $path = storage_path('app/settings/people360-lan-firewall.json');
+        File::ensureDirectoryExists(dirname($path));
+        File::put($path, json_encode($data, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
     }
 
     /**

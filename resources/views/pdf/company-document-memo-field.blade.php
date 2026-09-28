@@ -35,15 +35,17 @@
             $opacity = CompanyDocumentMemoPdfLayout::imageOpacity($element);
         @endphp
         @if ($imageSrc !== '')
-            <div style="width:{{ $imageWidth }}px;height:{{ $imageHeight }}px;overflow:hidden;opacity:{{ $opacity }};">
-                <img
-                    src="{{ $imageSrc }}"
-                    alt=""
-                    width="{{ $imageWidth }}"
-                    height="{{ $imageHeight }}"
-                    style="display:block;width:{{ $imageWidth }}px;height:{{ $imageHeight }}px;"
-                >
-            </div>
+            <table width="{{ $imageWidth }}" height="{{ $imageHeight }}" cellpadding="0" cellspacing="0" border="0" style="width:{{ $imageWidth }}px;height:{{ $imageHeight }}px;border-collapse:collapse;opacity:{{ $opacity }};">
+                <tr>
+                    <td width="{{ $imageWidth }}" height="{{ $imageHeight }}" align="center" valign="middle" style="width:{{ $imageWidth }}px;height:{{ $imageHeight }}px;padding:0;text-align:center;vertical-align:middle;">
+                        <img
+                            src="{{ $imageSrc }}"
+                            alt=""
+                            style="display:inline-block;max-width:{{ $imageWidth }}px;max-height:{{ $imageHeight }}px;width:auto;height:auto;"
+                        >
+                    </td>
+                </tr>
+            </table>
         @endif
         @break
 

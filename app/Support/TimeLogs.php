@@ -129,6 +129,7 @@ class TimeLogs
             'uploads.preview' => 'timekeeping.time-logs.uploads.preview',
             's3-pull' => 'timekeeping.time-logs.s3-pull',
             's3-folders' => 'timekeeping.time-logs.s3-folders',
+            's3-auto-pull' => 'timekeeping.time-logs.s3-auto-pull',
             default => "timekeeping.time-logs.$action",
         };
     }

@@ -23,6 +23,10 @@ return Application::configure(basePath: dirname(__DIR__))
             ))
             ->timezone((string) config('backup.cloud.timezone', 'Asia/Manila'))
             ->when(fn () => (bool) config('backup.cloud.enabled', false));
+
+        $schedule->command('biometric:pull-s3 --auto')
+            ->everyFiveMinutes()
+            ->withoutOverlapping(10);
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo('/login');
@@ -31,6 +35,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\UseConnectedPeople360Database::class,
             \App\Http\Middleware\PrepareAuthenticatedUser::class,
             \App\Http\Middleware\EnsureDesktopCloudBackup::class,
+            \App\Http\Middleware\EnsureBiometricS3AutoPull::class,
             \App\Http\Middleware\EnsureDesktopInstallerUpdate::class,
             \App\Http\Middleware\ReleaseSessionLockForReadOnlyAjax::class,
         ]);

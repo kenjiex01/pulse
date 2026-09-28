@@ -278,20 +278,9 @@ class CompanyDocumentFormTest extends TestCase
         ]);
     }
 
-    public function test_icct_code_of_offenses_templates_are_seeded(): void
+    public function test_hr_letter_and_memo_templates_are_seeded(): void
     {
-        $codes = [
-            'hr_notice_to_explain',
-            'hr_verbal_reprimand',
-            'hr_written_warning',
-            'hr_notice_of_suspension',
-            'hr_notice_of_dismissal',
-            'hr_return_to_work',
-            'hr_awol_notice',
-            'hr_uniform_infraction',
-        ];
-
-        foreach ($codes as $code) {
+        foreach (\Database\Seeders\CompanyDocumentHrLetterTemplatesSeeder::TEMPLATE_CODES as $code) {
             $this->assertDatabaseHas('tbl_company_document_forms', [
                 'code' => $code,
                 'document_type' => CompanyDocumentForm::TYPE_MEMO,
@@ -299,29 +288,16 @@ class CompanyDocumentFormTest extends TestCase
             ]);
         }
 
-        $returnToWork = CompanyDocumentForm::query()->where('code', 'hr_return_to_work')->firstOrFail();
-        $this->assertGreaterThan(5, $returnToWork->elements()->count());
-        $this->assertTrue(
-            $returnToWork->elements()->where('field_key', 'vp_action')->exists(),
-            'Return to Work form should include Vice-President Approve/Disapprove.',
-        );
-
         $nte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
         $this->assertTrue($nte->is_nte);
         $this->assertFalse($nte->requires_nte);
         $this->assertTrue(
-            $nte->elements()->where('field_key', 'offense_category')->exists(),
+            $nte->elements()->where('type', 'image')->exists(),
+            'NTE letter should include the ICCT logo.',
         );
 
-        $natureField = $nte->elements()->where('field_key', 'nature_of_offense')->firstOrFail();
-        $this->assertSame(CompanyDocumentElement::TYPE_DROPDOWN, $natureField->type);
-        $choices = $natureField->options_json['choices'] ?? [];
-        $this->assertGreaterThanOrEqual(90, count($choices));
-        $labels = array_column($choices, 'label');
-        $this->assertTrue(
-            collect($labels)->contains(fn (string $label) => str_starts_with($label, 'II.8 — ')),
-            'Nature of offense dropdown should include section II.8 from the Code of Offenses.',
-        );
+        $internalMemo = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $this->assertGreaterThan(5, $internalMemo->elements()->count());
     }
 
     public function test_memo_template_preview_modal_uses_pdf_iframe(): void
@@ -587,26 +563,20 @@ class CompanyDocumentFormTest extends TestCase
         return $path;
     }
 
-    public function test_submission_stores_uploaded_signature_file(): void
+    public function test_submission_stores_internal_memo_values(): void
     {
         Storage::fake('local');
 
         $user = User::query()->firstOrFail();
         $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
 
-        $signature = UploadedFile::fake()->image('author-signature.png', 420, 120);
-
         $response = $this->actingAs($user)
             ->post(route('company-documents.submissions.store', $form), [
                 'values' => [
-                    'memo_to' => 'All Staff',
-                    'memo_from' => 'HR',
+                    'control_no' => '2026-TEST-001',
+                    'memo_from' => 'Aurora G. Esma — VP, HR & Administration',
                     'memo_date' => '2026-09-03',
-                    'subject' => 'Policy Update',
-                    'message_body' => 'Please review the attached policy.',
-                ],
-                'files' => [
-                    'author_signature' => $signature,
+                    'subject' => 'Attendances',
                 ],
             ]);
 
@@ -618,16 +588,8 @@ class CompanyDocumentFormTest extends TestCase
         ]);
 
         $this->assertDatabaseHas('tbl_company_document_submission_values', [
-            'field_key' => 'author_signature',
-            'original_filename' => 'author-signature.png',
+            'field_key' => 'control_no',
         ]);
-
-        $storedPath = \App\Models\CompanyDocumentSubmissionValue::query()
-            ->where('field_key', 'author_signature')
-            ->value('file_path');
-
-        $this->assertNotEmpty($storedPath);
-        Storage::disk('local')->assertExists($storedPath);
     }
 
     public function test_designer_save_persists_merge_tag_elements(): void
@@ -731,10 +693,10 @@ class CompanyDocumentFormTest extends TestCase
             ->assertSee('Current datetime', false);
     }
 
-    public function test_designer_shows_offense_tags_for_icct_verbal_reprimand(): void
+    public function test_designer_shows_offense_tags_for_absences_tardiness_memo(): void
     {
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_verbal_reprimand')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $this->actingAs($user)
             ->get(route('company-documents.designer', $form))
@@ -992,6 +954,63 @@ class CompanyDocumentFormTest extends TestCase
             ]);
 
         Mail::assertSent(TimekeepingMemoMail::class, 1);
+    }
+
+    public function test_send_also_sends_copies_to_comma_separated_additional_emails(): void
+    {
+        Mail::fake();
+        config(['mail.default' => 'array']);
+
+        $user = User::query()->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('is_active', true)->firstOrFail();
+
+        $employee = Employee::query()->create([
+            'employee_number' => 'DOC-SEND-EXTRA-001',
+            'first_name' => 'Irene',
+            'last_name' => 'Santos',
+            'email' => 'irene.santos@example.com',
+            'employment_status' => Employee::STATUS_ACTIVE,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('company-documents.send', $form), [
+                'employee_ids' => [$employee->employee_id],
+                'additional_emails' => 'hr@company.com, manager@company.com',
+            ])
+            ->assertRedirect(route('company-documents.index'))
+            ->assertSessionHas('success');
+
+        Mail::assertSent(TimekeepingMemoMail::class, 3);
+    }
+
+    public function test_send_rejects_invalid_additional_email_addresses(): void
+    {
+        Mail::fake();
+        config(['mail.default' => 'array']);
+
+        $user = User::query()->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('is_active', true)->firstOrFail();
+
+        $employee = Employee::query()->create([
+            'employee_number' => 'DOC-SEND-BAD-001',
+            'first_name' => 'Jade',
+            'last_name' => 'Reyes',
+            'email' => 'jade.reyes@example.com',
+            'employment_status' => Employee::STATUS_ACTIVE,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('company-documents.index'))
+            ->post(route('company-documents.send', $form), [
+                'employee_ids' => [$employee->employee_id],
+                'additional_emails' => 'not-an-email',
+            ])
+            ->assertRedirect(route('company-documents.index'))
+            ->assertSessionHasErrors('additional_emails');
+
+        Mail::assertNothingSent();
     }
 
     public function test_send_history_lists_previously_sent_employees(): void

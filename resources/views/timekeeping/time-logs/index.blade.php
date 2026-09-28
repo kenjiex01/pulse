@@ -46,6 +46,15 @@
         </nav>
     </div>
 
+    @if (! $isTeachingLoads && $tab === 'time-in-out')
+        @include('timekeeping.time-logs._s3-auto-pull-toggle', [
+            'tab' => $tab,
+            's3PullConfigured' => $s3PullConfigured ?? false,
+            's3AutoPullEnabled' => $s3AutoPullEnabled ?? false,
+            's3AutoPullLastRunAt' => $s3AutoPullLastRunAt ?? null,
+        ])
+    @endif
+
     @if (! $isTeachingLoads)
         @can('time-logs.delete')
             <form

@@ -34,11 +34,20 @@
                             Lists computers on the same network that have People360 open.
                             Connect switches this window to that computer's database. Changes are stored there as you work.
                             Disconnect returns this window to its own database.
-                            On Windows, choose Yes if a firewall prompt appears, then click Refresh.
+                            On Windows, click <strong>Refresh</strong> to search the network. If firewall access is not allowed yet, choose Yes on the prompt, then click Refresh again.
                         </p>
                     </div>
-                    <a href="{{ route('database.index') }}" class="btn-secondary inline-flex shrink-0 items-center justify-center text-sm">Refresh</a>
+                    <form method="POST" action="{{ route('database.lan.refresh') }}" class="shrink-0">
+                        @csrf
+                        <button type="submit" class="btn-secondary inline-flex items-center justify-center text-sm">Refresh</button>
+                    </form>
                 </div>
+
+                @if (PHP_OS_FAMILY === 'Windows' && ! ($lanFirewallReady ?? true))
+                    <p class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                        Network firewall for People360 is not fully allowed on this PC yet. Click <strong>Refresh</strong> and approve the Windows prompt if it appears.
+                    </p>
+                @endif
 
                 @if ($lanConnection)
                     <div class="rounded-xl border border-[#0B318F]/20 bg-[#0B318F]/5 px-4 py-3 text-sm text-[#0B318F]">

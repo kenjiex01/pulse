@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\BiometricS3PulledFile;
 use App\Models\Campus;
 use App\Models\Employee;
 use App\Models\RawTimekeepingInandout;
@@ -38,6 +39,7 @@ class BiometricLogsS3PullService
      *     files_scanned: int,
      *     files_imported: int,
      *     files_skipped: int,
+     *     files_already_pulled: int,
      *     punches_inserted: int,
      *     punches_skipped_duplicates: int,
      *     punches_unmatched: int,
@@ -51,6 +53,8 @@ class BiometricLogsS3PullService
         int $month,
         ?int $campusId = null,
         ?string $collectorFolder = null,
+        bool $skipAlreadyPulled = true,
+        bool $autoPull = false,
     ): array {
         if (! $this->isConfigured()) {
             throw new RuntimeException('Biometric S3 credentials are not configured. Set DB_BACKUP_S3_* (or BIOMETRIC_LOGS_S3_*) in .env.');
@@ -75,11 +79,16 @@ class BiometricLogsS3PullService
         }
 
         $keys = $this->listAttendanceObjectKeys($prefix, $collectorFolder);
+        $alreadyPulled = $skipAlreadyPulled ? $this->alreadyPulledKeys($keys, $autoPull) : [];
+        $keysToProcess = $skipAlreadyPulled
+            ? array_values(array_diff($keys, $alreadyPulled))
+            : $keys;
 
         $summary = [
             'files_scanned' => count($keys),
             'files_imported' => 0,
             'files_skipped' => 0,
+            'files_already_pulled' => count($alreadyPulled),
             'punches_inserted' => 0,
             'punches_skipped_duplicates' => 0,
             'punches_unmatched' => 0,
@@ -87,12 +96,13 @@ class BiometricLogsS3PullService
             'errors' => [],
         ];
 
-        foreach ($keys as $key) {
+        foreach ($keysToProcess as $key) {
             try {
                 $payload = $this->downloadAndDecode($key);
 
                 if (($payload['kind'] ?? null) !== 'attendance') {
                     $summary['files_skipped']++;
+                    $this->markPulled($key, $user, null, BiometricS3PulledFile::STATUS_SKIPPED);
 
                     continue;
                 }
@@ -101,6 +111,7 @@ class BiometricLogsS3PullService
 
                 if ($result === null) {
                     $summary['files_skipped']++;
+                    $this->markPulled($key, $user, null, BiometricS3PulledFile::STATUS_SKIPPED);
 
                     continue;
                 }
@@ -110,6 +121,7 @@ class BiometricLogsS3PullService
 
                 if (($result['inserted'] ?? 0) === 0) {
                     $summary['files_skipped']++;
+                    $this->markPulled($key, $user, null, BiometricS3PulledFile::STATUS_SKIPPED);
 
                     continue;
                 }
@@ -121,6 +133,15 @@ class BiometricLogsS3PullService
                     'filename' => $key,
                     'inserted' => $result['inserted'],
                 ];
+                $status = ($result['unmatched'] ?? 0) > 0
+                    ? BiometricS3PulledFile::STATUS_PARTIAL
+                    : BiometricS3PulledFile::STATUS_IMPORTED;
+                $this->markPulled(
+                    $key,
+                    $user,
+                    (int) ($result['timekeeping_transaction_id'] ?? 0) ?: null,
+                    $status,
+                );
             } catch (Throwable $exception) {
                 $summary['errors'][] = basename($key).': '.$exception->getMessage();
                 Log::warning('Biometric S3 pull failed for object.', [
@@ -257,7 +278,7 @@ class BiometricLogsS3PullService
 
     /**
      * @param  array<string, mixed>  $payload
-     * @return array{batch_no: int, inserted: int, skipped_duplicates: int, unmatched: int}|null
+     * @return array{batch_no: int, inserted: int, skipped_duplicates: int, unmatched: int, timekeeping_transaction_id?: int}|null
      */
     private function importAttendancePayload(
         User $user,
@@ -422,8 +443,44 @@ class BiometricLogsS3PullService
                 'inserted' => $inserted,
                 'skipped_duplicates' => $skippedDuplicates,
                 'unmatched' => $unmatched,
+                'timekeeping_transaction_id' => $transactionId,
             ];
         });
+    }
+
+    /**
+     * @param  array<int, string>  $keys
+     * @return array<int, string>
+     */
+    private function alreadyPulledKeys(array $keys, bool $autoPull): array
+    {
+        if ($keys === []) {
+            return [];
+        }
+
+        $query = BiometricS3PulledFile::query()->whereIn('s3_key', $keys);
+
+        if (! $autoPull) {
+            $query->whereIn('status', [
+                BiometricS3PulledFile::STATUS_IMPORTED,
+                BiometricS3PulledFile::STATUS_SKIPPED,
+            ]);
+        }
+
+        return $query->pluck('s3_key')->all();
+    }
+
+    private function markPulled(string $s3Key, User $user, ?int $transactionId, string $status): void
+    {
+        BiometricS3PulledFile::query()->updateOrCreate(
+            ['s3_key' => $s3Key],
+            [
+                'pulled_at' => now(),
+                'pulled_by_user_id' => $user->id,
+                'timekeeping_transaction_id' => $transactionId,
+                'status' => $status,
+            ],
+        );
     }
 
     /**

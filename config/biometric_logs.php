@@ -19,4 +19,8 @@ return [
         'region' => env('BIOMETRIC_LOGS_S3_REGION', env('DB_BACKUP_S3_REGION', 'ap-southeast-2')),
         'bucket' => env('BIOMETRIC_LOGS_S3_BUCKET', env('DB_BACKUP_S3_BUCKET')),
     ],
+
+    'auto_pull' => [
+        'interval_minutes' => (int) env('BIOMETRIC_LOGS_AUTO_PULL_INTERVAL', 5),
+    ],
 ];

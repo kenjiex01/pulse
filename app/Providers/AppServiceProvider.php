@@ -7,7 +7,7 @@ use App\Listeners\HandleDesktopUpdaterEvents;
 use App\Models\User;
 use App\Policies\HrLookupPolicy;
 use App\Services\DatabaseBackupService;
-use App\Services\People360LanBeacon;
+use App\Services\BiometricS3PullSettings;
 use App\Services\DesktopBootstrapService;
 use App\Services\DesktopCloudBackupService;
 use App\Services\DesktopUpdaterService;
@@ -169,6 +169,15 @@ class AppServiceProvider extends ServiceProvider
             $view->with('desktopUpdater', $updater);
         });
 
+        View::composer('layouts.app', function ($view): void {
+            $settings = app(BiometricS3PullSettings::class);
+
+            $view->with([
+                'biometricS3AutoPullEnabled' => $settings->isAutoPullEnabled(),
+                'biometricS3AutoPullIntervalMinutes' => max(1, (int) config('biometric_logs.auto_pull.interval_minutes', 5)),
+            ]);
+        });
+
         if ($this->app->runningInConsole() && ! $this->isNativeDesktop()) {
             return;
         }
@@ -178,7 +187,6 @@ class AppServiceProvider extends ServiceProvider
 
         $this->ensureDesktopDatabase();
         app(ReferenceDataBootstrapService::class)->ensureCriticalLookups();
-        app(People360LanBeacon::class)->ensureRunning();
     }
 
     /**

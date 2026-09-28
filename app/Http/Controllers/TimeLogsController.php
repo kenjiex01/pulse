@@ -10,6 +10,8 @@ use App\Models\TeachingLoadSession;
 use App\Models\TimeCaptureFormat;
 use App\Services\SysLogService;
 use App\Services\BiometricLogsS3PullService;
+use App\Services\BiometricS3AutoPullService;
+use App\Services\BiometricS3PullSettings;
 use App\Services\TimeLogsDtrUploadService;
 use App\Services\TeachingLoadPullService;
 use App\Services\TimeLogsUploadService;
@@ -35,6 +37,8 @@ class TimeLogsController extends Controller
         private readonly TimeLogsDtrUploadService $dtrUploadService,
         private readonly TeachingLoadPullService $teachingLoadPullService,
         private readonly BiometricLogsS3PullService $biometricLogsS3PullService,
+        private readonly BiometricS3PullSettings $biometricS3PullSettings,
+        private readonly BiometricS3AutoPullService $biometricS3AutoPullService,
         private readonly UploadedFacultyLoadService $uploadedFacultyLoadService,
     ) {}
 
@@ -128,6 +132,8 @@ class TimeLogsController extends Controller
             'dtrCampuses' => TimeLogs::dtrCampuses(),
             'requiresCampus' => TimeLogs::requiresCampus($tab),
             's3PullConfigured' => ! $isTeachingLoads && $this->biometricLogsS3PullService->isConfigured(),
+            's3AutoPullEnabled' => ! $isTeachingLoads && $this->biometricS3PullSettings->isAutoPullEnabled(),
+            's3AutoPullLastRunAt' => ! $isTeachingLoads ? $this->biometricS3PullSettings->lastRunAt() : null,
             's3PullCampuses' => ! $isTeachingLoads
                 ? Campus::query()->where('is_active', true)->orderBy('campus_name')->get(['campus_id', 'campus_code', 'campus_name'])
                 : collect(),
@@ -473,10 +479,11 @@ class TimeLogsController extends Controller
         }
 
         $message = sprintf(
-            'S3 pull finished: %d file(s) scanned, %d imported, %d skipped, %d punch(es) inserted, %d duplicate(s) skipped, %d unmatched biometric ID(s).',
+            'S3 pull finished: %d file(s) scanned, %d imported, %d skipped, %d already pulled, %d punch(es) inserted, %d duplicate(s) skipped, %d unmatched biometric ID(s).',
             $summary['files_scanned'],
             $summary['files_imported'],
             $summary['files_skipped'],
+            $summary['files_already_pulled'] ?? 0,
             $summary['punches_inserted'],
             $summary['punches_skipped_duplicates'],
             $summary['punches_unmatched'],
@@ -489,6 +496,44 @@ class TimeLogsController extends Controller
         return redirect()
             ->route(TimeLogs::routeName('tab'), ['tab' => $tab])
             ->with($summary['errors'] !== [] && $summary['files_imported'] === 0 ? 'error' : 'success', $message);
+    }
+
+    public function updateBiometricS3AutoPull(Request $request): RedirectResponse
+    {
+        TimeLogs::authorize($request->user(), 'add');
+
+        $validated = $request->validate([
+            'enabled' => ['nullable'],
+            'tab' => ['nullable', 'string'],
+        ]);
+
+        $enabled = $request->boolean('enabled');
+        $this->biometricS3PullSettings->setAutoPullEnabled($enabled);
+
+        SysLogService::record(
+            action: 'update',
+            table: 'raw_timekeeping_transactions',
+            description: $enabled
+                ? 'Enabled automatic biometric S3 log pull'
+                : 'Disabled automatic biometric S3 log pull',
+        );
+
+        $tab = TimeLogs::resolveTab($validated['tab'] ?? 'time-in-out');
+
+        if ($enabled) {
+            $this->biometricS3AutoPullService->autoPullIfNeeded($request->user());
+        }
+
+        return redirect()
+            ->route(TimeLogs::routeName('tab'), ['tab' => $tab])
+            ->with('success', $enabled
+                ? 'Automatic S3 pull enabled. New uploads will be imported in the background while you work in any module.'
+                : 'Automatic S3 pull disabled.');
+    }
+
+    public function tickBiometricS3AutoPull(): \Illuminate\Http\Response
+    {
+        return response()->noContent();
     }
 
     public function listBiometricS3Folders(Request $request): JsonResponse

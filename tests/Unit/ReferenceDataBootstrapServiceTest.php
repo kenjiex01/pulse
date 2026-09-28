@@ -2,11 +2,10 @@
 
 namespace Tests\Unit;
 
-use App\Models\CompanyDocumentElement;
 use App\Models\CompanyDocumentForm;
 use App\Models\LuIcctOffense;
 use App\Services\ReferenceDataBootstrapService;
-use Database\Seeders\CompanyDocumentIcctOffensesSeeder;
+use Database\Seeders\CompanyDocumentHrLetterTemplatesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -14,16 +13,11 @@ class ReferenceDataBootstrapServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_auto_seeds_icct_offenses_and_syncs_nature_dropdown(): void
+    public function test_auto_seeds_icct_offenses_and_hr_letter_templates(): void
     {
-        $this->seed(CompanyDocumentIcctOffensesSeeder::class);
+        $this->seed(CompanyDocumentHrLetterTemplatesSeeder::class);
 
-        CompanyDocumentElement::query()
-            ->where('field_key', 'nature_of_offense')
-            ->update([
-                'type' => CompanyDocumentElement::TYPE_LONG_TEXT,
-                'options_json' => null,
-            ]);
+        CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->delete();
 
         LuIcctOffense::query()->forceDelete();
 
@@ -34,10 +28,8 @@ class ReferenceDataBootstrapServiceTest extends TestCase
             LuIcctOffense::query()->count(),
         );
 
-        $nte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
-        $natureField = $nte->elements()->where('field_key', 'nature_of_offense')->firstOrFail();
-
-        $this->assertSame(CompanyDocumentElement::TYPE_DROPDOWN, $natureField->type);
-        $this->assertGreaterThanOrEqual(90, count($natureField->options_json['choices'] ?? []));
+        $this->assertTrue(
+            CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->where('is_active', true)->exists(),
+        );
     }
 }

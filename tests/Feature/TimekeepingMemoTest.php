@@ -30,7 +30,11 @@ class TimekeepingMemoTest extends TestCase
             ->get(route('timekeeping.memo-setup.index'))
             ->assertOk()
             ->assertSee('Memo Setup')
-            ->assertSee('Late memo template');
+            ->assertSee('Late memo template')
+            ->assertSee('Count')
+            ->assertSee('name="late_occurrence_count"', false)
+            ->assertSee('name="undertime_occurrence_count"', false)
+            ->assertSee('name="absent_occurrence_count"', false);
     }
 
     public function test_memo_setup_saves_template_mapping(): void
@@ -51,6 +55,7 @@ class TimekeepingMemoTest extends TestCase
         ];
 
         foreach (['late', 'undertime', 'absent'] as $type) {
+            $payload[$type.'_occurrence_count'] = $type === 'late' ? 3 : 1;
             $payload[$type.'_email_subject'] = ucfirst($type).' memo subject';
             $payload[$type.'_email_body'] = 'Hello {{employee_full_name}}, this is your '.strtolower($type).' memo.';
             $payload[$type.'_email_cc'] = $type === 'late' ? 'hr@example.com' : null;
@@ -62,6 +67,7 @@ class TimekeepingMemoTest extends TestCase
 
         $setup = TimekeepingMemoSetup::query()->where('violation_type', 'late')->firstOrFail();
         $this->assertSame($form->company_document_form_id, $setup->company_document_form_id);
+        $this->assertSame(3, $setup->occurrence_count);
         $this->assertSame('Late memo subject', $setup->email_subject);
         $this->assertStringContainsString('{{employee_full_name}}', (string) $setup->email_body);
         $this->assertSame('hr@example.com', $setup->email_cc);
@@ -77,6 +83,9 @@ class TimekeepingMemoTest extends TestCase
                 'late_form_id' => null,
                 'undertime_form_id' => null,
                 'absent_form_id' => null,
+                'late_occurrence_count' => 1,
+                'undertime_occurrence_count' => 1,
+                'absent_occurrence_count' => 1,
             ])
             ->assertRedirect(route('timekeeping.memo-setup.index'))
             ->assertSessionHasErrors([
@@ -370,6 +379,67 @@ class TimekeepingMemoTest extends TestCase
             ]));
         $pdf->assertOk()->assertHeader('content-type', 'application/pdf');
         $this->assertSame(1, preg_match_all('/\/Type\s*\/Page[^s]/', $pdf->getContent()));
+    }
+
+    public function test_memo_list_minimum_count_cannot_go_below_setup(): void
+    {
+        TimekeepingMemoSetup::query()->where('violation_type', 'late')->update([
+            'occurrence_count' => 4,
+        ]);
+
+        $this->actingAs(User::query()->firstOrFail())
+            ->get(route('timekeeping.memo.index', [
+                'date_from' => '2026-09-01',
+                'date_to' => '2026-09-07',
+                'violation_type' => 'late',
+                'min_count' => 1,
+            ]))
+            ->assertOk()
+            ->assertSee('value="4"', false);
+    }
+
+    public function test_memo_send_is_blocked_until_the_setup_count_is_reached(): void
+    {
+        $user = User::query()->firstOrFail();
+        $employee = $this->makeEmployee();
+
+        $form = CompanyDocumentForm::query()->create([
+            'code' => 'count_gate_late_memo',
+            'name' => 'Count Gate Late Memo',
+            'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'is_active' => true,
+            'version' => 1,
+        ]);
+
+        TimekeepingMemoSetup::query()->where('violation_type', 'late')->update([
+            'company_document_form_id' => $form->company_document_form_id,
+            'occurrence_count' => 3,
+            'email_subject' => 'Late memo',
+            'email_body' => 'Body',
+        ]);
+
+        $this->mock(TimekeepingMemoAttendanceService::class, function ($mock): void {
+            $mock->shouldReceive('normalizeViolationType')->andReturn('late');
+            $mock->shouldReceive('violationDaysForEmployee')->andReturn([
+                [
+                    'work_date' => '2026-09-05',
+                    'time_in' => '09:30',
+                    'time_out' => '18:00',
+                    'minutes' => 30,
+                    'memo_sent' => false,
+                ],
+            ]);
+        });
+
+        $this->actingAs($user)
+            ->from(route('timekeeping.memo.index'))
+            ->post(route('timekeeping.memo.send', $employee), [
+                'date_from' => '2026-09-01',
+                'date_to' => '2026-09-07',
+                'violation_type' => 'late',
+            ])
+            ->assertRedirect(route('timekeeping.memo.index'))
+            ->assertSessionHas('error', 'A late memo is sent after 3 occurrence(s). This employee has 1 in the selected period.');
     }
 
     private function makeEmployee(): Employee

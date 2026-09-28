@@ -26,6 +26,7 @@
         <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs">biometric_logs/YYYY/MM/{collector}/</code>
         on S3. Each log <code class="rounded bg-gray-100 px-1 text-xs">user_id</code> is matched to the employee
         <strong>biometric ID</strong> for the campus in the file (or the campus you select below).
+        Files already pulled are skipped automatically.
     </p>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">

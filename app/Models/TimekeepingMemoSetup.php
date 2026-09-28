@@ -33,6 +33,11 @@ class TimekeepingMemoSetup extends Model
         'email_subject',
         'email_body',
         'email_cc',
+        'occurrence_count',
+    ];
+
+    protected $casts = [
+        'occurrence_count' => 'integer',
     ];
 
     public function form(): BelongsTo

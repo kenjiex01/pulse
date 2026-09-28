@@ -40,10 +40,9 @@ class ReferenceDataSeeder extends Seeder
             TimeCaptureFormatSeeder::class,
             LuTemplateSeeder::class,
             UserRequestTypeSeeder::class,
-            CompanyDocumentSampleMemoSeeder::class,
             IcctOffensePenaltySeeder::class,
             IcctOffenseSeeder::class,
-            CompanyDocumentIcctOffensesSeeder::class,
+            CompanyDocumentHrLetterTemplatesSeeder::class,
         ]);
     }
 }

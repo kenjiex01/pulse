@@ -17,6 +17,7 @@ use App\Services\PayrollAttendanceDayBreakdownService;
 use App\Services\PayrollBatchService;
 use App\Services\PayrollTransactionUploadService;
 use App\Services\PayslipEmailService;
+use App\Services\TimekeepingMemoPayrollPostService;
 use App\Services\Reports\ReportBatchOptionsService;
 use App\Services\SysLogService;
 use App\Support\LiveTable;
@@ -41,6 +42,7 @@ class PayrollTransactionController extends Controller
         private readonly PayrollAttendanceDayBreakdownService $attendanceDayBreakdown,
         private readonly ReportBatchOptionsService $batchOptions,
         private readonly PayslipEmailService $payslipEmail,
+        private readonly TimekeepingMemoPayrollPostService $memoPayrollPostService,
     ) {}
 
     public function index(Request $request, string $tab): View|RedirectResponse
@@ -1061,6 +1063,8 @@ class PayrollTransactionController extends Controller
 
         $batch->refresh();
 
+        $memoSummary = $this->memoPayrollPostService->sendForPostedBatch($batch, $request->user());
+
         SysLogService::record(
             action: 'update',
             table: 'trn_payroll_batches',
@@ -1068,11 +1072,27 @@ class PayrollTransactionController extends Controller
             description: 'Posted payroll batch no. '.$batch->formattedBatchNo(),
         );
 
+        if (($memoSummary['sent'] ?? 0) > 0) {
+            SysLogService::record(
+                action: 'create',
+                table: 'tbl_timekeeping_memo_send_logs',
+                description: 'Auto-sent '.$memoSummary['sent'].' memo(s) after posting payroll batch no. '.$batch->formattedBatchNo(),
+            );
+        }
+
+        $successMessage = 'Payroll batch '.$batch->formattedBatchNo().' posted successfully.';
+        if (($memoSummary['sent'] ?? 0) > 0) {
+            $successMessage .= ' Auto-sent '.$memoSummary['sent'].' memo(s).';
+        }
+        if (($memoSummary['errors'] ?? []) !== []) {
+            $successMessage .= ' Some memos could not be sent: '.implode(' ', array_slice($memoSummary['errors'], 0, 2));
+        }
+
         return redirect()
             ->route(PayrollTransactionModule::routeName('tab'), [
                 'tab' => 'unpost-batches',
             ])
-            ->with('success', 'Payroll batch '.$batch->formattedBatchNo().' posted successfully.');
+            ->with('success', $successMessage);
     }
 
     public function unpostBatch(Request $request, PayrollBatch $batch): RedirectResponse

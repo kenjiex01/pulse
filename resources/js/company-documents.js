@@ -86,6 +86,11 @@ function initCompanyDocumentSendPicker(picker) {
     updateSelectedCount();
 }
 
+const parseAdditionalEmails = (raw) => (raw ?? '')
+    .split(',')
+    .map((email) => email.trim())
+    .filter((email) => email !== '');
+
 const readJsonResponse = async (response) => {
     const raw = await response.text();
 
@@ -125,6 +130,8 @@ function initCompanyDocumentSendForms(root = document) {
             event.preventDefault();
 
             const selectedRows = Array.from(form.querySelectorAll('[data-employee-multiselect-row]:checked'));
+            const additionalEmailsInput = form.querySelector('[data-company-document-additional-emails]');
+            const additionalEmails = parseAdditionalEmails(additionalEmailsInput?.value ?? '');
 
             if (selectedRows.length === 0) {
                 window.alert('Select at least one employee.');
@@ -133,9 +140,15 @@ function initCompanyDocumentSendForms(root = document) {
             }
 
             const total = selectedRows.length;
-            const confirmMessage = total === 1
+            let confirmMessage = total === 1
                 ? `Send "${documentName}" to 1 employee?`
                 : `Send "${documentName}" to ${total} employees?`;
+
+            if (additionalEmails.length > 0) {
+                confirmMessage += additionalEmails.length === 1
+                    ? '\n\nAlso send copies to 1 additional email address.'
+                    : `\n\nAlso send copies to ${additionalEmails.length} additional email addresses.`;
+            }
 
             if (!window.confirm(confirmMessage)) {
                 return;
@@ -198,9 +211,12 @@ function initCompanyDocumentSendForms(root = document) {
                 }
             }
 
+            let additionalSent = 0;
+            let additionalError = null;
+
             if (sent > 0 && batchCompleteUrl) {
                 try {
-                    await fetch(batchCompleteUrl, {
+                    const response = await fetch(batchCompleteUrl, {
                         method: 'POST',
                         credentials: 'same-origin',
                         headers: {
@@ -212,8 +228,16 @@ function initCompanyDocumentSendForms(root = document) {
                         body: JSON.stringify({
                             sent,
                             total,
+                            employee_ids: selectedRows.map((checkbox) => Number(checkbox.value)),
+                            additional_emails: additionalEmailsInput?.value?.trim() ?? '',
                         }),
                     });
+                    const payload = await readJsonResponse(response);
+
+                    if (response.ok) {
+                        additionalSent = Number(payload.additional_sent ?? 0);
+                        additionalError = payload.additional_error ?? null;
+                    }
                 } catch {
                     // Send logs already exist per employee; audit summary is best-effort.
                 }
@@ -229,6 +253,14 @@ function initCompanyDocumentSendForms(root = document) {
 
             if (failures.length === 0) {
                 notice = `Document sent to ${sent} employee${sent === 1 ? '' : 's'}.`;
+
+                if (additionalSent > 0) {
+                    notice += additionalSent === 1
+                        ? ' Copies also sent to 1 additional email address.'
+                        : ` Copies also sent to ${additionalSent} additional email addresses.`;
+                } else if (additionalError) {
+                    notice += ` Additional email copies failed: ${additionalError}`;
+                }
             } else if (sent > 0) {
                 notice = `Document sent to ${sent} of ${total}. ${failures.slice(0, 2).join(' ')}`;
             } else {

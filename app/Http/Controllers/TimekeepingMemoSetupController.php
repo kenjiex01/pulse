@@ -51,6 +51,7 @@ class TimekeepingMemoSetupController extends Controller
         ];
 
         foreach (TimekeepingMemoSetup::TYPES as $type) {
+            $rules[$type.'_occurrence_count'] = ['required', 'integer', 'min:1', 'max:999'];
             $rules[$type.'_email_subject'] = ['required', 'string', 'max:255'];
             $rules[$type.'_email_body'] = ['required', 'string', 'max:10000'];
             $rules[$type.'_email_cc'] = [
@@ -78,6 +79,7 @@ class TimekeepingMemoSetupController extends Controller
                 ->where('violation_type', $type)
                 ->update([
                     'company_document_form_id' => $validated[$type.'_form_id'] ?? null ?: null,
+                    'occurrence_count' => (int) $validated[$type.'_occurrence_count'],
                     'email_subject' => $validated[$type.'_email_subject'],
                     'email_body' => $validated[$type.'_email_body'],
                     'email_cc' => filled($validated[$type.'_email_cc'] ?? null)
@@ -89,7 +91,7 @@ class TimekeepingMemoSetupController extends Controller
         SysLogService::record(
             action: 'update',
             table: 'tbl_timekeeping_memo_setups',
-            description: 'Updated Memo Setup templates and email settings for late, undertime, and absent',
+            description: 'Updated Memo Setup templates, occurrence counts, and email settings for late, undertime, and absent',
         );
 
         return redirect()

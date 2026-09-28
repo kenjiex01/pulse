@@ -2,7 +2,13 @@
 @php
     $isDesktopApp = (bool) config('nativephp-internal.running', env('NATIVEPHP_RUNNING', false));
 @endphp
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-pulse-desktop="{{ $isDesktopApp ? '1' : '0' }}">
+<html
+    lang="{{ str_replace('_', '-', app()->getLocale()) }}"
+    data-pulse-desktop="{{ $isDesktopApp ? '1' : '0' }}"
+    data-biometric-s3-auto-pull-enabled="{{ ($biometricS3AutoPullEnabled ?? false) ? '1' : '0' }}"
+    data-biometric-s3-auto-pull-interval="{{ (int) ($biometricS3AutoPullIntervalMinutes ?? 5) }}"
+    data-biometric-s3-auto-pull-tick-url="{{ route('biometric-s3-auto-pull.tick') }}"
+>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">

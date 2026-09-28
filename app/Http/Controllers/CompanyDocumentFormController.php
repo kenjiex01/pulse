@@ -14,6 +14,7 @@ use App\Services\CompanyDocumentMemoRenderService;
 use App\Services\CompanyDocumentSendService;
 use App\Services\SysLogService;
 use App\Support\CompanyDocumentSendHistorySummary;
+use App\Support\EmailAddressList;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -281,9 +282,28 @@ class CompanyDocumentFormController extends Controller
         $validated = $request->validate([
             'employee_ids' => ['required', 'array', 'min:1'],
             'employee_ids.*' => ['integer', 'exists:tbl_employees,employee_id'],
+            'additional_emails' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $additionalEmails = EmailAddressList::parseValidated($validated['additional_emails'] ?? null);
+
         $result = $this->sendToEmployees($companyDocumentForm, $validated['employee_ids'], $request->user());
+
+        if ($result['sent'] > 0 && $additionalEmails !== []) {
+            try {
+                $extraSent = $this->sendService->sendCopiesToAdditionalEmails(
+                    $companyDocumentForm,
+                    $validated['employee_ids'],
+                    $additionalEmails,
+                    $request->user(),
+                );
+                $messageExtra = $extraSent === 1
+                    ? ' Copy also sent to 1 additional email address.'
+                    : ' Copies also sent to '.$extraSent.' additional email addresses.';
+            } catch (\RuntimeException $exception) {
+                $messageExtra = ' Additional email copies failed: '.$exception->getMessage();
+            }
+        }
 
         SysLogService::record(
             action: 'create',
@@ -303,6 +323,9 @@ class CompanyDocumentFormController extends Controller
             if (count($result['errors']) > 3) {
                 $message .= ' (+'.(count($result['errors']) - 3).' more)';
             }
+        }
+        if (isset($messageExtra)) {
+            $message .= $messageExtra;
         }
 
         return redirect()
@@ -365,7 +388,13 @@ class CompanyDocumentFormController extends Controller
         $validated = $request->validate([
             'sent' => ['required', 'integer', 'min:0'],
             'total' => ['required', 'integer', 'min:1'],
+            'employee_ids' => ['nullable', 'array'],
+            'employee_ids.*' => ['integer', 'exists:tbl_employees,employee_id'],
+            'additional_emails' => ['nullable', 'string', 'max:2000'],
         ]);
+
+        $additionalSent = 0;
+        $additionalError = null;
 
         if ($validated['sent'] > 0) {
             SysLogService::record(
@@ -373,9 +402,29 @@ class CompanyDocumentFormController extends Controller
                 table: 'tbl_company_document_send_logs',
                 description: 'Sent company document "'.$companyDocumentForm->name.'" to '.$validated['sent'].' of '.$validated['total'].' employee(s)',
             );
+
+            $additionalEmails = EmailAddressList::parseValidated($validated['additional_emails'] ?? null);
+            $employeeIds = array_values(array_map('intval', $validated['employee_ids'] ?? []));
+
+            if ($additionalEmails !== [] && $employeeIds !== []) {
+                try {
+                    $additionalSent = $this->sendService->sendCopiesToAdditionalEmails(
+                        $companyDocumentForm,
+                        $employeeIds,
+                        $additionalEmails,
+                        $request->user(),
+                    );
+                } catch (\RuntimeException $exception) {
+                    $additionalError = $exception->getMessage();
+                }
+            }
         }
 
-        return response()->json(['success' => true]);
+        return response()->json([
+            'success' => true,
+            'additional_sent' => $additionalSent,
+            'additional_error' => $additionalError,
+        ]);
     }
 
     /**

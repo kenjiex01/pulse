@@ -59,6 +59,16 @@ class TimekeepingMemoSendService
         $allDays = $this->attendanceService->violationDaysForEmployee($employee, $dateFrom, $dateTo, $violationType);
         $availableDates = collect($allDays)->pluck('work_date')->all();
 
+        $requiredCount = max(1, (int) ($setup->occurrence_count ?? 1));
+        if (count($availableDates) < $requiredCount) {
+            throw new RuntimeException(sprintf(
+                'A %s memo is sent after %d occurrence(s). This employee has %d in the selected period.',
+                strtolower(TimekeepingMemoSetup::labelForType($violationType)),
+                $requiredCount,
+                count($availableDates),
+            ));
+        }
+
         $selectedDates = $this->resolveSelectedDates($workDates, $availableDates);
         if ($selectedDates === []) {
             throw new RuntimeException('No violation dates selected to send.');

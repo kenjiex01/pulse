@@ -63,6 +63,8 @@ Route::middleware('auth')->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('dashboard/biometric-collector-status', [DashboardController::class, 'biometricCollectorStatus'])
         ->name('dashboard.biometric-collector-status');
+    Route::post('biometric-s3-auto-pull/tick', [TimeLogsController::class, 'tickBiometricS3AutoPull'])
+        ->name('biometric-s3-auto-pull.tick');
     Route::post('logout', [LoginController::class, 'destroy'])->name('logout');
 
     Route::get('document-preview/engine/status', [DocumentPreviewEngineController::class, 'status'])
@@ -72,6 +74,7 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('role:admin')->group(function () {
         Route::get('database', [DatabaseController::class, 'index'])->name('database.index');
+        Route::post('database/lan/refresh', [DatabaseController::class, 'refreshLanPeers'])->name('database.lan.refresh');
         Route::post('database/lan/connect', [DatabaseController::class, 'connectLan'])->name('database.lan.connect');
         Route::post('database/lan/disconnect', [DatabaseController::class, 'disconnectLan'])->name('database.lan.disconnect');
         Route::post('database/cloud-backup/reset-marker', [DatabaseController::class, 'resetCloudBackupMarker'])
@@ -611,6 +614,9 @@ Route::middleware('auth')->group(function () {
 
         Route::get('timekeeping/time-logs/s3-pull/folders', [TimeLogsController::class, 'listBiometricS3Folders'])
             ->name('timekeeping.time-logs.s3-folders');
+
+        Route::post('timekeeping/time-logs/s3-auto-pull', [TimeLogsController::class, 'updateBiometricS3AutoPull'])
+            ->name('timekeeping.time-logs.s3-auto-pull');
 
         Route::delete('timekeeping/time-logs/{tab}/purge', [TimeLogsController::class, 'destroy'])
             ->where('tab', implode('|', array_keys(\App\Support\TimeLogs::tabs())))

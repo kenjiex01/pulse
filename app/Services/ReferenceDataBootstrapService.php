@@ -14,7 +14,7 @@ use App\Models\Province;
 use App\Models\Region;
 use Database\Seeders\CampusSeeder;
 use Database\Seeders\CitySeeder;
-use Database\Seeders\CompanyDocumentIcctOffensesSeeder;
+use Database\Seeders\CompanyDocumentHrLetterTemplatesSeeder;
 use Database\Seeders\CountrySeeder;
 use Database\Seeders\IcctOffenseSeeder;
 use Database\Seeders\PayTypeSeeder;
@@ -86,8 +86,8 @@ class ReferenceDataBootstrapService
                 $this->runSeeder(IcctOffenseSeeder::class);
             }
 
-            if (Schema::hasTable('tbl_company_document_forms') && $this->icctOffenseMemosNeedSync()) {
-                $this->runSeeder(CompanyDocumentIcctOffensesSeeder::class);
+            if (Schema::hasTable('tbl_company_document_forms') && $this->hrLetterTemplatesNeedSync()) {
+                $this->runSeeder(CompanyDocumentHrLetterTemplatesSeeder::class);
             }
         } catch (Throwable $exception) {
             Log::error('Reference data bootstrap failed — dropdowns may be incomplete.', [
@@ -133,36 +133,15 @@ class ReferenceDataBootstrapService
         return LuIcctOffense::withTrashed()->count() < self::EXPECTED_ICCT_OFFENSE_COUNT;
     }
 
-    private function icctOffenseMemosNeedSync(): bool
+    private function hrLetterTemplatesNeedSync(): bool
     {
-        if (! Schema::hasTable('tbl_company_document_elements')) {
-            return ! CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->exists();
-        }
+        foreach (CompanyDocumentHrLetterTemplatesSeeder::TEMPLATE_CODES as $code) {
+            $exists = CompanyDocumentForm::query()
+                ->where('code', $code)
+                ->where('is_active', true)
+                ->exists();
 
-        if (! CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->exists()) {
-            return true;
-        }
-
-        $elements = CompanyDocumentElement::query()
-            ->where('field_key', 'nature_of_offense')
-            ->get(['type', 'options_json']);
-
-        if ($elements->isEmpty()) {
-            return true;
-        }
-
-        $minimumChoices = self::EXPECTED_ICCT_OFFENSE_COUNT - 3;
-
-        foreach ($elements as $element) {
-            if ($element->type !== CompanyDocumentElement::TYPE_DROPDOWN) {
-                return true;
-            }
-
-            $choices = is_array($element->options_json)
-                ? ($element->options_json['choices'] ?? [])
-                : [];
-
-            if (count($choices) < $minimumChoices) {
+            if (! $exists) {
                 return true;
             }
         }

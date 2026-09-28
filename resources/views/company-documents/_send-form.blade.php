@@ -87,6 +87,22 @@
         @error('employee_ids.*')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
     </div>
 
+    <div>
+        <label for="{{ $fieldPrefix }}-additional-emails" class="form-label">Additional email addresses</label>
+        <input
+            type="text"
+            id="{{ $fieldPrefix }}-additional-emails"
+            name="additional_emails"
+            class="form-input"
+            value="{{ old('additional_emails') }}"
+            placeholder="hr@company.com, manager@company.com"
+            autocomplete="off"
+            data-company-document-additional-emails
+        >
+        <p class="mt-1 text-xs text-gray-500">Optional. Separate multiple addresses with commas. Each address receives copies of the selected employees' documents.</p>
+        @error('additional_emails')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+    </div>
+
     @include('partials.modal-form-actions', [
         'submitLabel' => 'Send',
     ])
