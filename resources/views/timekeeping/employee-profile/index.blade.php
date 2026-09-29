@@ -18,6 +18,10 @@
         'searchId' => 'employee-profile-search',
         'paginator' => $employees,
         'totalLabel' => 'employees',
+        'filtersInline' => true,
+        'filters' => view('timekeeping.employee-profile._filters', [
+            'employmentCategory' => $employmentCategory ?? 'all',
+        ])->render(),
         'results' => view('timekeeping.employee-profile._results', [
             'employees' => $employees,
             'search' => $search,

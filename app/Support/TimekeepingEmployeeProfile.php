@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Employee;
+use App\Models\EmployeeEmploymentInformation;
 use App\Models\LuDay;
 use App\Models\RawEmployeeLoadEntry;
 use App\Models\ShiftCode;
@@ -128,6 +129,47 @@ class TimekeepingEmployeeProfile
             ->orderBy('employee_number')
             ->orderBy('last_name')
             ->orderBy('first_name');
+    }
+
+    public static function normalizeEmploymentCategory(?string $employmentCategory): string
+    {
+        $employmentCategory = trim((string) $employmentCategory);
+
+        if ($employmentCategory === '') {
+            return 'all';
+        }
+
+        $allowed = [
+            'all',
+            EmployeeEmploymentInformation::TYPE_STAFF,
+            EmployeeEmploymentInformation::TYPE_FACULTY,
+        ];
+
+        if (! in_array($employmentCategory, $allowed, true)) {
+            return 'all';
+        }
+
+        return $employmentCategory;
+    }
+
+    public static function applyEmploymentCategoryFilter(Builder $query, string $employmentCategory): Builder
+    {
+        $employmentCategory = self::normalizeEmploymentCategory($employmentCategory);
+
+        if ($employmentCategory === 'all') {
+            return $query;
+        }
+
+        return $query->whereExists(function ($subQuery) use ($employmentCategory) {
+            $subQuery->selectRaw('1')
+                ->from('tbl_employee_employment_information')
+                ->whereColumn(
+                    'tbl_employee_employment_information.employee_id',
+                    'tbl_employees.employee_id'
+                )
+                ->where('tbl_employee_employment_information.user_type', $employmentCategory)
+                ->whereNull('tbl_employee_employment_information.deleted_at');
+        });
     }
 
     /**

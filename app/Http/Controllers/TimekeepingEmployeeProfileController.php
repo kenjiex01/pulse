@@ -38,10 +38,15 @@ class TimekeepingEmployeeProfileController extends Controller
         TimekeepingEmployeeProfile::authorize($request->user(), 'view');
 
         $search = $request->string('search')->trim()->toString();
+        $employmentCategory = TimekeepingEmployeeProfile::normalizeEmploymentCategory(
+            $request->string('employment_category')->toString()
+        );
         $formOptions = TimekeepingEmployeeProfile::formOptions();
 
-        $employees = TimekeepingEmployeeProfile::query()
-            ->search($search)
+        $employees = TimekeepingEmployeeProfile::applyEmploymentCategoryFilter(
+            TimekeepingEmployeeProfile::query()->search($search),
+            $employmentCategory,
+        )
             ->paginate(LiveTable::perPage($request))
             ->withQueryString();
 
@@ -56,6 +61,7 @@ class TimekeepingEmployeeProfileController extends Controller
         $viewData = [
             'employees' => $employees,
             'search' => $search,
+            'employmentCategory' => $employmentCategory,
             'formOptions' => $formOptions,
             'openSetupEmployeeId' => old('setup_employee_id', $request->input('setup_employee')),
             'openViewEmployeeId' => $request->input('view_employee'),
@@ -84,6 +90,7 @@ class TimekeepingEmployeeProfileController extends Controller
         return redirect()->route(TimekeepingEmployeeProfile::routeName('index'), [
             'view_employee' => $employee->employee_id,
             'search' => $request->input('search'),
+            'employment_category' => $request->input('employment_category'),
             'page' => $request->input('page'),
         ]);
     }
@@ -149,6 +156,7 @@ class TimekeepingEmployeeProfileController extends Controller
         return redirect()
             ->route(TimekeepingEmployeeProfile::routeName('index'), [
                 'search' => $request->input('search'),
+                'employment_category' => $request->input('employment_category'),
                 'page' => $request->input('page'),
                 'setup_employee' => $employee->employee_id,
             ])
@@ -563,6 +571,7 @@ class TimekeepingEmployeeProfileController extends Controller
         return array_merge([
             'view_employee' => $employee->employee_id,
             'search' => $request->input('search'),
+            'employment_category' => $request->input('employment_category'),
             'page' => $request->input('page'),
         ], $extra);
     }

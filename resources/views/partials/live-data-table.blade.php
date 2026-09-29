@@ -14,14 +14,21 @@
         'sm:justify-end' => empty($filters),
     ])>
         @if (! empty($filters))
-            <div class="flex flex-col gap-3">
-                <div class="min-w-0" data-live-table-filters>
+            <div @class([
+                'flex flex-col gap-3' => ! ($filtersInline ?? false),
+                'datatable-skolaris-toolbar-inline' => $filtersInline ?? false,
+            ])>
+                <div @class(['min-w-0' => ! ($filtersInline ?? false)]) data-live-table-filters>
                     {!! $filters !!}
                 </div>
 
                 @if ($showSearch ?? true)
-                    <div class="flex justify-end">
-                        <div class="w-full sm:w-72">
+                    <div @class([
+                        'flex justify-end' => ! ($filtersInline ?? false),
+                        'datatable-skolaris-toolbar-search' => $filtersInline ?? false,
+                        'w-full sm:w-72' => ! ($filtersInline ?? false),
+                    ])>
+                        <div class="w-full">
                             <label for="{{ $searchId }}" class="form-label">Search</label>
                             <input
                                 id="{{ $searchId }}"

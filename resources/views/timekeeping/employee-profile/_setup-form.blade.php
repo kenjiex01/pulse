@@ -18,6 +18,7 @@
         <input type="hidden" name="form_context" value="{{ $formContext }}">
         <input type="hidden" name="setup_employee_id" value="{{ $employee->employee_id }}">
         <input type="hidden" name="search" value="{{ request('search') }}">
+        <input type="hidden" name="employment_category" value="{{ request('employment_category', 'all') }}">
         <input type="hidden" name="page" value="{{ request('page') }}">
         <input type="hidden" name="active_tab" value="{{ $activeTab }}" data-employee-active-tab>
 
