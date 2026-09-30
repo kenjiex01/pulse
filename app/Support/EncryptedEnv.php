@@ -19,6 +19,8 @@ class EncryptedEnv
     {
         return [
             'SKOLARIS_PULSE_API_KEY',
+            'SKOLARIS_API_PASSWORD',
+            'SKOLARIS_API_REFRESH_TOKEN',
             'DB_BACKUP_S3_KEY',
             'DB_BACKUP_S3_SECRET',
             'BIOMETRIC_LOGS_S3_KEY',
@@ -38,6 +40,8 @@ class EncryptedEnv
     {
         return [
             'skolaris.pulse_api_key',
+            'skolaris.password',
+            'skolaris.refresh_token',
             'filesystems.disks.backup-s3.key',
             'filesystems.disks.backup-s3.secret',
             'backup.cloud.key',

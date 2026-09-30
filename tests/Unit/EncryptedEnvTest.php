@@ -41,6 +41,18 @@ class EncryptedEnvTest extends TestCase
     }
 
     #[Test]
+    public function reveal_configured_secrets_decrypts_skolaris_jwt_password_in_memory(): void
+    {
+        $sealed = EncryptedEnv::seal('jwt-service-password');
+
+        config(['skolaris.password' => $sealed]);
+
+        EncryptedEnv::revealConfiguredSecrets();
+
+        $this->assertSame('jwt-service-password', config('skolaris.password'));
+    }
+
+    #[Test]
     public function reveal_configured_secrets_decrypts_ses_credentials_in_memory(): void
     {
         $sealedKey = EncryptedEnv::seal('AKIATESTKEY');

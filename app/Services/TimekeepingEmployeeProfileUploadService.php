@@ -132,6 +132,7 @@ class TimekeepingEmployeeProfileUploadService
                 $lineNumber++;
 
                 if ($lineNumber === 1) {
+                    $line = $this->stripUtf8Bom($line);
                     $delimiter = $this->detectDelimiter($line);
                 }
 
@@ -617,6 +618,11 @@ class TimekeepingEmployeeProfileUploadService
     private function detectDelimiter(string $line): string
     {
         return substr_count($line, "\t") > substr_count($line, ',') ? "\t" : ',';
+    }
+
+    private function stripUtf8Bom(string $line): string
+    {
+        return str_starts_with($line, "\xEF\xBB\xBF") ? substr($line, 3) : $line;
     }
 
     /**

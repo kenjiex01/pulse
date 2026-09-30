@@ -62,6 +62,32 @@ if (\$key === '' || \$base === '') {
 echo \"    Pulse API base: {\$base}\\n\";
 "
 
+echo "==> Verifying Skolaris JWT credentials (Employee Load template)"
+php -r "
+require 'vendor/autoload.php';
+\$app = require 'bootstrap/app.php';
+\$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+App\Support\EncryptedEnv::revealConfiguredSecrets();
+if (! App\Support\SkolarisJwtCredentials::isConfigured()) {
+    fwrite(STDERR, \"ERROR: Set SKOLARIS_API_IDENTIFIER and SKOLARIS_API_PASSWORD in .env before building desktop.\\n\");
+    fwrite(STDERR, \"       Use the same Skolaris web login (email/username + password) as skolaris-fe POST /login — not the Pulse API key.\\n\");
+    exit(1);
+}
+\$base = rtrim((string) config('skolaris.base_url'), '/');
+\$payload = App\Support\SkolarisJwtCredentials::loginPayload();
+\$response = Illuminate\Support\Facades\Http::baseUrl(\$base)
+    ->acceptJson()
+    ->asJson()
+    ->timeout(30)
+    ->post('/login', \$payload);
+if (\$response->failed() || \$response->json('access_token') === null) {
+    \$message = \$response->json('message') ?: \$response->reason();
+    fwrite(STDERR, \"ERROR: Skolaris JWT login failed ({\$response->status()}): {\$message}\\n\");
+    exit(1);
+}
+echo \"    Skolaris JWT login OK for identifier: {\$payload['identifier']}\\n\";
+"
+
 echo "==> Verifying desktop bootstrap seeder"
 php artisan db:seed --class=DesktopBootstrapSeeder --force --no-interaction
 

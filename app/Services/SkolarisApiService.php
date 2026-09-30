@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\EncryptedEnv;
+use App\Support\SkolarisJwtCredentials;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
@@ -550,10 +551,7 @@ class SkolarisApiService
 
     private function login(): string
     {
-        $response = $this->client()->post('/login', [
-            'identifier' => config('skolaris.identifier'),
-            'password' => config('skolaris.password'),
-        ]);
+        $response = $this->client()->post('/login', SkolarisJwtCredentials::loginPayload());
 
         if ($response->failed()) {
             $this->throwForResponse('/login', $response, 'Unable to authenticate with Skolaris. Check the service-account credentials.');
@@ -609,8 +607,12 @@ class SkolarisApiService
 
     private function assertConfigured(): void
     {
-        if (blank(config('skolaris.identifier')) || blank(config('skolaris.password'))) {
-            throw new RuntimeException('Skolaris API credentials are not configured. Set SKOLARIS_API_IDENTIFIER and SKOLARIS_API_PASSWORD.');
+        if (! SkolarisJwtCredentials::isConfigured()) {
+            throw new RuntimeException(
+                'Skolaris API credentials are not configured. Set SKOLARIS_API_IDENTIFIER (Skolaris login email or username) '
+                .'and SKOLARIS_API_PASSWORD (same password as skolaris.icct.edu.ph /login). '
+                .'Use a global admin service account — not the People360 Pulse API key (skp_…).'
+            );
         }
     }
 

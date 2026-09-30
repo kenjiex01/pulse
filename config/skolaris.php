@@ -1,16 +1,17 @@
 <?php
 
+use App\Support\SkolarisPulseApiUrl;
+
 return [
     /*
     |--------------------------------------------------------------------------
     | Skolaris API connection
     |--------------------------------------------------------------------------
     |
-    | People360 pulls faculty loading data from the Skolaris REST API (the same
-    | endpoints used by the Skolaris frontend). Authentication uses the
-    | Skolaris JWT login/refresh flow. Provide a service-account credential
-    | with access to the faculty assignments overview (ideally a global /
-    | super-admin account so every campus is visible).
+    | Employee Load uses the same JWT login as Skolaris web (POST /api/v1/login with
+    | identifier + password). Set SKOLARIS_API_IDENTIFIER to the service account email
+    | or username and SKOLARIS_API_PASSWORD to its password. This is separate from
+    | SKOLARIS_PULSE_API_KEY (skp_…). Prefer a global admin for all campuses.
     |
     */
 
@@ -31,10 +32,10 @@ return [
     'token_ttl_minutes' => (int) env('SKOLARIS_API_TOKEN_TTL', 55),
 
     /*
-    | Desktop / People360 app calls the Skolaris backend Pulse API directly (not the
-    | Skolaris frontend /pulse/api bridge, which returns HTML for non-browser clients).
+    | Desktop / People360 may store the Skolaris frontend bridge URL
+    | (https://skolaris.icct.edu.ph/pulse/api); it is rewritten to the direct API host at boot.
     */
-    'pulse_api_base_url' => rtrim((string) env('SKOLARIS_PULSE_API_BASE_URL', 'https://api-skolaris.icct.edu.ph/api/v1/pulse-api/v1'), '/'),
+    'pulse_api_base_url' => SkolarisPulseApiUrl::normalize(env('SKOLARIS_PULSE_API_BASE_URL')),
 
     'pulse_api_key' => env('SKOLARIS_PULSE_API_KEY'),
 ];
