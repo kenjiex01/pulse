@@ -147,6 +147,8 @@ Route::middleware('auth')->group(function () {
         Route::post('company-documents/{companyDocumentForm}/send', [CompanyDocumentFormController::class, 'send'])->name('company-documents.send');
         Route::post('company-documents/{companyDocumentForm}/send-one', [CompanyDocumentFormController::class, 'sendOne'])->name('company-documents.send-one');
         Route::post('company-documents/{companyDocumentForm}/send-batch-complete', [CompanyDocumentFormController::class, 'sendBatchComplete'])->name('company-documents.send-batch-complete');
+        Route::post('company-documents/{companyDocumentForm}/nte-cases/sync', [CompanyDocumentFormController::class, 'syncNteFromSkolaris'])->name('company-documents.nte-cases.sync');
+        Route::post('company-documents/{companyDocumentForm}/nte-cases/{companyDocumentNteCase}/mark-received', [CompanyDocumentFormController::class, 'markNteCaseReceived'])->name('company-documents.nte-cases.mark-received');
 
         Route::get('company-documents/{companyDocumentForm}/designer', [CompanyDocumentDesignerController::class, 'show'])->name('company-documents.designer');
         Route::put('company-documents/{companyDocumentForm}/designer/elements', [CompanyDocumentDesignerController::class, 'saveElements'])->name('company-documents.designer.elements');

@@ -15,13 +15,13 @@
             @elseif ($form->description)
                 <p class="mt-2 line-clamp-2 text-xs text-gray-600">{{ $form->description }}</p>
             @endif
-            @if ($form->is_nte || $form->requires_nte)
+            @if ($form->is_nte || $form->expects_web_nte_response)
                 <div class="mt-2 flex flex-wrap gap-1.5">
                     @if ($form->is_nte)
-                        <p class="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-800">NTE</p>
+                        <p class="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-800">NTE letter</p>
                     @endif
-                    @if ($form->requires_nte)
-                        <p class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">Requires NTE</p>
+                    @if ($form->expects_web_nte_response)
+                        <p class="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-800">Web NTE · {{ $form->nteResponseDays() }}d</p>
                     @endif
                 </div>
             @endif

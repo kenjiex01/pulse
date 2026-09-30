@@ -111,7 +111,32 @@ class CompanyDocumentTextStyle
         }
         $parts[] = 'font-size:'.$normalized['font_size'].'px';
         $parts[] = 'color:'.$normalized['font_color'];
+        $align = self::normalizeTextAlign($settings);
+        if ($align !== 'left') {
+            $parts[] = 'text-align:'.$align;
+        }
 
         return implode(';', $parts).';';
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $settings
+     */
+    public static function normalizeTextAlign(?array $settings): string
+    {
+        $align = strtolower(trim((string) ($settings['text_align'] ?? 'left')));
+
+        return in_array($align, ['left', 'center', 'right'], true) ? $align : 'left';
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $settings
+     */
+    public static function headingInlineStyle(?array $settings): string
+    {
+        $color = self::normalizeHeadingColor($settings);
+        $align = self::normalizeTextAlign($settings);
+
+        return 'color:'.$color.';text-align:'.$align.';';
     }
 }

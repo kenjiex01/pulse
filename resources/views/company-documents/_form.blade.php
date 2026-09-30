@@ -4,7 +4,15 @@
     $selectedDocumentType = old('document_type', $form->document_type ?? 'memo');
 @endphp
 
-<div class="space-y-4" data-company-document-form>
+@php
+    $isNteLetterTemplate = filter_var($form->is_nte ?? false, FILTER_VALIDATE_BOOLEAN);
+@endphp
+
+<div
+    class="space-y-4"
+    data-company-document-form
+    data-company-document-is-nte-letter="{{ $isNteLetterTemplate ? '1' : '0' }}"
+>
     <div>
         <label class="form-label" for="{{ $fieldIdPrefix }}_name">Template name <span class="text-red-500">*</span></label>
         <input id="{{ $fieldIdPrefix }}_name" type="text" name="name" value="{{ old('name', $form->name ?? '') }}" class="form-input w-full" required maxlength="200">
@@ -32,7 +40,7 @@
     >
         <div
             data-company-document-offense-field
-            @class(['space-y-1', 'hidden' => filter_var(old('is_nte', $form->is_nte ?? false), FILTER_VALIDATE_BOOLEAN)])
+            @class(['space-y-1', 'hidden' => $isNteLetterTemplate])
         >
             <label class="form-label" for="{{ $fieldIdPrefix }}_icct_offense_id">
                 Nature of offense (memo type)
@@ -57,40 +65,43 @@
         </div>
 
         <div class="mt-3 space-y-2">
-            <label class="flex items-start gap-2 rounded-lg border border-gray-200 px-3 py-3 text-sm text-gray-800">
-                <input type="hidden" name="requires_nte" value="0">
-                <input
-                    id="{{ $fieldIdPrefix }}_requires_nte"
-                    type="checkbox"
-                    name="requires_nte"
-                    value="1"
-                    class="mt-0.5 rounded border-gray-300 text-[#00A3E6] focus:ring-[#00A3E6]"
-                    @checked(filter_var(old('requires_nte', $form->requires_nte ?? false), FILTER_VALIDATE_BOOLEAN))
-                >
-                <span>
-                    <span class="font-medium text-gray-900">Requires NTE (Notice to Explain)</span>
-                    <span class="mt-0.5 block text-xs font-normal text-gray-500">Tick if this memo needs a Notice to Explain before a penalty is issued.</span>
-                </span>
-            </label>
-            @error('requires_nte')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
+            <div
+                class="space-y-2 rounded-lg border border-sky-100 bg-sky-50/40 px-3 py-3"
+                data-company-document-web-nte
+            >
+                <label class="flex items-start gap-2 text-sm text-gray-800">
+                    <input type="hidden" name="expects_web_nte_response" value="0">
+                    <input
+                        id="{{ $fieldIdPrefix }}_expects_web_nte_response"
+                        type="checkbox"
+                        name="expects_web_nte_response"
+                        value="1"
+                        class="mt-0.5 rounded border-gray-300 text-[#00A3E6] focus:ring-[#00A3E6]"
+                        data-company-document-expects-web-nte
+                        @checked(filter_var(old('expects_web_nte_response', $form->expects_web_nte_response ?? false), FILTER_VALIDATE_BOOLEAN))
+                    >
+                    <span>
+                        <span class="font-medium text-gray-900">Require employee NTE on Skolaris web</span>
+                        <span class="mt-0.5 block text-xs font-normal text-gray-600">When this template is sent, track a response deadline and remind the employee to submit on Skolaris (no separate Word NTE attachment).</span>
+                    </span>
+                </label>
+                @error('expects_web_nte_response')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
 
-            <label class="flex items-start gap-2 rounded-lg border border-gray-200 px-3 py-3 text-sm text-gray-800">
-                <input type="hidden" name="is_nte" value="0">
-                <input
-                    id="{{ $fieldIdPrefix }}_is_nte"
-                    type="checkbox"
-                    name="is_nte"
-                    value="1"
-                    class="mt-0.5 rounded border-gray-300 text-[#00A3E6] focus:ring-[#00A3E6]"
-                    @checked(filter_var(old('is_nte', $form->is_nte ?? false), FILTER_VALIDATE_BOOLEAN))
-                    data-company-document-is-nte
-                >
-                <span>
-                    <span class="font-medium text-gray-900">Set as NTE (Notice to Explain)</span>
-                    <span class="mt-0.5 block text-xs font-normal text-gray-500">Tick if this memo template is the Notice to Explain itself. Only one active memo can be set as NTE — uncheck the current NTE template first before assigning another.</span>
-                </span>
-            </label>
-            @error('is_nte')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
+                <div data-company-document-web-nte-days @class(['hidden' => ! filter_var(old('expects_web_nte_response', $form->expects_web_nte_response ?? false), FILTER_VALIDATE_BOOLEAN)])>
+                    <label class="form-label" for="{{ $fieldIdPrefix }}_nte_response_days">Days to respond</label>
+                    <input
+                        id="{{ $fieldIdPrefix }}_nte_response_days"
+                        type="number"
+                        name="nte_response_days"
+                        min="3"
+                        max="30"
+                        value="{{ old('nte_response_days', $form->nte_response_days ?? 7) }}"
+                        class="form-input w-24"
+                    >
+                    <p class="mt-1 text-xs text-gray-500">Calendar days from send date (3–30).</p>
+                    @error('nte_response_days')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
+                </div>
+            </div>
         </div>
     </div>
 

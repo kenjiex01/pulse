@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CompanyDocumentForm;
 use App\Models\CompanyDocumentSendLog;
 use App\Models\CompanyDocumentSubmission;
+use App\Support\CompanyDocumentMergeTagCatalog;
 use App\Models\Employee;
 use App\Models\LuIcctOffensePenalty;
 use App\Models\TimekeepingMemoSendLog;
@@ -109,17 +110,41 @@ class CompanyDocumentOffenseMemoService
             'offense_frequency_ordinal' => $ordinal,
             'offense_frequency_label' => $frequencyLabel,
             'disciplinary_action' => $disciplinaryAction,
+            'nature_of_offense' => $this->resolveNatureOfOffenseLabel($form),
         ]);
     }
 
+    public function resolveNatureOfOffenseLabel(CompanyDocumentForm $form, ?CompanyDocumentSubmission $submission = null): string
+    {
+        if ($submission !== null) {
+            $submission->loadMissing('values');
+            $stored = trim((string) ($submission->values->firstWhere('field_key', 'nature_of_offense')?->value_text ?? ''));
+            if ($stored !== '') {
+                return $stored;
+            }
+        }
+
+        $form->loadMissing('icctOffense');
+        $offense = $form->icctOffense;
+        if ($offense !== null) {
+            return trim((string) $offense->nature_of_offense);
+        }
+
+        return '';
+    }
+
     /**
-     * @return array{disciplinary_action: string, offense_frequency: string}
+     * @return array{nature_of_offense: string, disciplinary_action: string, offense_frequency: string}
      */
     public function previewTagSamples(CompanyDocumentForm $form): array
     {
         $context = $this->enrichMemoContext($form, null, []);
+        $nature = $this->resolveNatureOfOffenseLabel($form);
 
         return [
+            'nature_of_offense' => $nature !== ''
+                ? $nature
+                : (string) ($context['nature_of_offense'] ?? CompanyDocumentMergeTagCatalog::sample('nature_of_offense')),
             'disciplinary_action' => (string) ($context['disciplinary_action'] ?? 'Written Warning'),
             'offense_frequency' => (string) ($context['offense_frequency_label'] ?? 'Second Offense'),
         ];

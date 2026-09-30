@@ -35,9 +35,11 @@ class CompanyDocumentMergeTagCatalogTest extends TestCase
         $items = CompanyDocumentMergeTagCatalog::paletteItems(true);
         $tagKeys = array_column($items, 'tag_key');
 
+        $this->assertContains('nature_of_offense', $tagKeys);
         $this->assertContains('disciplinary_action', $tagKeys);
         $this->assertContains('offense_frequency', $tagKeys);
-        $this->assertSame('disciplinary_action', $tagKeys[0] ?? null);
-        $this->assertSame('offense_frequency', $tagKeys[1] ?? null);
+        $this->assertSame('nature_of_offense', $tagKeys[0] ?? null);
+        $this->assertSame('disciplinary_action', $tagKeys[1] ?? null);
+        $this->assertSame('offense_frequency', $tagKeys[2] ?? null);
     }
 }

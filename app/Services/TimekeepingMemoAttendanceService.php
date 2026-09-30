@@ -13,6 +13,7 @@ class TimekeepingMemoAttendanceService
     public function __construct(
         private readonly EmployeeAttendanceViewService $attendanceView,
         private readonly TimeLogsPayrollService $timeLogsPayroll,
+        private readonly EmployeeShiftResolver $shiftResolver,
     ) {}
 
     /**
@@ -160,7 +161,9 @@ class TimekeepingMemoAttendanceService
 
         $employee->loadMissing('timekeepingSetup.policy', 'timekeepingSetup.shiftCode');
         $policy = $employee->timekeepingSetup?->policy;
-        $shift = $employee->timekeepingSetup?->shiftCode;
+        $defaultShift = $employee->timekeepingSetup?->shiftCode;
+        $sessionDate = CarbonImmutable::parse((string) ($day['date'] ?? ''));
+        $shift = $this->shiftResolver->forDate($employee, $sessionDate, $defaultShift);
 
         if ($shift !== null && (bool) $shift->is_flexi_time) {
             return false;
@@ -172,7 +175,7 @@ class TimekeepingMemoAttendanceService
         }
 
         $session = [
-            'date' => CarbonImmutable::parse((string) $day['date']),
+            'date' => $sessionDate,
             'time_in' => $timeIn,
             'time_out' => $day['time_out_raw'] ?? null,
         ];
@@ -180,7 +183,7 @@ class TimekeepingMemoAttendanceService
         $resolved = $this->timeLogsPayroll->resolvedLateForSession(
             $session,
             $policy,
-            $shift?->time_in,
+            $shift?->time_in ?? $defaultShift?->time_in,
             0,
         );
 

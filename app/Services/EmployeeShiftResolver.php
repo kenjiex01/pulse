@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Models\EmployeeShiftOverride;
+use App\Models\LuDay;
 use App\Models\ShiftCode;
+use App\Models\TimekeepingEmployeeWeeklyShift;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
@@ -19,6 +21,11 @@ class EmployeeShiftResolver
      * @var array<int, ShiftCode|null>
      */
     private array $defaultCache = [];
+
+    /**
+     * @var array<int, array<int, ShiftCode|null>>
+     */
+    private array $weeklyCache = [];
 
     public function forDate(Employee|int $employee, CarbonInterface $date, ?ShiftCode $defaultShift = null): ?ShiftCode
     {
@@ -51,6 +58,11 @@ class EmployeeShiftResolver
             return $overrideShift;
         }
 
+        $weeklyShift = $this->weeklyShiftFor($employeeId, LuDay::idFromDate($date));
+        if ($weeklyShift !== null) {
+            return $weeklyShift;
+        }
+
         return $defaultShift ?? $this->defaultShiftFor($employee);
     }
 
@@ -61,6 +73,8 @@ class EmployeeShiftResolver
      */
     public function loadOverridesForRange(int $employeeId, CarbonInterface $from, CarbonInterface $to): Collection
     {
+        $this->ensureWeeklyShiftsLoaded($employeeId);
+
         $rows = EmployeeShiftOverride::query()
             ->with(['shiftCode.breaks'])
             ->where('employee_id', $employeeId)
@@ -101,6 +115,31 @@ class EmployeeShiftResolver
     {
         $this->overrideCache = [];
         $this->defaultCache = [];
+        $this->weeklyCache = [];
+    }
+
+    private function weeklyShiftFor(int $employeeId, int $dayId): ?ShiftCode
+    {
+        $this->ensureWeeklyShiftsLoaded($employeeId);
+
+        return $this->weeklyCache[$employeeId][$dayId] ?? null;
+    }
+
+    private function ensureWeeklyShiftsLoaded(int $employeeId): void
+    {
+        if (array_key_exists($employeeId, $this->weeklyCache)) {
+            return;
+        }
+
+        $this->weeklyCache[$employeeId] = [];
+        $rows = TimekeepingEmployeeWeeklyShift::query()
+            ->with(['shiftCode.breaks'])
+            ->where('employee_id', $employeeId)
+            ->get();
+
+        foreach ($rows as $row) {
+            $this->weeklyCache[$employeeId][(int) $row->day_id] = $row->shiftCode;
+        }
     }
 
     private function defaultShiftFor(Employee|int $employee): ?ShiftCode

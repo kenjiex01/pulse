@@ -6,7 +6,7 @@
     @include('partials.flash')
     @include('partials.page-header', [
         'title' => 'Employee Profile',
-        'description' => 'Configure timekeeping settings for each employee — holiday group, shift code, policy, and rest days.',
+        'description' => 'Configure timekeeping settings for each employee — holiday group, weekly shift codes, policy, and rest days.',
         'actionModalId' => auth()->user()?->can('employee-profile.update') ? 'employee-profile-upload-modal' : null,
         'actionLabel' => 'Upload',
     ])

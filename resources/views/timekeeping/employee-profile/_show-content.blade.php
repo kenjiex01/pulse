@@ -3,6 +3,7 @@
 
     $setup = $employee->timekeepingSetup;
     $restDayMap = $employee->timekeepingRestDays->keyBy('day_id');
+    $weeklyShiftMap = $employee->timekeepingWeeklyShifts->keyBy('day_id');
     $isComplete = TimekeepingEmployeeProfile::isSetupComplete($employee);
     $activeTab = TimekeepingEmployeeProfile::normalizeSetupTab(request('view_tab', 'timekeeping'));
 @endphp
@@ -29,34 +30,31 @@
 
         <div class="grid gap-6 lg:grid-cols-2">
             <div>
-                <h4 class="mb-2 text-sm font-semibold text-gray-900">Rest Days</h4>
-                @if ($restDayMap->isEmpty())
-                    <p class="text-sm text-gray-500">No rest days configured.</p>
-                @else
-                    <ul class="divide-y divide-gray-100 rounded-lg border border-gray-200 text-sm">
-                        @foreach ($formOptions['days'] as $day)
-                            @php $restDay = $restDayMap->get($day->day_id); @endphp
+                <h4 class="mb-2 text-sm font-semibold text-gray-900">Weekly schedule</h4>
+                <ul class="divide-y divide-gray-100 rounded-lg border border-gray-200 text-sm">
+                    @foreach ($formOptions['days'] as $day)
+                        @php
+                            $restDay = $restDayMap->get($day->day_id);
+                            $weeklyShift = $weeklyShiftMap->get($day->day_id);
+                        @endphp
+                        <li class="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                            <span class="font-medium text-gray-800">{{ $day->day }}</span>
                             @if ($restDay)
-                                <li class="flex items-center justify-between px-3 py-2">
-                                    <span class="text-gray-800">{{ $day->day }}</span>
-                                    <span class="{{ $restDay->is_paid ? 'badge-success' : 'badge-muted' }}">
-                                        {{ $restDay->is_paid ? 'Paid' : 'Unpaid' }}
-                                    </span>
-                                </li>
+                                <span class="{{ $restDay->is_paid ? 'badge-success' : 'badge-muted' }}">
+                                    Rest day{{ $restDay->is_paid ? ' (paid)' : '' }}
+                                </span>
+                            @else
+                                <span class="text-gray-600">{{ $weeklyShift?->shiftCode?->description ?? $setup?->shiftCode?->description ?? '—' }}</span>
                             @endif
-                        @endforeach
-                    </ul>
-                @endif
+                        </li>
+                    @endforeach
+                </ul>
             </div>
 
             <dl class="space-y-3 text-sm">
                 <div>
                     <dt class="font-medium text-gray-500">Holiday Group</dt>
                     <dd class="mt-0.5 text-gray-900">{{ $setup?->holidayGroup?->description ?? '—' }}</dd>
-                </div>
-                <div>
-                    <dt class="font-medium text-gray-500">Shift Code</dt>
-                    <dd class="mt-0.5 text-gray-900">{{ $setup?->shiftCode?->description ?? '—' }}</dd>
                 </div>
                 <div>
                     <dt class="font-medium text-gray-500">Policy Group</dt>

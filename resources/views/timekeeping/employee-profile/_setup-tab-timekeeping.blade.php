@@ -1,6 +1,8 @@
 @php
     $setup = $employee->timekeepingSetup;
     $restDayMap = $employee->timekeepingRestDays->keyBy('day_id');
+    $weeklyShiftMap = $employee->timekeepingWeeklyShifts->keyBy('day_id');
+    $defaultShiftId = $setup?->shift_code_id;
     $formContext = 'setup-employee-'.$employee->employee_id;
     $isOpenContext = old('form_context') === $formContext && $errors->any();
 @endphp
@@ -9,13 +11,15 @@
 
 <div class="grid gap-6 lg:grid-cols-2">
     <div>
-        <h4 class="mb-3 text-sm font-semibold text-gray-900">Rest Days</h4>
-        <div class="overflow-hidden rounded-lg border border-gray-200">
+        <h4 class="mb-3 text-sm font-semibold text-gray-900">Weekly schedule</h4>
+        <p class="mb-2 text-xs text-gray-500">Choose a shift code for each working day. Rest days do not require a shift.</p>
+        <div class="overflow-visible rounded-lg border border-gray-200">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-3 py-2 text-left font-medium text-gray-600 w-12"></th>
                         <th class="px-3 py-2 text-left font-medium text-gray-600">Day</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-600">Shift code</th>
                         <th class="px-3 py-2 text-center font-medium text-gray-600 w-20">Paid?</th>
                     </tr>
                 </thead>
@@ -23,12 +27,16 @@
                     @foreach ($formOptions['days'] as $day)
                         @php
                             $existingRestDay = $restDayMap->get($day->day_id);
+                            $existingWeeklyShift = $weeklyShiftMap->get($day->day_id);
                             $isSelected = $isOpenContext
                                 ? ! empty(old("rest_days.{$day->day_id}.selected"))
                                 : $existingRestDay !== null;
                             $isPaid = $isOpenContext
                                 ? ! empty(old("rest_days.{$day->day_id}.is_paid"))
                                 : (bool) ($existingRestDay?->is_paid);
+                            $selectedShiftId = $isOpenContext
+                                ? old("weekly_shifts.{$day->day_id}", $existingWeeklyShift?->shift_code_id ?? $defaultShiftId)
+                                : ($existingWeeklyShift?->shift_code_id ?? ($isSelected ? '' : $defaultShiftId));
                         @endphp
                         <tr>
                             <td class="px-3 py-2 text-center">
@@ -42,7 +50,32 @@
                                     @checked($isSelected)
                                 >
                             </td>
-                            <td class="px-3 py-2 text-gray-800">{{ $day->day }}</td>
+                            <td class="px-3 py-2 text-gray-800">
+                                <span class="font-medium" data-day-name="{{ $day->day_id }}">{{ $day->day }}</span>
+                                <span
+                                    class="mt-0.5 block text-xs font-semibold uppercase tracking-wide text-amber-800 {{ $isSelected ? '' : 'hidden' }}"
+                                    data-rest-day-label="{{ $day->day_id }}"
+                                >Rest day</span>
+                            </td>
+                            <td class="px-3 py-2">
+                                <select
+                                    name="weekly_shifts[{{ $day->day_id }}]"
+                                    class="form-input py-1.5 text-sm"
+                                    data-weekly-shift-select="{{ $day->day_id }}"
+                                    @disabled($isSelected)
+                                >
+                                    <option value="">— Select shift —</option>
+                                    @foreach ($formOptions['shiftCodes'] as $shift)
+                                        <option
+                                            value="{{ $shift->shift_code_id }}"
+                                            @selected((string) $selectedShiftId === (string) $shift->shift_code_id)
+                                        >{{ $shift->description }}</option>
+                                    @endforeach
+                                </select>
+                                @error("weekly_shifts.{$day->day_id}")
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+                            </td>
                             <td class="px-3 py-2 text-center">
                                 <input
                                     type="checkbox"
@@ -59,6 +92,7 @@
                 </tbody>
             </table>
         </div>
+        <p class="mt-2 text-[11px] text-gray-500">Tick the first column to mark a rest day — the Day column will show <strong>Rest day</strong> and shift is not required.</p>
     </div>
 
     <div class="space-y-4">
@@ -79,27 +113,6 @@
                 @endforeach
             </select>
             @error('timekeeping_holiday_group_id')
-                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-            @enderror
-        </div>
-
-        <div>
-            <label for="shift-code-{{ $employee->employee_id }}" class="form-label">Shift Code <span class="text-red-600">*</span></label>
-            <select
-                id="shift-code-{{ $employee->employee_id }}"
-                name="shift_code_id"
-                class="form-input"
-                required
-            >
-                <option value="">— Please select —</option>
-                @foreach ($formOptions['shiftCodes'] as $shift)
-                    <option
-                        value="{{ $shift->shift_code_id }}"
-                        @selected((string) old('shift_code_id', $setup?->shift_code_id) === (string) $shift->shift_code_id)
-                    >{{ $shift->description }}</option>
-                @endforeach
-            </select>
-            @error('shift_code_id')
                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
             @enderror
         </div>

@@ -22,8 +22,14 @@
         <dd class="mt-1 text-gray-900">{{ $form->is_nte ? 'Yes — this template is the Notice to Explain' : 'No' }}</dd>
     </div>
     <div>
-        <dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">Requires NTE</dt>
-        <dd class="mt-1 text-gray-900">{{ $form->requires_nte ? 'Yes — Notice to Explain is required' : 'No' }}</dd>
+        <dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">Web NTE response</dt>
+        <dd class="mt-1 text-gray-900">
+            @if ($form->expects_web_nte_response)
+                Yes — {{ $form->nteResponseDays() }} day(s) on Skolaris web
+            @else
+                No
+            @endif
+        </dd>
     </div>
     <div>
         <dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">Status</dt>
@@ -40,3 +46,9 @@
         </div>
     @endif
 </dl>
+
+@include('company-documents._nte-cases', [
+    'form' => $form,
+    'nteCases' => $nteCases ?? collect(),
+    'nteSyncConfigured' => $nteSyncConfigured ?? false,
+])

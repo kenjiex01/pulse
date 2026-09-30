@@ -58,6 +58,10 @@ class CompanyDocumentMergeTagService
             return (string) ($memoContext['offense_frequency_label'] ?? '');
         }
 
+        if ($memoContext !== null && $tagKey === 'nature_of_offense') {
+            return (string) ($memoContext['nature_of_offense'] ?? '');
+        }
+
         return match ($tagKey) {
             'employee_full_name' => $employee !== null ? trim($employee->full_name) : $this->previewSample($tagKey),
             'employee_first_name' => $employee !== null ? trim((string) $employee->first_name) : $this->previewSample($tagKey),
@@ -69,7 +73,7 @@ class CompanyDocumentMergeTagService
             'current_date' => now()->format('F j, Y'),
             'current_time' => now()->format('g:i A'),
             'current_datetime' => now()->format('F j, Y g:i A'),
-            'disciplinary_action', 'offense_frequency' => $this->previewSample($tagKey),
+            'nature_of_offense', 'disciplinary_action', 'offense_frequency' => $this->previewSample($tagKey),
             default => $this->previewSample($tagKey),
         };
     }

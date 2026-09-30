@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\CompanyDocumentElement;
 use App\Models\CompanyDocumentForm;
+use App\Models\CompanyDocumentSendLog;
 use App\Models\CompanyDocumentSubmission;
 use App\Models\CompanyDocumentSubmissionValue;
 use App\Models\Employee;
@@ -23,6 +24,7 @@ class TimekeepingMemoSendService
         private readonly CompanyDocumentMemoValueResolver $valueResolver,
         private readonly TimekeepingMemoAttendanceService $attendanceService,
         private readonly TimekeepingMemoEmailService $emailService,
+        private readonly CompanyDocumentNteCaseService $nteCaseService,
     ) {}
 
     /**
@@ -89,10 +91,6 @@ class TimekeepingMemoSendService
             'mime' => 'application/pdf',
         ]];
 
-        if ($form->requires_nte) {
-            $emailAttachments = array_merge($emailAttachments, $this->buildNteDocxAttachment($employee, $violationType, $memoContext));
-        }
-
         $result = DB::transaction(function () use ($employee, $form, $setup, $violationType, $selectedDates, $sender, $memoContext) {
             $submission = CompanyDocumentSubmission::query()->create([
                 'company_document_form_id' => $form->company_document_form_id,
@@ -155,41 +153,53 @@ class TimekeepingMemoSendService
                 );
             }
 
+            $sendLog = null;
+            if ($form->expectsWebNteResponse()) {
+                $sendLog = CompanyDocumentSendLog::query()->create([
+                    'company_document_form_id' => $form->company_document_form_id,
+                    'employee_id' => $employee->employee_id,
+                    'submission_id' => $submission->submission_id,
+                    'sent_by_user_id' => $sender->id,
+                    'sent_at' => $sentAt,
+                ]);
+            }
+
             return [
                 'submission_id' => (int) $submission->submission_id,
                 'sent_dates' => $selectedDates,
+                'send_log' => $sendLog,
+                'sent_at' => $sentAt,
             ];
         });
 
-        $this->emailService->sendForEmployee($employee, $setup, $memoContext, $form, $emailAttachments);
-
-        return $result;
-    }
-
-    /**
-     * @param  array{date_from: string, date_to: string, violation_type: string, violation_count: int, selected_dates: list<string>}  $memoContext
-     * @return list<array{binary: string, filename: string}>
-     */
-    /**
-     * @param  array{date_from: string, date_to: string, violation_type: string, violation_count: int, selected_dates: list<string>}  $memoContext
-     * @return list<array{binary: string, filename: string, mime: string}>
-     */
-    private function buildNteDocxAttachment(Employee $employee, string $violationType, array $memoContext): array
-    {
-        $nteForm = CompanyDocumentForm::activeNteTemplate();
-
-        if ($nteForm === null) {
-            throw new RuntimeException('This memo requires a Notice to Explain (NTE), but no active NTE template is configured in Company Documents.');
+        if ($result['send_log'] !== null) {
+            $this->nteCaseService->openCaseForSendLog($result['send_log'], $form);
         }
 
-        $nteForm->load('elements');
-        $ntePreview = $this->memoRenderService->buildPreviewData($nteForm, $employee, $memoContext);
+        $emailTemplates = $this->nteCaseService->appendWebNteInstructionsToEmail(
+            [
+                'subject' => trim((string) ($setup->email_subject ?? '')),
+                'body' => trim((string) ($setup->email_body ?? '')),
+                'cc' => $setup->email_cc,
+            ],
+            $form,
+            $result['sent_at'],
+        );
 
-        return [[
-            'binary' => $this->memoRenderService->renderDocx($ntePreview),
-            'filename' => MemoPdfFilename::docxFor($nteForm, $employee, $violationType),
-            'mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        ]];
+        $this->emailService->sendWithTemplates(
+            $employee,
+            $form,
+            $memoContext,
+            $emailTemplates['subject'],
+            $emailTemplates['body'],
+            $emailTemplates['cc'],
+            $emailAttachments,
+        );
+
+        return [
+            'submission_id' => $result['submission_id'],
+            'sent_dates' => $result['sent_dates'],
+        ];
     }
 
     /**

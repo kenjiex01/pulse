@@ -147,12 +147,12 @@ class CompanyDocumentMemoDocxExporter
         }
 
         $style = CompanyDocumentTextStyle::normalize($settings);
-        $html = CompanyDocumentInlineFormatting::sanitize($label);
+        $html = CompanyDocumentInlineFormatting::renderSegment($label);
 
         if (str_contains($html, '<')) {
             Html::addHtml(
                 $section,
-                '<p style="margin:0 0 8px;font-size:'.$style['font_size'].'px;color:'.$style['font_color'].';">'.$html.'</p>',
+                '<p style="margin:0 0 8px;width:100%;overflow:hidden;font-size:'.$style['font_size'].'px;color:'.$style['font_color'].';">'.$html.'</p>',
                 false,
                 false,
             );

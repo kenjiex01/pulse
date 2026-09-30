@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\ShiftCode;
 use App\Models\TimekeepingEmployeeRestDay;
 use App\Models\TimekeepingEmployeeSetup;
+use App\Models\TimekeepingEmployeeWeeklyShift;
 use App\Models\TimekeepingHolidayGroup;
 use App\Models\TimekeepingPolicy;
 use App\Models\User;
@@ -25,13 +26,13 @@ class TimekeepingEmployeeProfileUploadService
      * @var array<int, array{rest: string, paid: string}>
      */
     private const REST_DAY_ALIASES = [
-        1 => ['rest' => 'rest_sun', 'paid' => 'rest_sun_paid'],
-        2 => ['rest' => 'rest_mon', 'paid' => 'rest_mon_paid'],
-        3 => ['rest' => 'rest_tue', 'paid' => 'rest_tue_paid'],
-        4 => ['rest' => 'rest_wed', 'paid' => 'rest_wed_paid'],
-        5 => ['rest' => 'rest_thu', 'paid' => 'rest_thu_paid'],
-        6 => ['rest' => 'rest_fri', 'paid' => 'rest_fri_paid'],
-        7 => ['rest' => 'rest_sat', 'paid' => 'rest_sat_paid'],
+        1 => ['rest' => 'rest_sun', 'paid' => 'rest_sun_paid', 'shift' => 'shift_sun'],
+        2 => ['rest' => 'rest_mon', 'paid' => 'rest_mon_paid', 'shift' => 'shift_mon'],
+        3 => ['rest' => 'rest_tue', 'paid' => 'rest_tue_paid', 'shift' => 'shift_tue'],
+        4 => ['rest' => 'rest_wed', 'paid' => 'rest_wed_paid', 'shift' => 'shift_wed'],
+        5 => ['rest' => 'rest_thu', 'paid' => 'rest_thu_paid', 'shift' => 'shift_thu'],
+        6 => ['rest' => 'rest_fri', 'paid' => 'rest_fri_paid', 'shift' => 'shift_fri'],
+        7 => ['rest' => 'rest_sat', 'paid' => 'rest_sat_paid', 'shift' => 'shift_sat'],
     ];
 
     /**
@@ -80,7 +81,13 @@ class TimekeepingEmployeeProfileUploadService
             .$this->formatCsvRow($descriptions)."\n";
 
         $employees = Employee::query()
-            ->with(['timekeepingSetup.holidayGroup', 'timekeepingSetup.shiftCode', 'timekeepingSetup.policy', 'timekeepingRestDays'])
+            ->with([
+                'timekeepingSetup.holidayGroup',
+                'timekeepingSetup.shiftCode',
+                'timekeepingSetup.policy',
+                'timekeepingRestDays',
+                'timekeepingWeeklyShifts.shiftCode',
+            ])
             ->orderBy('employee_number')
             ->orderBy('last_name')
             ->orderBy('first_name')
@@ -343,7 +350,7 @@ class TimekeepingEmployeeProfileUploadService
             $result = match ($type) {
                 'holiday_group' => $this->lookupHolidayGroup($value, $lineNumber, $field['label'], $errors, $hasError),
                 'policy' => $this->lookupPolicy($value, $lineNumber, $field['label'], $errors, $hasError),
-                'shift_code' => $this->lookupShiftCode($value, $lineNumber, $field['label'], $errors, $hasError),
+                'shift_code' => $this->lookupShiftCodeForAlias($alias, $value, $lineNumber, $field['label'], $errors, $hasError),
                 'boolean' => [$alias => $this->parseBoolean($value, $lineNumber, $field['label'], $errors, $hasError)],
                 default => null,
             };
@@ -355,9 +362,37 @@ class TimekeepingEmployeeProfileUploadService
 
         if (! $hasError) {
             $parsed['rest_days'] = $this->parseRestDays($parsed);
+            $parsed['weekly_shifts'] = $this->parseWeeklyShifts($parsed);
         }
 
         return $hasError ? null : $parsed;
+    }
+
+    /**
+     * @param  array<string, mixed>  $parsed
+     * @return array<int, int> day_id => shift_code_id
+     */
+    private function parseWeeklyShifts(array $parsed): array
+    {
+        $defaultShiftId = (int) ($parsed['shift_code_id'] ?? 0);
+        $restDayIds = collect($parsed['rest_days'] ?? [])->pluck('day_id')->map(fn ($id) => (int) $id)->all();
+        $weekly = [];
+
+        foreach (self::REST_DAY_ALIASES as $dayId => $aliases) {
+            if (in_array($dayId, $restDayIds, true)) {
+                continue;
+            }
+
+            $alias = $aliases['shift'];
+            $shiftId = (int) ($parsed["{$alias}_shift_code_id"] ?? 0);
+            if ($shiftId <= 0 && $defaultShiftId > 0) {
+                $weekly[$dayId] = $defaultShiftId;
+            } elseif ($shiftId > 0) {
+                $weekly[$dayId] = $shiftId;
+            }
+        }
+
+        return $weekly;
     }
 
     /**
@@ -453,6 +488,33 @@ class TimekeepingEmployeeProfileUploadService
 
     /**
      * @param  array<int, string>  $errors
+     * @return array<string, mixed>|null
+     */
+    private function lookupShiftCodeForAlias(
+        string $alias,
+        string $value,
+        int $lineNumber,
+        string $label,
+        array &$errors,
+        bool &$hasError,
+    ): ?array {
+        $result = $this->lookupShiftCode($value, $lineNumber, $label, $errors, $hasError);
+        if ($result === null) {
+            return null;
+        }
+
+        if ($alias === 'shift_code') {
+            return $result;
+        }
+
+        return [
+            $alias => $result['shift_code'],
+            "{$alias}_shift_code_id" => $result['shift_code_id'],
+        ];
+    }
+
+    /**
+     * @param  array<int, string>  $errors
      */
     private function parseBoolean(string $value, int $lineNumber, string $label, array &$errors, bool &$hasError): bool
     {
@@ -477,11 +539,17 @@ class TimekeepingEmployeeProfileUploadService
      */
     private function persistSetup(int $employeeId, array $row): void
     {
+        $weeklyShifts = $row['weekly_shifts'] ?? [];
+        $primaryShiftId = (int) ($weeklyShifts[2] ?? $row['shift_code_id'] ?? 0);
+        if ($primaryShiftId <= 0) {
+            $primaryShiftId = (int) (collect($weeklyShifts)->first() ?: $row['shift_code_id'] ?? 0);
+        }
+
         TimekeepingEmployeeSetup::query()->updateOrCreate(
             ['employee_id' => $employeeId],
             [
                 'timekeeping_holiday_group_id' => $row['timekeeping_holiday_group_id'],
-                'shift_code_id' => $row['shift_code_id'],
+                'shift_code_id' => $primaryShiftId,
                 'timekeeping_policy_id' => $row['timekeeping_policy_id'],
                 'is_leave' => (bool) ($row['is_leave'] ?? false),
                 'is_populate' => (bool) ($row['is_populate'] ?? false),
@@ -505,6 +573,26 @@ class TimekeepingEmployeeProfileUploadService
         if ($restDays !== []) {
             TimekeepingEmployeeRestDay::query()->insert($restDays);
         }
+
+        TimekeepingEmployeeWeeklyShift::query()
+            ->where('employee_id', $employeeId)
+            ->delete();
+
+        $weeklyRows = collect($weeklyShifts)
+            ->map(fn ($shiftCodeId, $dayId) => [
+                'employee_id' => $employeeId,
+                'day_id' => (int) $dayId,
+                'shift_code_id' => (int) $shiftCodeId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ])
+            ->filter(fn (array $entry) => $entry['shift_code_id'] > 0)
+            ->values()
+            ->all();
+
+        if ($weeklyRows !== []) {
+            TimekeepingEmployeeWeeklyShift::query()->insert($weeklyRows);
+        }
     }
 
     /**
@@ -515,6 +603,7 @@ class TimekeepingEmployeeProfileUploadService
     {
         $setup = $employee->timekeepingSetup;
         $restDayMap = $employee->timekeepingRestDays->keyBy('day_id');
+        $weeklyShiftMap = $employee->timekeepingWeeklyShifts->keyBy('day_id');
         $values = array_fill(0, count($aliases), '');
 
         foreach ($aliases as $index => $alias) {
@@ -527,7 +616,8 @@ class TimekeepingEmployeeProfileUploadService
                 'is_leave' => $setup ? ($setup->is_leave ? '1' : '0') : '',
                 'is_populate' => $setup ? ($setup->is_populate ? '1' : '0') : '',
                 'is_auto_compute_excess_as_ot' => $setup ? ($setup->is_auto_compute_excess_as_ot ? '1' : '0') : '',
-                default => $this->prefillRestDayValue($alias, $restDayMap),
+                default => $this->prefillRestDayValue($alias, $restDayMap)
+                    ?: $this->prefillWeeklyShiftValue($alias, $weeklyShiftMap, $setup?->shiftCode?->shift_code),
             };
         }
 
@@ -547,6 +637,24 @@ class TimekeepingEmployeeProfileUploadService
             if ($alias === $aliases['paid']) {
                 return $restDayMap->get($dayId)?->is_paid ? '1' : '0';
             }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param  Collection<int, TimekeepingEmployeeWeeklyShift>  $weeklyShiftMap
+     */
+    private function prefillWeeklyShiftValue(string $alias, Collection $weeklyShiftMap, ?string $fallbackCode): string
+    {
+        foreach (self::REST_DAY_ALIASES as $dayId => $aliases) {
+            if ($alias !== $aliases['shift']) {
+                continue;
+            }
+
+            $weekly = $weeklyShiftMap->get($dayId);
+
+            return (string) ($weekly?->shiftCode?->shift_code ?? $fallbackCode ?? '');
         }
 
         return '';

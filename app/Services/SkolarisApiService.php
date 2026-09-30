@@ -453,6 +453,40 @@ class SkolarisApiService
         return is_array($employee) ? $employee : [];
     }
 
+    /**
+     * @param  array<string, mixed>  $params
+     * @return array{data: list<array<string, mixed>>, synced_at: string|null, pagination: array<string, mixed>|null}
+     */
+    public function pullEmployeeRequestsSync(array $params = []): array
+    {
+        $response = $this->pulseApiRequest('get', '/employee-requests/sync', $params);
+        $payload = $response->json();
+
+        return [
+            'data' => is_array($payload['data'] ?? null) ? array_values($payload['data']) : [],
+            'synced_at' => is_string($payload['synced_at'] ?? null) ? $payload['synced_at'] : null,
+            'pagination' => is_array($payload['pagination'] ?? null) ? $payload['pagination'] : null,
+        ];
+    }
+
+    /**
+     * NTE written explanations submitted on Skolaris web against synced Company Document templates.
+     *
+     * @param  array<string, mixed>  $params  template_code (required), updated_since, page, per_page
+     * @return array{data: list<array<string, mixed>>, synced_at: string|null, pagination: array<string, mixed>|null}
+     */
+    public function pullCompanyDocumentNteResponsesSync(array $params = []): array
+    {
+        $response = $this->pulseApiRequest('get', '/company-documents/nte-responses/sync', $params);
+        $payload = $response->json();
+
+        return [
+            'data' => is_array($payload['data'] ?? null) ? array_values($payload['data']) : [],
+            'synced_at' => is_string($payload['synced_at'] ?? null) ? $payload['synced_at'] : null,
+            'pagination' => is_array($payload['pagination'] ?? null) ? $payload['pagination'] : null,
+        ];
+    }
+
     private function usesPulseApiKey(): bool
     {
         return filled(config('skolaris.pulse_api_key'));

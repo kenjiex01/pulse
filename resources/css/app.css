@@ -98,7 +98,7 @@
     }
 
     .searchable-select-panel {
-        @apply absolute z-30 mt-1 w-full overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg;
+        @apply absolute z-[250] mt-1 w-full overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg;
     }
 
     .searchable-select-search {
@@ -727,6 +727,12 @@
     line-height: 1.25rem;
     font-weight: 500;
     color: #0b318f;
+}
+
+.cd-paragraph-clears-floats::after {
+    content: "";
+    display: table;
+    clear: both;
 }
 
 .cd-designer-field-body {

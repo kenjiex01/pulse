@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\RawTimekeepingInandout;
+use App\Models\LuDay;
 use App\Models\TimekeepingEmployeeRestDay;
 use App\Models\TimekeepingEmployeeSetup;
+use App\Models\TimekeepingEmployeeWeeklyShift;
 use App\Services\EmployeeAttendanceLogService;
 use App\Services\EmployeeAttendanceViewService;
 use App\Services\SysLogService;
@@ -101,7 +103,6 @@ class TimekeepingEmployeeProfileController extends Controller
 
         $validated = $request->validate([
             'timekeeping_holiday_group_id' => ['required', 'integer', 'exists:tbl_timekeeping_holiday_groups,timekeeping_holiday_group_id'],
-            'shift_code_id' => ['required', 'integer', 'exists:tbl_shift_codes,shift_code_id'],
             'timekeeping_policy_id' => ['required', 'integer', 'exists:tbl_timekeeping_policies,timekeeping_policy_id'],
             'is_leave' => ['nullable', 'boolean'],
             'is_populate' => ['nullable', 'boolean'],
@@ -109,17 +110,61 @@ class TimekeepingEmployeeProfileController extends Controller
             'rest_days' => ['nullable', 'array'],
             'rest_days.*.selected' => ['nullable', 'boolean'],
             'rest_days.*.is_paid' => ['nullable', 'boolean'],
+            'weekly_shifts' => ['nullable', 'array'],
+            'weekly_shifts.*' => ['nullable', 'integer', 'exists:tbl_shift_codes,shift_code_id'],
         ]);
+
+        $validator = Validator::make([], []);
+        $restDayIds = collect($validated['rest_days'] ?? [])
+            ->filter(fn (array $day) => ! empty($day['selected']))
+            ->keys()
+            ->map(fn ($dayId) => (int) $dayId)
+            ->all();
+
+        foreach (LuDay::query()->orderBy('day_id')->pluck('day_id') as $dayId) {
+            $dayId = (int) $dayId;
+            if (in_array($dayId, $restDayIds, true)) {
+                continue;
+            }
+
+            $shiftId = (int) ($validated['weekly_shifts'][$dayId] ?? 0);
+            if ($shiftId <= 0) {
+                $dayLabel = LuDay::query()->where('day_id', $dayId)->value('day') ?? 'Day '.$dayId;
+                $validator->errors()->add(
+                    "weekly_shifts.{$dayId}",
+                    "Shift code is required for {$dayLabel} (working day).",
+                );
+            }
+        }
+
+        if ($validator->errors()->isNotEmpty()) {
+            throw \Illuminate\Validation\ValidationException::withMessages($validator->errors()->toArray());
+        }
 
         $existingSetup = $employee->timekeepingSetup;
         $isCreate = $existingSetup === null;
 
-        DB::transaction(function () use ($employee, $validated, $isCreate): void {
-            $setup = TimekeepingEmployeeSetup::query()->updateOrCreate(
+        $primaryShiftCodeId = (int) ($validated['weekly_shifts'][2] ?? 0);
+        if ($primaryShiftCodeId <= 0) {
+            foreach ($validated['weekly_shifts'] ?? [] as $dayId => $shiftCodeId) {
+                if (in_array((int) $dayId, $restDayIds, true)) {
+                    continue;
+                }
+
+                $candidate = (int) $shiftCodeId;
+                if ($candidate > 0) {
+                    $primaryShiftCodeId = $candidate;
+                    break;
+                }
+            }
+        }
+
+        DB::transaction(function () use ($employee, $validated, $isCreate, $restDayIds, $primaryShiftCodeId): void {
+            TimekeepingEmployeeSetup::query()->updateOrCreate(
                 ['employee_id' => $employee->employee_id],
                 [
                     'timekeeping_holiday_group_id' => $validated['timekeeping_holiday_group_id'],
-                    'shift_code_id' => $validated['shift_code_id'],
+                    'shift_code_id' => $primaryShiftCodeId,
                     'timekeeping_policy_id' => $validated['timekeeping_policy_id'],
                     'is_leave' => (bool) ($validated['is_leave'] ?? false),
                     'is_populate' => (bool) ($validated['is_populate'] ?? false),
@@ -143,6 +188,27 @@ class TimekeepingEmployeeProfileController extends Controller
 
             if ($restDays !== []) {
                 TimekeepingEmployeeRestDay::query()->insert($restDays);
+            }
+
+            TimekeepingEmployeeWeeklyShift::query()
+                ->where('employee_id', $employee->employee_id)
+                ->delete();
+
+            $weeklyRows = collect($validated['weekly_shifts'] ?? [])
+                ->map(fn ($shiftCodeId, $dayId) => [
+                    'employee_id' => $employee->employee_id,
+                    'day_id' => (int) $dayId,
+                    'shift_code_id' => (int) $shiftCodeId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ])
+                ->filter(fn (array $row) => $row['shift_code_id'] > 0
+                    && ! in_array($row['day_id'], $restDayIds, true))
+                ->values()
+                ->all();
+
+            if ($weeklyRows !== []) {
+                TimekeepingEmployeeWeeklyShift::query()->insert($weeklyRows);
             }
         });
 
@@ -284,7 +350,7 @@ class TimekeepingEmployeeProfileController extends Controller
         $attendance = $this->attendanceViewService->rangeForEmployee($employee, $dateFrom, $dateTo);
 
         return view('timekeeping.employee-profile._tab-attendance-view', [
-            'employee' => $employee->loadMissing(['timekeepingSetup', 'timekeepingRestDays']),
+            'employee' => $employee->loadMissing(['timekeepingSetup', 'timekeepingRestDays', 'timekeepingWeeklyShifts']),
             'attendance' => $attendance,
             'selectedDate' => $request->input('day'),
         ]);

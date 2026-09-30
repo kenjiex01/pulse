@@ -1290,15 +1290,13 @@ class PayrollBatchService
                 $overtimeMinutes = max(0, $overtimeMinutes - $otOffset);
             }
 
-            $breakLateMinutes = ($shiftCode?->is_flexi_time)
-                ? 0
-                : $this->timeLogsPayroll->totalBreakLateMinutes(
-                    $employeeId,
-                    $from,
-                    $to,
-                    $policy,
-                    $shiftCode,
-                );
+            $breakLateMinutes = $this->timeLogsPayroll->totalBreakLateMinutes(
+                $employeeId,
+                $from,
+                $to,
+                $policy,
+                $shiftCode,
+            );
         } else {
             $loadPayroll = $salaries->count() > 1
                 ? $this->employeeLoadPayroll->computeForPeriodWithSalaries(
@@ -1439,19 +1437,15 @@ class PayrollBatchService
             return [];
         }
 
-        if ($shiftCode?->is_flexi_time) {
-            return [];
-        }
-
         if ($this->timeLogsPayroll->hasPunchesInPeriod($employeeId, $from, $to)) {
             $sessions = $this->timeLogsPayroll->daySessionsForPeriod($employeeId, $from, $to);
 
             return array_merge(
                 $this->attendanceLeavePayroll->buildFromTimeLogSessions(
                     $sessions,
+                    $employeeId,
                     $policy,
-                    $scheduleStart,
-                    $scheduleEnd,
+                    $shiftCode,
                     $salary,
                 ),
                 $this->attendanceLeavePayroll->buildBreakTardinessFromTimeLogPunches(

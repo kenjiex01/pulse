@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Http\Requests\CompanyDocument\StoreCompanyDocumentFormRequest;
 use App\Http\Requests\CompanyDocument\UpdateCompanyDocumentFormRequest;
 use App\Models\CompanyDocumentForm;
+use App\Models\CompanyDocumentNteCase;
 use App\Models\CompanyDocumentSendLog;
 use App\Models\Employee;
 use App\Models\LuIcctOffense;
 use App\Models\User;
 use App\Services\CompanyDocumentFileService;
 use App\Services\CompanyDocumentMemoRenderService;
+use App\Services\CompanyDocumentNteCaseService;
+use App\Services\CompanyDocumentNteSyncService;
 use App\Services\CompanyDocumentSendService;
 use App\Services\SysLogService;
 use App\Support\CompanyDocumentSendHistorySummary;
@@ -72,6 +75,23 @@ class CompanyDocumentFormController extends Controller
             fn ($logs) => CompanyDocumentSendHistorySummary::byEmployee($logs),
         );
 
+        $nteCasesByForm = CompanyDocumentNteCase::query()
+            ->with([
+                'employee:employee_id,employee_number,first_name,middle_name,last_name,suffix',
+            ])
+            ->whereIn('company_document_form_id', $forms->pluck('company_document_form_id'))
+            ->orderByDesc('due_at')
+            ->limit(300)
+            ->get()
+            ->groupBy('company_document_form_id');
+
+        $nteSyncService = app(CompanyDocumentNteSyncService::class);
+        $nteSyncConfiguredByForm = $forms->mapWithKeys(
+            fn (CompanyDocumentForm $form) => [
+                $form->company_document_form_id => $nteSyncService->isConfiguredForForm($form),
+            ],
+        );
+
         return view('company-documents.index', [
             'forms' => $forms,
             'search' => $search,
@@ -80,6 +100,8 @@ class CompanyDocumentFormController extends Controller
             'openCreate' => $request->boolean('create'),
             'sendEmployees' => $this->employeesForSend($request->user()),
             'sendSummaryByForm' => $sendSummaryByForm,
+            'nteCasesByForm' => $nteCasesByForm,
+            'nteSyncConfiguredByForm' => $nteSyncConfiguredByForm,
         ]);
     }
 
@@ -97,11 +119,9 @@ class CompanyDocumentFormController extends Controller
         $payload['created_by'] = $request->user()?->id;
         $payload['sort_order'] = (int) CompanyDocumentForm::query()->max('sort_order') + 1;
         $isMemo = $payload['document_type'] === CompanyDocumentForm::TYPE_MEMO;
-        $payload['requires_nte'] = $isMemo && $request->boolean('requires_nte');
-        $payload['is_nte'] = $isMemo && $request->boolean('is_nte');
-        $payload['icct_offense_id'] = ($isMemo && ! $payload['is_nte'])
-            ? ($payload['icct_offense_id'] ?? null)
-            : null;
+        $payload['is_nte'] = false;
+        $payload['icct_offense_id'] = $isMemo ? ($payload['icct_offense_id'] ?? null) : null;
+        $this->applyWebNteFields($payload, $request, $isMemo);
 
         $form = CompanyDocumentForm::query()->create($payload);
 
@@ -186,11 +206,11 @@ class CompanyDocumentFormController extends Controller
         $oldValues = $companyDocumentForm->logSnapshot();
         $payload = $request->validated();
         $isMemo = $payload['document_type'] === CompanyDocumentForm::TYPE_MEMO;
-        $payload['requires_nte'] = $isMemo && $request->boolean('requires_nte');
-        $payload['is_nte'] = $isMemo && $request->boolean('is_nte');
+        $payload['is_nte'] = $isMemo ? (bool) $companyDocumentForm->is_nte : false;
         $payload['icct_offense_id'] = ($isMemo && ! $payload['is_nte'])
             ? ($payload['icct_offense_id'] ?? null)
             : null;
+        $this->applyWebNteFields($payload, $request, $isMemo);
 
         $companyDocumentForm->update($payload);
 
@@ -252,7 +272,7 @@ class CompanyDocumentFormController extends Controller
                     ->route('company-documents.index')
                     ->with(
                         'error',
-                        'Cannot activate this template as NTE. Another active memo is already set as NTE ('.$existing->name.'). Uncheck Set as NTE on that template first.',
+                        'Cannot activate this template as the NTE letter. Another active memo is already designated ('.$existing->name.').',
                     );
             }
         }
@@ -530,6 +550,77 @@ class CompanyDocumentFormController extends Controller
             'suffix',
             'is_confidential',
         ]);
+    }
+
+    public function markNteCaseReceived(
+        CompanyDocumentForm $companyDocumentForm,
+        CompanyDocumentNteCase $companyDocumentNteCase,
+        CompanyDocumentNteCaseService $nteCaseService,
+    ): RedirectResponse {
+        $this->authorize('update', $companyDocumentForm);
+
+        abort_unless(
+            (int) $companyDocumentNteCase->company_document_form_id === (int) $companyDocumentForm->company_document_form_id,
+            404,
+        );
+
+        try {
+            $nteCaseService->markReceivedManually($companyDocumentNteCase, request()->user());
+        } catch (\RuntimeException $exception) {
+            return redirect()
+                ->route('company-documents.index', ['view_form' => $companyDocumentForm->company_document_form_id])
+                ->with('error', $exception->getMessage());
+        }
+
+        SysLogService::record(
+            action: 'update',
+            table: 'tbl_company_document_nte_cases',
+            recordId: $companyDocumentNteCase->company_document_nte_case_id,
+            description: 'Manually marked NTE case received for template '.$companyDocumentForm->code,
+        );
+
+        return redirect()
+            ->route('company-documents.index', ['view_form' => $companyDocumentForm->company_document_form_id])
+            ->with('success', 'NTE case marked as received.');
+    }
+
+    public function syncNteFromSkolaris(
+        CompanyDocumentForm $companyDocumentForm,
+        CompanyDocumentNteSyncService $syncService,
+    ): RedirectResponse {
+        $this->authorize('update', $companyDocumentForm);
+
+        try {
+            $result = $syncService->syncFromSkolaris($companyDocumentForm);
+            $flashKey = $result['matched'] > 0 ? 'success' : 'error';
+            $message = $result['message'];
+        } catch (\RuntimeException $exception) {
+            $flashKey = 'error';
+            $message = $exception->getMessage();
+        }
+
+        return redirect()
+            ->route('company-documents.index', ['view_form' => $companyDocumentForm->company_document_form_id])
+            ->with($flashKey, $message);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function applyWebNteFields(array &$payload, Request $request, bool $isMemo): void
+    {
+        $payload['requires_nte'] = false;
+
+        if (! $isMemo) {
+            $payload['expects_web_nte_response'] = false;
+            $payload['nte_response_days'] = 7;
+
+            return;
+        }
+
+        $payload['expects_web_nte_response'] = $request->boolean('expects_web_nte_response');
+        $days = (int) $request->input('nte_response_days', 7);
+        $payload['nte_response_days'] = max(3, min(30, $days));
     }
 
     private function generateCode(string $name): string

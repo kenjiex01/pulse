@@ -27,6 +27,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('biometric:pull-s3 --auto')
             ->everyFiveMinutes()
             ->withoutOverlapping(10);
+
+        $schedule->command('company-documents:mark-overdue-nte-cases')
+            ->dailyAt('01:00')
+            ->timezone('Asia/Manila');
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo('/login');

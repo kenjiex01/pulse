@@ -20,4 +20,23 @@ class CompanyDocumentInlineFormattingTest extends TestCase
 
         $this->assertSame('Dear <i>Team</i>bad', $text);
     }
+
+    public function test_render_segment_converts_float_tags_to_spans(): void
+    {
+        $html = CompanyDocumentInlineFormatting::renderSegment(
+            '<float-left>Control No. 001</float-left><float-right>Date: today</float-right>',
+        );
+
+        $this->assertStringContainsString('float:left', $html);
+        $this->assertStringContainsString('float:right', $html);
+        $this->assertStringContainsString('Control No. 001', $html);
+        $this->assertStringContainsString('Date: today', $html);
+    }
+
+    public function test_sanitize_keeps_float_tags(): void
+    {
+        $text = CompanyDocumentInlineFormatting::sanitize('<float-left>Left</float-left>');
+
+        $this->assertSame('<float-left>Left</float-left>', $text);
+    }
 }

@@ -152,6 +152,13 @@ class ShiftCode
 
     public static function isInUse(ShiftCodeModel $shiftCode): bool
     {
+        if (Schema::hasTable('tbl_timekeeping_employee_weekly_shifts')
+            && DB::table('tbl_timekeeping_employee_weekly_shifts')
+                ->where('shift_code_id', $shiftCode->shift_code_id)
+                ->exists()) {
+            return true;
+        }
+
         if (Schema::hasTable('tbl_timekeeping_employee_setup')
             && Schema::hasColumn('tbl_timekeeping_employee_setup', 'shift_code_id')) {
             return DB::table('tbl_timekeeping_employee_setup')

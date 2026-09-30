@@ -22,6 +22,7 @@ class CompanyDocumentSendService
         private readonly CompanyDocumentMemoRenderService $memoRenderService,
         private readonly CompanyDocumentMemoValueResolver $valueResolver,
         private readonly TimekeepingMemoEmailService $emailService,
+        private readonly CompanyDocumentNteCaseService $nteCaseService,
     ) {}
 
     /**
@@ -38,7 +39,6 @@ class CompanyDocumentSendService
         $form->load('elements');
         $memoContext = $this->defaultMemoContext();
         $emailAttachments = $this->buildEmailAttachments($form, $employee, $memoContext);
-        $emailTemplates = $this->resolveEmailTemplates($form);
 
         $result = DB::transaction(function () use ($employee, $form, $sender, $memoContext) {
             $sentAt = now();
@@ -87,7 +87,7 @@ class CompanyDocumentSendService
                 ]);
             }
 
-            CompanyDocumentSendLog::query()->create([
+            $sendLog = CompanyDocumentSendLog::query()->create([
                 'company_document_form_id' => $form->company_document_form_id,
                 'employee_id' => $employee->employee_id,
                 'submission_id' => $submission->submission_id,
@@ -97,8 +97,18 @@ class CompanyDocumentSendService
 
             return [
                 'submission_id' => (int) $submission->submission_id,
+                'send_log' => $sendLog,
+                'sent_at' => $sentAt,
             ];
         });
+
+        $this->nteCaseService->openCaseForSendLog($result['send_log'], $form);
+
+        $emailTemplates = $this->nteCaseService->appendWebNteInstructionsToEmail(
+            $this->resolveEmailTemplates($form),
+            $form,
+            $result['sent_at'],
+        );
 
         $this->emailService->sendWithTemplates(
             $employee,
@@ -110,7 +120,9 @@ class CompanyDocumentSendService
             $emailAttachments,
         );
 
-        return $result;
+        return [
+            'submission_id' => $result['submission_id'],
+        ];
     }
 
     /**
@@ -173,17 +185,11 @@ class CompanyDocumentSendService
     {
         $preview = $this->memoRenderService->buildPreviewData($form, $employee, $memoContext);
 
-        $attachments = [[
+        return [[
             'binary' => $this->memoRenderService->renderPdf($preview),
             'filename' => MemoPdfFilename::forStandalone($form, $employee),
             'mime' => 'application/pdf',
         ]];
-
-        if ($form->requires_nte) {
-            $attachments = array_merge($attachments, $this->buildNteDocxAttachment($employee, $memoContext));
-        }
-
-        return $attachments;
     }
 
     /**
@@ -233,25 +239,4 @@ class CompanyDocumentSendService
         ];
     }
 
-    /**
-     * @param  array{date_from: string, date_to: string, violation_type: string, violation_count: int, selected_dates: list<string>}  $memoContext
-     * @return list<array{binary: string, filename: string, mime: string}>
-     */
-    private function buildNteDocxAttachment(Employee $employee, array $memoContext): array
-    {
-        $nteForm = CompanyDocumentForm::activeNteTemplate();
-
-        if ($nteForm === null) {
-            throw new RuntimeException('This document requires a Notice to Explain (NTE), but no active NTE template is configured in Company Documents.');
-        }
-
-        $nteForm->load('elements');
-        $ntePreview = $this->memoRenderService->buildPreviewData($nteForm, $employee, $memoContext);
-
-        return [[
-            'binary' => $this->memoRenderService->renderDocx($ntePreview),
-            'filename' => MemoPdfFilename::docxForStandalone($nteForm, $employee),
-            'mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        ]];
-    }
 }

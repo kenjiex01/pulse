@@ -8,7 +8,10 @@ function initCompanyDocumentFormMemoOffense(root = document) {
         const offenseWrap = form.querySelector('[data-company-document-memo-offense]');
         const offenseField = form.querySelector('[data-company-document-offense-field]');
         const offenseSelect = form.querySelector('[data-company-document-memo-offense-select]');
-        const nteCheckbox = form.querySelector('[data-company-document-is-nte]');
+        const isNteLetter = form.dataset.companyDocumentIsNteLetter === '1';
+        const webNteWrap = form.querySelector('[data-company-document-web-nte]');
+        const expectsWebNteCheckbox = form.querySelector('[data-company-document-expects-web-nte]');
+        const webNteDaysWrap = form.querySelector('[data-company-document-web-nte-days]');
 
         if (!typeSelect || !offenseWrap || !offenseSelect) {
             return;
@@ -16,23 +19,31 @@ function initCompanyDocumentFormMemoOffense(root = document) {
 
         const sync = () => {
             const isMemo = typeSelect.value === 'memo';
-            const isNte = nteCheckbox?.checked === true;
+            const expectsWeb = expectsWebNteCheckbox?.checked === true;
 
             offenseWrap.classList.toggle('hidden', !isMemo);
             offenseSelect.removeAttribute('required');
 
-            if (!isMemo || isNte) {
-                offenseSelect.value = '';
-                refreshSearchableSelect(offenseSelect);
+            if (!isMemo || isNteLetter) {
+                if (!isMemo) {
+                    offenseSelect.value = '';
+                    refreshSearchableSelect(offenseSelect);
+                }
             }
 
             if (offenseField) {
-                offenseField.classList.toggle('hidden', !isMemo || isNte);
+                offenseField.classList.toggle('hidden', !isMemo || isNteLetter);
+            }
+
+            webNteWrap?.classList.toggle('hidden', !isMemo);
+
+            if (webNteDaysWrap) {
+                webNteDaysWrap.classList.toggle('hidden', !expectsWeb);
             }
         };
 
         typeSelect.addEventListener('change', sync);
-        nteCheckbox?.addEventListener('change', sync);
+        expectsWebNteCheckbox?.addEventListener('change', sync);
         sync();
 
         if (!offenseWrap.classList.contains('hidden')) {
@@ -299,6 +310,19 @@ function initCompanyDocumentModals(root = document) {
         button.addEventListener('click', () => {
             window.setTimeout(() => {
                 const modal = document.getElementById('company-document-create-modal');
+                if (modal) {
+                    initCompanyDocumentFormMemoOffense(modal);
+                    initSearchableSelects(modal);
+                }
+            }, 0);
+        });
+    });
+
+    root.querySelectorAll('[data-modal-open^="company-document-edit-modal-"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            window.setTimeout(() => {
+                const modalId = button.getAttribute('data-modal-open');
+                const modal = modalId ? document.getElementById(modalId) : null;
                 if (modal) {
                     initCompanyDocumentFormMemoOffense(modal);
                     initSearchableSelects(modal);

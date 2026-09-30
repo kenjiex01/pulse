@@ -70,6 +70,7 @@ class CompanyDocumentOffenseMemoServiceTest extends TestCase
         $palette = \App\Support\CompanyDocumentElementCatalog::palette($form);
         $tagKeys = array_column($palette['TAGS'], 'tag_key');
 
+        $this->assertNotContains('nature_of_offense', $tagKeys);
         $this->assertNotContains('disciplinary_action', $tagKeys);
         $this->assertNotContains('offense_frequency', $tagKeys);
     }
@@ -122,8 +123,32 @@ class CompanyDocumentOffenseMemoServiceTest extends TestCase
         $palette = \App\Support\CompanyDocumentElementCatalog::palette($form);
         $tagKeys = array_column($palette['TAGS'], 'tag_key');
 
+        $this->assertContains('nature_of_offense', $tagKeys);
         $this->assertContains('disciplinary_action', $tagKeys);
         $this->assertContains('offense_frequency', $tagKeys);
+    }
+
+    public function test_nature_of_offense_merge_tag_uses_linked_icct_offense_text(): void
+    {
+        $offense = LuIcctOffense::query()->where('section_code', 'I.7')->firstOrFail();
+        $form = CompanyDocumentForm::query()->create([
+            'code' => 'test_nature_tag_resolve',
+            'name' => 'Test Nature Tag',
+            'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'icct_offense_id' => $offense->icct_offense_id,
+            'is_active' => true,
+        ]);
+
+        $service = app(CompanyDocumentOffenseMemoService::class);
+        $label = $service->resolveNatureOfOffenseLabel($form);
+
+        $this->assertSame(trim((string) $offense->nature_of_offense), $label);
+
+        $mergeTags = app(\App\Services\CompanyDocumentMergeTagService::class);
+        $context = $service->enrichMemoContext($form, null, []);
+        $resolved = $mergeTags->resolve('nature_of_offense', null, $context);
+
+        $this->assertSame($label, $resolved);
     }
 
     public function test_offense_frequency_label_for_send_log_uses_submission_value_when_present(): void

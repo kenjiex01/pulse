@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Mail\TimekeepingMemoMail;
 use App\Models\CompanyDocumentElement;
 use App\Models\CompanyDocumentForm;
+use App\Models\CompanyDocumentNteCase;
 use App\Models\CompanyDocumentSendLog;
 use App\Models\CompanyDocumentSubmission;
 use App\Models\Employee;
@@ -79,6 +80,53 @@ class CompanyDocumentSendServiceTest extends TestCase
 
             return str_contains($envelope->subject, $employee->full_name)
                 && count($mail->attachments()) >= 1;
+        });
+    }
+
+    public function test_send_with_web_nte_creates_case_and_single_pdf_attachment(): void
+    {
+        Mail::fake();
+
+        $employee = Employee::query()->create([
+            'employee_number' => 'DOC-NTE-001',
+            'first_name' => 'Nina',
+            'last_name' => 'Torres',
+            'email' => 'nina.torres@example.com',
+        ]);
+
+        $form = CompanyDocumentForm::query()->create([
+            'code' => 'nte_letter_send',
+            'name' => 'Notice to Explain',
+            'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'is_nte' => true,
+            'expects_web_nte_response' => true,
+            'nte_response_days' => 5,
+            'is_active' => true,
+            'version' => 1,
+        ]);
+
+        CompanyDocumentElement::query()->create([
+            'company_document_form_id' => $form->company_document_form_id,
+            'type' => CompanyDocumentElement::TYPE_PARAGRAPH,
+            'label' => 'Dear {{employee_full_name}}',
+            'sort_order' => 1,
+            'settings_json' => ['label_align' => 'top', 'pos_x' => 16, 'pos_y' => 16],
+        ]);
+
+        app(CompanyDocumentSendService::class)->sendToEmployee(
+            $form,
+            $employee,
+            User::query()->firstOrFail(),
+        );
+
+        $this->assertDatabaseHas('tbl_company_document_nte_cases', [
+            'company_document_form_id' => $form->company_document_form_id,
+            'employee_id' => $employee->employee_id,
+            'status' => CompanyDocumentNteCase::STATUS_PENDING,
+        ]);
+
+        Mail::assertSent(TimekeepingMemoMail::class, function (TimekeepingMemoMail $mail): bool {
+            return count($mail->attachments()) === 1;
         });
     }
 

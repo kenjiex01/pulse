@@ -32,16 +32,9 @@
             <p class="mt-3 text-center text-xs font-medium text-[#0B318F]">
                 Legal size (8.5 × 14 in) — same layout as the memo PDF
             </p>
-            @if ($form->requires_nte)
-                @php($nteTemplate = \App\Models\CompanyDocumentForm::activeNteTemplate())
-                <p class="mt-2 text-center text-xs font-medium text-amber-800">
-                    Requires NTE — sending will also email
-                    @if ($nteTemplate)
-                        <strong>{{ $nteTemplate->name }}</strong>
-                    @else
-                        the Notice to Explain template (configure one in Company Documents)
-                    @endif
-                    as a Word (.docx) attachment.
+            @if ($form->expects_web_nte_response)
+                <p class="mt-2 text-center text-xs font-medium text-indigo-800">
+                    Web NTE — email includes Skolaris submission deadline ({{ $form->nteResponseDays() }} day(s)).
                 </p>
             @endif
         </div>

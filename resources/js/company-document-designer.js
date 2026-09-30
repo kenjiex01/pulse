@@ -83,7 +83,28 @@ const renderInlineTagChipHtml = (tagKey, label) => (
     `<span class="cd-inline-merge-tag" data-inline-tag="${escapeHtml(tagKey)}">${escapeHtml(label)}</span>`
 );
 
-const INLINE_FORMAT_TAG_PATTERN = /(<\/?(?:b|strong|i|em|u)>)/gi;
+const INLINE_FORMAT_TAG_PATTERN = /(<\/?(?:b|strong|i|em|u|float-left|float-right)>)/gi;
+
+const renderFormattedInlineTag = (part) => {
+    const normalized = String(part).toLowerCase();
+
+    switch (normalized) {
+        case '<float-left>':
+            return '<span class="cd-inline-float-left" style="float:left;">';
+        case '</float-left>':
+            return '</span>';
+        case '<float-right>':
+            return '<span class="cd-inline-float-right" style="float:right;">';
+        case '</float-right>':
+            return '</span>';
+        default:
+            if (/^<\/?(?:b|strong|i|em|u)>$/i.test(part)) {
+                return normalized;
+            }
+
+            return null;
+    }
+};
 
 const renderFormattedTextSegment = (text) => {
     const source = String(text ?? '');
@@ -93,8 +114,10 @@ const renderFormattedTextSegment = (text) => {
     }
 
     return source.split(INLINE_FORMAT_TAG_PATTERN).map((part) => {
-        if (/^<\/?(?:b|strong|i|em|u)>$/i.test(part)) {
-            return part.toLowerCase();
+        const formatted = renderFormattedInlineTag(part);
+
+        if (formatted !== null) {
+            return formatted;
         }
 
         return escapeHtml(part);
@@ -139,12 +162,14 @@ const wrapSelectionWithFormatTag = (field, tagName) => {
 };
 
 const buildParagraphFormatToolbarHtml = () => `
-    <div class="mb-2 flex gap-1">
+    <div class="mb-2 flex flex-wrap gap-1">
         <button type="button" class="flex h-8 w-8 items-center justify-center rounded bg-[#1e2230] text-sm font-bold text-white/80 hover:bg-white/10 hover:text-white" data-format-tag="b" title="Bold">B</button>
         <button type="button" class="flex h-8 w-8 items-center justify-center rounded bg-[#1e2230] text-sm italic text-white/80 hover:bg-white/10 hover:text-white" data-format-tag="i" title="Italic">I</button>
         <button type="button" class="flex h-8 w-8 items-center justify-center rounded bg-[#1e2230] text-sm text-white/80 underline hover:bg-white/10 hover:text-white" data-format-tag="u" title="Underline">U</button>
+        <button type="button" class="flex h-8 min-w-[2rem] px-2 items-center justify-center rounded bg-[#1e2230] text-[10px] font-semibold text-white/80 hover:bg-white/10 hover:text-white" data-format-tag="float-left" title="Float selected text left">Float L</button>
+        <button type="button" class="flex h-8 min-w-[2rem] px-2 items-center justify-center rounded bg-[#1e2230] text-[10px] font-semibold text-white/80 hover:bg-white/10 hover:text-white" data-format-tag="float-right" title="Float selected text right">Float R</button>
     </div>
-    <p class="mb-2 text-[10px] text-white/40">Select words, then click B, I, or U. Formatting is saved with the template.</p>
+    <p class="mb-2 text-[10px] text-white/40">Select text, then B / I / U or Float L / Float R. Use Float L and Float R on the same line for control no. left and date right.</p>
 `;
 
 const renderInlineTagsHtml = (text) => {
@@ -407,6 +432,20 @@ const paragraphTextStyleAttr = (element) => {
 
     parts.push(`font-size:${paragraphFontSize(element)}px`);
     parts.push(`color:${paragraphFontColor(element)}`);
+    const textAlign = String(element.settings?.text_align || 'left').toLowerCase();
+    if (textAlign === 'center' || textAlign === 'right') {
+        parts.push(`text-align:${textAlign}`);
+    }
+
+    return parts.join(';');
+};
+
+const headingTextStyleAttr = (element) => {
+    const parts = [`color:${elementTextColor(element)}`];
+    const textAlign = String(element.settings?.text_align || 'left').toLowerCase();
+    if (textAlign === 'center' || textAlign === 'right') {
+        parts.push(`text-align:${textAlign}`);
+    }
 
     return parts.join(';');
 };
@@ -873,9 +912,9 @@ const renderFieldPreview = (element, index, previewValues = {}, assetUrlBase = '
 
     switch (element.type) {
         case 'heading':
-            return `<h3 class="cd-designer-text-block w-full max-w-full break-words text-lg font-semibold" style="color:${elementTextColor(element)}">${renderInlineTagsHtml(element.label || '')}</h3>`;
+            return `<h3 class="cd-designer-text-block w-full max-w-full break-words text-lg font-semibold" style="${headingTextStyleAttr(element)}">${renderInlineTagsHtml(element.label || '')}</h3>`;
         case 'paragraph':
-            return `<p class="cd-designer-text-block cd-designer-paragraph w-full max-w-full whitespace-pre-wrap" style="${paragraphTextStyleAttr(element)}">${renderInlineTagsHtml(element.label || '')}</p>`;
+            return `<p class="cd-designer-text-block cd-designer-paragraph cd-paragraph-clears-floats w-full max-w-full whitespace-pre-wrap" style="${paragraphTextStyleAttr(element)}">${renderInlineTagsHtml(element.label || '')}</p>`;
         case 'divider':
             return '<hr class="border-gray-200">';
         case 'section':

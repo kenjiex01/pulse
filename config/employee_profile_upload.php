@@ -11,6 +11,7 @@ $employeeFields = [
 ];
 
 $restDayFields = [];
+$weeklyShiftFields = [];
 
 foreach ([
     1 => 'sun',
@@ -37,6 +38,14 @@ foreach ([
         'day_id' => $dayId,
         'hint' => '1 = paid rest day when rest day is 1, else 0',
     ];
+
+    $weeklyShiftFields[] = [
+        'alias' => "shift_{$short}",
+        'label' => "{$label} Shift Code",
+        'type' => 'shift_code',
+        'day_id' => $dayId,
+        'hint' => 'Optional; blank uses Default Shift Code for this working day',
+    ];
 }
 
 return [
@@ -55,11 +64,12 @@ return [
         ],
         [
             'alias' => 'shift_code',
-            'label' => 'Shift Code',
+            'label' => 'Default Shift Code',
             'type' => 'shift_code',
             'required' => true,
+            'hint' => 'Used for any working day when a day-specific shift column is blank',
         ],
-    ], $restDayFields, [
+    ], $weeklyShiftFields, $restDayFields, [
         [
             'alias' => 'is_leave',
             'label' => 'Enable Leave Cancellation',

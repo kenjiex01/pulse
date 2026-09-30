@@ -24,12 +24,12 @@
 
 @switch($type)
     @case(CompanyDocumentElement::TYPE_HEADING)
-        <h3 style="margin:0;width:100%;font-size:18px;font-weight:600;line-height:1.35;color:{{ $headingColor }};word-break:break-word;">{!! $label !!}</h3>
+        <h3 style="margin:0;width:100%;font-size:18px;font-weight:600;line-height:1.35;word-break:break-word;{{ CompanyDocumentTextStyle::headingInlineStyle($settings) }}">{!! $label !!}</h3>
         @break
 
     @case(CompanyDocumentElement::TYPE_PARAGRAPH)
         @php $paragraphStyle = CompanyDocumentTextStyle::normalize($settings); @endphp
-        <p style="margin:0;width:100%;white-space:pre-wrap;overflow-wrap:break-word;font-size:{{ $paragraphStyle['font_size'] }}px;line-height:1.55;color:{{ $paragraphStyle['font_color'] }};">{!! $label !!}</p>
+        <p style="margin:0;width:100%;overflow:hidden;white-space:pre-wrap;overflow-wrap:break-word;font-size:{{ $paragraphStyle['font_size'] }}px;line-height:1.55;{{ CompanyDocumentTextStyle::inlineStyle($settings) }}">{!! $label !!}</p>
         @break
 
     @case(CompanyDocumentElement::TYPE_DIVIDER)

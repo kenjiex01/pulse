@@ -24,6 +24,9 @@ class CompanyDocumentForm extends Model
         'document_type',
         'icct_offense_id',
         'requires_nte',
+        'expects_web_nte_response',
+        'nte_response_days',
+        'skolaris_nte_request_type_code',
         'is_nte',
         'allow_multiple_submissions',
         'is_active',
@@ -40,6 +43,8 @@ class CompanyDocumentForm extends Model
         return [
             'allow_multiple_submissions' => 'boolean',
             'requires_nte' => 'boolean',
+            'expects_web_nte_response' => 'boolean',
+            'nte_response_days' => 'integer',
             'is_nte' => 'boolean',
             'is_active' => 'boolean',
             'settings_json' => 'array',
@@ -118,6 +123,31 @@ class CompanyDocumentForm extends Model
             ->orderByDesc('sent_at');
     }
 
+    public function nteCases(): HasMany
+    {
+        return $this->hasMany(CompanyDocumentNteCase::class, 'company_document_form_id', 'company_document_form_id')
+            ->orderByDesc('due_at');
+    }
+
+    public function expectsWebNteResponse(): bool
+    {
+        return (bool) $this->expects_web_nte_response;
+    }
+
+    public function nteResponseDays(): int
+    {
+        $days = (int) ($this->nte_response_days ?? 7);
+
+        return max(1, min(30, $days));
+    }
+
+    public function skolarisNteRequestTypeCode(): ?string
+    {
+        $code = trim((string) ($this->skolaris_nte_request_type_code ?? ''));
+
+        return $code !== '' ? $code : null;
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -132,6 +162,9 @@ class CompanyDocumentForm extends Model
             'document_type',
             'icct_offense_id',
             'requires_nte',
+            'expects_web_nte_response',
+            'nte_response_days',
+            'skolaris_nte_request_type_code',
             'is_nte',
             'is_active',
             'version',

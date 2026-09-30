@@ -403,6 +403,10 @@ class CompanyDocumentDesignerController extends Controller
             $normalized['label_color'] = CompanyDocumentTextStyle::normalizeLabelColor($settings);
         }
 
+        if (array_key_exists('text_align', $settings)) {
+            $normalized['text_align'] = CompanyDocumentTextStyle::normalizeTextAlign($settings);
+        }
+
         return $normalized;
     }
 

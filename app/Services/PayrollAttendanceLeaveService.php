@@ -30,9 +30,9 @@ class PayrollAttendanceLeaveService
      */
     public function buildFromTimeLogSessions(
         Collection $sessions,
+        int $employeeId,
         ?TimekeepingPolicy $policy,
-        ?string $scheduleStart,
-        ?string $scheduleEnd,
+        ?ShiftCode $defaultShift,
         EmployeeSalary $salary,
     ): array {
         if ($policy === null) {
@@ -42,6 +42,10 @@ class PayrollAttendanceLeaveService
         $records = [];
 
         foreach ($sessions as $session) {
+            $schedule = $this->timeLogsPayroll->scheduleForSession($employeeId, $session, $defaultShift);
+            $scheduleStart = $schedule['start'];
+            $scheduleEnd = $schedule['end'];
+
             $records = array_merge(
                 $records,
                 $this->recordsForSession(
@@ -123,17 +127,27 @@ class PayrollAttendanceLeaveService
         CarbonInterface $from,
         CarbonInterface $to,
         ?TimekeepingPolicy $policy,
-        ?ShiftCode $shiftCode,
+        ?ShiftCode $defaultShift,
     ): array {
         if ($policy === null || ! filled($policy->break_tardiness_leave_type_id) || ! $this->breakPayroll->deductsBreakTardiness($policy)) {
             return [];
         }
 
-        $scheduledMinutes = $this->breakPayroll->scheduledBreakMinutes($shiftCode);
         $records = [];
 
         foreach ($this->timeLogsPayroll->dayPunchesForPeriod($employeeId, $from, $to) as $date => $dayPunches) {
             $sessionDate = CarbonImmutable::parse($date);
+            $dayShift = $this->timeLogsPayroll->scheduleForSession($employeeId, [
+                'date' => $sessionDate,
+                'time_in' => null,
+                'time_out' => null,
+            ], $defaultShift)['shift'];
+
+            if ($dayShift !== null && (bool) $dayShift->is_flexi_time) {
+                continue;
+            }
+
+            $scheduledMinutes = $this->breakPayroll->scheduledBreakMinutes($dayShift);
             $actualMinutes = $this->breakPayroll->actualBreakMinutesFromPunches($dayPunches);
 
             if ($actualMinutes <= 0) {

@@ -4,7 +4,9 @@ namespace App\Support;
 
 class CompanyDocumentInlineFormatting
 {
-    private const ALLOWED_TAG_PATTERN = '/^<\/?(?:b|strong|i|em|u)>$/i';
+    private const ALLOWED_TAG_PATTERN = '/^<\/?(?:b|strong|i|em|u|float-left|float-right)>$/i';
+
+    private const SPLIT_PATTERN = '/(<\/?(?:b|strong|i|em|u|float-left|float-right)>)/i';
 
     /**
      * Keep only allowed inline formatting tags; drop any other HTML markup.
@@ -52,7 +54,7 @@ class CompanyDocumentInlineFormatting
             return '';
         }
 
-        $parts = preg_split('/(<\/?(?:b|strong|i|em|u)>)/i', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+        $parts = preg_split(self::SPLIT_PATTERN, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
         if ($parts === false) {
             return e($text);
         }
@@ -63,8 +65,9 @@ class CompanyDocumentInlineFormatting
                 continue;
             }
 
-            if (preg_match(self::ALLOWED_TAG_PATTERN, $part) === 1) {
-                $output .= strtolower($part);
+            $converted = self::renderAllowedTag($part);
+            if ($converted !== null) {
+                $output .= $converted;
 
                 continue;
             }
@@ -73,5 +76,18 @@ class CompanyDocumentInlineFormatting
         }
 
         return $output;
+    }
+
+    private static function renderAllowedTag(string $part): ?string
+    {
+        $normalized = strtolower($part);
+
+        return match ($normalized) {
+            '<float-left>' => '<span style="float:left;">',
+            '</float-left>' => '</span>',
+            '<float-right>' => '<span style="float:right;">',
+            '</float-right>' => '</span>',
+            default => preg_match(self::ALLOWED_TAG_PATTERN, $part) === 1 ? $normalized : null,
+        };
     }
 }

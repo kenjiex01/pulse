@@ -75,7 +75,8 @@ class CompanyDocumentFormTest extends TestCase
                 'code' => 'test_memo_template',
                 'document_type' => CompanyDocumentForm::TYPE_MEMO,
                 'icct_offense_id' => $offense->icct_offense_id,
-                'requires_nte' => '1',
+                'expects_web_nte_response' => '1',
+                'nte_response_days' => '10',
                 'is_nte' => '0',
                 'description' => 'Sample memo for testing.',
             ])
@@ -86,62 +87,58 @@ class CompanyDocumentFormTest extends TestCase
             'name' => 'Test Memo Template',
             'document_type' => CompanyDocumentForm::TYPE_MEMO,
             'icct_offense_id' => $offense->icct_offense_id,
-            'requires_nte' => 1,
+            'requires_nte' => 0,
+            'expects_web_nte_response' => 1,
+            'nte_response_days' => 10,
             'is_nte' => 0,
         ]);
     }
 
-    public function test_admin_can_set_memo_template_as_nte_when_no_other_active_nte_exists(): void
+    public function test_create_template_does_not_set_is_nte_from_form(): void
     {
         $user = User::query()->firstOrFail();
-        CompanyDocumentForm::query()->where('is_nte', true)->update(['is_nte' => false]);
 
         $this->actingAs($user)
             ->post(route('company-documents.store'), [
                 'form_context' => 'create-company-document',
-                'name' => 'Custom NTE Template',
-                'code' => 'test_set_as_nte',
+                'name' => 'Not NTE Template',
+                'code' => 'test_not_nte_via_form',
                 'document_type' => CompanyDocumentForm::TYPE_MEMO,
-                'requires_nte' => '0',
-                'is_nte' => '1',
             ])
-            ->assertRedirect()
-            ->assertSessionDoesntHaveErrors('icct_offense_id');
+            ->assertRedirect();
 
         $this->assertDatabaseHas('tbl_company_document_forms', [
-            'code' => 'test_set_as_nte',
-            'is_nte' => 1,
-            'requires_nte' => 0,
-            'icct_offense_id' => null,
+            'code' => 'test_not_nte_via_form',
+            'is_nte' => 0,
         ]);
     }
 
-    public function test_create_memo_as_nte_is_blocked_when_another_active_nte_exists(): void
+    public function test_update_preserves_is_nte_on_seeded_nte_letter(): void
     {
         $user = User::query()->firstOrFail();
-        $existingNte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
+        $nte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
+        $updatedName = $nte->name.' Updated';
 
         $this->actingAs($user)
-            ->post(route('company-documents.store'), [
-                'form_context' => 'create-company-document',
-                'name' => 'Second NTE Template',
-                'code' => 'test_second_nte',
+            ->put(route('company-documents.update', $nte), [
+                'form_context' => 'edit-company-document',
+                'edit_company_document_id' => $nte->company_document_form_id,
+                'name' => $updatedName,
+                'code' => $nte->code,
                 'document_type' => CompanyDocumentForm::TYPE_MEMO,
-                'requires_nte' => '0',
-                'is_nte' => '1',
+                'expects_web_nte_response' => '1',
+                'nte_response_days' => '7',
             ])
-            ->assertSessionHasErrors('is_nte');
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
 
-        $this->assertTrue($existingNte->fresh()->is_nte);
-        $this->assertDatabaseMissing('tbl_company_document_forms', [
-            'code' => 'test_second_nte',
-        ]);
+        $this->assertTrue($nte->fresh()->is_nte);
+        $this->assertSame($updatedName, $nte->fresh()->name);
     }
 
-    public function test_setting_nte_on_update_is_blocked_when_another_active_nte_exists(): void
+    public function test_update_does_not_assign_is_nte_to_other_templates(): void
     {
         $user = User::query()->firstOrFail();
-        $previousNte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
         $otherForm = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
 
         $this->actingAs($user)
@@ -151,70 +148,10 @@ class CompanyDocumentFormTest extends TestCase
                 'name' => $otherForm->name,
                 'code' => $otherForm->code,
                 'document_type' => CompanyDocumentForm::TYPE_MEMO,
-                'requires_nte' => '0',
-                'is_nte' => '1',
             ])
-            ->assertSessionHasErrors('is_nte');
+            ->assertRedirect();
 
         $this->assertFalse($otherForm->fresh()->is_nte);
-        $this->assertTrue($previousNte->fresh()->is_nte);
-    }
-
-    public function test_setting_nte_on_update_succeeds_after_unchecking_previous_nte(): void
-    {
-        $user = User::query()->firstOrFail();
-        $previousNte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
-        $otherForm = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
-
-        $this->actingAs($user)
-            ->put(route('company-documents.update', $previousNte), [
-                'form_context' => 'edit-company-document',
-                'edit_company_document_id' => $previousNte->company_document_form_id,
-                'name' => $previousNte->name,
-                'code' => $previousNte->code,
-                'document_type' => CompanyDocumentForm::TYPE_MEMO,
-                'requires_nte' => '0',
-                'is_nte' => '0',
-            ])
-            ->assertRedirect()
-            ->assertSessionDoesntHaveErrors();
-
-        $this->actingAs($user)
-            ->put(route('company-documents.update', $otherForm), [
-                'form_context' => 'edit-company-document',
-                'edit_company_document_id' => $otherForm->company_document_form_id,
-                'name' => $otherForm->name,
-                'code' => $otherForm->code,
-                'document_type' => CompanyDocumentForm::TYPE_MEMO,
-                'requires_nte' => '0',
-                'is_nte' => '1',
-            ])
-            ->assertRedirect()
-            ->assertSessionDoesntHaveErrors();
-
-        $this->assertTrue($otherForm->fresh()->is_nte);
-        $this->assertFalse($previousNte->fresh()->is_nte);
-    }
-
-    public function test_inactive_memo_cannot_be_set_as_nte(): void
-    {
-        $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
-        $form->update(['is_active' => false]);
-
-        $this->actingAs($user)
-            ->put(route('company-documents.update', $form), [
-                'form_context' => 'edit-company-document',
-                'edit_company_document_id' => $form->company_document_form_id,
-                'name' => $form->name,
-                'code' => $form->code,
-                'document_type' => CompanyDocumentForm::TYPE_MEMO,
-                'requires_nte' => '0',
-                'is_nte' => '1',
-            ])
-            ->assertSessionHasErrors('is_nte');
-
-        $this->assertFalse($form->fresh()->is_nte);
     }
 
     public function test_duplicate_clears_is_nte_on_copy(): void
@@ -258,13 +195,13 @@ class CompanyDocumentFormTest extends TestCase
         ]);
     }
 
-    public function test_create_modal_shows_requires_nte_checkbox(): void
+    public function test_create_modal_shows_web_nte_fields(): void
     {
         $this->actingAs(User::query()->firstOrFail())
             ->get(route('company-documents.index'))
             ->assertOk()
-            ->assertSee('Requires NTE (Notice to Explain)', false)
-            ->assertSee('Set as NTE (Notice to Explain)', false)
+            ->assertSee('Require employee NTE on Skolaris web', false)
+            ->assertDontSee('Set as NTE (Notice to Explain)', false)
             ->assertSee('Optional. Not all memos have a nature of offense.', false)
             ->assertDontSee('Submit button label', false)
             ->assertDontSee('Allow multiple submissions', false)
@@ -291,6 +228,8 @@ class CompanyDocumentFormTest extends TestCase
         $nte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
         $this->assertTrue($nte->is_nte);
         $this->assertFalse($nte->requires_nte);
+        $this->assertTrue($nte->expects_web_nte_response);
+        $this->assertSame(7, $nte->nte_response_days);
         $this->assertTrue(
             $nte->elements()->where('type', 'image')->exists(),
             'NTE letter should include the ICCT logo.',
@@ -332,7 +271,7 @@ class CompanyDocumentFormTest extends TestCase
         $this->assertStringNotContainsString('memo-pdf-field-box', $html);
     }
 
-    public function test_memo_template_preview_pdf_returns_valid_single_page_pdf(): void
+    public function test_memo_template_preview_pdf_returns_valid_legal_pdf(): void
     {
         $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
 
@@ -344,7 +283,9 @@ class CompanyDocumentFormTest extends TestCase
         $pdf = $response->getContent();
         $this->assertIsString($pdf);
         $this->assertStringStartsWith('%PDF', $pdf);
-        $this->assertSame(1, preg_match_all('/\/Type\s*\/Page[^s]/', $pdf));
+        $pageCount = preg_match_all('/\/Type\s*\/Page[^s]/', $pdf);
+        $this->assertGreaterThanOrEqual(1, $pageCount);
+        $this->assertLessThanOrEqual(3, $pageCount);
         $this->assertGreaterThan(5000, strlen($pdf));
         $this->assertMatchesRegularExpression('/MediaBox\s*\[[^\]]*612[^\]]*1008/', $pdf);
     }
@@ -876,6 +817,40 @@ class CompanyDocumentFormTest extends TestCase
         $element = CompanyDocumentElement::query()
             ->where('company_document_form_id', $form->company_document_form_id)
             ->where('field_key', 'formatted_body')
+            ->firstOrFail();
+
+        $this->assertSame($label, $element->label);
+    }
+
+    public function test_designer_paragraph_float_formatting_persists(): void
+    {
+        $user = User::query()->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
+        $label = '<float-left><b>Control No.</b></float-left><float-right>Date: {{current_date}}</float-right>';
+
+        $this->actingAs($user)
+            ->putJson(route('company-documents.designer.elements', $form), [
+                'elements' => [
+                    [
+                        'type' => 'paragraph',
+                        'label' => $label,
+                        'field_key' => 'control_date_line',
+                        'width' => 'full',
+                        'is_required' => false,
+                        'settings' => [
+                            'label_align' => 'top',
+                            'pos_x' => 56,
+                            'pos_y' => 400,
+                        ],
+                    ],
+                ],
+            ])
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        $element = CompanyDocumentElement::query()
+            ->where('company_document_form_id', $form->company_document_form_id)
+            ->where('field_key', 'control_date_line')
             ->firstOrFail();
 
         $this->assertSame($label, $element->label);

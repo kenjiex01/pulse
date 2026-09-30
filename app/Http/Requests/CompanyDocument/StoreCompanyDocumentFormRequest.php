@@ -2,16 +2,12 @@
 
 namespace App\Http\Requests\CompanyDocument;
 
-use App\Http\Requests\CompanyDocument\Concerns\ValidatesNteAssignment;
 use App\Models\CompanyDocumentForm;
 use App\Support\ValidationRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Validator;
-
 class StoreCompanyDocumentFormRequest extends FormRequest
 {
-    use ValidatesNteAssignment;
     public function authorize(): bool
     {
         return $this->user()?->can('create', CompanyDocumentForm::class) ?? false;
@@ -32,22 +28,15 @@ class StoreCompanyDocumentFormRequest extends FormRequest
                 'integer',
                 Rule::exists('lu_icct_offenses', 'icct_offense_id'),
             ],
-            'requires_nte' => ['nullable', 'boolean'],
-            'is_nte' => ['nullable', 'boolean'],
+            'expects_web_nte_response' => ['nullable', 'boolean'],
+            'nte_response_days' => ['nullable', 'integer', 'min:3', 'max:30'],
         ];
     }
 
     protected function prepareForValidation(): void
     {
-        if ($this->input('icct_offense_id') === '' || $this->boolean('is_nte')) {
+        if ($this->input('icct_offense_id') === '') {
             $this->merge(['icct_offense_id' => null]);
         }
-    }
-
-    public function withValidator(Validator $validator): void
-    {
-        $validator->after(function (Validator $validator): void {
-            $this->validateNteAssignment($validator);
-        });
     }
 }

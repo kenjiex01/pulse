@@ -4903,19 +4903,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const syncEmployeeProfileRestDayRow = (restDayCheckbox) => {
         const dayId = restDayCheckbox.dataset.dayId;
-        const paidCheckbox = restDayCheckbox
-            .closest('tr')
-            ?.querySelector(`[data-rest-day-paid="${dayId}"]`);
-
-        if (!paidCheckbox) {
-            return;
-        }
+        const row = restDayCheckbox.closest('tr');
+        const paidCheckbox = row?.querySelector(`[data-rest-day-paid="${dayId}"]`);
+        const shiftSelect = row?.querySelector(`[data-weekly-shift-select="${dayId}"]`);
+        const restDayLabel = row?.querySelector(`[data-rest-day-label="${dayId}"]`);
 
         if (restDayCheckbox.checked) {
-            paidCheckbox.disabled = false;
+            restDayLabel?.classList.remove('hidden');
+            if (paidCheckbox) {
+                paidCheckbox.disabled = false;
+            }
+            if (shiftSelect) {
+                shiftSelect.value = '';
+                shiftSelect.disabled = true;
+            }
         } else {
-            paidCheckbox.checked = false;
-            paidCheckbox.disabled = true;
+            restDayLabel?.classList.add('hidden');
+            if (paidCheckbox) {
+                paidCheckbox.checked = false;
+                paidCheckbox.disabled = true;
+            }
+            if (shiftSelect) {
+                shiftSelect.disabled = false;
+            }
         }
     };
 

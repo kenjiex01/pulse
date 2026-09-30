@@ -6,6 +6,7 @@ class CompanyDocumentMergeTagCatalog
 {
     /** @var list<string> */
     public const OFFENSE_TAG_KEYS = [
+        'nature_of_offense',
         'disciplinary_action',
         'offense_frequency',
     ];
@@ -81,6 +82,10 @@ class CompanyDocumentMergeTagCatalog
     public static function offenseTags(): array
     {
         return [
+            'nature_of_offense' => [
+                'label' => 'Nature of offense',
+                'sample' => 'Absence without official leave (AWOL) for five (5) consecutive days or more.',
+            ],
             'disciplinary_action' => [
                 'label' => 'Disciplinary action',
                 'sample' => 'Written Warning',

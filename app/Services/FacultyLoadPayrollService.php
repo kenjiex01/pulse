@@ -22,6 +22,7 @@ class FacultyLoadPayrollService
         private readonly TimeLogsPayrollService $timeLogsPayroll,
         private readonly FlexiShiftPayrollService $flexiShiftPayroll,
         private readonly PayrollBreakService $breakPayroll,
+        private readonly EmployeeShiftResolver $shiftResolver,
     ) {}
 
     /**
@@ -89,7 +90,8 @@ class FacultyLoadPayrollService
             $to,
         );
 
-        $isFlexi = $this->flexiShiftPayroll->isFlexiShift($shiftCode);
+        $this->shiftResolver->loadOverridesForRange((int) $employee->employee_id, $from, $to);
+
         $workedDays = 0;
         $lateMinutes = 0;
         $undertimeMinutes = 0;
@@ -100,6 +102,10 @@ class FacultyLoadPayrollService
             if ($date === null || $date === '') {
                 continue;
             }
+
+            $sessionDate = CarbonImmutable::parse($date);
+            $dayShift = $this->shiftResolver->forDate($employee, $sessionDate, $shiftCode);
+            $isFlexi = $this->flexiShiftPayroll->isFlexiShift($dayShift);
 
             $punches = $dayPunches->get($date, collect());
             $entriesWithTimes = $dayEntries->filter(
@@ -142,10 +148,10 @@ class FacultyLoadPayrollService
                     }
                 }
             } else {
-                $scheduleStart = $this->lateScheduleStart($dayEntries, $shiftCode);
-                $scheduleEnd = $this->undertimeScheduleEnd($dayEntries, $shiftCode);
+                $scheduleStart = $this->lateScheduleStart($dayEntries, $dayShift);
+                $scheduleEnd = $this->undertimeScheduleEnd($dayEntries, $dayShift);
                 $session = [
-                    'date' => CarbonImmutable::parse($date),
+                    'date' => $sessionDate,
                     'time_in' => $this->firstTimeIn($punches),
                     'time_out' => $this->lastTimeOut($punches),
                 ];
@@ -232,13 +238,17 @@ class FacultyLoadPayrollService
             $to,
         );
 
-        $isFlexi = $this->flexiShiftPayroll->isFlexiShift($shiftCode);
+        $this->shiftResolver->loadOverridesForRange((int) $employee->employee_id, $from, $to);
         $totalHours = 0.0;
 
         foreach ($entries->groupBy(fn (RawEmployeeLoadEntry $entry) => $entry->session_date?->toDateString()) as $date => $dayEntries) {
             if ($date === null || $date === '') {
                 continue;
             }
+
+            $sessionDate = CarbonImmutable::parse($date);
+            $dayShift = $this->shiftResolver->forDate($employee, $sessionDate, $shiftCode);
+            $isFlexi = $this->flexiShiftPayroll->isFlexiShift($dayShift);
 
             $punches = $dayPunches->get($date, collect());
             $entriesWithTimes = $dayEntries->filter(
@@ -266,10 +276,10 @@ class FacultyLoadPayrollService
                 continue;
             }
 
-            $scheduleStart = $this->lateScheduleStart($dayEntries, $shiftCode);
+            $scheduleStart = $this->lateScheduleStart($dayEntries, $dayShift);
             $firstIn = $this->firstTimeIn($punches);
             $session = [
-                'date' => CarbonImmutable::parse($date),
+                'date' => $sessionDate,
                 'time_in' => $firstIn,
                 'time_out' => $this->lastTimeOut($punches),
             ];

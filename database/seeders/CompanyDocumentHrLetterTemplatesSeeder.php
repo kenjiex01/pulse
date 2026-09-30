@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\CompanyDocumentApproval;
 use App\Models\CompanyDocumentElement;
 use App\Models\CompanyDocumentForm;
+use App\Support\CompanyDocumentMemoPdfLayout;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
@@ -16,6 +17,14 @@ use Illuminate\Support\Facades\Storage;
  */
 class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
 {
+    private const MARGIN_X = 56;
+
+    private const LOGO_Y = 24;
+
+    private const LOGO_SIZE = 128;
+
+    private const ELEMENT_GAP = 12;
+
     /** @var list<string> */
     public const TEMPLATE_CODES = [
         'hr_notice_to_explain',
@@ -98,14 +107,14 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
         $form->elements()->each(fn (CompanyDocumentElement $element) => $element->forceDelete());
 
         $logoPath = $this->ensureLogoAsset($form);
-        $y = 24;
-        $allElements = array_merge([$this->logoElement($logoPath, $y)], $elements);
-        $y = 136;
+        $logoElement = $this->logoElement($logoPath, self::LOGO_Y, self::LOGO_SIZE);
+        $allElements = array_merge([$logoElement], $elements);
+        $y = self::LOGO_Y + self::LOGO_SIZE + self::ELEMENT_GAP;
 
         foreach ($allElements as $index => $element) {
             if ($index > 0) {
                 $element = $this->positionElement($element, $y);
-                $y += $this->elementHeight($element) + 12;
+                $y += $this->elementHeight($element) + self::ELEMENT_GAP;
             }
 
             CompanyDocumentElement::query()->create(array_merge([
@@ -118,22 +127,35 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
     private function ensureLogoAsset(CompanyDocumentForm $form): string
     {
         $directory = 'company-documents/templates/'.$form->company_document_form_id;
-        $path = $directory.'/icct-colleges-logo.png';
-        $source = resource_path('seeders/assets/icct-colleges-logo.png');
-        if (! is_file($source)) {
-            $source = public_path('img/icct-colleges-logo.png');
+        $candidates = [
+            resource_path('seeders/assets/icct-colleges-logo.jpg'),
+            resource_path('seeders/assets/icct-colleges-logo.png'),
+            public_path('img/icct-colleges-logo.png'),
+        ];
+
+        $source = null;
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate)) {
+                $source = $candidate;
+                break;
+            }
         }
 
-        if (! is_file($source)) {
-            throw new \RuntimeException('Missing ICCT logo PNG for company document templates.');
+        if ($source === null) {
+            throw new \RuntimeException('Missing ICCT logo asset for company document templates.');
         }
+
+        $extension = strtolower(pathinfo($source, PATHINFO_EXTENSION)) ?: 'png';
+        $path = $directory.'/icct-colleges-logo.'.$extension;
 
         Storage::disk('local')->makeDirectory($directory);
         Storage::disk('local')->put($path, File::get($source));
 
-        $legacyJpeg = $directory.'/icct-colleges-logo.jpg';
-        if (Storage::disk('local')->exists($legacyJpeg)) {
-            Storage::disk('local')->delete($legacyJpeg);
+        foreach (['png', 'jpg', 'jpeg'] as $legacyExt) {
+            $legacyPath = $directory.'/icct-colleges-logo.'.$legacyExt;
+            if ($legacyPath !== $path && Storage::disk('local')->exists($legacyPath)) {
+                Storage::disk('local')->delete($legacyPath);
+            }
         }
 
         return $path;
@@ -142,26 +164,36 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
     /**
      * @return array<string, mixed>
      */
-    private function logoElement(string $path, int $y): array
+    private function logoElement(string $path, int $y, int $size): array
     {
+        $filename = basename($path);
+        $posX = $this->centeredImagePosX($size);
+
         return [
             'type' => 'image',
             'label' => 'ICCT Logo',
             'width' => 'full',
             'options_json' => [
                 'path' => $path,
-                'original_filename' => 'icct-colleges-logo.png',
+                'original_filename' => $filename,
             ],
             'settings_json' => [
                 'label_align' => 'top',
-                'pos_x' => 240,
+                'pos_x' => $posX,
                 'pos_y' => $y,
-                'image_width' => 160,
-                'image_height' => 160,
+                'image_width' => $size,
+                'image_height' => $size,
                 'image_opacity' => 100,
                 'image_rotate' => 0,
             ],
         ];
+    }
+
+    private function centeredImagePosX(int $imageWidth): int
+    {
+        $canvas = CompanyDocumentMemoPdfLayout::DESIGNER_REFERENCE_WIDTH;
+
+        return max(0, (int) floor(($canvas - $imageWidth) / 2));
     }
 
     /**
@@ -172,7 +204,7 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
     {
         $settings = is_array($element['settings_json'] ?? null) ? $element['settings_json'] : [];
         $settings['label_align'] = $settings['label_align'] ?? 'top';
-        $settings['pos_x'] = $settings['pos_x'] ?? 48;
+        $settings['pos_x'] = $settings['pos_x'] ?? self::MARGIN_X;
         $settings['pos_y'] = $y;
         $element['settings_json'] = $settings;
 
@@ -184,12 +216,16 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
      */
     private function elementHeight(array $element): int
     {
+        $settings = is_array($element['settings_json'] ?? null) ? $element['settings_json'] : [];
+
         return match ($element['type'] ?? '') {
             CompanyDocumentElement::TYPE_HEADING => 32,
             CompanyDocumentElement::TYPE_SHORT_TEXT,
             CompanyDocumentElement::TYPE_DATE => 44,
+            CompanyDocumentElement::TYPE_LONG_TEXT => CompanyDocumentMemoPdfLayout::FIELD_LONG_HEIGHT,
             CompanyDocumentElement::TYPE_SIGNATURE => 120,
             CompanyDocumentElement::TYPE_MERGE_TAG => 28,
+            'image' => max(40, (int) ($settings['image_height'] ?? 128)),
             default => max(48, min(420, (int) (strlen((string) ($element['label'] ?? '')) / 72) * 18 + 40)),
         };
     }
@@ -217,9 +253,11 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
             'success_message' => 'Letter has been recorded.',
             'is_nte' => true,
             'requires_nte' => false,
+            'expects_web_nte_response' => true,
+            'nte_response_days' => 7,
             'elements' => [
-                $this->heading('ICCT COLLEGES FOUNDATION, INC.'),
-                $this->paragraph('V.V Soliven Avenue II, Cainta, Rizal'),
+                $this->letterheadHeading('ICCT COLLEGES FOUNDATION, INC.'),
+                $this->letterheadParagraph('V.V Soliven Avenue II, Cainta, Rizal'),
                 $this->shortText('Control No.', 'control_no', true),
                 $this->shortText('Delivery', 'delivery_via', false, 'e.g. Via LBC, Via Registered Mail'),
                 $this->date('Date', 'letter_date', true),
@@ -284,8 +322,8 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
     private function followupLetterElements(string $opening, string $requestBody): array
     {
         return [
-            $this->heading('ICCT COLLEGES FOUNDATION, INC.'),
-            $this->paragraph('V.V Soliven Avenue II, Cainta, Rizal'),
+            $this->letterheadHeading('ICCT COLLEGES FOUNDATION, INC.'),
+            $this->letterheadParagraph('V.V Soliven Avenue II, Cainta, Rizal'),
             $this->shortText('Control No.', 'control_no', true),
             $this->shortText('Delivery', 'delivery_via', false, 'Via Registered Mail'),
             $this->date('Date', 'letter_date', true),
@@ -312,8 +350,8 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
             'submit_label' => 'Issue Letter',
             'success_message' => 'Letter has been recorded.',
             'elements' => [
-                $this->heading('ICCT COLLEGES FOUNDATION, INC.'),
-                $this->paragraph('V.V Soliven Avenue II, Cainta, Rizal'),
+                $this->letterheadHeading('ICCT COLLEGES FOUNDATION, INC.'),
+                $this->letterheadParagraph('V.V Soliven Avenue II, Cainta, Rizal'),
                 $this->shortText('Control No.', 'control_no', true),
                 $this->shortText('Delivery', 'delivery_via', false),
                 $this->date('Date', 'letter_date', true),
@@ -343,8 +381,8 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
             'submit_label' => 'Issue Letter',
             'success_message' => 'Letter has been recorded.',
             'elements' => [
-                $this->heading('ICCT COLLEGES FOUNDATION, INC.'),
-                $this->paragraph('V.V Soliven Avenue II, Cainta, Rizal'),
+                $this->letterheadHeading('ICCT COLLEGES FOUNDATION, INC.'),
+                $this->letterheadParagraph('V.V Soliven Avenue II, Cainta, Rizal'),
                 $this->shortText('Control No.', 'control_no', true),
                 $this->shortText('Delivery', 'delivery_via', false),
                 $this->date('Date', 'letter_date', true),
@@ -467,9 +505,9 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
     private function memoHeaderElements(string $subject, string $body): array
     {
         return [
-            $this->heading('ICCT COLLEGES FOUNDATION, INC.'),
-            $this->paragraph('V.V Soliven Avenue II, Cainta, Rizal'),
-            $this->heading('M E M O R A N D U M'),
+            $this->letterheadHeading('ICCT COLLEGES FOUNDATION, INC.'),
+            $this->letterheadParagraph('V.V Soliven Avenue II, Cainta, Rizal'),
+            $this->letterheadHeading('M E M O R A N D U M'),
             $this->shortText('Control No.', 'control_no', true),
             $this->paragraph('Confidential'),
             $this->shortText('From', 'memo_from', true, 'e.g. Aurora G. Esma — Vice-President, HR & Administration'),
@@ -484,12 +522,44 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
     /**
      * @return array<string, mixed>
      */
+    private function letterheadHeading(string $label): array
+    {
+        return [
+            'type' => CompanyDocumentElement::TYPE_HEADING,
+            'label' => $label,
+            'settings_json' => [
+                'label_align' => 'top',
+                'pos_x' => 0,
+                'text_align' => 'center',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function letterheadParagraph(string $label): array
+    {
+        return [
+            'type' => CompanyDocumentElement::TYPE_PARAGRAPH,
+            'label' => $label,
+            'settings_json' => [
+                'label_align' => 'top',
+                'pos_x' => 0,
+                'text_align' => 'center',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function heading(string $label): array
     {
         return [
             'type' => CompanyDocumentElement::TYPE_HEADING,
             'label' => $label,
-            'settings_json' => ['label_align' => 'top', 'pos_x' => 48],
+            'settings_json' => ['label_align' => 'top', 'pos_x' => self::MARGIN_X],
         ];
     }
 
@@ -501,7 +571,7 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
         return [
             'type' => CompanyDocumentElement::TYPE_PARAGRAPH,
             'label' => $label,
-            'settings_json' => ['label_align' => 'top', 'pos_x' => 48],
+            'settings_json' => ['label_align' => 'top', 'pos_x' => self::MARGIN_X],
         ];
     }
 
@@ -516,7 +586,7 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
             'field_key' => $fieldKey,
             'is_required' => $required,
             'help_text' => $help,
-            'settings_json' => ['label_align' => 'top', 'pos_x' => 48],
+            'settings_json' => ['label_align' => 'top', 'pos_x' => self::MARGIN_X],
         ];
     }
 
@@ -531,7 +601,7 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
             'field_key' => $fieldKey,
             'is_required' => $required,
             'help_text' => $help,
-            'settings_json' => ['label_align' => 'top', 'pos_x' => 48],
+            'settings_json' => ['label_align' => 'top', 'pos_x' => self::MARGIN_X],
         ];
     }
 
@@ -545,7 +615,7 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
             'label' => $label,
             'field_key' => $fieldKey,
             'is_required' => $required,
-            'settings_json' => ['label_align' => 'top', 'pos_x' => 48],
+            'settings_json' => ['label_align' => 'top', 'pos_x' => self::MARGIN_X],
         ];
     }
 
@@ -559,7 +629,7 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
             'label' => $label,
             'field_key' => $fieldKey,
             'is_required' => false,
-            'settings_json' => ['label_align' => 'top', 'pos_x' => 48],
+            'settings_json' => ['label_align' => 'top', 'pos_x' => self::MARGIN_X],
         ];
     }
 
@@ -573,7 +643,7 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
             'label' => $label,
             'settings_json' => [
                 'label_align' => 'top',
-                'pos_x' => 48,
+                'pos_x' => self::MARGIN_X,
                 'tag_key' => $tagKey,
             ],
         ];

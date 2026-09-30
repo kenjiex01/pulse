@@ -13,14 +13,11 @@
 
 @switch($type)
     @case(CompanyDocumentElement::TYPE_HEADING)
-        <div class="memo-heading">{!! $label !!}</div>
+        <div class="memo-heading" style="{{ CompanyDocumentTextStyle::headingInlineStyle($settings) }}">{!! $label !!}</div>
         @break
 
     @case(CompanyDocumentElement::TYPE_PARAGRAPH)
-        @php
-            $paragraphStyle = CompanyDocumentTextStyle::normalize($settings);
-        @endphp
-        <div class="memo-paragraph" style="font-size:{{ $paragraphStyle['font_size'] }}px;color:{{ $paragraphStyle['font_color'] }};">{!! $label !!}</div>
+        <div class="memo-paragraph" style="width:100%;overflow:hidden;{{ CompanyDocumentTextStyle::inlineStyle($settings) }}">{!! $label !!}</div>
         @break
 
     @case(CompanyDocumentElement::TYPE_DIVIDER)

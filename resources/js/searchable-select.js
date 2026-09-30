@@ -117,8 +117,75 @@ class SearchableSelect {
             this.searchInput.value = '';
             this.highlightIndex = 0;
             this.renderOptions();
+            this.positionPanelFixed();
+            this.bindPanelReposition();
             this.searchInput.focus();
+        } else {
+            this.unbindPanelReposition();
+            this.resetPanelPosition();
         }
+    }
+
+    positionPanelFixed() {
+        const rect = this.trigger.getBoundingClientRect();
+        const gap = 4;
+        const searchBlock = 44;
+        const spaceBelow = window.innerHeight - rect.bottom - gap;
+        const spaceAbove = rect.top - gap;
+        const openUpward = spaceBelow < 160 && spaceAbove > spaceBelow;
+        const listMax = Math.max(
+            96,
+            Math.min(240, (openUpward ? spaceAbove : spaceBelow) - searchBlock - gap),
+        );
+
+        this.panel.style.position = 'fixed';
+        this.panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8))}px`;
+        this.panel.style.width = `${rect.width}px`;
+        this.panel.style.zIndex = '250';
+        this.list.style.maxHeight = `${listMax}px`;
+
+        if (openUpward) {
+            this.panel.style.top = 'auto';
+            this.panel.style.bottom = `${window.innerHeight - rect.top + gap}px`;
+        } else {
+            this.panel.style.top = `${rect.bottom + gap}px`;
+            this.panel.style.bottom = 'auto';
+        }
+    }
+
+    resetPanelPosition() {
+        this.panel.style.position = '';
+        this.panel.style.left = '';
+        this.panel.style.top = '';
+        this.panel.style.bottom = '';
+        this.panel.style.width = '';
+        this.panel.style.zIndex = '';
+        this.list.style.maxHeight = '';
+    }
+
+    bindPanelReposition() {
+        if (this.repositionHandler) {
+            return;
+        }
+
+        this.repositionHandler = () => {
+            if (this.isOpen()) {
+                this.positionPanelFixed();
+            }
+        };
+
+        window.addEventListener('scroll', this.repositionHandler, true);
+        window.addEventListener('resize', this.repositionHandler);
+    }
+
+    unbindPanelReposition() {
+        if (!this.repositionHandler) {
+            return;
+        }
+
+        window.removeEventListener('scroll', this.repositionHandler, true);
+        window.removeEventListener('resize', this.repositionHandler);
+        this.repositionHandler = null;
     }
 
     getOptions() {

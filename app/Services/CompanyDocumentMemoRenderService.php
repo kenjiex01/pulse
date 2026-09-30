@@ -252,7 +252,7 @@ class CompanyDocumentMemoRenderService
             $type = CompanyDocumentElement::TYPE_PARAGRAPH;
         } elseif (in_array($type, [CompanyDocumentElement::TYPE_PARAGRAPH, CompanyDocumentElement::TYPE_HEADING], true)) {
             $label = $this->mergeTagService->resolveInlineTags($label, $employee, $memoContext);
-            $label = CompanyDocumentInlineFormatting::sanitize($label);
+            $label = CompanyDocumentInlineFormatting::renderSegment($label);
         }
 
         if ($element->isInput() && $type !== CompanyDocumentElement::TYPE_SIGNATURE) {

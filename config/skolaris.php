@@ -38,4 +38,7 @@ return [
     'pulse_api_base_url' => SkolarisPulseApiUrl::normalize(env('SKOLARIS_PULSE_API_BASE_URL')),
 
     'pulse_api_key' => env('SKOLARIS_PULSE_API_KEY'),
+
+    // Shown in NTE reminder emails — Skolaris employee portal (People360 web).
+    'employee_portal_url' => rtrim((string) env('SKOLARIS_EMPLOYEE_PORTAL_URL', 'https://skolaris.icct.edu.ph/pulse/employee/requests'), '/'),
 ];

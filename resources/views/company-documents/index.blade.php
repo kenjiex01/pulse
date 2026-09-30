@@ -60,7 +60,7 @@
         @include('partials.modal', [
             'id' => 'company-document-create-modal',
             'title' => 'New Memo Template',
-            'description' => 'Nature of offense is optional. Tick Set as NTE if this template is the Notice to Explain.',
+            'description' => 'Nature of offense is optional. Configure Skolaris web NTE response on memo templates that need it.',
             'open' => $openCreate,
             'panelClass' => 'max-w-xl',
             'body' => view('company-documents._create-form', compact('documentTypes', 'icctOffenses'))->render(),
@@ -85,7 +85,11 @@
             'description' => $form->code,
             'open' => (string) $openViewId === (string) $form->company_document_form_id,
             'panelClass' => 'max-w-lg',
-            'body' => view('company-documents._show-content', compact('form'))->render(),
+            'body' => view('company-documents._show-content', [
+                'form' => $form,
+                'nteCases' => $nteCasesByForm->get($form->company_document_form_id, collect()),
+                'nteSyncConfigured' => $nteSyncConfiguredByForm[$form->company_document_form_id] ?? false,
+            ])->render(),
         ])
 
         @can('view', $form)

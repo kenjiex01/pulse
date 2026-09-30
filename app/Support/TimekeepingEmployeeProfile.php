@@ -125,6 +125,7 @@ class TimekeepingEmployeeProfile
                 'timekeepingSetup.policy',
                 'timekeepingSetup.teamSetting',
                 'timekeepingRestDays',
+                'timekeepingWeeklyShifts.shiftCode',
             ])
             ->orderBy('employee_number')
             ->orderBy('last_name')
