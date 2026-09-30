@@ -112,7 +112,7 @@
         </p>
     </div>
 
-    <p class="text-sm">
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
         <a
             href="{{ route('employees.upload.template', ['type' => $selectedUploadType]) }}"
             class="text-[#0B318F] hover:underline"
@@ -123,7 +123,16 @@
         >
             Download Template
         </a>
-    </p>
+        <label class="inline-flex items-center gap-2 text-gray-700">
+            <input
+                type="checkbox"
+                class="rounded border-gray-300 text-[#0B318F] focus:ring-[#0B318F]"
+                data-employee-upload-template-blank
+            >
+            <span>Blank</span>
+        </label>
+    </div>
+    <p class="-mt-2 text-xs text-gray-500">Leave Blank unchecked to include every existing employee. Check it for headers only.</p>
 
     <div>
         <label class="form-label">Upload File <span class="text-red-500">*</span></label>

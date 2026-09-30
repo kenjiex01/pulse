@@ -4060,6 +4060,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const typeSelect = form.querySelector('[data-employee-upload-type]');
         const templateLink = form.querySelector('[data-employee-upload-template-link]');
         const templateBase = templateLink?.dataset.employeeUploadTemplateBase;
+        const blank = form.querySelector('[data-employee-upload-template-blank]');
 
         if (!typeSelect) {
             return;
@@ -4072,7 +4073,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (templateLink && templateBase) {
-            templateLink.href = `${templateBase}?type=${encodeURIComponent(uploadType)}`;
+            const params = new URLSearchParams({ type: uploadType });
+
+            if (blank?.checked) {
+                params.set('blank', '1');
+            }
+
+            templateLink.href = `${templateBase}?${params.toString()}`;
         }
     };
 
@@ -4087,7 +4094,7 @@ document.addEventListener('DOMContentLoaded', () => {
         syncEmployeeUploadForm(form);
 
         form.addEventListener('change', (event) => {
-            if (event.target.matches('[data-employee-upload-type]')) {
+            if (event.target.matches('[data-employee-upload-type], [data-employee-upload-template-blank]')) {
                 syncEmployeeUploadForm(form);
             }
         });

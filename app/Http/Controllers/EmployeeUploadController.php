@@ -9,29 +9,26 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class EmployeeUploadController extends Controller
 {
     public function __construct(private readonly EmployeeUploadService $uploadService) {}
 
-    public function downloadTemplate(Request $request): BinaryFileResponse
+    public function downloadTemplate(Request $request): StreamedResponse
     {
         $this->authorize('create', Employee::class);
 
         $uploadType = $this->uploadService->normalizeUploadType((string) $request->query('type', 'master-file'));
-        $path = $this->uploadService->templateFilePath($uploadType);
+        $blank = $request->boolean('blank');
         $filename = (string) (($this->uploadService->uploadTypes()[$uploadType]['template_filename'] ?? 'employee_upload_template.xlsx'));
+        $binary = $this->uploadService->buildTemplateBinary($uploadType, $blank);
 
-        if (! is_readable($path)) {
-            abort(500, 'Employee upload template is missing. Please contact support.');
-        }
-
-        return response()->download(
-            $path,
-            $filename,
-            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-        );
+        return response()->streamDownload(function () use ($binary): void {
+            echo $binary;
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
     }
 
     public function processUpload(Request $request): RedirectResponse

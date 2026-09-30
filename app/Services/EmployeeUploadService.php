@@ -4,6 +4,10 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Models\EmployeeEmploymentInformation;
+use App\Models\EmployeeSalary;
+use App\Models\EmployeeSalaryDeduction;
+use App\Models\EmployeeSalaryIncome;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -127,7 +131,7 @@ class EmployeeUploadService
             .$this->formatCsvRow($sampleRow)."\n";
     }
 
-    public function buildTemplateBinary(string $uploadType = 'master-file'): string
+    public function buildTemplateBinary(string $uploadType = 'master-file', bool $blank = false): string
     {
         $uploadType = $this->normalizeUploadType($uploadType);
         $aliases = $this->aliases($uploadType);
@@ -143,18 +147,28 @@ class EmployeeUploadService
 
         $headerRows = [$aliases, $labels];
 
-        if ($uploadType === 'employee-assignment') {
+        if ($blank) {
+            $dataRows = [];
+        } elseif ($uploadType === 'employee-assignment') {
             $dataRows = $this->assignmentTemplateRows($aliases);
-            $freezePane = 'A3';
-            $dataRowStart = 3;
+        } elseif ($uploadType === 'employee-salary') {
+            $dataRows = $this->salaryTemplateRows($aliases);
         } else {
-            $sample = $this->sampleRowValues($uploadType);
-            $dataRows = [array_map(fn (string $alias) => $sample[$alias] ?? '', $aliases)];
-            $freezePane = 'A4';
-            $dataRowStart = 4;
+            $dataRows = $this->masterTemplateRows($aliases);
         }
 
-        foreach (array_merge($headerRows, $dataRows) as $rowIndex => $rowData) {
+        if ($uploadType === 'employee-assignment') {
+            $freezePane = 'A3';
+            $dataRowStart = 3;
+            $sheetRows = array_merge($headerRows, $dataRows);
+        } else {
+            $freezePane = 'A4';
+            $dataRowStart = 4;
+            $spacer = $dataRows === [] ? [] : [array_fill(0, count($aliases), '')];
+            $sheetRows = array_merge($headerRows, $spacer, $dataRows);
+        }
+
+        foreach ($sheetRows as $rowIndex => $rowData) {
             foreach ($rowData as $colIndex => $value) {
                 $coordinate = Coordinate::stringFromColumnIndex($colIndex + 1).($rowIndex + 1);
                 $sheet->setCellValueExplicit($coordinate, (string) $value, DataType::TYPE_STRING);
@@ -223,6 +237,337 @@ class EmployeeUploadService
         }
 
         return $given !== '' ? "{$last}, {$given}" : $last;
+    }
+
+    /**
+     * @param  array<int, string>  $aliases
+     * @return array<int, array<int, string>>
+     */
+    private function masterTemplateRows(array $aliases): array
+    {
+        $roles = $this->roleLabelsById();
+
+        return $this->employeesForTemplate()->map(function (Employee $employee) use ($aliases, $roles) {
+            $values = $this->masterTemplateValues($employee, $roles);
+
+            return array_map(fn (string $alias) => $values[$alias] ?? '', $aliases);
+        })->values()->all();
+    }
+
+    /**
+     * @param  array<int, string>  $aliases
+     * @return array<int, array<int, string>>
+     */
+    private function salaryTemplateRows(array $aliases): array
+    {
+        $rows = [];
+
+        foreach ($this->employeesForTemplate() as $employee) {
+            $employments = $employee->employmentInformations->values();
+
+            if ($employments->isEmpty()) {
+                $rows[] = $this->salaryTemplateLine($aliases, $employee, null, 1);
+
+                continue;
+            }
+
+            foreach ($employments->take(2) as $index => $employment) {
+                $rows[] = $this->salaryTemplateLine($aliases, $employee, $employment, $index + 1);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<int, string>  $aliases
+     * @return array<int, string>
+     */
+    private function salaryTemplateLine(array $aliases, Employee $employee, ?EmployeeEmploymentInformation $employment, int $slot): array
+    {
+        $salary = $employment ? $this->currentSalary($employment) : null;
+        $values = array_merge(
+            [
+                'employee_number' => (string) $employee->employee_number,
+                'employment_slot' => (string) $slot,
+            ],
+            $this->salaryExportValues($salary, ''),
+        );
+
+        return array_map(fn (string $alias) => $values[$alias] ?? '', $aliases);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, Employee>
+     */
+    private function employeesForTemplate()
+    {
+        return Employee::query()
+            ->with([
+                'campusAssignments.campus',
+                'employmentInformations.salaries.payType',
+                'employmentInformations.salaries.basicComputation',
+                'employmentInformations.salaries.rateGroup',
+                'employmentInformations.salaries.ndRateGroup',
+                'employmentInformations.salaries.incomes.incomeType',
+                'employmentInformations.salaries.deductions.deductionType',
+            ])
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->orderBy('middle_name')
+            ->orderBy('employee_id')
+            ->get();
+    }
+
+    /**
+     * @param  array<int, string>  $roles
+     * @return array<string, string>
+     */
+    private function masterTemplateValues(Employee $employee, array $roles): array
+    {
+        $values = [];
+
+        foreach ([
+            'employee_number', 'first_name', 'middle_name', 'last_name', 'suffix',
+            'place_of_birth', 'gender', 'civil_status', 'nationality', 'religion',
+            'language_dialect', 'tin_number', 'sss_number', 'philhealth_number',
+            'pagibig_number', 'gsis_number', 'tax_status', 'bank_name',
+            'bank_account_number', 'bank_account_type', 'email', 'phone',
+            'home_phone', 'work_phone', 'fax_number', 'emergency_contact_name',
+            'emergency_contact_relationship', 'emergency_contact_phone',
+            'emergency_contact_email', 'emergency_contact_address', 'country',
+            'address_line', 'region', 'province', 'city_municipality', 'barangay',
+            'postal_code', 'employment_status', 'compliance_status',
+        ] as $field) {
+            $values[$field] = trim((string) ($employee->{$field} ?? ''));
+        }
+
+        $values['birth_date'] = $this->exportDate($employee->birth_date);
+        $values['height_cm'] = $this->exportNumber($employee->height_cm);
+        $values['weight_kg'] = $this->exportNumber($employee->weight_kg);
+        $values['is_hybrid'] = $this->exportYesNo($employee->is_hybrid);
+        $values['is_confidential'] = $this->exportYesNo($employee->is_confidential);
+
+        $roleId = (int) data_get($employee->extended_profile, 'role_id');
+        $values['role'] = $roleId > 0 ? (string) ($roles[$roleId] ?? $roleId) : '';
+
+        $assignments = $employee->campusAssignments
+            ->sortBy([
+                ['is_primary', 'desc'],
+                ['sort_order', 'asc'],
+                ['employee_campus_assignment_id', 'asc'],
+            ])
+            ->values();
+
+        foreach ($assignments->take(5) as $index => $assignment) {
+            $prefix = $index === 0 ? '' : 'campus'.($index + 1).'_';
+            $codeKey = $index === 0 ? 'campus_code' : $prefix.'code';
+            $values[$codeKey] = (string) ($assignment->campus?->campus_code ?? '');
+            $values[$prefix.'biometric_id'] = (string) ($assignment->biometric_id ?? '');
+            $values[$prefix.'college'] = (string) ($assignment->college ?? '');
+            $values[$prefix.'department'] = (string) ($assignment->department ?? '');
+            $values[$prefix.'program'] = (string) ($assignment->program ?? '');
+        }
+
+        $employments = $employee->employmentInformations->values();
+
+        foreach ($employments->take(2) as $index => $employment) {
+            $prefix = $index === 0 ? '' : 'emp2_';
+            $values[$prefix.'user_type'] = (string) ($employment->user_type ?? '');
+            $values[$prefix.'position'] = (string) ($employment->position ?? '');
+            $values[$prefix.'designation'] = (string) ($employment->designation ?? '');
+            $values[$prefix.'rank'] = (string) ($employment->rank ?? '');
+            $values[$prefix.'employment_type'] = (string) ($employment->employment_type ?? '');
+            $values[$prefix.'hire_date'] = $this->exportDate($employment->hire_date);
+            $values = array_merge($values, $this->salaryExportValues(
+                $this->currentSalary($employment),
+                $index === 0 ? 'salary_' : 'salary2_',
+            ));
+        }
+
+        $extended = is_array($employee->extended_profile) ? $employee->extended_profile : [];
+        $family = is_array($extended['family_background'] ?? null) ? $extended['family_background'] : [];
+
+        foreach ((array) config('employee_upload.family_background_map', []) as $alias => $field) {
+            $values[$alias] = $this->exportDate($family[$field] ?? '');
+        }
+
+        $general = is_array($extended['general_information'] ?? null) ? $extended['general_information'] : [];
+
+        foreach ((array) config('employee_upload.general_information_map', []) as $alias => $field) {
+            if (! array_key_exists($field, $general)) {
+                $values[$alias] = '';
+
+                continue;
+            }
+
+            $values[$alias] = str_starts_with($field, 'has_')
+                ? $this->exportYesNo($general[$field])
+                : trim((string) $general[$field]);
+        }
+
+        $skills = data_get($extended, 'skills_profile.skills', []);
+        $values['sk_computer'] = $this->exportList(is_array($skills) ? ($skills['computer'] ?? '') : '');
+        $values['sk_technical'] = $this->exportList(is_array($skills) ? ($skills['technical'] ?? '') : '');
+        $values['sk_talents'] = $this->exportList(is_array($skills) ? ($skills['talents'] ?? '') : '');
+        $values['sk_other_skills'] = trim((string) data_get($extended, 'skills_profile.other_skills', ''));
+
+        return $values;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function salaryExportValues(?EmployeeSalary $salary, string $prefix): array
+    {
+        if ($salary === null) {
+            return [];
+        }
+
+        [$basicTaxable, $basicNonTaxable, $incomes] = $this->splitSalaryIncomes($salary);
+        $deductions = $salary->deductions
+            ->map(function (EmployeeSalaryDeduction $deduction): ?string {
+                $code = strtoupper(trim((string) ($deduction->deductionType?->deduction_type_code ?? '')));
+
+                if ($code === '') {
+                    return null;
+                }
+
+                return $code.'|'.$this->exportNumber($deduction->employee_amount).'|'.$this->exportNumber($deduction->employer_amount);
+            })
+            ->filter()
+            ->implode(';');
+
+        return [
+            $prefix.'date_effective_from' => $this->exportDate($salary->date_effective_from),
+            $prefix.'date_effective_to' => $this->exportDate($salary->date_effective_to),
+            $prefix.'pay_type' => (string) ($salary->payType?->pay_type ?? ''),
+            $prefix.'basic_computation' => (string) ($salary->basicComputation?->basic_computation ?? ''),
+            $prefix.'rate_group' => (string) ($salary->rateGroup?->description ?: ($salary->rateGroup?->rate_group_code ?? '')),
+            $prefix.'nd_rate_group' => (string) ($salary->ndRateGroup?->description ?: ($salary->ndRateGroup?->nd_rate_group_code ?? '')),
+            $prefix.'days_per_period' => $this->exportNumber($salary->days_per_period),
+            $prefix.'hours_per_day' => $this->exportNumber($salary->hours_per_day),
+            $prefix.'use_basic_income_as_hourly_rate' => $this->exportYesNo($salary->use_basic_income_as_hourly_rate),
+            $prefix.'is_above_minimum_wage_earner' => $this->exportYesNo($salary->is_above_minimum_wage_earner),
+            $prefix.'is_fixed_rate' => $this->exportYesNo($salary->is_fixed_rate),
+            $prefix.'basic_taxable' => $basicTaxable,
+            $prefix.'basic_non_taxable' => $basicNonTaxable,
+            $prefix.'incomes' => $incomes,
+            $prefix.'deductions' => $deductions,
+        ];
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private function splitSalaryIncomes(EmployeeSalary $salary): array
+    {
+        $basicTaxable = '';
+        $basicNonTaxable = '';
+        $others = [];
+
+        foreach ($salary->incomes as $income) {
+            if (! $income instanceof EmployeeSalaryIncome) {
+                continue;
+            }
+
+            $code = strtoupper(trim((string) ($income->incomeType?->income_type_code ?? '')));
+            $isBasic = (bool) ($income->incomeType?->is_default_basic) || $code === 'BASC';
+
+            if ($isBasic && $basicTaxable === '' && $basicNonTaxable === '') {
+                $basicTaxable = $this->exportNumber($income->taxable);
+                $basicNonTaxable = $this->exportNumber($income->non_taxable);
+
+                continue;
+            }
+
+            if ($code === '') {
+                continue;
+            }
+
+            $others[] = $code.'|'.$this->exportNumber($income->taxable).'|'.$this->exportNumber($income->non_taxable);
+        }
+
+        return [$basicTaxable, $basicNonTaxable, implode(';', $others)];
+    }
+
+    private function currentSalary(EmployeeEmploymentInformation $employment): ?EmployeeSalary
+    {
+        $open = $employment->salaries->first(
+            fn (EmployeeSalary $salary) => $salary->date_effective_to === null
+        );
+
+        return $open ?? $employment->salaries->first();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function roleLabelsById(): array
+    {
+        return Role::query()
+            ->get(['id', 'slug', 'name'])
+            ->mapWithKeys(fn (Role $role) => [
+                (int) $role->id => (string) ($role->slug !== '' && $role->slug !== null ? $role->slug : ($role->name ?: $role->id)),
+            ])
+            ->all();
+    }
+
+    private function exportDate(mixed $value): string
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        return trim((string) ($value ?? ''));
+    }
+
+    private function exportNumber(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        if (! is_numeric($value)) {
+            return trim((string) $value);
+        }
+
+        $formatted = rtrim(rtrim(number_format((float) $value, 5, '.', ''), '0'), '.');
+
+        return $formatted === '' || $formatted === '-0' ? '0' : $formatted;
+    }
+
+    private function exportYesNo(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+
+            if (in_array($normalized, ['1', 'true', 'yes', 'y'], true)) {
+                return 'yes';
+            }
+
+            if (in_array($normalized, ['0', 'false', 'no', 'n'], true)) {
+                return 'no';
+            }
+        }
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'yes' : 'no';
+    }
+
+    private function exportList(mixed $value): string
+    {
+        if (is_array($value)) {
+            return implode(', ', array_values(array_filter(array_map(
+                fn ($item) => trim((string) $item),
+                $value,
+            ), fn (string $item) => $item !== '')));
+        }
+
+        return trim((string) ($value ?? ''));
     }
 
     /**
