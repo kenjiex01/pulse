@@ -181,6 +181,10 @@ class TimekeepingEmployeeProfileUploadService
                     $row[$alias] = trim($cells[$index] ?? '');
                 }
 
+                if ($this->shouldSkipRowAsNoUpdate($row)) {
+                    continue;
+                }
+
                 $parsed = $this->validateRow($fields, $row, $lineNumber, $seenEmployees, $errors);
 
                 if ($parsed !== null) {
@@ -288,6 +292,62 @@ class TimekeepingEmployeeProfileUploadService
     }
 
     /**
+     * Rows with an employee number but no core setup values are left unchanged (template export noise).
+     *
+     * @param  array<string, string>  $row
+     */
+    private function shouldSkipRowAsNoUpdate(array $row): bool
+    {
+        if (trim($row['emp_num'] ?? '') === '') {
+            return false;
+        }
+
+        if ($this->hasAnySetupImportValue($row)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, string>  $row
+     */
+    private function hasAnySetupImportValue(array $row): bool
+    {
+        foreach (['holiday_group_code', 'policy_name', 'shift_code'] as $key) {
+            if (trim($row[$key] ?? '') !== '') {
+                return true;
+            }
+        }
+
+        foreach ($this->fields() as $field) {
+            $alias = (string) ($field['alias'] ?? '');
+            $type = (string) ($field['type'] ?? '');
+            $value = trim($row[$alias] ?? '');
+
+            if ($value === '') {
+                continue;
+            }
+
+            if ($type === 'shift_code' && str_starts_with($alias, 'shift_') && $alias !== 'shift_code') {
+                return true;
+            }
+
+            if ($type === 'boolean') {
+                if (str_starts_with($alias, 'rest_') && $value === '1') {
+                    return true;
+                }
+
+                if (in_array($alias, ['is_leave', 'is_populate', 'is_auto_compute_excess_as_ot'], true) && $value === '1') {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $fields
      * @param  array<string, string>  $row
      * @param  array<string, bool>  $seenEmployees
@@ -330,6 +390,14 @@ class TimekeepingEmployeeProfileUploadService
             }
 
             $value = trim($row[$alias] ?? '');
+
+            if ($type === 'shift_code' && str_starts_with($alias, 'shift_') && $alias !== 'shift_code') {
+                $dayId = $this->dayIdForShiftAlias($alias);
+                if ($dayId !== null && $this->isRestDayMarkedInRow($row, $dayId)) {
+                    continue;
+                }
+            }
+
             $required = (bool) ($field['required'] ?? false);
 
             if ($value === '' && $required) {
@@ -362,10 +430,70 @@ class TimekeepingEmployeeProfileUploadService
 
         if (! $hasError) {
             $parsed['rest_days'] = $this->parseRestDays($parsed);
+            foreach ($this->validateWorkingDayShifts($parsed, $lineNumber) as $message) {
+                $errors[] = $message;
+                $hasError = true;
+            }
+        }
+
+        if (! $hasError) {
             $parsed['weekly_shifts'] = $this->parseWeeklyShifts($parsed);
         }
 
         return $hasError ? null : $parsed;
+    }
+
+    private function dayIdForShiftAlias(string $alias): ?int
+    {
+        foreach (self::REST_DAY_ALIASES as $dayId => $aliases) {
+            if ($aliases['shift'] === $alias) {
+                return $dayId;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, string>  $row
+     */
+    private function isRestDayMarkedInRow(array $row, int $dayId): bool
+    {
+        $restAlias = self::REST_DAY_ALIASES[$dayId]['rest'] ?? null;
+
+        if ($restAlias === null) {
+            return false;
+        }
+
+        $value = strtolower(trim($row[$restAlias] ?? ''));
+
+        return in_array($value, ['1', 'y', 'yes', 'true'], true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $parsed
+     * @return list<string>
+     */
+    private function validateWorkingDayShifts(array $parsed, int $lineNumber): array
+    {
+        $messages = [];
+        $defaultShiftId = (int) ($parsed['shift_code_id'] ?? 0);
+        $restDayIds = collect($parsed['rest_days'] ?? [])->pluck('day_id')->map(fn ($id) => (int) $id)->all();
+
+        foreach (self::REST_DAY_ALIASES as $dayId => $aliases) {
+            if (in_array($dayId, $restDayIds, true)) {
+                continue;
+            }
+
+            $shiftId = (int) ($parsed["{$aliases['shift']}_shift_code_id"] ?? 0);
+
+            if ($shiftId <= 0 && $defaultShiftId <= 0) {
+                $short = strtoupper(substr($aliases['shift'], 6, 3));
+                $messages[] = "Line {$lineNumber}: Shift code is required for {$short} (working day).";
+            }
+        }
+
+        return $messages;
     }
 
     /**
@@ -617,7 +745,7 @@ class TimekeepingEmployeeProfileUploadService
                 'is_populate' => $setup ? ($setup->is_populate ? '1' : '0') : '',
                 'is_auto_compute_excess_as_ot' => $setup ? ($setup->is_auto_compute_excess_as_ot ? '1' : '0') : '',
                 default => $this->prefillRestDayValue($alias, $restDayMap)
-                    ?: $this->prefillWeeklyShiftValue($alias, $weeklyShiftMap, $setup?->shiftCode?->shift_code),
+                    ?: $this->prefillWeeklyShiftValue($alias, $weeklyShiftMap, $setup?->shiftCode?->shift_code, $restDayMap),
             };
         }
 
@@ -645,11 +773,19 @@ class TimekeepingEmployeeProfileUploadService
     /**
      * @param  Collection<int, TimekeepingEmployeeWeeklyShift>  $weeklyShiftMap
      */
-    private function prefillWeeklyShiftValue(string $alias, Collection $weeklyShiftMap, ?string $fallbackCode): string
-    {
+    private function prefillWeeklyShiftValue(
+        string $alias,
+        Collection $weeklyShiftMap,
+        ?string $fallbackCode,
+        Collection $restDayMap,
+    ): string {
         foreach (self::REST_DAY_ALIASES as $dayId => $aliases) {
             if ($alias !== $aliases['shift']) {
                 continue;
+            }
+
+            if ($restDayMap->has($dayId)) {
+                return '';
             }
 
             $weekly = $weeklyShiftMap->get($dayId);

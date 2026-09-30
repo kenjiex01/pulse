@@ -4916,6 +4916,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (shiftSelect) {
                 shiftSelect.value = '';
                 shiftSelect.disabled = true;
+                shiftSelect.removeAttribute('required');
             }
         } else {
             restDayLabel?.classList.add('hidden');
@@ -4925,6 +4926,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (shiftSelect) {
                 shiftSelect.disabled = false;
+                shiftSelect.removeAttribute('required');
             }
         }
     };

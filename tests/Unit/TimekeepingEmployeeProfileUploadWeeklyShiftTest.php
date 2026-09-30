@@ -71,10 +71,10 @@ class TimekeepingEmployeeProfileUploadWeeklyShiftTest extends TestCase
         $row[$aliasIndex['shift_sat']] = $saturday->shift_code;
         $row[$aliasIndex['rest_sun']] = '1';
 
-        $csv = implode(',', $aliases)."\n"
-            .implode(',', $service->fieldHeaders())."\n"
-            .implode(',', array_fill(0, count($aliases), 'note'))."\n"
-            .implode(',', $row)."\n";
+        $csv = $this->csvLine($aliases)."\n"
+            .$this->csvLine($service->fieldHeaders())."\n"
+            .$this->csvLine($service->fieldDescriptions())."\n"
+            .$this->csvLine($row)."\n";
 
         $path = tempnam(sys_get_temp_dir(), 'weekly-upload-');
         file_put_contents($path, $csv);
@@ -99,9 +99,25 @@ class TimekeepingEmployeeProfileUploadWeeklyShiftTest extends TestCase
             'day_id' => 1,
         ]);
 
+        $this->assertSame([], $parsed['errors']);
+
         $this->assertSame(
             6,
             TimekeepingEmployeeWeeklyShift::query()->where('employee_id', $employee->employee_id)->count(),
         );
+    }
+
+    /**
+     * @param  array<int, string>  $cells
+     */
+    private function csvLine(array $cells): string
+    {
+        $handle = fopen('php://temp', 'r+');
+        fputcsv($handle, $cells);
+        rewind($handle);
+        $line = stream_get_contents($handle) ?: '';
+        fclose($handle);
+
+        return rtrim($line, "\n");
     }
 }

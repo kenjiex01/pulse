@@ -30,3 +30,11 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Local E2E / test recordings (never commit)
+/docs/videos/*.webm
+/docs/videos/*.mp4
+/docs/videos/*.mov
+/scripts/e2e/**/node_modules/
+/scripts/e2e/**/test-results/
+/scripts/e2e/**/.auth-state.json

@@ -14,8 +14,8 @@
         <p class="font-medium text-gray-900">How it works</p>
         <ol class="mt-2 list-decimal space-y-1 pl-5">
             <li>Download the template — it is pre-filled with all employees and their current setup.</li>
-            <li>Edit holiday group, policy, shift code, rest days, and flags for the employees you want to update.</li>
-            <li>Remove rows you do not want to change, or leave values as-is to keep current setup.</li>
+            <li>Edit holiday group, policy, <strong>default shift</strong>, <strong>Mon–Sun shift columns</strong>, rest days, and flags for the employees you want to update.</li>
+            <li>Rows with empty Holiday Group, Policy, and Default Shift are <strong>skipped</strong> (employee not updated). Prefilled rows keep current setup when you re-upload.</li>
             <li>Save as <strong>CSV (*.csv)</strong> and upload it below.</li>
         </ol>
         <p class="mt-3">

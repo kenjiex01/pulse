@@ -44,7 +44,7 @@ foreach ([
         'label' => "{$label} Shift Code",
         'type' => 'shift_code',
         'day_id' => $dayId,
-        'hint' => 'Optional; blank uses Default Shift Code for this working day',
+        'hint' => 'Working day only; leave blank when Rest = 1 for this day, or use Default Shift Code',
     ];
 }
 

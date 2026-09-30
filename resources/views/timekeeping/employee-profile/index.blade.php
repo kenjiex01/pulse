@@ -35,7 +35,7 @@
         @include('partials.modal', [
             'id' => 'employee-profile-upload-modal',
             'title' => 'Upload Employee Setup',
-            'description' => 'Download the pre-filled template, update holiday group, policy, shift code, rest days, and flags, then upload.',
+                'description' => 'Download the pre-filled template, update holiday group, policy, default and weekly shift codes, rest days, and flags, then upload.',
             'open' => $openUpload ?? false,
             'panelClass' => 'max-w-2xl',
             'body' => view('timekeeping.employee-profile._upload-form')->render(),

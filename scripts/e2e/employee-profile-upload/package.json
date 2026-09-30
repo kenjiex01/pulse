@@ -1,0 +1,11 @@
+{
+  "name": "pulse-e2e-employee-profile-upload",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "record": "playwright test --config=playwright.config.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.51.0"
+  }
+}
