@@ -39,15 +39,15 @@ class BiometricMissingUploadHrNotificationService
             'hr_email' => null,
         ];
 
-        $hrEmail = HrSetupSetting::hrEmail();
+        $hrEmails = HrSetupSetting::hrEmails();
 
-        if ($hrEmail === null) {
+        if ($hrEmails === []) {
             $result['skipped_reason'] = 'hr_email_not_configured';
 
             return $result;
         }
 
-        $result['hr_email'] = $hrEmail;
+        $result['hr_email'] = implode(', ', $hrEmails);
 
         Cache::forget('biometric_collector_dashboard_'.$onDate->toDateString());
         $status = $this->dashboardService->statusForDate($onDate);
@@ -83,7 +83,7 @@ class BiometricMissingUploadHrNotificationService
         try {
             $this->ensureMailIsConfigured();
 
-            Mail::to($hrEmail)->send(new BiometricMissingUploadHrNotificationMail(
+            Mail::to($hrEmails)->send(new BiometricMissingUploadHrNotificationMail(
                 (string) ($status['reference_date_label'] ?? $onDate->format('F j, Y')),
                 $missingCampuses,
                 $result['active_campus_count'],

@@ -4069,6 +4069,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        form.addEventListener('click', (event) => {
+            const link = event.target.closest('[data-el-template-link]');
+
+            if (link && link.dataset.disabled === 'true') {
+                event.preventDefault();
+            }
+        });
+
         updateEmployeeLoadTemplateLink(form);
     };
 

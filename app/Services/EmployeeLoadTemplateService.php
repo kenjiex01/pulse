@@ -2,15 +2,17 @@
 
 namespace App\Services;
 
+use App\Models\Employee;
+use App\Support\SkolarisLoadSessionTimes;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonPeriod;
+use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 
 /**
- * Fetches the Skolaris faculty loading overview + offering details and expands
- * each class schedule into one row per calendar session date inside the chosen
- * date range. The result feeds both the downloadable CSV template and (later)
- * the upload validation.
+ * Builds Employee Load template rows for a date range. Primary source is Skolaris
+ * daily-loads (same shift schedules as Loading Attendance). Falls back to faculty
+ * overview + batch offering details when daily-loads has no rows for the range.
  */
 class EmployeeLoadTemplateService
 {
@@ -26,13 +28,7 @@ class EmployeeLoadTemplateService
 
     public function __construct(private readonly SkolarisApiService $skolaris) {}
 
-    /**
-     * Build the expanded template rows for a date range. The enrollment period
-     * (loading) is resolved automatically from the selected dates.
-     *
-     * @return array<int, array<string, string>>
-     */
-    public function buildRows(string $dateFrom, string $dateTo): array
+    public function assertTemplateDateRange(string $dateFrom, string $dateTo): void
     {
         $from = CarbonImmutable::parse($dateFrom)->startOfDay();
         $to = CarbonImmutable::parse($dateTo)->startOfDay();
@@ -41,9 +37,294 @@ class EmployeeLoadTemplateService
             throw new RuntimeException('Date From must be on or before Date To.');
         }
 
+        $maxDays = max(1, (int) config('employee_load.max_template_days', 31));
+        $spanDays = $from->diffInDays($to) + 1;
+
+        if ($spanDays > $maxDays) {
+            throw new RuntimeException(
+                "Date range is too long ({$spanDays} days). Use at most {$maxDays} days per template download."
+            );
+        }
+    }
+
+    /**
+     * @return array<int, array<string, string>>
+     */
+    public function buildRows(string $dateFrom, string $dateTo): array
+    {
+        if (! app()->runningUnitTests()) {
+            @set_time_limit(max(30, (int) config('employee_load.build_time_limit_seconds', 300)));
+        }
+
+        $this->assertTemplateDateRange($dateFrom, $dateTo);
+
+        $from = CarbonImmutable::parse($dateFrom)->startOfDay();
+        $to = CarbonImmutable::parse($dateTo)->startOfDay();
+
+        $rows = [];
+        $rowCount = $this->streamDailyLoadTemplateRows($from, $to, $dateFrom, $dateTo, function (array $row) use (&$rows): void {
+            $rows[] = $row;
+        });
+
+        if ($rowCount > 0) {
+            $rowNo = 0;
+
+            foreach ($rows as $index => $row) {
+                $rowNo++;
+                $rows[$index]['row_no'] = (string) $rowNo;
+            }
+
+            return $rows;
+        }
+
+        return $this->buildRowsFromFacultyOverview($from, $to, $dateFrom, $dateTo);
+    }
+
+    /**
+     * Emit pre-filled template rows without holding the full dataset when used from CSV streaming.
+     *
+     * @param  callable(array<string, string>): void  $emit
+     */
+    public function streamPrefilledTemplateRows(string $dateFrom, string $dateTo, callable $emit): int
+    {
+        $this->assertTemplateDateRange($dateFrom, $dateTo);
+
+        $from = CarbonImmutable::parse($dateFrom)->startOfDay();
+        $to = CarbonImmutable::parse($dateTo)->startOfDay();
+        $rowNo = 0;
+
+        $dailyCount = $this->streamDailyLoadTemplateRows(
+            $from,
+            $to,
+            $dateFrom,
+            $dateTo,
+            function (array $row) use ($emit, &$rowNo): void {
+                $rowNo++;
+                $row['row_no'] = (string) $rowNo;
+                $emit($row);
+            },
+        );
+
+        if ($dailyCount > 0) {
+            return $dailyCount;
+        }
+
+        foreach ($this->buildRowsFromFacultyOverview($from, $to, $dateFrom, $dateTo) as $row) {
+            $rowNo++;
+            $row['row_no'] = (string) $rowNo;
+            $emit($row);
+        }
+
+        return $rowNo;
+    }
+
+    /**
+     * @param  callable(array<string, string>): void  $emit
+     */
+    private function streamDailyLoadTemplateRows(
+        CarbonImmutable $from,
+        CarbonImmutable $to,
+        string $dateFrom,
+        string $dateTo,
+        callable $emit,
+    ): int {
+        $employees = $this->fetchDailyLoadEmployees($dateFrom, $dateTo);
+
+        if ($employees === []) {
+            return 0;
+        }
+
+        $localFaculty = $this->localFacultyNumberLookup();
+        $seen = [];
+        $count = 0;
+
+        foreach ($employees as $employee) {
+            foreach ($this->dailyLoadEmployeeRows($employee, $from, $to, $seen, $localFaculty) as $row) {
+                $emit($row);
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function fetchDailyLoadEmployees(string $dateFrom, string $dateTo): array
+    {
+        $mode = strtolower(trim((string) config('employee_load.daily_loads_fetch', 'bulk')));
+
+        if ($mode === 'chunked_parallel') {
+            $numbers = $this->facultyEmployeeNumbers();
+
+            if ($numbers === []) {
+                return [];
+            }
+
+            return $this->skolaris->dailyLoadsConcurrent($dateFrom, $dateTo, $numbers);
+        }
+
+        return $this->skolaris->dailyLoadsForEmployeeLoadTemplate($dateFrom, $dateTo);
+    }
+
+    /**
+     * @return array<string, true>|null
+     */
+    private function localFacultyNumberLookup(): ?array
+    {
+        if (! config('employee_load.restrict_to_local_faculty', true)) {
+            return null;
+        }
+
+        $numbers = $this->facultyEmployeeNumbers();
+
+        if ($numbers === []) {
+            return null;
+        }
+
+        return array_fill_keys($numbers, true);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function facultyEmployeeNumbers(): array
+    {
+        return Employee::query()
+            ->facultyEligible()
+            ->where('is_active', true)
+            ->whereNotNull('employee_number')
+            ->where('employee_number', '!=', '')
+            ->orderBy('employee_number')
+            ->pluck('employee_number')
+            ->map(fn ($number) => trim((string) $number))
+            ->filter(fn (string $number) => $number !== '')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, true>  $seen
+     * @param  array<string, true>|null  $localFaculty
+     * @return array<int, array<string, string>>
+     */
+    private function dailyLoadEmployeeRows(
+        mixed $employee,
+        CarbonImmutable $from,
+        CarbonImmutable $to,
+        array &$seen,
+        ?array $localFaculty = null,
+    ): array {
+        if (! is_array($employee)) {
+            return [];
+        }
+
+        $facultyName = trim((string) ($employee['full_name'] ?? ''));
+        $employeeNumber = trim((string) ($employee['employee_number'] ?? ''));
+
+        if ($localFaculty !== null && $employeeNumber !== '' && ! isset($localFaculty[$employeeNumber])) {
+            return [];
+        }
+
+        if ($localFaculty !== null && $employeeNumber === '' && $localFaculty !== []) {
+            return [];
+        }
+
+        $collegeDefault = trim((string) ($employee['college_code'] ?? $employee['college_name'] ?? ''));
+        $rows = [];
+
+        foreach ($employee['loads'] ?? [] as $load) {
+            if (! is_array($load)) {
+                continue;
+            }
+
+            $sessionDateRaw = trim((string) ($load['attendance_date'] ?? ''));
+
+            if ($sessionDateRaw === '') {
+                continue;
+            }
+
+            try {
+                $sessionDate = CarbonImmutable::parse($sessionDateRaw)->startOfDay();
+            } catch (\Throwable) {
+                continue;
+            }
+
+            if ($sessionDate->lessThan($from) || $sessionDate->greaterThan($to)) {
+                continue;
+            }
+
+            $offeringId = isset($load['offering_id']) ? (int) $load['offering_id'] : 0;
+            $subject = trim((string) ($load['subject_code'] ?? ''));
+            $sectionName = trim((string) ($load['section'] ?? ''));
+            $schedule = $this->classScheduleFromDailyLoad($load);
+            $college = trim((string) ($load['college_code'] ?? $load['college'] ?? $collegeDefault));
+            $modality = $this->modalityLabel((string) ($load['modality'] ?? $load['modality_code'] ?? ''));
+
+            $dedupeKey = implode('|', [
+                $employeeNumber,
+                $sessionDate->toDateString(),
+                (string) $offeringId,
+                $subject,
+                $sectionName,
+                $schedule,
+            ]);
+
+            if (isset($seen[$dedupeKey])) {
+                continue;
+            }
+
+            $seen[$dedupeKey] = true;
+
+            $sessionTimes = SkolarisLoadSessionTimes::forTemplateCsv($load);
+
+            $rows[] = [
+                'row_no' => '',
+                'faculty_name' => $facultyName,
+                'college' => $college,
+                'modality' => $modality,
+                'subject' => $subject,
+                'section' => $sectionName,
+                'load_date' => $this->formatSessionDate($sessionDate),
+                'class_schedule' => $schedule,
+                'time_in' => $sessionTimes['time_in'],
+                'time_out' => $sessionTimes['time_out'],
+                'remarks' => '',
+                'comments' => '',
+                'verification_remarks' => '',
+                'employee_number' => $employeeNumber,
+                'skolaris_offering_id' => $offeringId > 0 ? (string) $offeringId : '',
+                'session_date_iso' => $sessionDate->toDateString(),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Legacy path: faculty overview + batch details, expanded by weekday.
+     *
+     * @return array<int, array<string, string>>
+     */
+    private function buildRowsFromFacultyOverview(
+        CarbonImmutable $from,
+        CarbonImmutable $to,
+        string $dateFrom,
+        string $dateTo,
+    ): array {
         $period = $this->resolvePeriodForRange($dateFrom, $dateTo);
 
-        $campuses = $this->skolaris->facultyOverview($period['id']);
+        $cacheMinutes = max(0, (int) config('employee_load.overview_cache_minutes', 10));
+        $overviewKey = 'employee_load_faculty_overview_'.$period['id'];
+
+        $campuses = $cacheMinutes > 0
+            ? Cache::remember(
+                $overviewKey,
+                now()->addMinutes($cacheMinutes),
+                fn (): array => $this->skolaris->facultyOverview($period['id']),
+            )
+            : $this->skolaris->facultyOverview($period['id']);
 
         $faculties = $this->collectFaculties($campuses);
         $offeringIds = $this->collectOfferingIds($faculties);
@@ -89,6 +370,13 @@ class EmployeeLoadTemplateService
                     foreach ($this->sessionDates($from, $to, $weekdays) as $date) {
                         $rowNo++;
 
+                        $rs = $offering['roomSchedule'] ?? $offering['room_schedule'] ?? [];
+                        $sessionTimes = SkolarisLoadSessionTimes::forTemplateCsv([
+                            'schedule' => $schedule,
+                            'time_in' => $offering['schedule_time_start'] ?? ($rs['start_time'] ?? null),
+                            'time_out' => $offering['schedule_time_end'] ?? ($rs['end_time'] ?? null),
+                        ]);
+
                         $rows[] = [
                             'row_no' => (string) $rowNo,
                             'faculty_name' => $facultyName,
@@ -98,12 +386,11 @@ class EmployeeLoadTemplateService
                             'section' => $sectionName,
                             'load_date' => $this->formatSessionDate($date),
                             'class_schedule' => $schedule,
-                            'time_in' => '',
-                            'time_out' => '',
+                            'time_in' => $sessionTimes['time_in'],
+                            'time_out' => $sessionTimes['time_out'],
                             'remarks' => '',
                             'comments' => '',
                             'verification_remarks' => '',
-                            // hidden metadata
                             'employee_number' => $employeeNumber,
                             'skolaris_offering_id' => (string) $offeringId,
                             'session_date_iso' => $date->toDateString(),
@@ -114,6 +401,27 @@ class EmployeeLoadTemplateService
         }
 
         return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $load
+     */
+    private function classScheduleFromDailyLoad(array $load): string
+    {
+        $schedule = trim((string) ($load['schedule'] ?? ''));
+
+        if ($schedule !== '') {
+            return $schedule;
+        }
+
+        $startLabel = $this->formatTime($load['time_in'] ?? null);
+        $endLabel = $this->formatTime($load['time_out'] ?? null);
+
+        if ($startLabel === null || $endLabel === null) {
+            return '';
+        }
+
+        return $startLabel.' - '.$endLabel;
     }
 
     /**

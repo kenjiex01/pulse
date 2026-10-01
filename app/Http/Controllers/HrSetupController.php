@@ -53,7 +53,20 @@ class HrSetupController extends Controller
         HrSetup::authorize($request->user(), 'update');
 
         $validated = $request->validate([
-            'hr_email' => ['nullable', 'email', 'max:255'],
+            'hr_email' => [
+                'nullable',
+                'string',
+                'max:2000',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! is_string($value) || trim($value) === '') {
+                        return;
+                    }
+
+                    if (! HrSetupSetting::hrEmailInputIsValid($value)) {
+                        $fail('Enter valid email address(es), separated by commas.');
+                    }
+                },
+            ],
             'probationary_end_email_subject' => ['nullable', 'string', 'max:255'],
             'probationary_end_email_body' => ['nullable', 'string', 'max:10000'],
             'probationary_end_notification_days' => [
@@ -122,9 +135,9 @@ class HrSetupController extends Controller
             'probationary_end_email_subject' => $settings->probationary_end_email_subject,
             'probationary_end_email_body' => $settings->probationary_end_email_body,
         ];
-        $hrEmail = filled($validated['hr_email'] ?? null)
-            ? strtolower(trim((string) $validated['hr_email']))
-            : null;
+        $hrEmail = HrSetupSetting::normalizeHrEmailInput(
+            is_string($validated['hr_email'] ?? null) ? $validated['hr_email'] : null,
+        );
         $notificationDays = $notificationDaysNormalized;
 
         $settings->update([

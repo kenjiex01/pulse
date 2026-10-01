@@ -38,17 +38,17 @@
                     <div>
                         <label for="hr_email" class="form-label">HR email</label>
                         <input
-                            type="email"
+                            type="text"
                             id="hr_email"
                             name="hr_email"
                             value="{{ old('hr_email', $settings->hr_email) }}"
                             class="form-input w-full"
-                            maxlength="255"
+                            maxlength="2000"
                             autocomplete="email"
-                            placeholder="hr@example.com"
+                            placeholder="hr@example.com, hr.backup@example.com"
                         >
                         <p class="mt-1 text-xs text-gray-500">
-                            Used as the Human Resource contact address for HR-related email notifications.
+                            Used for HR-related email notifications. Enter one address or several separated by commas.
                         </p>
                         @error('hr_email')
                             <p class="mt-1 text-xs text-red-600">{{ $message }}</p>

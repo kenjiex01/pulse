@@ -36,11 +36,11 @@ class ProbationaryEndNotificationService
             'skipped_already_sent' => 0,
         ];
 
-        $hrEmail = HrSetupSetting::hrEmail();
+        $hrEmails = HrSetupSetting::hrEmails();
         $subjectTemplate = trim((string) ($settings->probationary_end_email_subject ?? ''));
         $bodyTemplate = trim((string) ($settings->probationary_end_email_body ?? ''));
 
-        if ($offsets === [] || $hrEmail === null || ! $this->templatesAreConfigured($settings)) {
+        if ($offsets === [] || $hrEmails === [] || ! $this->templatesAreConfigured($settings)) {
             return $stats;
         }
 
@@ -54,7 +54,7 @@ class ProbationaryEndNotificationService
             ->chunkById(100, function ($employees) use (
                 $todayDate,
                 $offsets,
-                $hrEmail,
+                $hrEmails,
                 $subjectTemplate,
                 $bodyTemplate,
                 &$stats,
@@ -104,7 +104,7 @@ class ProbationaryEndNotificationService
 
                         $sent = $this->trySendHrEmail(
                             $employee,
-                            $hrEmail,
+                            $hrEmails,
                             $subjectTemplate,
                             $bodyTemplate,
                             $context,
@@ -118,7 +118,7 @@ class ProbationaryEndNotificationService
                                 HrProbationaryEndNotificationLog::RECIPIENT_HR,
                                 $sent,
                             );
-                            $stats['hr_emails_sent']++;
+                            $stats['hr_emails_sent'] += count($hrEmails);
                         }
                     }
                 }
@@ -143,15 +143,13 @@ class ProbationaryEndNotificationService
     }
 
     /**
-     * @param  array{probationary_end_date: string, days_before_end: string}  $context
-     */
-    /**
+     * @param  array<int, string>  $hrEmails
      * @param  array{probationary_end_date: string, days_before_end: string}  $context
      * @return array{hr_email_to: string, email_subject: string, email_body: string}|null
      */
     private function trySendHrEmail(
         Employee $employee,
-        string $hrEmail,
+        array $hrEmails,
         string $subjectTemplate,
         string $bodyTemplate,
         array $context,
@@ -162,10 +160,10 @@ class ProbationaryEndNotificationService
             $subject = $this->mergeTagService->resolveInlineTags($subjectTemplate, $employee, $context);
             $body = $this->mergeTagService->resolveInlineTags($bodyTemplate, $employee, $context);
 
-            Mail::to($hrEmail)->send(new ProbationaryEndNotificationMail($subject, $body));
+            Mail::to($hrEmails)->send(new ProbationaryEndNotificationMail($subject, $body));
 
             return [
-                'hr_email_to' => $hrEmail,
+                'hr_email_to' => implode(', ', $hrEmails),
                 'email_subject' => $subject,
                 'email_body' => $body,
             ];

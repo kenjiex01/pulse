@@ -27,7 +27,7 @@
         <ol class="mt-2 list-decimal space-y-1 pl-5">
             <li>Select the date range you want to record — the matching loading period is detected automatically.</li>
             <li>Download the template — it comes pre-filled with each faculty's class sessions (one row per session date).</li>
-            <li>Fill in <strong>Time In</strong>, <strong>Time Out</strong>, and remarks. Do not change the pre-filled or hidden columns.</li>
+            <li><strong>Time In</strong> and <strong>Time Out</strong> are pre-filled from each class schedule (or Skolaris actual times when logged). Adjust only when needed, then add remarks. Do not change other pre-filled or hidden columns.</li>
             <li>Save as <strong>CSV (*.csv)</strong> and upload it below.</li>
         </ol>
         <p class="mt-3">

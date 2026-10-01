@@ -27,11 +27,67 @@ class HrSetupSetting extends Model
         ]);
     }
 
+    /**
+     * @return array<int, string>
+     */
+    public static function hrEmails(): array
+    {
+        return static::parseHrEmails(static::settings()->hr_email);
+    }
+
+    /** @deprecated Prefer hrEmails(); comma-separated string when multiple are configured. */
     public static function hrEmail(): ?string
     {
-        $email = trim((string) (static::settings()->hr_email ?? ''));
+        $emails = static::hrEmails();
 
-        return $email !== '' ? $email : null;
+        return $emails === [] ? null : implode(', ', $emails);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function parseHrEmails(mixed $raw): array
+    {
+        if ($raw === null || trim((string) $raw) === '') {
+            return [];
+        }
+
+        $parts = preg_split('/\s*,\s*/', trim((string) $raw)) ?: [];
+        $emails = [];
+
+        foreach ($parts as $part) {
+            $email = strtolower(trim($part));
+
+            if ($email === '' || in_array($email, $emails, true)) {
+                continue;
+            }
+
+            $emails[] = $email;
+        }
+
+        return $emails;
+    }
+
+    public static function normalizeHrEmailInput(?string $raw): ?string
+    {
+        $emails = static::parseHrEmails($raw);
+
+        return $emails === [] ? null : implode(', ', $emails);
+    }
+
+    public static function hrEmailInputIsValid(?string $raw): bool
+    {
+        if ($raw === null || trim($raw) === '') {
+            return true;
+        }
+
+        foreach (preg_split('/\s*,\s*/', trim($raw)) ?: [] as $part) {
+            if ($part === '' || ! filter_var(trim($part), FILTER_VALIDATE_EMAIL)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

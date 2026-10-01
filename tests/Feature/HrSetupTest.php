@@ -148,4 +148,24 @@ class HrSetupTest extends TestCase
             ->assertRedirect(route('hr.setup.index'))
             ->assertSessionHasErrors('hr_email');
     }
+
+    public function test_hr_setup_saves_comma_separated_hr_emails(): void
+    {
+        $this->actingAs(User::query()->firstOrFail())
+            ->from(route('hr.setup.index'))
+            ->put(route('hr.setup.update'), [
+                'hr_email' => 'HR.One@Example.com, hr.two@example.com , HR.One@Example.com',
+            ])
+            ->assertRedirect(route('hr.setup.index'))
+            ->assertSessionHas('success');
+
+        $this->assertSame(
+            'hr.one@example.com, hr.two@example.com',
+            HrSetupSetting::settings()->fresh()->hr_email,
+        );
+        $this->assertSame(
+            ['hr.one@example.com', 'hr.two@example.com'],
+            HrSetupSetting::hrEmails(),
+        );
+    }
 }

@@ -9,6 +9,7 @@ use App\Models\TeachingLoadPullBatch;
 use App\Models\TeachingLoadSession;
 use App\Models\TeachingLoadSyncStatus;
 use App\Models\User;
+use App\Support\SkolarisLoadSessionTimes;
 use App\Support\TimeLogs;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\Cache;
@@ -478,6 +479,10 @@ class TeachingLoadPullService
                     $this->normalizeText($load['subject_name'] ?? null),
                 ])));
 
+                $sessionTimes = SkolarisLoadSessionTimes::forEmployeeLoadEntry(
+                    is_array($load) ? $load : [],
+                );
+
                 RawEmployeeLoadEntry::query()->create([
                     'employee_load_transaction_id' => $employeeLoadTransactionId,
                     'employee_id' => $employee->employee_id,
@@ -492,9 +497,8 @@ class TeachingLoadPullService
                     'session_date' => $load['session_date'] ?? null,
                     'class_schedule' => $load['class_schedule'] ?? null,
                     'total_hours' => isset($load['total_hours']) ? $load['total_hours'] : null,
-                    // Actual punches come from Time Logs, not Skolaris schedule times.
-                    'time_in' => null,
-                    'time_out' => null,
+                    'time_in' => $sessionTimes['time_in'],
+                    'time_out' => $sessionTimes['time_out'],
                     'remarks' => $load['status_code'] ?? null,
                     'comments' => $this->normalizeText($load['room'] ?? null),
                     'verification_remarks' => 'Pulled from Skolaris',
@@ -539,6 +543,8 @@ class TeachingLoadPullService
                 continue;
             }
 
+            $sessionTimes = SkolarisLoadSessionTimes::forEmployeeLoadEntry($load);
+
             $normalized[] = [
                 'session_date' => $sessionDate,
                 'employee_number' => $employeeNumber,
@@ -551,8 +557,8 @@ class TeachingLoadPullService
                 'room' => $this->normalizeText($load['room'] ?? null),
                 'schedule_day' => $this->normalizeText($load['schedule_day'] ?? null),
                 'class_schedule' => $this->normalizeText($load['schedule'] ?? null),
-                'time_in' => $this->normalizeText($load['time_in'] ?? null),
-                'time_out' => $this->normalizeText($load['time_out'] ?? null),
+                'time_in' => $sessionTimes['time_in'],
+                'time_out' => $sessionTimes['time_out'],
                 'total_hours' => $this->normalizeDecimal($load['total_hours'] ?? null),
                 'total_render_hours' => $this->normalizeDecimal($load['total_render_hours'] ?? null),
                 'status_code' => $this->normalizeText($load['status_code'] ?? null),

@@ -67,25 +67,42 @@ class EmployeeLoadUploadService
      */
     public function buildTemplateContent(string $dateFrom, string $dateTo): string
     {
+        $handle = fopen('php://temp', 'r+');
+
+        if ($handle === false) {
+            throw new RuntimeException('Unable to build the template file.');
+        }
+
+        $this->writeTemplateCsv($handle, $dateFrom, $dateTo);
+        rewind($handle);
+        $content = stream_get_contents($handle) ?: '';
+        fclose($handle);
+
+        return $content;
+    }
+
+    /**
+     * @param  resource  $handle
+     */
+    public function writeTemplateCsv($handle, string $dateFrom, string $dateTo): void
+    {
+        $this->templateService->assertTemplateDateRange($dateFrom, $dateTo);
+
         $aliases = $this->aliases();
         $labels = $this->labels();
 
-        $content = $this->formatCsvRow($aliases)."\n"
-            .$this->formatCsvRow($labels)."\n";
+        fwrite($handle, $this->formatCsvRow($aliases)."\n");
+        fwrite($handle, $this->formatCsvRow($labels)."\n");
 
-        $rows = $this->templateService->buildRows($dateFrom, $dateTo);
-
-        foreach ($rows as $row) {
+        $this->templateService->streamPrefilledTemplateRows($dateFrom, $dateTo, function (array $row) use ($handle, $aliases): void {
             $line = [];
 
             foreach ($aliases as $alias) {
                 $line[] = (string) ($row[$alias] ?? '');
             }
 
-            $content .= $this->formatCsvRow($line)."\n";
-        }
-
-        return $content;
+            fwrite($handle, $this->formatCsvRow($line)."\n");
+        });
     }
 
     /**

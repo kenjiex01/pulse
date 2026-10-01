@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Support\EncryptedEnv;
 use App\Support\SkolarisJwtCredentials;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -58,7 +59,7 @@ class SkolarisApiService
     {
         $response = $this->request('get', '/faculty-grades/overview', [
             'enrollment_period_id' => $enrollmentPeriodId,
-        ]);
+        ], $this->employeeLoadApiTimeout());
 
         $payload = $response->json();
 
@@ -81,10 +82,12 @@ class SkolarisApiService
 
         $results = [];
 
+        $timeout = $this->employeeLoadApiTimeout();
+
         foreach (array_chunk($offeringIds, 200) as $chunk) {
             $response = $this->request('post', '/course-offerings/batch-details', [
                 'offering_ids' => $chunk,
-            ]);
+            ], $timeout);
 
             $rows = $response->json('data') ?? [];
 
@@ -116,15 +119,161 @@ class SkolarisApiService
             $params['employee_numbers'] = implode(',', array_values(array_unique(array_map('strval', $employeeNumbers))));
         }
 
+        $timeout = $this->employeeLoadApiTimeout();
+
         if ($this->usesPulseApiKey()) {
-            $response = $this->pulseApiRequest('get', '/timekeeping/daily-loads', $params);
+            $response = $this->pulseApiRequest('get', '/timekeeping/daily-loads', $params, $timeout);
         } else {
-            $response = $this->request('get', '/employees/timekeeping/daily-loads', $params);
+            $response = $this->request('get', '/employees/timekeeping/daily-loads', $params, $timeout);
         }
 
         $rows = $response->json('data') ?? [];
 
         return is_array($rows) ? array_values($rows) : [];
+    }
+
+    /**
+     * Single-range daily-loads for Employee Load template (optionally file-cached).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function dailyLoadsForEmployeeLoadTemplate(string $dateFrom, string $dateTo): array
+    {
+        $cacheMinutes = max(0, (int) config('employee_load.daily_loads_response_cache_minutes', 15));
+
+        if ($cacheMinutes > 0) {
+            $path = $this->dailyLoadsTemplateCachePath($dateFrom, $dateTo);
+
+            if (is_file($path) && filemtime($path) >= time() - ($cacheMinutes * 60)) {
+                $raw = gzdecode((string) file_get_contents($path));
+
+                if ($raw !== false && $raw !== '') {
+                    $decoded = json_decode($raw, true);
+
+                    if (is_array($decoded)) {
+                        return array_values($decoded);
+                    }
+                }
+            }
+        }
+
+        $rows = $this->dailyLoads($dateFrom, $dateTo);
+
+        if ($cacheMinutes > 0 && $rows !== []) {
+            $path = $this->dailyLoadsTemplateCachePath($dateFrom, $dateTo);
+            $directory = dirname($path);
+
+            if (! is_dir($directory)) {
+                @mkdir($directory, 0775, true);
+            }
+
+            @file_put_contents($path, gzencode(json_encode($rows), 6));
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Parallel daily-loads requests for large faculty lists (lower peak memory per response).
+     *
+     * @param  array<int, string>  $employeeNumbers
+     * @return array<int, array<string, mixed>>
+     */
+    public function dailyLoadsConcurrent(string $dateFrom, string $dateTo, array $employeeNumbers): array
+    {
+        $employeeNumbers = array_values(array_unique(array_filter(array_map(
+            fn ($number) => trim((string) $number),
+            $employeeNumbers,
+        ))));
+
+        if ($employeeNumbers === []) {
+            return [];
+        }
+
+        $chunkSize = max(1, (int) config('employee_load.daily_loads_chunk_size', 100));
+        $parallel = max(1, (int) config('employee_load.daily_loads_parallel_requests', 8));
+        $chunks = array_chunk($employeeNumbers, $chunkSize);
+        $merged = [];
+
+        foreach (array_chunk($chunks, $parallel) as $batchIndex => $batch) {
+            $responses = Http::pool(function (Pool $pool) use ($batch, $batchIndex, $dateFrom, $dateTo) {
+                $requests = [];
+
+                foreach ($batch as $index => $chunk) {
+                    $requests[] = $this->registerDailyLoadsPoolRequest(
+                        $pool,
+                        'batch_'.$batchIndex.'_chunk_'.$index,
+                        $dateFrom,
+                        $dateTo,
+                        $chunk,
+                    );
+                }
+
+                return $requests;
+            });
+
+            foreach ($responses as $response) {
+                if (! $response instanceof Response || $response->failed()) {
+                    continue;
+                }
+
+                foreach ($response->json('data') ?? [] as $row) {
+                    if (is_array($row)) {
+                        $merged[] = $row;
+                    }
+                }
+            }
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @param  array<int, string>  $employeeNumbers
+     */
+    private function registerDailyLoadsPoolRequest(
+        Pool $pool,
+        string $as,
+        string $dateFrom,
+        string $dateTo,
+        array $employeeNumbers,
+    ): mixed {
+        $params = [
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+        ];
+
+        if ($employeeNumbers !== []) {
+            $params['employee_numbers'] = implode(',', $employeeNumbers);
+        }
+
+        $timeout = $this->employeeLoadApiTimeout();
+
+        if ($this->usesPulseApiKey()) {
+            $apiKey = EncryptedEnv::reveal((string) config('skolaris.pulse_api_key'));
+            $baseUrl = (string) config('skolaris.pulse_api_base_url');
+
+            return $pool->as($as)
+                ->baseUrl($baseUrl)
+                ->acceptJson()
+                ->timeout($timeout)
+                ->withHeaders(['X-API-Key' => $apiKey])
+                ->get('/timekeeping/daily-loads', $params);
+        }
+
+        return $pool->as($as)
+            ->baseUrl($this->baseUrl)
+            ->acceptJson()
+            ->timeout($timeout)
+            ->withToken($this->accessToken())
+            ->get('/employees/timekeeping/daily-loads', $params);
+    }
+
+    private function dailyLoadsTemplateCachePath(string $dateFrom, string $dateTo): string
+    {
+        $key = hash('sha256', $dateFrom.'|'.$dateTo);
+
+        return storage_path('app/private/employee-load-daily-loads/'.$key.'.json.gz');
     }
 
     /**
@@ -529,15 +678,15 @@ class SkolarisApiService
      *
      * @param  array<string, mixed>  $params
      */
-    private function request(string $method, string $uri, array $params = []): Response
+    private function request(string $method, string $uri, array $params = [], ?int $timeoutSeconds = null): Response
     {
         $this->assertConfigured();
 
-        $response = $this->send($method, $uri, $params, $this->accessToken());
+        $response = $this->send($method, $uri, $params, $this->accessToken(), $timeoutSeconds);
 
         if ($response->status() === 401) {
             Cache::forget(self::ACCESS_TOKEN_CACHE_KEY);
-            $response = $this->send($method, $uri, $params, $this->accessToken(true));
+            $response = $this->send($method, $uri, $params, $this->accessToken(true), $timeoutSeconds);
         }
 
         if ($response->failed()) {
@@ -550,9 +699,9 @@ class SkolarisApiService
     /**
      * @param  array<string, mixed>  $params
      */
-    private function send(string $method, string $uri, array $params, string $token): Response
+    private function send(string $method, string $uri, array $params, string $token, ?int $timeoutSeconds = null): Response
     {
-        $request = $this->client()->withToken($token);
+        $request = $this->client($timeoutSeconds)->withToken($token);
 
         return $method === 'get'
             ? $request->get($uri, $params)
@@ -631,12 +780,17 @@ class SkolarisApiService
         return $accessToken;
     }
 
-    private function client(): PendingRequest
+    private function client(?int $timeoutSeconds = null): PendingRequest
     {
         return Http::baseUrl($this->baseUrl)
             ->acceptJson()
             ->asJson()
-            ->timeout((int) config('skolaris.timeout', 30));
+            ->timeout($timeoutSeconds ?? (int) config('skolaris.timeout', 30));
+    }
+
+    private function employeeLoadApiTimeout(): int
+    {
+        return max(30, (int) config('employee_load.skolaris_api_timeout_seconds', 120));
     }
 
     private function assertConfigured(): void

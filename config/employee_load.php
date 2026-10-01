@@ -49,6 +49,27 @@ return [
         'TC' => 'ONSITE',
     ],
 
+    /*
+    | Pre-filled template uses Skolaris daily-loads (Loading Attendance schedules)
+    | with fallback to faculty overview + batch offering details when daily-loads
+    | is empty. Large ranges can take longer than the default 30s PHP / HTTP limits.
+    */
+    'build_time_limit_seconds' => (int) env('EMPLOYEE_LOAD_BUILD_TIME_LIMIT', 600),
+    'skolaris_api_timeout_seconds' => (int) env('EMPLOYEE_LOAD_SKOLARIS_TIMEOUT', 180),
+    'overview_cache_minutes' => (int) env('EMPLOYEE_LOAD_OVERVIEW_CACHE_MINUTES', 10),
+    // Typical payroll cutoffs span ~5–6 weeks; 45 days covers common monthly downloads.
+    'max_template_days' => (int) env('EMPLOYEE_LOAD_MAX_TEMPLATE_DAYS', 45),
+    /*
+    | bulk — one Skolaris daily-loads call for the whole date range (fastest for monthly).
+    | chunked_parallel — many smaller calls in parallel (lower peak memory, slower).
+    */
+    'daily_loads_fetch' => env('EMPLOYEE_LOAD_DAILY_LOADS_FETCH', 'bulk'),
+    'daily_loads_chunk_size' => (int) env('EMPLOYEE_LOAD_DAILY_LOADS_CHUNK_SIZE', 100),
+    'daily_loads_parallel_requests' => (int) env('EMPLOYEE_LOAD_DAILY_LOADS_PARALLEL', 8),
+    'daily_loads_response_cache_minutes' => (int) env('EMPLOYEE_LOAD_DAILY_LOADS_CACHE_MINUTES', 15),
+    'restrict_to_local_faculty' => filter_var(env('EMPLOYEE_LOAD_RESTRICT_LOCAL_FACULTY', true), FILTER_VALIDATE_BOOL),
+    'template_memory_limit' => (string) env('EMPLOYEE_LOAD_TEMPLATE_MEMORY_LIMIT', '768M'),
+
     'list_columns' => [
         ['key' => 'batch_no', 'label' => 'Batch No.', 'type' => 'number'],
         ['key' => 'enrollment_period_label', 'label' => 'Enrollment Period', 'type' => 'text'],

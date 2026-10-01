@@ -52,9 +52,12 @@ class TimekeepingMemo
     public static function employeeQuery(): Builder
     {
         return Employee::query()
-            ->with(['campus', 'campusAssignments.campus', 'timekeepingSetup'])
+            ->with(['campus', 'campusAssignments.campus', 'timekeepingSetup', 'employmentInformations'])
             ->whereNull('deleted_at')
-            ->whereHas('timekeepingSetup');
+            ->where(function (Builder $query): void {
+                $query->whereHas('timekeepingSetup')
+                    ->orWhere(fn (Builder $facultyQuery) => $facultyQuery->facultyEligible());
+            });
     }
 
     /**

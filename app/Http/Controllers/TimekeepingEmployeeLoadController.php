@@ -107,7 +107,7 @@ class TimekeepingEmployeeLoadController extends Controller
         ]);
 
         try {
-            $content = $this->uploadService->buildTemplateContent(
+            $this->templateService->assertTemplateDateRange(
                 $validated['date_from'],
                 $validated['date_to'],
             );
@@ -118,10 +118,32 @@ class TimekeepingEmployeeLoadController extends Controller
         }
 
         $filename = 'employee_load_template_'.$validated['date_from'].'_to_'.$validated['date_to'].'.csv';
+        $dateFrom = $validated['date_from'];
+        $dateTo = $validated['date_to'];
 
-        return response($content, 200, [
+        return response()->stream(function () use ($dateFrom, $dateTo): void {
+            @set_time_limit(max(30, (int) config('employee_load.build_time_limit_seconds', 300)));
+            $memoryLimit = (string) config('employee_load.template_memory_limit', '512M');
+
+            if ($memoryLimit !== '') {
+                @ini_set('memory_limit', $memoryLimit);
+            }
+
+            $output = fopen('php://output', 'w');
+
+            if ($output === false) {
+                return;
+            }
+
+            try {
+                $this->uploadService->writeTemplateCsv($output, $dateFrom, $dateTo);
+            } finally {
+                fclose($output);
+            }
+        }, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store',
         ]);
     }
 
