@@ -129,6 +129,51 @@ class EmployeeEmploymentHistorySyncTest extends TestCase
     }
 
     #[Test]
+    public function it_persists_a_user_entered_effectivity_to_without_archiving(): void
+    {
+        $employee = $this->employee();
+        $employment = $this->employment($employee, [
+            'position' => 'HR Assistant',
+            'date_effective_from' => '2024-10-28',
+        ]);
+
+        EmployeeEmploymentSync::sync($employee, [[
+            'user_type' => EmployeeEmploymentInformation::TYPE_STAFF,
+            'position' => 'HR Assistant',
+            'date_effective_from' => '2024-10-28',
+            'date_effective_to' => '2026-12-31',
+        ]]);
+
+        $employment->refresh();
+
+        $this->assertSame('2026-12-31', $employment->date_effective_to?->toDateString());
+        $this->assertSame(0, $employment->previousEmployments()->count());
+    }
+
+    #[Test]
+    public function it_clears_effectivity_to_when_employment_settings_change_and_a_new_period_starts(): void
+    {
+        $employee = $this->employee();
+        $employment = $this->employment($employee, [
+            'position' => 'HR Assistant',
+            'date_effective_from' => '2024-10-28',
+            'date_effective_to' => '2026-12-31',
+        ]);
+
+        EmployeeEmploymentSync::sync($employee, [[
+            'user_type' => EmployeeEmploymentInformation::TYPE_STAFF,
+            'position' => 'HR Officer',
+            'date_effective_from' => '2026-09-02',
+            'date_effective_to' => '2026-12-31',
+        ]]);
+
+        $employment->refresh();
+
+        $this->assertSame('HR Officer', $employment->position);
+        $this->assertNull($employment->date_effective_to);
+    }
+
+    #[Test]
     public function it_does_not_archive_when_employment_settings_are_unchanged(): void
     {
         $employee = $this->employee();

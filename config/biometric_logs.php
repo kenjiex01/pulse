@@ -23,4 +23,13 @@ return [
     'auto_pull' => [
         'interval_minutes' => (int) env('BIOMETRIC_LOGS_AUTO_PULL_INTERVAL', 5),
     ],
+
+    /*
+    | Daily email to HR Setup → HR email with campuses in dashboard “No upload today”.
+    */
+    'missing_upload_hr_notification' => [
+        'hour' => (int) env('BIOMETRIC_MISSING_UPLOAD_HR_NOTIFICATION_HOUR', 17),
+        'minute' => (int) env('BIOMETRIC_MISSING_UPLOAD_HR_NOTIFICATION_MINUTE', 0),
+        'timezone' => env('BIOMETRIC_MISSING_UPLOAD_HR_NOTIFICATION_TIMEZONE', 'Asia/Manila'),
+    ],
 ];

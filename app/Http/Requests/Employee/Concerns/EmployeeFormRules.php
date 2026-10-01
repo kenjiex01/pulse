@@ -42,7 +42,9 @@ trait EmployeeFormRules
             'employment_informations.*.rank' => ['nullable', 'string', 'max:150'],
             'employment_informations.*.employment_type' => ['nullable', 'string', 'max:100'],
             'employment_informations.*.hire_date' => ['nullable', 'date'],
+            'employment_informations.*.probationary_end_date' => ['nullable', 'date'],
             'employment_informations.*.date_effective_from' => ['required', 'date'],
+            'employment_informations.*.date_effective_to' => ['nullable', 'date'],
             'employment_informations.*.last_payroll_date' => ['nullable', 'date'],
             'employee_salaries' => ['required', 'array', 'min:1', 'max:2'],
             'employee_salaries.*.employment_index' => ['nullable', 'integer', 'min:0', 'max:1'],
@@ -213,6 +215,22 @@ trait EmployeeFormRules
                     'employment_informations',
                     'Enter exactly one employment record when Hybrid is not selected.',
                 );
+            }
+
+            foreach ($records as $index => $record) {
+                if (! is_array($record)) {
+                    continue;
+                }
+
+                $effectiveFrom = trim((string) ($record['date_effective_from'] ?? ''));
+                $effectiveTo = trim((string) ($record['date_effective_to'] ?? ''));
+
+                if ($effectiveFrom !== '' && $effectiveTo !== '' && $effectiveTo < $effectiveFrom) {
+                    $validator->errors()->add(
+                        "employment_informations.$index.date_effective_to",
+                        'Effectivity To must be on or after Effectivity From.',
+                    );
+                }
             }
 
             $salaryRecords = (array) $this->input('employee_salaries', []);

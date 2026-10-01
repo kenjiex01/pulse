@@ -6,6 +6,7 @@ use App\Database\People360LanConnection;
 use App\Listeners\HandleDesktopUpdaterEvents;
 use App\Models\User;
 use App\Policies\HrLookupPolicy;
+use App\Policies\HrSetupPolicy;
 use App\Services\DatabaseBackupService;
 use App\Services\BiometricS3PullSettings;
 use App\Services\DesktopBootstrapService;
@@ -75,6 +76,7 @@ class AppServiceProvider extends ServiceProvider
         $employeeLoadPolicy = new TimekeepingEmployeeLoadPolicy;
         $memoPolicy = new TimekeepingMemoPolicy;
         $memoSetupPolicy = new TimekeepingMemoSetupPolicy;
+        $hrSetupPolicy = new HrSetupPolicy;
 
         Gate::define('hr-lookup.viewAny', fn (User $user, string $lookup) => $hrLookupPolicy->viewAny($user, $lookup));
         Gate::define('hr-lookup.create', fn (User $user, string $lookup) => $hrLookupPolicy->create($user, $lookup));
@@ -137,6 +139,9 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::define('memo-setup.viewAny', fn (User $user) => $memoSetupPolicy->viewAny($user));
         Gate::define('memo-setup.update', fn (User $user, $record = null) => $memoSetupPolicy->update($user, $record));
+
+        Gate::define('hr-setup.viewAny', fn (User $user) => $hrSetupPolicy->viewAny($user));
+        Gate::define('hr-setup.update', fn (User $user, $record = null) => $hrSetupPolicy->update($user, $record));
 
         Paginator::defaultView('vendor.pagination.skolaris');
         Paginator::defaultSimpleView('vendor.pagination.skolaris');

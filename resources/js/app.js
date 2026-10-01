@@ -1742,6 +1742,59 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const syncEmploymentEffectivityDates = (panel) => {
+        const fromInput = panel.querySelector('[data-employment-effective-from]');
+        const toInput = panel.querySelector('[data-employment-effective-to]');
+
+        if (!fromInput || !toInput) {
+            return;
+        }
+
+        const from = fromInput.value;
+        const to = toInput.value;
+
+        toInput.min = from || '';
+        fromInput.max = to || '';
+
+        if (from && to && to < from) {
+            toInput.setCustomValidity('Effectivity To must be on or after Effectivity From.');
+            fromInput.setCustomValidity('Effectivity From must be on or before Effectivity To.');
+        } else {
+            toInput.setCustomValidity('');
+            fromInput.setCustomValidity('');
+        }
+    };
+
+    const bindEmploymentEffectivityDates = (panel) => {
+        const fromInput = panel.querySelector('[data-employment-effective-from]');
+        const toInput = panel.querySelector('[data-employment-effective-to]');
+
+        if (!fromInput || !toInput || panel.dataset.employmentEffectivityBound === 'true') {
+            syncEmploymentEffectivityDates(panel);
+
+            return;
+        }
+
+        panel.dataset.employmentEffectivityBound = 'true';
+        syncEmploymentEffectivityDates(panel);
+
+        fromInput.addEventListener('change', () => {
+            if (fromInput.value && toInput.value && toInput.value < fromInput.value) {
+                toInput.value = '';
+            }
+
+            syncEmploymentEffectivityDates(panel);
+        });
+
+        toInput.addEventListener('change', () => {
+            syncEmploymentEffectivityDates(panel);
+        });
+
+        toInput.addEventListener('input', () => {
+            syncEmploymentEffectivityDates(panel);
+        });
+    };
+
     const syncEmploymentSeparationDate = (panel) => {
         const payrollInput = panel.querySelector('[data-employment-last-payroll]');
         const separationInput = panel.querySelector('[data-employment-separation]');
@@ -1763,6 +1816,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const initEmploymentInformationPanel = (panel) => {
+        bindEmploymentEffectivityDates(panel);
         syncEmploymentSeparationDate(panel);
 
         const payrollInput = panel.querySelector('[data-employment-last-payroll]');
@@ -6312,6 +6366,118 @@ tr { page-break-inside: avoid; }
         window.setInterval(ping, intervalMinutes * 60 * 1000);
     };
 
+    const syncAutoGrowTextareaHeight = (field) => {
+        if (!field) {
+            return;
+        }
+
+        if (typeof CSS !== 'undefined' && CSS.supports?.('field-sizing', 'content')) {
+            return;
+        }
+
+        field.style.height = '1px';
+        field.style.height = `${field.scrollHeight}px`;
+    };
+
+    const scheduleAutoGrowTextareaSync = (field) => {
+        if (!field) {
+            return;
+        }
+
+        const run = () => syncAutoGrowTextareaHeight(field);
+
+        run();
+        requestAnimationFrame(run);
+    };
+
+    const initAutoGrowTextareas = () => {
+        document.querySelectorAll('[data-textarea-auto-grow]').forEach((field) => {
+            const sync = () => scheduleAutoGrowTextareaSync(field);
+
+            sync();
+            field.addEventListener('input', sync);
+            field.addEventListener('change', sync);
+
+            if (typeof ResizeObserver !== 'undefined') {
+                new ResizeObserver(sync).observe(field);
+            }
+
+            if (document.fonts?.ready) {
+                document.fonts.ready.then(sync).catch(() => {});
+            }
+        });
+    };
+
+    const initHrSetupTabs = () => {
+        const root = document.querySelector('[data-hr-setup-root]');
+
+        if (!root) {
+            return;
+        }
+
+        const tabBar = root.querySelector('[data-hr-setup-tabs]');
+
+        if (!tabBar) {
+            return;
+        }
+
+        const buttons = tabBar.querySelectorAll('[data-hr-setup-tab]');
+
+        buttons.forEach((button) => {
+            button.addEventListener('click', () => {
+                const tabId = button.dataset.hrSetupTab;
+
+                buttons.forEach((item) => {
+                    item.classList.toggle('employee-salary-subtab-btn-active', item === button);
+                });
+
+                root.querySelectorAll('[data-hr-setup-panel]').forEach((panel) => {
+                    panel.classList.toggle('hidden', panel.dataset.hrSetupPanel !== tabId);
+                });
+
+                if (tabId === 'settings') {
+                    requestAnimationFrame(() => {
+                        scheduleAutoGrowTextareaSync(document.getElementById('probationary_end_email_body'));
+                    });
+                }
+            });
+        });
+    };
+
+    const initHrSetupEmailBodyTagInserts = () => {
+        const bodyField = document.getElementById('probationary_end_email_body');
+
+        if (!bodyField) {
+            return;
+        }
+
+        const insertAtCursor = (field, text) => {
+            const value = field.value ?? '';
+            const start = field.selectionStart ?? value.length;
+            const end = field.selectionEnd ?? value.length;
+            field.value = `${value.slice(0, start)}${text}${value.slice(end)}`;
+            const cursor = start + text.length;
+            field.focus();
+            field.setSelectionRange(cursor, cursor);
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+
+        document.querySelectorAll('[data-hr-setup-insert-tag]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const tagKey = button.getAttribute('data-hr-setup-insert-tag');
+
+                if (!tagKey) {
+                    return;
+                }
+
+                insertAtCursor(bodyField, `{{${tagKey}}}`);
+            });
+        });
+    };
+
+    initAutoGrowTextareas();
+    initHrSetupTabs();
+    initHrSetupEmailBodyTagInserts();
     initEmployeeSkolarisSync();
     initGovernmentIdInputs();
     initTimekeepingMemo();

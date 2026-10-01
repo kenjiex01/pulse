@@ -29,6 +29,7 @@ class EmployeeEmploymentSync
             if ($employment) {
                 if (self::shouldArchive($employment, $payload)) {
                     self::archive($employment, $payload['date_effective_from']);
+                    $payload['date_effective_to'] = null;
                 }
 
                 $employment->update($payload);
@@ -120,6 +121,10 @@ class EmployeeEmploymentSync
             ? (filled($record['last_payroll_date'] ?? null) ? self::normalizeDate($record['last_payroll_date']) : null)
             : $existing?->last_payroll_date?->toDateString();
 
+        $effectiveTo = array_key_exists('date_effective_to', $record)
+            ? (filled($record['date_effective_to'] ?? null) ? self::normalizeDate($record['date_effective_to']) : null)
+            : $existing?->date_effective_to?->toDateString();
+
         return [
             'user_type' => $record['user_type'],
             'position' => filled($record['position'] ?? null) ? $record['position'] : null,
@@ -127,8 +132,11 @@ class EmployeeEmploymentSync
             'rank' => filled($record['rank'] ?? null) ? $record['rank'] : null,
             'employment_type' => filled($record['employment_type'] ?? null) ? $record['employment_type'] : null,
             'hire_date' => filled($record['hire_date'] ?? null) ? self::normalizeDate($record['hire_date']) : null,
+            'probationary_end_date' => array_key_exists('probationary_end_date', $record)
+                ? (filled($record['probationary_end_date'] ?? null) ? self::normalizeDate($record['probationary_end_date']) : null)
+                : $existing?->probationary_end_date?->toDateString(),
             'date_effective_from' => $effectiveFrom,
-            'date_effective_to' => null,
+            'date_effective_to' => $effectiveTo,
             'last_payroll_date' => $lastPayroll,
             'lineage_employment_info_id' => null,
             'sort_order' => $index,

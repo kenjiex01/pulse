@@ -37,6 +37,18 @@ class CompanyDocumentMergeTagCatalog
                 'label' => 'Employee number',
                 'sample' => 'EMP-00123',
             ],
+            'hire_date' => [
+                'label' => 'Hire date',
+                'sample' => 'January 15, 2026',
+            ],
+            'probationary_end_date' => [
+                'label' => 'Probationary end date',
+                'sample' => 'July 15, 2026',
+            ],
+            'days_before_end' => [
+                'label' => 'Days before probationary end',
+                'sample' => '10',
+            ],
             'count_of_lates' => [
                 'label' => 'Count of lates',
                 'sample' => '3',

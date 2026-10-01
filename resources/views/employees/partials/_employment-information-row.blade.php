@@ -22,6 +22,12 @@
         filled($lastPayrollDate) ? $lastPayrollDate : null,
         $lastLogDate,
     );
+    $effectiveTo = old(
+        "employment_informations.$index.date_effective_to",
+        isset($record['date_effective_to']) && filled($record['date_effective_to'])
+            ? (\Illuminate\Support\Carbon::parse($record['date_effective_to'])->format('Y-m-d'))
+            : '',
+    );
 @endphp
 
 <div
@@ -49,13 +55,23 @@
                 value="{{ $effectiveFrom }}"
                 class="form-input"
                 required
+                data-employment-effective-from
+                @if ($effectiveTo !== '') max="{{ $effectiveTo }}" @endif
             >
             @error("employment_informations.$index.date_effective_from")<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
         <div>
             <label class="form-label">Effectivity To</label>
-            <input type="text" value="Present" readonly class="form-input bg-gray-50" tabindex="-1">
-            <p class="mt-1 text-xs text-gray-500">Auto-closed when employment settings change, or the day before a new effectivity date.</p>
+            <input
+                type="date"
+                name="employment_informations[{{ $index }}][date_effective_to]"
+                value="{{ $effectiveTo }}"
+                class="form-input"
+                data-employment-effective-to
+                @if ($effectiveFrom !== '') min="{{ $effectiveFrom }}" @endif
+            >
+            <p class="mt-1 text-xs text-gray-500">Leave blank for ongoing (present) employment. Effectivity To cannot be earlier than Effectivity From.</p>
+            @error("employment_informations.$index.date_effective_to")<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
     </div>
 
@@ -149,6 +165,18 @@
                 value="{{ old("employment_informations.$index.hire_date", isset($record['hire_date']) && $record['hire_date'] !== '' ? (\Illuminate\Support\Carbon::parse($record['hire_date'])->format('Y-m-d')) : '') }}"
                 class="form-input"
             >
+        </div>
+
+        <div>
+            <label class="form-label">Probationary end date</label>
+            <input
+                type="date"
+                name="employment_informations[{{ $index }}][probationary_end_date]"
+                value="{{ old("employment_informations.$index.probationary_end_date", isset($record['probationary_end_date']) && filled($record['probationary_end_date']) ? (\Illuminate\Support\Carbon::parse($record['probationary_end_date'])->format('Y-m-d')) : '') }}"
+                class="form-input"
+            >
+            <p class="mt-1 text-xs text-gray-500">Required for probationary end email reminders when employment type is Probationary.</p>
+            @error("employment_informations.$index.probationary_end_date")<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
 
         <div>

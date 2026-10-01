@@ -123,6 +123,7 @@
                             <div><p class="text-sm text-gray-600">Rank</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employmentInfo->rank) }}</p></div>
                             <div><p class="text-sm text-gray-600">Employment Type</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employmentInfo->employment_type) }}</p></div>
                             <div><p class="text-sm text-gray-600">Hire Date</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->hire_date?->format('M d, Y') ?: '—' }}</p></div>
+                            <div><p class="text-sm text-gray-600">Probationary End Date</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->probationary_end_date?->format('M d, Y') ?: '—' }}</p></div>
                             <div><p class="text-sm text-gray-600">Effectivity From</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->date_effective_from?->format('M d, Y') ?: '—' }}</p></div>
                             <div><p class="text-sm text-gray-600">Effectivity To</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->date_effective_to?->format('M d, Y') ?: 'Present' }}</p></div>
                             <div><p class="text-sm text-gray-600">Last Payroll Date</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->last_payroll_date?->format('M d, Y') ?: '—' }}</p></div>

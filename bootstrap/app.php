@@ -31,6 +31,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('company-documents:mark-overdue-nte-cases')
             ->dailyAt('01:00')
             ->timezone('Asia/Manila');
+
+        $schedule->command('hr:send-biometric-missing-upload-notification')
+            ->dailyAt(sprintf(
+                '%02d:%02d',
+                (int) config('biometric_logs.missing_upload_hr_notification.hour', 17),
+                (int) config('biometric_logs.missing_upload_hr_notification.minute', 0),
+            ))
+            ->timezone((string) config('biometric_logs.missing_upload_hr_notification.timezone', 'Asia/Manila'))
+            ->withoutOverlapping(30);
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo('/login');
@@ -40,6 +49,8 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\PrepareAuthenticatedUser::class,
             \App\Http\Middleware\EnsureDesktopCloudBackup::class,
             \App\Http\Middleware\EnsureBiometricS3AutoPull::class,
+            \App\Http\Middleware\EnsureProbationaryEndNotifications::class,
+            \App\Http\Middleware\EnsureBiometricMissingUploadHrNotification::class,
             \App\Http\Middleware\EnsureDesktopInstallerUpdate::class,
             \App\Http\Middleware\ReleaseSessionLockForReadOnlyAjax::class,
         ]);

@@ -14,6 +14,7 @@ use App\Http\Controllers\EmployeeLookupController;
 use App\Http\Controllers\EmployeeSkolarisSyncController;
 use App\Http\Controllers\EmployeeUploadController;
 use App\Http\Controllers\HrLookupController;
+use App\Http\Controllers\HrSetupController;
 use App\Http\Controllers\BirFormSettingsController;
 use App\Http\Controllers\CompanyDocumentDesignerController;
 use App\Http\Controllers\CompanyDocumentFormController;
@@ -130,6 +131,11 @@ Route::middleware('auth')->group(function () {
             Route::delete("hr/$lookup/{record}", [HrLookupController::class, 'destroy'])->name(HrLookup::routeName($lookup, 'destroy'));
         });
     }
+
+    Route::middleware('module:hr.setup.index')->group(function () {
+        Route::get('hr/setup', [HrSetupController::class, 'index'])->name('hr.setup.index');
+        Route::put('hr/setup', [HrSetupController::class, 'update'])->name('hr.setup.update');
+    });
 
     Route::middleware('module:company-documents.index')->group(function () {
         Route::get('company-documents', [CompanyDocumentFormController::class, 'index'])->name('company-documents.index');

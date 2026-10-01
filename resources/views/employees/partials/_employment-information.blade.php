@@ -18,7 +18,9 @@
                 'rank' => $info->rank,
                 'employment_type' => $info->employment_type,
                 'hire_date' => optional($info->hire_date)->format('Y-m-d'),
+                'probationary_end_date' => optional($info->probationary_end_date)->format('Y-m-d'),
                 'date_effective_from' => optional($info->date_effective_from)->format('Y-m-d'),
+                'date_effective_to' => optional($info->date_effective_to)->format('Y-m-d'),
                 'last_payroll_date' => optional($info->last_payroll_date)->format('Y-m-d'),
                 'separation_date' => optional($info->separation_date)->format('Y-m-d'),
             ])
@@ -34,7 +36,9 @@
             'rank' => '',
             'employment_type' => '',
             'hire_date' => '',
+            'probationary_end_date' => '',
             'date_effective_from' => now()->format('Y-m-d'),
+            'date_effective_to' => '',
             'last_payroll_date' => '',
             'separation_date' => '',
         ]];

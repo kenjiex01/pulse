@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Services\DesktopUpdaterService;
+use App\Services\BiometricMissingUploadHrNotificationScheduleService;
+use App\Services\ProbationaryEndNotificationScheduleService;
 use Native\Laravel\Contracts\ProvidesPhpIni;
 use Native\Laravel\Facades\Window;
 
@@ -23,6 +25,18 @@ class NativeAppServiceProvider implements ProvidesPhpIni
             app(DesktopUpdaterService::class)->checkForUpdates();
         } catch (\Throwable) {
             // Ignore updater failures so login still loads.
+        }
+
+        try {
+            app(ProbationaryEndNotificationScheduleService::class)->runIfNeeded();
+        } catch (\Throwable) {
+            // Ignore scheduler failures so login still loads.
+        }
+
+        try {
+            app(BiometricMissingUploadHrNotificationScheduleService::class)->runIfNeeded();
+        } catch (\Throwable) {
+            // Ignore scheduler failures so login still loads.
         }
     }
 

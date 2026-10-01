@@ -35,7 +35,12 @@ class SubModuleSeeder extends Seeder
             ],
         );
 
-        $allowedRouteNames = collect(['employees.index', 'company-documents.index', 'company-documents.approvals.index'])
+        $allowedRouteNames = collect([
+            'employees.index',
+            'company-documents.index',
+            'company-documents.approvals.index',
+            'hr.setup.index',
+        ])
             ->merge(collect(HrLookup::keys())->map(fn (string $lookup) => HrLookup::routeName($lookup)))
             ->all();
 
@@ -81,6 +86,18 @@ class SubModuleSeeder extends Seeder
                 'icon' => 'company-documents',
                 'sort_order' => 3,
                 'is_active' => false,
+            ],
+        );
+
+        SubModule::query()->updateOrCreate(
+            ['route_name' => 'hr.setup.index'],
+            [
+                'module_id' => $humanResource->id,
+                'name' => 'HR Setup',
+                'route_pattern' => 'hr.setup.*',
+                'icon' => 'hr-setup',
+                'sort_order' => 20,
+                'is_active' => true,
             ],
         );
 

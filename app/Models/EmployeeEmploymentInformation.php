@@ -30,6 +30,7 @@ class EmployeeEmploymentInformation extends Model
         'rank',
         'employment_type',
         'hire_date',
+        'probationary_end_date',
         'date_effective_from',
         'date_effective_to',
         'last_payroll_date',
@@ -42,6 +43,7 @@ class EmployeeEmploymentInformation extends Model
     {
         return [
             'hire_date' => 'date',
+            'probationary_end_date' => 'date',
             'date_effective_from' => 'date',
             'date_effective_to' => 'date',
             'last_payroll_date' => 'date',
@@ -101,6 +103,11 @@ class EmployeeEmploymentInformation extends Model
             ->whereNotNull('date_effective_to')
             ->orderByDesc('date_effective_from')
             ->orderByDesc('employment_info_id');
+    }
+
+    public function isProbationaryEmployment(): bool
+    {
+        return strcasecmp(trim((string) ($this->employment_type ?? '')), 'Probationary') === 0;
     }
 
     public function getUserTypeLabelAttribute(): string

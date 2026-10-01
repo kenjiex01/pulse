@@ -62,6 +62,19 @@
         @apply h-auto py-1;
     }
 
+    textarea.form-input.form-textarea-auto-grow {
+        @apply box-border resize-none overflow-y-hidden py-2 leading-normal;
+        height: auto;
+        min-height: 2.75rem;
+        field-sizing: content;
+    }
+
+    @supports not (field-sizing: content) {
+        textarea.form-input.form-textarea-auto-grow {
+            min-height: 2.75rem;
+        }
+    }
+
     .searchable-select {
         @apply relative w-full;
     }

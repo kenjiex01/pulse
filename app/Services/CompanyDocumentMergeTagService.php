@@ -62,12 +62,24 @@ class CompanyDocumentMergeTagService
             return (string) ($memoContext['nature_of_offense'] ?? '');
         }
 
+        if ($memoContext !== null && $tagKey === 'probationary_end_date') {
+            return (string) ($memoContext['probationary_end_date'] ?? '');
+        }
+
+        if ($memoContext !== null && $tagKey === 'days_before_end') {
+            return (string) ($memoContext['days_before_end'] ?? '');
+        }
+
         return match ($tagKey) {
             'employee_full_name' => $employee !== null ? trim($employee->full_name) : $this->previewSample($tagKey),
             'employee_first_name' => $employee !== null ? trim((string) $employee->first_name) : $this->previewSample($tagKey),
             'employee_middle_name' => $employee !== null ? trim((string) ($employee->middle_name ?? '')) : $this->previewSample($tagKey),
             'employee_last_name' => $employee !== null ? trim((string) $employee->last_name) : $this->previewSample($tagKey),
             'employee_number' => $employee !== null ? trim((string) $employee->employee_number) : $this->previewSample($tagKey),
+            'hire_date' => $employee !== null && $employee->hire_date !== null
+                ? Carbon::parse($employee->hire_date)->format('F j, Y')
+                : $this->previewSample($tagKey),
+            'probationary_end_date', 'days_before_end' => $this->previewSample($tagKey),
             'count_of_lates', 'count_of_absences', 'count_of_undertimes' => $this->previewSample($tagKey),
             'late_dates', 'undertime_dates', 'absent_dates' => $this->previewSample($tagKey),
             'current_date' => now()->format('F j, Y'),
