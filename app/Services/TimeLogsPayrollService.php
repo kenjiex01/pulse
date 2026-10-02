@@ -753,17 +753,15 @@ class TimeLogsPayrollService
                 continue;
             }
 
-            $scheduledMinutes = $this->breakPayroll->scheduledBreakMinutes($dayShift);
-            $actualMinutes = $this->breakPayroll->actualBreakMinutesFromPunches($dayPunches);
-
-            if ($actualMinutes <= 0) {
+            if ($this->breakPayroll->breakSegmentsFromPunches($dayPunches) === []) {
                 continue;
             }
 
-            $total += $this->breakPayroll->resolvedBreakLateMinutes(
+            $total += $this->breakPayroll->resolvedBreakLateMinutesForDay(
                 $policy,
-                $actualMinutes,
-                $scheduledMinutes,
+                $dayPunches,
+                $dayShift,
+                $date,
             )['billable_minutes'];
         }
 

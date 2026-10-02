@@ -310,17 +310,13 @@ class PayrollAttendanceDayBreakdownService
             if ($includeBreakLate) {
                 $punches = $dayPunches->get($dateKey);
 
-                if ($punches !== null) {
-                    $scheduledMinutes = $this->breakPayroll->scheduledBreakMinutes($shift);
-                    $actualMinutes = $this->breakPayroll->actualBreakMinutesFromPunches($punches);
-
-                    if ($actualMinutes > 0) {
-                        $breakLate = $this->breakPayroll->resolvedBreakLateMinutes(
-                            $policy,
-                            $actualMinutes,
-                            $scheduledMinutes,
-                        )['billable_minutes'];
-                    }
+                if ($punches !== null && $this->breakPayroll->breakSegmentsFromPunches($punches) !== []) {
+                    $breakLate = $this->breakPayroll->resolvedBreakLateMinutesForDay(
+                        $policy,
+                        $punches,
+                        $shift,
+                        $session['date'],
+                    )['billable_minutes'];
                 }
             }
 

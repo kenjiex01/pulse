@@ -9,6 +9,7 @@ use App\Models\TeachingLoadPullBatch;
 use App\Models\TeachingLoadSession;
 use App\Models\TeachingLoadSyncStatus;
 use App\Models\User;
+use App\Support\SkolarisCheckerLoadStatus;
 use App\Support\SkolarisLoadSessionTimes;
 use App\Support\TimeLogs;
 use Carbon\CarbonPeriod;
@@ -561,7 +562,10 @@ class TeachingLoadPullService
                 'time_out' => $sessionTimes['time_out'],
                 'total_hours' => $this->normalizeDecimal($load['total_hours'] ?? null),
                 'total_render_hours' => $this->normalizeDecimal($load['total_render_hours'] ?? null),
-                'status_code' => $this->normalizeText($load['status_code'] ?? null),
+                'status_code' => SkolarisCheckerLoadStatus::statusCodeFromChecker(
+                    $load['status_code'] ?? $load['status'] ?? '',
+                    $load['present_mode'] ?? '',
+                ),
             ];
         }
 
@@ -741,9 +745,7 @@ class TeachingLoadPullService
                     $key = $this->attendanceCheckerLoadKey($normalized, $employeeNumber);
 
                     if (isset($indexed[$key])) {
-                        if ($normalized['status_code'] !== null) {
-                            $indexed[$key]['status_code'] = $normalized['status_code'];
-                        }
+                        $indexed[$key]['status_code'] = $normalized['status_code'];
 
                         continue;
                     }
@@ -812,15 +814,10 @@ class TeachingLoadPullService
      */
     private function normalizeAttendanceCheckerSchedule(array $schedule, string $employeeNumber, ?array $campus): array
     {
-        $status = trim((string) ($schedule['status'] ?? ''));
-        $presentMode = trim((string) ($schedule['present_mode'] ?? ''));
-        $statusCode = null;
-
-        if ($status !== '' && $status !== 'scheduled') {
-            $statusCode = $status === 'P' && $presentMode !== ''
-                ? 'P ('.$presentMode.')'
-                : $status;
-        }
+        $statusCode = SkolarisCheckerLoadStatus::statusCodeFromChecker(
+            $schedule['status'] ?? '',
+            $schedule['present_mode'] ?? '',
+        );
 
         return [
             'session_date' => (string) ($schedule['attendance_date'] ?? ''),

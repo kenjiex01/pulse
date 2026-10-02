@@ -147,14 +147,16 @@ class PayrollAttendanceLeaveService
                 continue;
             }
 
-            $scheduledMinutes = $this->breakPayroll->scheduledBreakMinutes($dayShift);
-            $actualMinutes = $this->breakPayroll->actualBreakMinutesFromPunches($dayPunches);
-
-            if ($actualMinutes <= 0) {
+            if ($this->breakPayroll->breakSegmentsFromPunches($dayPunches) === []) {
                 continue;
             }
 
-            $resolved = $this->breakPayroll->resolvedBreakLateMinutes($policy, $actualMinutes, $scheduledMinutes);
+            $resolved = $this->breakPayroll->resolvedBreakLateMinutesForDay(
+                $policy,
+                $dayPunches,
+                $dayShift,
+                $sessionDate,
+            );
 
             if ($resolved['billable_minutes'] <= 0) {
                 continue;

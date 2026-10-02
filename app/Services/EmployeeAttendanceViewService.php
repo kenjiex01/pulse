@@ -538,15 +538,12 @@ class EmployeeAttendanceViewService
             )['billable_minutes'];
 
             if ($policy !== null && $this->breakPayroll->deductsBreakTardiness($policy) && $dayPunches->isNotEmpty()) {
-                $actualBreak = $this->breakPayroll->actualBreakMinutesFromPunches($dayPunches);
-
-                if ($actualBreak > 0) {
-                    $breakLateMinutes = $this->breakPayroll->resolvedBreakLateMinutes(
-                        $policy,
-                        $actualBreak,
-                        $this->breakPayroll->scheduledBreakMinutes($shift),
-                    )['billable_minutes'];
-                }
+                $breakLateMinutes = $this->breakPayroll->resolvedBreakLateMinutesForDay(
+                    $policy,
+                    $dayPunches,
+                    $shift,
+                    $date,
+                )['billable_minutes'];
             }
         }
 

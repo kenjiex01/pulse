@@ -59,6 +59,45 @@ class TimekeepingMemoFacultyAttendanceTest extends TestCase
         $this->assertSame(0, $days[0]['minutes']);
     }
 
+    public function test_faculty_teaching_load_with_default_present_status_is_not_absent(): void
+    {
+        $employee = Employee::query()->create([
+            'employee_number' => 'FAC-MEMO-003',
+            'first_name' => 'Checker',
+            'last_name' => 'Present',
+            'email' => 'checker.present.'.uniqid().'@example.com',
+        ]);
+
+        EmployeeEmploymentInformation::query()->create([
+            'employee_id' => $employee->employee_id,
+            'user_type' => EmployeeEmploymentInformation::TYPE_FACULTY,
+            'position' => 'Instructor',
+        ]);
+
+        \App\Models\TeachingLoadSession::query()->create([
+            'employee_id' => $employee->employee_id,
+            'employee_number' => $employee->employee_number,
+            'session_date' => '2026-09-17',
+            'date_from' => '2026-09-17',
+            'date_to' => '2026-09-17',
+            'class_schedule' => '08:00 AM - 10:00 AM',
+            'time_in' => '08:00:00',
+            'time_out' => '10:00:00',
+            'status_code' => 'P',
+            'subject_code' => 'MATH101',
+            'section' => 'A',
+        ]);
+
+        $days = app(TimekeepingMemoAttendanceService::class)->violationDaysForEmployee(
+            $employee->fresh(['employmentInformations']),
+            '2026-09-17',
+            '2026-09-17',
+            TimekeepingMemoSetup::TYPE_ABSENT,
+        );
+
+        $this->assertSame([], $days);
+    }
+
     public function test_faculty_with_time_in_is_not_absent_for_that_day(): void
     {
         $employee = Employee::query()->create([

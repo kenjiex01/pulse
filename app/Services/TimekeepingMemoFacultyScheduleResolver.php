@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Employee;
 use App\Models\RawEmployeeLoadEntry;
 use App\Models\TeachingLoadSession;
+use App\Support\SkolarisCheckerLoadStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -122,10 +123,7 @@ class TimekeepingMemoFacultyScheduleResolver
         $timeInNorm = $this->normalizeClock($timeIn);
         $timeOutNorm = $this->normalizeClock($timeOut);
 
-        $hasReal = $this->statusIndicatesPresent($statusCode);
-        if ($this->statusIndicatesAbsent($statusCode)) {
-            $hasReal = false;
-        }
+        $hasReal = SkolarisCheckerLoadStatus::countsAsPresent($statusCode);
 
         return [
             'session_date' => $dateKey,
@@ -188,14 +186,8 @@ class TimekeepingMemoFacultyScheduleResolver
             $actualIn = $this->normalizeClock($load['actual_time_in'] ?? null);
             $logIn = $this->normalizeClock($load['log_time_in'] ?? null);
             $status = $load['status'] ?? $load['status_code'] ?? null;
-            $hasReal = $actualIn !== null || $logIn !== null;
-
-            if ($this->statusIndicatesPresent($status)) {
-                $hasReal = true;
-            }
-            if ($this->statusIndicatesAbsent($status)) {
-                $hasReal = false;
-            }
+            $hasReal = ($actualIn !== null || $logIn !== null)
+                || SkolarisCheckerLoadStatus::countsAsPresent($status);
 
             $sessions->push([
                 'session_date' => $sessionDate,
@@ -254,36 +246,6 @@ class TimekeepingMemoFacultyScheduleResolver
         $schedule = trim((string) ($load['class_schedule'] ?? $load['schedule'] ?? ''));
 
         return $schedule !== '' ? $schedule : null;
-    }
-
-    private function statusIndicatesAbsent(mixed $status): bool
-    {
-        $normalized = strtoupper(trim((string) $status));
-
-        if ($normalized === '') {
-            return false;
-        }
-
-        if (in_array($normalized, ['A', 'ABS', 'ABSENT', 'UA', 'UNAUTHORIZED'], true)) {
-            return true;
-        }
-
-        return str_contains($normalized, 'ABSENT');
-    }
-
-    private function statusIndicatesPresent(mixed $status): bool
-    {
-        $normalized = strtoupper(trim((string) $status));
-
-        if ($normalized === '') {
-            return false;
-        }
-
-        if (in_array($normalized, ['P', 'PR', 'PRESENT'], true)) {
-            return true;
-        }
-
-        return str_starts_with($normalized, 'P (') || str_starts_with($normalized, 'P(');
     }
 
     private function normalizeClock(mixed $value): ?string

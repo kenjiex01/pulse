@@ -310,16 +310,19 @@ class PayrollAttendanceHoursWorkedService
             return 0;
         }
 
-        $actualMinutes = $this->breakPayroll->actualBreakMinutesFromPunches($dayPunches);
-
-        if ($actualMinutes <= 0) {
+        if ($this->breakPayroll->breakSegmentsFromPunches($dayPunches) === []) {
             return 0;
         }
 
-        return $this->breakPayroll->resolvedBreakLateMinutes(
+        $sessionDate = CarbonImmutable::parse(
+            (string) ($dayPunches->first()?->dt_datetime?->toDateString() ?? now()->toDateString()),
+        );
+
+        return $this->breakPayroll->resolvedBreakLateMinutesForDay(
             $policy,
-            $actualMinutes,
-            $this->breakPayroll->scheduledBreakMinutes($shiftCode),
+            $dayPunches,
+            $shiftCode,
+            $sessionDate,
         )['billable_minutes'];
     }
 

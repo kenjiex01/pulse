@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\RawTimekeepingInandout;
 use App\Models\ShiftCode;
+use App\Models\ShiftCodeBreak;
 use App\Models\TimekeepingPolicy;
 use App\Support\TimekeepingPolicy as TimekeepingPolicySupport;
 use Carbon\CarbonImmutable;
@@ -232,6 +233,180 @@ class PayrollBreakService
     }
 
     /**
+     * @return list<array{break_out: ?string, break_in: ?string, minutes: int}>
+     */
+    public function scheduledShiftBreakDefinitions(?ShiftCode $shiftCode): array
+    {
+        if ($shiftCode === null) {
+            return [];
+        }
+
+        $shiftCode->loadMissing('breaks');
+
+        return $shiftCode->breaks
+            ->sortBy('shift_code_break_no')
+            ->values()
+            ->map(function (ShiftCodeBreak $break) {
+                $minutes = (int) $break->shift_code_break_minute;
+
+                if ($minutes <= 0 && filled($break->break_out) && filled($break->break_in)) {
+                    try {
+                        $start = CarbonImmutable::parse('2000-01-01 '.$break->break_out);
+                        $end = CarbonImmutable::parse('2000-01-01 '.$break->break_in);
+
+                        if ($end->lessThanOrEqualTo($start)) {
+                            $end = $end->addDay();
+                        }
+
+                        $minutes = (int) $start->diffInMinutes($end);
+                    } catch (\Throwable) {
+                        $minutes = 0;
+                    }
+                }
+
+                return [
+                    'break_out' => filled($break->break_out) ? trim((string) $break->break_out) : null,
+                    'break_in' => filled($break->break_in) ? trim((string) $break->break_in) : null,
+                    'minutes' => max(0, $minutes),
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * Break late before policy brackets (caller must gate on {@see deductsBreakTardiness()}).
+     *
+     * - Always: actual break length vs shift **Break Minute** (+ break grace).
+     * - Additionally, when shift has **both** Break Out and Break In: late leave/return vs that window.
+     *
+     * @param  Collection<int, RawTimekeepingInandout>  $dayPunches
+     */
+    public function rawBreakLateMinutesForDay(
+        CarbonImmutable $sessionDate,
+        Collection $dayPunches,
+        ?ShiftCode $shiftCode,
+        ?TimekeepingPolicy $policy,
+    ): int {
+        $segments = $this->breakSegmentsFromPunches($dayPunches);
+
+        if ($segments === []) {
+            return 0;
+        }
+
+        $scheduledMinutes = $this->scheduledBreakMinutes($shiftCode);
+        $allowedMinutes = $this->allowedBreakMinutes($policy, $scheduledMinutes);
+        $consumedMinutes = $this->consumedBreakMinutesFromPunches($dayPunches);
+        $durationExcess = max(0, $consumedMinutes - $allowedMinutes);
+
+        $shiftBreaks = $this->scheduledShiftBreakDefinitions($shiftCode);
+        $windowLate = 0;
+
+        foreach ($segments as $index => $segment) {
+            $breakDef = $shiftBreaks[$index] ?? ($shiftBreaks[0] ?? null);
+
+            if (! $this->shiftBreakHasScheduleWindow($breakDef)) {
+                continue;
+            }
+
+            $windowLate += $this->windowBreakLateMinutesForSegment($sessionDate, $segment, $breakDef);
+        }
+
+        return max($durationExcess, $windowLate);
+    }
+
+    /**
+     * @param  array{break_out: ?string, break_in: ?string, minutes: int}|null  $shiftBreak
+     */
+    private function shiftBreakHasScheduleWindow(?array $shiftBreak): bool
+    {
+        return $shiftBreak !== null
+            && filled($shiftBreak['break_out'] ?? null)
+            && filled($shiftBreak['break_in'] ?? null);
+    }
+
+    /**
+     * @param  array{break_out: CarbonImmutable, break_in: CarbonImmutable, minutes: int}  $segment
+     * @param  array{break_out: ?string, break_in: ?string, minutes: int}|null  $shiftBreak
+     */
+    private function windowBreakLateMinutesForSegment(
+        CarbonImmutable $sessionDate,
+        array $segment,
+        ?array $shiftBreak,
+    ): int {
+        if ($shiftBreak === null || $shiftBreak['break_out'] === null || $shiftBreak['break_in'] === null) {
+            return 0;
+        }
+
+        try {
+            $scheduledOut = $this->clockOnDate($sessionDate, $shiftBreak['break_out']);
+            $scheduledIn = $this->clockOnDate($sessionDate, $shiftBreak['break_in']);
+
+            if ($scheduledIn->lessThanOrEqualTo($scheduledOut)) {
+                $scheduledIn = $scheduledIn->addDay();
+            }
+        } catch (\Throwable) {
+            return 0;
+        }
+
+        $actualOut = $segment['break_out'];
+        $actualIn = $segment['break_in'];
+
+        $lateDepart = 0;
+        if ($actualOut->greaterThan($scheduledOut)) {
+            $lateDepart = (int) $scheduledOut->diffInMinutes($actualOut);
+        }
+
+        $lateReturn = 0;
+        if ($actualIn->greaterThan($scheduledIn)) {
+            $lateReturn = (int) $scheduledIn->diffInMinutes($actualIn);
+        }
+
+        return max($lateDepart, $lateReturn);
+    }
+
+    private function clockOnDate(CarbonImmutable $sessionDate, string $time): CarbonImmutable
+    {
+        $normalized = strlen(trim($time)) <= 5
+            ? trim($time).':00'
+            : trim($time);
+
+        return $sessionDate->setTimeFromTimeString($normalized);
+    }
+
+    /**
+     * @param  Collection<int, RawTimekeepingInandout>  $dayPunches
+     * @return array{
+     *     raw_minutes: int,
+     *     equivalent_minutes: int|null,
+     *     billable_minutes: int
+     * }
+     */
+    public function resolvedBreakLateMinutesForDay(
+        ?TimekeepingPolicy $policy,
+        Collection $dayPunches,
+        ?ShiftCode $shiftCode,
+        CarbonImmutable $sessionDate,
+    ): array {
+        $empty = [
+            'raw_minutes' => 0,
+            'equivalent_minutes' => null,
+            'billable_minutes' => 0,
+        ];
+
+        if ($policy === null || ! $this->deductsBreakTardiness($policy)) {
+            return $empty;
+        }
+
+        $rawLate = $this->rawBreakLateMinutesForDay($sessionDate, $dayPunches, $shiftCode, $policy);
+
+        if ($rawLate <= 0) {
+            return $empty;
+        }
+
+        return $this->applyBreakLatePolicy($policy, $rawLate);
+    }
+
+    /**
      * @return array{
      *     raw_minutes: int,
      *     equivalent_minutes: int|null,
@@ -260,6 +435,19 @@ class PayrollBreakService
         }
 
         $rawLate = $consumedMinutes - $allowedMinutes;
+
+        return $this->applyBreakLatePolicy($policy, $rawLate);
+    }
+
+    /**
+     * @return array{
+     *     raw_minutes: int,
+     *     equivalent_minutes: int|null,
+     *     billable_minutes: int
+     * }
+     */
+    private function applyBreakLatePolicy(?TimekeepingPolicy $policy, int $rawLate): array
+    {
         $resolved = TimekeepingPolicySupport::resolveBreakTardinessEquivalent(
             $policy->timekeeping_policy_id,
             $rawLate,

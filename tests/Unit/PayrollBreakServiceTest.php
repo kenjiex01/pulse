@@ -3,7 +3,10 @@
 namespace Tests\Unit;
 
 use App\Models\RawTimekeepingInandout;
+use App\Models\ShiftCode;
+use App\Models\ShiftCodeBreak;
 use App\Services\PayrollBreakService;
+use Carbon\CarbonImmutable;
 use App\Support\TimekeepingPolicy as TimekeepingPolicySupport;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -133,6 +136,99 @@ class PayrollBreakServiceTest extends TestCase
             TimekeepingPolicySupport::applyRoundingMinutes($rawLateMinutes, 1),
             'Hour-based rounding is for OT only and must not be used for break late.',
         );
+    }
+
+    #[Test]
+    public function shifted_lunch_within_allowed_minutes_still_counts_window_break_late(): void
+    {
+        $service = new PayrollBreakService;
+        $shift = new ShiftCode;
+        $shift->setRelation('breaks', collect([
+            (new ShiftCodeBreak)->forceFill([
+                'shift_code_break_no' => 1,
+                'break_out' => '12:00',
+                'break_in' => '13:00',
+                'shift_code_break_minute' => 60,
+            ]),
+        ]));
+
+        $punches = $this->punchesForDay('2026-04-17', [
+            ['08:00:00', true],
+            ['12:30:00', false],
+            ['13:30:00', true],
+            ['17:00:00', false],
+        ]);
+
+        $rawLate = $service->rawBreakLateMinutesForDay(
+            CarbonImmutable::parse('2026-04-17'),
+            $punches,
+            $shift,
+            null,
+        );
+
+        $this->assertSame(30, $rawLate);
+    }
+
+    #[Test]
+    public function break_minutes_only_ignores_window_when_out_in_not_set(): void
+    {
+        $service = new PayrollBreakService;
+        $shift = new ShiftCode;
+        $shift->setRelation('breaks', collect([
+            (new ShiftCodeBreak)->forceFill([
+                'shift_code_break_no' => 1,
+                'break_out' => null,
+                'break_in' => null,
+                'shift_code_break_minute' => 60,
+            ]),
+        ]));
+
+        $punches = $this->punchesForDay('2026-04-17', [
+            ['08:00:00', true],
+            ['12:30:00', false],
+            ['13:30:00', true],
+            ['17:00:00', false],
+        ]);
+
+        $rawLate = $service->rawBreakLateMinutesForDay(
+            CarbonImmutable::parse('2026-04-17'),
+            $punches,
+            $shift,
+            null,
+        );
+
+        $this->assertSame(0, $rawLate);
+    }
+
+    #[Test]
+    public function break_minutes_only_penalizes_duration_over_allowance(): void
+    {
+        $service = new PayrollBreakService;
+        $shift = new ShiftCode;
+        $shift->setRelation('breaks', collect([
+            (new ShiftCodeBreak)->forceFill([
+                'shift_code_break_no' => 1,
+                'break_out' => null,
+                'break_in' => null,
+                'shift_code_break_minute' => 60,
+            ]),
+        ]));
+
+        $punches = $this->punchesForDay('2026-04-17', [
+            ['08:00:00', true],
+            ['11:51:00', false],
+            ['13:00:00', true],
+            ['17:00:00', false],
+        ]);
+
+        $rawLate = $service->rawBreakLateMinutesForDay(
+            CarbonImmutable::parse('2026-04-17'),
+            $punches,
+            $shift,
+            null,
+        );
+
+        $this->assertSame(9, $rawLate);
     }
 
     #[Test]
