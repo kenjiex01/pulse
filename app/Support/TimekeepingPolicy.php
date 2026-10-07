@@ -29,6 +29,15 @@ class TimekeepingPolicy
 
     public const EXCESS_HOUR_CONSIDER_OT = 2;
 
+    /** lu_non_regular_ot: auto-compute regular and OT from time logs. */
+    public const OT_COMPUTATION_AUTO = 0;
+
+    /** lu_non_regular_ot: filing required for regular and OT hours. */
+    public const OT_COMPUTATION_REQUIRE_FORMS_ALL = 1;
+
+    /** lu_non_regular_ot: auto regular hours; OT requires filing. */
+    public const OT_COMPUTATION_REQUIRE_FORMS_OT_ONLY = 2;
+
     public const BREAK_COMPUTATION_SCHEDULED = 1;
 
     public const BREAK_COMPUTATION_ACTUAL = 2;
@@ -214,6 +223,7 @@ class TimekeepingPolicy
             'leave_processing_mode' => 1,
             'validity_of_late_file' => 30,
             'is_ot_form_required' => 0,
+            'regular_ot_computation_mode' => self::OT_COMPUTATION_AUTO,
             'excess_hour_id' => self::EXCESS_HOUR_DISREGARD,
             'is_allow_flexi_time' => false,
             'break_computation' => 1,
@@ -642,6 +652,28 @@ class TimekeepingPolicy
         return (int) $policy->excess_hour_id === self::EXCESS_HOUR_CONSIDER_OT;
     }
 
+    public static function overtimeComputationModeForDay(?TimekeepingPolicyModel $policy, bool $isRegularDay): int
+    {
+        if ($policy === null) {
+            return self::OT_COMPUTATION_AUTO;
+        }
+
+        if ($isRegularDay) {
+            return (int) ($policy->regular_ot_computation_mode ?? self::OT_COMPUTATION_AUTO);
+        }
+
+        return (int) ($policy->is_ot_form_required ?? self::OT_COMPUTATION_AUTO);
+    }
+
+    public static function allowsAutomaticOvertimeFromExcess(?TimekeepingPolicyModel $policy, bool $isRegularDay): bool
+    {
+        if (! self::considersExcessAsOvertime($policy)) {
+            return false;
+        }
+
+        return self::overtimeComputationModeForDay($policy, $isRegularDay) === self::OT_COMPUTATION_AUTO;
+    }
+
     public static function equivalentLabel(Model $record, string $type): string
     {
         if (($type === 'tardiness') && $record->marks_absent) {
@@ -865,6 +897,7 @@ class TimekeepingPolicy
     {
         return [
             'excess_hour_id' => ['required', 'integer', Rule::exists('lu_excess_hours', 'excess_hour_id')],
+            'regular_ot_computation_mode' => ['nullable', 'integer', Rule::exists('lu_non_regular_ot', 'non_regular_ot_id')],
             'is_ot_form_required' => ['nullable', 'integer', Rule::exists('lu_non_regular_ot', 'non_regular_ot_id')],
             'is_consider_before_time' => ['nullable', 'boolean'],
             'is_consider_after_time' => ['nullable', 'boolean'],
@@ -882,6 +915,7 @@ class TimekeepingPolicy
         if ($disregard) {
             return [
                 'excess_hour_id' => $validated['excess_hour_id'],
+                'regular_ot_computation_mode' => null,
                 'is_ot_form_required' => null,
                 'is_consider_before_time' => null,
                 'is_consider_after_time' => null,
@@ -896,6 +930,9 @@ class TimekeepingPolicy
 
         return [
             'excess_hour_id' => $validated['excess_hour_id'],
+            'regular_ot_computation_mode' => filled($validated['regular_ot_computation_mode'] ?? null)
+                ? $validated['regular_ot_computation_mode']
+                : null,
             'is_ot_form_required' => filled($validated['is_ot_form_required'] ?? null) ? $validated['is_ot_form_required'] : null,
             'is_consider_before_time' => filter_var($validated['is_consider_before_time'] ?? false, FILTER_VALIDATE_BOOLEAN) ?: null,
             'is_consider_after_time' => filter_var($validated['is_consider_after_time'] ?? false, FILTER_VALIDATE_BOOLEAN) ?: null,

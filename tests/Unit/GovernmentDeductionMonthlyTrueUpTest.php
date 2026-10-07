@@ -9,6 +9,8 @@ use App\Models\PayrollBatch;
 use App\Models\PayrollBatchDetail;
 use App\Models\PayrollCalendar;
 use App\Models\PayrollDeduction;
+use App\Models\PayrollIncome;
+use App\Models\IncomeType;
 use App\Models\PayType;
 use App\Models\User;
 use App\Services\GovernmentDeductionPayrollService;
@@ -114,6 +116,51 @@ class GovernmentDeductionMonthlyTrueUpTest extends TestCase
 
         $this->assertSame(600.0, $result['employee_amount']);
         $this->assertSame(1210.0, $result['employer_amount']);
+    }
+
+    #[Test]
+    public function monthly_basic_excludes_later_pay_periods_in_same_calendar_month(): void
+    {
+        $basicType = IncomeType::query()->firstOrCreate(
+            ['income_type_code' => 'BASC'],
+            [
+                'description' => 'Basic Income',
+                'is_default_basic' => true,
+                'is_active' => true,
+            ],
+        );
+
+        $firstDetail = $this->employeeDetailForPeriod(1, withPriorSss: false);
+        PayrollIncome::query()->create([
+            'payroll_batch_detail_id' => $firstDetail->payroll_batch_detail_id,
+            'income_type_id' => $basicType->income_type_id,
+            'taxable' => 7200,
+            'non_taxable' => 0,
+            'is_manual' => false,
+            'is_editable' => true,
+            'is_deletable' => true,
+        ]);
+
+        $laterDetail = $this->employeeDetailForPeriod(2, withPriorSss: false);
+        PayrollIncome::query()->create([
+            'payroll_batch_detail_id' => $laterDetail->payroll_batch_detail_id,
+            'income_type_id' => $basicType->income_type_id,
+            'taxable' => 8400,
+            'non_taxable' => 0,
+            'is_manual' => false,
+            'is_editable' => true,
+            'is_deletable' => true,
+        ]);
+
+        $firstBatch = $this->batchForPeriod(1);
+        $monthToDate = $this->service->monthlyBasicSalaryExcludingOvertime($firstDetail, $firstBatch);
+
+        $this->assertSame(7200.0, $monthToDate);
+
+        $secondBatch = $this->batchForPeriod(2);
+        $fullMonth = $this->service->monthlyBasicSalaryExcludingOvertime($laterDetail, $secondBatch);
+
+        $this->assertSame(15600.0, $fullMonth);
     }
 
     #[Test]

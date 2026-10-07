@@ -127,8 +127,13 @@ class PayrollOvertimeService
         ?string $scheduleStart,
         ?string $scheduleEnd,
         ?TimekeepingPolicy $policy,
+        bool $isRegularDay = true,
     ): array {
-        if ($policy === null || ! $this->considersOvertime($policy)) {
+        if (
+            $policy === null
+            || ! $this->considersOvertime($policy)
+            || ! TimekeepingPolicySupport::allowsAutomaticOvertimeFromExcess($policy, $isRegularDay)
+        ) {
             return ['regular_minutes' => 0, 'special_minutes' => 0];
         }
 
@@ -184,8 +189,13 @@ class PayrollOvertimeService
         ?string $scheduleStart,
         ?string $scheduleEnd,
         ?TimekeepingPolicy $policy,
+        bool $isRegularDay = true,
     ): int {
-        if ($policy === null || ! $this->considersOvertime($policy)) {
+        if (
+            $policy === null
+            || ! $this->considersOvertime($policy)
+            || ! TimekeepingPolicySupport::allowsAutomaticOvertimeFromExcess($policy, $isRegularDay)
+        ) {
             return 0;
         }
 

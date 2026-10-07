@@ -334,6 +334,8 @@ class DatabaseBackupService
                 'bytes' => $bytes,
             ];
         } catch (\Throwable $exception) {
+            $this->restoreMysqlSafetySnapshot($safetyBackup['path']);
+
             throw new RuntimeException(
                 'Desktop backup import to MySQL failed: '.$exception->getMessage(),
                 0,
@@ -394,6 +396,60 @@ class DatabaseBackupService
             'safety_backup' => $safetyBackup['filename'],
             'bytes' => strlen($sql),
         ];
+    }
+
+    /**
+     * Put the pre-import MySQL snapshot back when a desktop SQLite import stops halfway.
+     * Truncate cannot be rolled back, so a failed copy would otherwise leave tables empty.
+     */
+    private function restoreMysqlSafetySnapshot(string $sqlFilePath): void
+    {
+        if (! File::exists($sqlFilePath) || File::size($sqlFilePath) <= 0) {
+            return;
+        }
+
+        try {
+            $this->importMysqlDumpFile($sqlFilePath);
+        } catch (\Throwable $exception) {
+            Log::error('Failed to roll back MySQL safety snapshot after desktop SQL import.', [
+                'message' => $exception->getMessage(),
+                'path' => $sqlFilePath,
+            ]);
+        }
+    }
+
+    private function importMysqlDumpFile(string $sqlFilePath): void
+    {
+        $connectionName = (string) config('database.default', 'mysql');
+        $config = DB::connection($connectionName)->getConfig();
+
+        DB::disconnect($connectionName);
+
+        $command = [
+            'mysql',
+            '--host='.($config['host'] ?? '127.0.0.1'),
+            '--port='.($config['port'] ?? 3306),
+            '--user='.($config['username'] ?? 'root'),
+            $config['database'] ?? '',
+        ];
+
+        $environment = [];
+
+        if (! empty($config['password'])) {
+            $environment['MYSQL_PWD'] = $config['password'];
+        }
+
+        $result = Process::forever()
+            ->env($environment)
+            ->input(File::get($sqlFilePath))
+            ->run($command);
+
+        DB::purge($connectionName);
+        DB::reconnect($connectionName);
+
+        if (! $result->successful()) {
+            throw new RuntimeException(trim($result->errorOutput() ?: $result->output() ?: 'mysql import failed.'));
+        }
     }
 
     private function backupSqlite(string $backupDir, string $filename, bool $excludeModuleCatalog = true): array

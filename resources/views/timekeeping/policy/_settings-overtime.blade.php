@@ -9,19 +9,39 @@
 
     <p class="text-sm text-gray-500">Set a default policy for Overtime and Special Overtime.</p>
 
-    <div class="grid gap-4 md:grid-cols-2">
+    <div>
+        <label for="excess_hour_id" class="form-label">Treatment of Excess Hours <span class="text-red-500">*</span></label>
+        <select id="excess_hour_id" name="excess_hour_id" class="form-input max-w-md" data-excess-hour-select required>
+            <option value="">Select treatment</option>
+            @foreach ($selectOptions['excess_hours'] as $value => $label)
+                <option value="{{ $value }}" @selected((string) old('excess_hour_id', $policy->excess_hour_id) === (string) $value)>{{ $label }}</option>
+            @endforeach
+        </select>
+        @error('excess_hour_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+    </div>
+
+    <div class="space-y-6" data-ot-field>
         <div>
-            <label for="excess_hour_id" class="form-label">Treatment of Excess Hours <span class="text-red-500">*</span></label>
-            <select id="excess_hour_id" name="excess_hour_id" class="form-input" data-excess-hour-select required>
-                <option value="">Select treatment</option>
-                @foreach ($selectOptions['excess_hours'] as $value => $label)
-                    <option value="{{ $value }}" @selected((string) old('excess_hour_id', $policy->excess_hour_id) === (string) $value)>{{ $label }}</option>
+            <span class="form-label">For Regular Days</span>
+            <div class="mt-2 space-y-2">
+                @foreach ($selectOptions['non_regular_ot'] as $value => $label)
+                    <label class="flex items-start gap-2 text-sm text-gray-700">
+                        <input
+                            type="radio"
+                            name="regular_ot_computation_mode"
+                            value="{{ $value }}"
+                            @checked((string) old('regular_ot_computation_mode', $policy->regular_ot_computation_mode ?? 0) === (string) $value)
+                            data-ot-input
+                        >
+                        <span>{{ $label }}</span>
+                    </label>
                 @endforeach
-            </select>
-            @error('excess_hour_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+            </div>
+            @error('regular_ot_computation_mode')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
-        <div data-ot-field>
-            <span class="form-label">Non-Regular Days</span>
+
+        <div>
+            <span class="form-label">For Non-Regular Days</span>
             <div class="mt-2 space-y-2">
                 @foreach ($selectOptions['non_regular_ot'] as $value => $label)
                     <label class="flex items-start gap-2 text-sm text-gray-700">
@@ -36,6 +56,7 @@
                     </label>
                 @endforeach
             </div>
+            @error('is_ot_form_required')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
     </div>
 

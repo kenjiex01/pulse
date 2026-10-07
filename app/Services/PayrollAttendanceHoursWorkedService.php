@@ -231,6 +231,8 @@ class PayrollAttendanceHoursWorkedService
             $this->addHours($totals, $dayTypeId, 1, $basicHours);
         }
 
+        $isRegularDay = $dayTypeId === $this->regularDayTypeId();
+
         $overtimeBreakdown = $this->overtimePayroll->billableMinutesBreakdownForSession(
             $sessionDate,
             $timeIn,
@@ -238,6 +240,7 @@ class PayrollAttendanceHoursWorkedService
             $scheduleStart,
             $scheduleEnd,
             $policy,
+            $isRegularDay,
         );
 
         if ($overtimeBreakdown['regular_minutes'] > 0) {

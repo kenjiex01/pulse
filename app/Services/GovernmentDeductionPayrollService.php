@@ -10,6 +10,7 @@ use App\Models\GovtTableSss;
 use App\Models\GovtTableWtax2023;
 use App\Models\PayrollBatch;
 use App\Models\PayrollBatchDetail;
+use App\Models\PayrollCalendar;
 use App\Models\PayrollDeduction;
 use App\Models\PayrollIncome;
 use App\Models\PayType;
@@ -341,9 +342,7 @@ class GovernmentDeductionPayrollService
                 $query
                     ->where('employee_id', $detail->employee_id)
                     ->whereHas('payrollBatch.payrollCalendar', function ($calendarQuery) use ($calendar) {
-                        $calendarQuery
-                            ->where('pay_year', (int) $calendar->pay_year)
-                            ->where('calendar_month', (int) $calendar->calendar_month);
+                        $this->applyMonthlyCalendarScope($calendarQuery, $calendar);
                     });
             });
     }
@@ -362,11 +361,21 @@ class GovernmentDeductionPayrollService
                 $query
                     ->where('employee_id', $detail->employee_id)
                     ->whereHas('payrollBatch.payrollCalendar', function ($calendarQuery) use ($calendar) {
-                        $calendarQuery
-                            ->where('pay_year', (int) $calendar->pay_year)
-                            ->where('calendar_month', (int) $calendar->calendar_month);
+                        $this->applyMonthlyCalendarScope($calendarQuery, $calendar);
                     });
             });
+    }
+
+    /**
+     * Month-to-date scope for statutory true-up: same calendar month/year and pay periods
+     * up to and including the batch being processed (never a later cutoff in the month).
+     */
+    private function applyMonthlyCalendarScope(Builder $calendarQuery, PayrollCalendar $calendar): void
+    {
+        $calendarQuery
+            ->where('pay_year', (int) $calendar->pay_year)
+            ->where('calendar_month', (int) $calendar->calendar_month)
+            ->where('pay_period', '<=', (int) $calendar->pay_period);
     }
 
     /**

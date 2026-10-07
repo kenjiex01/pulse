@@ -27,6 +27,7 @@ class EmployeeAttendanceViewService
         private readonly PayrollBreakService $breakPayroll,
         private readonly PayrollAttendanceDayBreakdownService $payrollDayBreakdown,
         private readonly PayrollOvertimeService $overtimePayroll,
+        private readonly HolidayPayService $holidayPay,
     ) {}
 
     /**
@@ -551,6 +552,8 @@ class EmployeeAttendanceViewService
         $deductionHours = ($lateMinutes + $undertimeMinutes + $breakLateMinutes) / 60;
         $basic = max(0.0, round($scheduled - $deductionHours, 2));
 
+        $isRegularDay = $this->holidayPay->isRegularWorkDay($employeeId, $date);
+
         $otBreakdown = $this->overtimePayroll->billableMinutesBreakdownForSession(
             $date,
             $timeIn,
@@ -558,6 +561,7 @@ class EmployeeAttendanceViewService
             $scheduleStart,
             $scheduleEnd,
             $policy,
+            $isRegularDay,
         );
 
         $excessMinutes = (int) ($otBreakdown['regular_minutes'] ?? 0) + (int) ($otBreakdown['special_minutes'] ?? 0);

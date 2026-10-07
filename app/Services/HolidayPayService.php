@@ -136,6 +136,11 @@ class HolidayPayService
         return $dates;
     }
 
+    public function isRegularWorkDay(int $employeeId, CarbonImmutable $date): bool
+    {
+        return $this->resolveDayTypeId($employeeId, $date) === $this->regularDayTypeId();
+    }
+
     public function resolveDayTypeId(int $employeeId, CarbonImmutable $date): int
     {
         $holiday = $this->holidayOnDate($employeeId, $date);
