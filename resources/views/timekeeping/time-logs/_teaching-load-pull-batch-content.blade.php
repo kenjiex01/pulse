@@ -26,8 +26,18 @@
         </div>
     </div>
 
-    <div>
-        <h3 class="mb-2 text-sm font-semibold text-gray-900">Employees in this pull</h3>
+    <div data-pull-batch-employees>
+        <div class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h3 class="text-sm font-semibold text-gray-900">Employees in this pull</h3>
+            <input
+                type="search"
+                class="form-input w-full sm:max-w-xs"
+                placeholder="Search employee no. or name..."
+                data-pull-batch-search
+                aria-label="Search employees in this pull"
+            >
+        </div>
+        <p class="mb-2 hidden text-xs text-gray-500" data-pull-batch-search-empty>No employees match your search.</p>
         <div class="overflow-x-auto rounded-lg border border-gray-200">
             <table class="table-skolaris min-w-full text-sm">
                 <thead>
@@ -40,10 +50,15 @@
                 </thead>
                 <tbody>
                     @forelse ($employeeSummaries as $summary)
-                        <tr>
-                            <td class="px-3 py-2 text-gray-900">{{ $summary['employee_number'] }}</td>
-                            <td class="px-3 py-2 text-gray-600">{{ $summary['employee_name'] }}</td>
-                            <td class="px-3 py-2 text-gray-600">{{ $summary['rows_count'] }}</td>
+                        @php $zeroRows = (int) ($summary['rows_count'] ?? 0) === 0; @endphp
+                        <tr
+                            class="{{ $zeroRows ? 'text-red-600' : '' }}"
+                            data-pull-batch-row
+                            data-search-text="{{ strtolower(trim(($summary['employee_number'] ?? '').' '.($summary['employee_name'] ?? ''))) }}"
+                        >
+                            <td class="px-3 py-2 {{ $zeroRows ? 'text-red-600' : 'text-gray-900' }}">{{ $summary['employee_number'] }}</td>
+                            <td class="px-3 py-2 {{ $zeroRows ? 'text-red-600' : 'text-gray-600' }}">{{ $summary['employee_name'] }}</td>
+                            <td class="px-3 py-2 {{ $zeroRows ? 'font-medium text-red-600' : 'text-gray-600' }}">{{ $summary['rows_count'] }}</td>
                             <td class="px-3 py-2 text-right">
                                 <a
                                     href="{{ route(\App\Support\TimeLogs::routeName('tab'), ['tab' => \App\Support\TimeLogs::TEACHING_LOADS_TAB, 'view_pull' => $batch->teaching_load_pull_batch_id, 'pull_batch' => $batch->teaching_load_pull_batch_id, 'view_pull_employee' => $summary['employee_id']]) }}"

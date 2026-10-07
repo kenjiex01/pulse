@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Auth;
@@ -44,6 +45,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo('/login');
         $middleware->redirectUsersTo('/dashboard');
+        $middleware->web(prepend: [
+            \App\Http\Middleware\EnsureWebExecutionTime::class,
+        ]);
         $middleware->web(append: [
             \App\Http\Middleware\UseConnectedPeople360Database::class,
             \App\Http\Middleware\PrepareAuthenticatedUser::class,
@@ -79,6 +83,24 @@ return Application::configure(basePath: dirname(__DIR__))
                 return redirect()
                     ->route('dashboard')
                     ->with('error', $message);
+            }
+
+            return null;
+        });
+
+        $exceptions->render(function (PostTooLargeException $exception, Request $request) {
+            if ($request->expectsJson()) {
+                return null;
+            }
+
+            if ($request->is('database/upload-sql')) {
+                return redirect()
+                    ->route('database.index')
+                    ->with(
+                        'error',
+                        'The SQL file is larger than PHP allows on this server (check post_max_size). '
+                        .'For local dev, restart with: cd pulse && ./scripts/serve-dev.sh',
+                    );
             }
 
             return null;

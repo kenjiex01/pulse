@@ -243,9 +243,20 @@
                         @endif
                         A safety copy of the current database is saved under <code class="rounded bg-white px-1.5 py-0.5 text-xs">storage/app/backups</code> before import (auto-restored if the upload is invalid).
                         Uploaded files from older app versions have stale menu data removed automatically; modules are refreshed after restore.
-                        Max file size {{ (int) floor(config('uploads.sql_restore_max_kb', 262144) / 1024) }} MB.
+                        Max file size {{ (int) floor(($sqlRestoreMaxKb ?? config('uploads.sql_restore_max_kb', 262144)) / 1024) }} MB
+                        @if (! empty($sqlRestorePhpLimitActive))
+                            (PHP on this server allows less — use <code class="rounded bg-white px-1 text-xs">./scripts/serve-dev.sh</code> for local dev).
+                        @endif
                     </p>
                 </div>
+
+                @if (! empty($sqlRestorePhpLimitActive))
+                    <div class="rounded-lg border border-amber-400 bg-white px-4 py-3 text-sm text-amber-950">
+                        This dev PHP limit is about {{ (int) floor(($sqlRestoreMaxKb ?? 0) / 1024) }} MB
+                        (<code>post_max_size</code> / <code>upload_max_filesize</code>).
+                        Larger SQL files need <code>cd pulse && ./scripts/serve-dev.sh</code> or higher limits in <code>php.ini</code>.
+                    </div>
+                @endif
 
                 <form method="POST" action="{{ route('database.upload-sql') }}" enctype="multipart/form-data" class="space-y-4">
                     @csrf

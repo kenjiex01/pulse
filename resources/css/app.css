@@ -35,7 +35,7 @@
 
 @layer components {
     .btn-primary {
-        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-[#00A3E6] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#0099D6] hover:shadow-md;
+        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-[#00A3E6] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#0099D6] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#00A3E6] disabled:hover:shadow-sm;
     }
 
     .btn-secondary {

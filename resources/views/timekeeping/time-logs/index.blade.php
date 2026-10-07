@@ -203,20 +203,29 @@
 
     @if (($viewPullBatch ?? null) && $isTeachingLoads)
         @php
-            $employeeSummaries = $viewPullBatch->sessions
-                ->groupBy('employee_id')
-                ->map(function ($rows) {
-                    $first = $rows->first();
-
+            $employeeSummaries = $viewPullBatch->members->isNotEmpty()
+                ? $viewPullBatch->members->map(function ($member) {
                     return [
-                        'employee_id' => $first?->employee_id,
-                        'employee_number' => $first?->employee_number ?? '—',
-                        'employee_name' => $first?->employee?->full_name ?? '—',
-                        'rows_count' => $rows->count(),
+                        'employee_id' => $member->employee_id,
+                        'employee_number' => $member->employee?->employee_number ?? '—',
+                        'employee_name' => $member->employee?->full_name ?? '—',
+                        'rows_count' => (int) $member->rows_count,
                     ];
-                })
-                ->sortBy('employee_name')
-                ->values();
+                })->sortBy('employee_name')->values()
+                : $viewPullBatch->sessions
+                    ->groupBy('employee_id')
+                    ->map(function ($rows) {
+                        $first = $rows->first();
+
+                        return [
+                            'employee_id' => $first?->employee_id,
+                            'employee_number' => $first?->employee_number ?? '—',
+                            'employee_name' => $first?->employee?->full_name ?? '—',
+                            'rows_count' => $rows->count(),
+                        ];
+                    })
+                    ->sortBy('employee_name')
+                    ->values();
         @endphp
         @include('partials.modal', [
             'id' => 'teaching-load-pull-batch-modal',

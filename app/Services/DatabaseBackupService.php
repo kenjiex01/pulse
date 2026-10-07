@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\DesktopSqliteToMysqlImporter;
+use App\Support\PhpExecutionTime;
 use App\Support\MysqlToSqliteDumpConverter;
 use Database\Seeders\ModuleSeeder;
 use Database\Seeders\ReportSeeder;
@@ -113,8 +114,7 @@ class DatabaseBackupService
      */
     public function restoreFromSqlFile(string $sqlFilePath): array
     {
-        @set_time_limit(0);
-        @ini_set('max_execution_time', '0');
+        PhpExecutionTime::ensureAtLeast(86400);
 
         $driver = DB::connection()->getDriverName();
 

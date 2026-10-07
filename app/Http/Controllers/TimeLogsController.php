@@ -17,6 +17,7 @@ use App\Services\TeachingLoadPullService;
 use App\Services\TimeLogsUploadService;
 use App\Services\UploadedFacultyLoadService;
 use App\Support\LiveTable;
+use App\Support\PhpExecutionTime;
 use App\Support\TimeLogs;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -184,7 +185,7 @@ class TimeLogsController extends Controller
 
         if ($isTeachingLoads && $viewData['openPullBatchId']) {
             $viewData['viewPullBatch'] = TeachingLoadPullBatch::query()
-                ->with(['pulledBy', 'sessions.employee'])
+                ->with(['pulledBy', 'sessions.employee', 'members.employee'])
                 ->withCount('sessions as records_count')
                 ->find($viewData['openPullBatchId']);
         }
@@ -205,8 +206,10 @@ class TimeLogsController extends Controller
                 ->orderBy('time_in')
                 ->get();
 
-            $viewData['viewPullEmployee'] = $viewData['viewPullEmployeeRows']->first()?->employee;
-            $viewData['viewPullEmployeeSummary'] = $viewData['viewPullEmployeeRows']->first()?->pullBatch;
+            $viewData['viewPullEmployee'] = $viewData['viewPullEmployeeRows']->first()?->employee
+                ?? \App\Models\Employee::query()->find($viewData['openPullEmployeeId']);
+            $viewData['viewPullEmployeeSummary'] = $viewData['viewPullEmployeeRows']->first()?->pullBatch
+                ?? TeachingLoadPullBatch::query()->find($viewData['openPullEmployeeBatchId']);
         }
 
         if ($request->ajax()) {
@@ -568,6 +571,8 @@ class TimeLogsController extends Controller
     {
         TimeLogs::authorize($request->user(), 'add');
 
+        PhpExecutionTime::ensureAtLeast(max(30, (int) config('employee_load.pull_step_time_limit_seconds', 900)));
+
         $validated = $request->validate([
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
@@ -599,6 +604,8 @@ class TimeLogsController extends Controller
     public function stepTeachingLoadPull(Request $request): JsonResponse
     {
         TimeLogs::authorize($request->user(), 'add');
+
+        PhpExecutionTime::ensureAtLeast(max(30, (int) config('employee_load.pull_step_time_limit_seconds', 900)));
 
         $validated = $request->validate([
             'job_token' => ['required', 'string'],

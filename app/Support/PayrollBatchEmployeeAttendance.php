@@ -6,12 +6,26 @@ use App\Models\Employee;
 use App\Models\EmployeeSalary;
 use App\Models\PayrollBatchDetail;
 use App\Models\PayrollCalendar;
+use App\Models\RawEmployeeLoadEntry;
 use Carbon\CarbonInterface;
 
 class PayrollBatchEmployeeAttendance
 {
     public static function isBelowHalfPayrollPeriod(PayrollBatchDetail $detail): bool
     {
+        $detail->loadMissing('employee');
+
+        if ($detail->employee?->isFaculty()) {
+            $expectedDays = self::expectedFacultyDays($detail);
+            $workedDays = self::facultyWorkedDays($detail);
+
+            if ($expectedDays === null || $expectedDays <= 0) {
+                return $workedDays <= 0;
+            }
+
+            return $workedDays < ($expectedDays / 2);
+        }
+
         $expected = self::expectedPeriodUnits($detail);
 
         if ($expected === null || $expected <= 0) {
@@ -19,6 +33,64 @@ class PayrollBatchEmployeeAttendance
         }
 
         return self::workedPeriodUnits($detail) < ($expected / 2);
+    }
+
+    /**
+     * Teaching-load days in the cutoff (BASC days).
+     */
+    public static function facultyWorkedDays(PayrollBatchDetail $detail): float
+    {
+        $detail->loadMissing(['incomes.incomeType', 'attendanceDays']);
+
+        $bascDays = $detail->incomes
+            ->filter(fn ($income) => strtoupper((string) ($income->incomeType?->income_type_code ?? '')) === 'BASC')
+            ->sum(fn ($income) => (float) ($income->days ?? 0));
+
+        if ($bascDays > 0) {
+            return round($bascDays, 4);
+        }
+
+        return (float) $detail->attendanceDays
+            ->filter(fn ($day) => (float) ($day->basic ?? 0) > 0)
+            ->count();
+    }
+
+    /**
+     * Faculty only. Same count as Skolaris Employee Attendance "Days":
+     * distinct class dates with a teaching load inside the pay period.
+     */
+    public static function expectedFacultyDays(PayrollBatchDetail $detail): ?float
+    {
+        $detail->loadMissing(['employee', 'payrollBatch.payrollCalendar']);
+
+        $employee = $detail->employee;
+        $calendar = $detail->payrollBatch?->payrollCalendar;
+
+        if ($employee === null || $calendar?->dt_from === null || $calendar->dt_to === null) {
+            return null;
+        }
+
+        $query = RawEmployeeLoadEntry::query()
+            ->whereBetween('session_date', [
+                $calendar->dt_from->toDateString(),
+                $calendar->dt_to->toDateString(),
+            ])
+            ->whereNotNull('session_date')
+            ->where(function ($inner) use ($employee) {
+                $inner->where('employee_id', $employee->employee_id);
+
+                if (filled($employee->employee_number)) {
+                    $inner->orWhere(function ($fallback) use ($employee) {
+                        $fallback
+                            ->whereNull('employee_id')
+                            ->where('employee_number', $employee->employee_number);
+                    });
+                }
+            });
+
+        $days = (int) $query->selectRaw('count(distinct session_date) as days')->value('days');
+
+        return $days > 0 ? (float) $days : null;
     }
 
     public static function workedPeriodUnits(PayrollBatchDetail $detail): float

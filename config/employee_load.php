@@ -55,6 +55,11 @@ return [
     | is empty. Large ranges can take longer than the default 30s PHP / HTTP limits.
     */
     'build_time_limit_seconds' => (int) env('EMPLOYEE_LOAD_BUILD_TIME_LIMIT', 600),
+    'pull_step_time_limit_seconds' => (int) env('EMPLOYEE_LOAD_PULL_STEP_TIME_LIMIT', 900),
+    'pull_employees_per_step' => (int) env('EMPLOYEE_LOAD_PULL_EMPLOYEES_PER_STEP', 25),
+    // Uploaded PDF + day-by-day Attendance Checker scans (minutes per employee). Off by default — use Employee Attendance API.
+    'pull_slow_fallbacks' => filter_var(env('EMPLOYEE_LOAD_PULL_SLOW_FALLBACKS', false), FILTER_VALIDATE_BOOL),
+    'pull_uploaded_faculty_loading' => filter_var(env('EMPLOYEE_LOAD_PULL_UPLOADED_FACULTY', true), FILTER_VALIDATE_BOOL),
     'skolaris_api_timeout_seconds' => (int) env('EMPLOYEE_LOAD_SKOLARIS_TIMEOUT', 180),
     'overview_cache_minutes' => (int) env('EMPLOYEE_LOAD_OVERVIEW_CACHE_MINUTES', 10),
     // Typical payroll cutoffs span ~5–6 weeks; 45 days covers common monthly downloads.

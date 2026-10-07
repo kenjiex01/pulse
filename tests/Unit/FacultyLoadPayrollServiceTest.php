@@ -7,6 +7,7 @@ use App\Models\EmployeeSalary;
 use App\Models\RawEmployeeLoadEntry;
 use App\Services\EmployeeLoadPayrollService;
 use App\Services\FacultyLoadPayrollService;
+use App\Support\SkolarisCheckerLoadStatus;
 use Carbon\CarbonImmutable;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -59,6 +60,25 @@ class FacultyLoadPayrollServiceTest extends TestCase
             'session_date' => CarbonImmutable::parse('2026-06-16'),
             'time_in' => null,
             'time_out' => null,
+        ]);
+
+        $this->assertSame(1.5, $service->hoursForEntry($entry));
+    }
+
+    #[Test]
+    public function present_mark_without_punches_still_counts_as_present(): void
+    {
+        $this->assertTrue(SkolarisCheckerLoadStatus::countsAsPresent('P'));
+        $this->assertFalse(SkolarisCheckerLoadStatus::isExplicitlyAbsent('P'));
+
+        $service = app(EmployeeLoadPayrollService::class);
+        $entry = new RawEmployeeLoadEntry([
+            'class_schedule' => 'MON 16:30 - 18:00',
+            'total_hours' => 1.50,
+            'session_date' => CarbonImmutable::parse('2026-09-21'),
+            'time_in' => null,
+            'time_out' => null,
+            'remarks' => 'P',
         ]);
 
         $this->assertSame(1.5, $service->hoursForEntry($entry));

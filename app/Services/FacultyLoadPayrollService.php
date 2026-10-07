@@ -7,6 +7,7 @@ use App\Models\EmployeeSalary;
 use App\Models\RawEmployeeLoadEntry;
 use App\Models\ShiftCode;
 use App\Models\TimekeepingPolicy;
+use App\Support\SkolarisCheckerLoadStatus;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -113,16 +114,28 @@ class FacultyLoadPayrollService
                     && $entry->time_out !== null && $entry->time_out !== '',
             );
 
-            // Uploaded loads use Time In/Out on the row; Skolaris pulls need day attendance logs.
-            if ($entriesWithTimes->isEmpty() && $punches->isEmpty()) {
-                continue;
-            }
-
             $dayHours = 0.0;
             $dayLate = 0;
             $dayUndertime = 0;
 
-            if ($entriesWithTimes->isNotEmpty()) {
+            // Present (P) or unmarked loads are paid from the class schedule when there is no Time In/Out and no day punch.
+            if ($entriesWithTimes->isEmpty() && $punches->isEmpty()) {
+                foreach ($dayEntries as $entry) {
+                    if (SkolarisCheckerLoadStatus::isExplicitlyAbsent($entry->remarks)) {
+                        $absentSessions++;
+
+                        continue;
+                    }
+
+                    $entryHours = $this->employeeLoadPayroll->hoursForEntry($entry);
+
+                    if ($entryHours <= 0) {
+                        continue;
+                    }
+
+                    $dayHours += $entryHours;
+                }
+            } elseif ($entriesWithTimes->isNotEmpty()) {
                 foreach ($entriesWithTimes as $entry) {
                     $resolvedLate = $isFlexi
                         ? ['is_absent' => false, 'billable_minutes' => 0]

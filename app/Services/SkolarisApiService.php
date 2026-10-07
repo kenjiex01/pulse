@@ -2,8 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\Employee;
+use App\Support\EmployeeNumberMatch;
 use App\Support\EncryptedEnv;
+use App\Support\PhpExecutionTime;
 use App\Support\SkolarisJwtCredentials;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
@@ -398,12 +402,19 @@ class SkolarisApiService
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function attendanceCheckerCampuses(?string $date = null): array
+    /**
+     * @param  array<int, string>|null  $employeeNumbers
+     */
+    public function attendanceCheckerCampuses(?string $date = null, ?array $employeeNumbers = null): array
     {
         $params = [];
 
         if ($date !== null && $date !== '') {
             $params['date'] = $date;
+        }
+
+        if ($employeeNumbers !== null && $employeeNumbers !== []) {
+            $params['employee_numbers'] = implode(',', array_values(array_unique(array_map('strval', $employeeNumbers))));
         }
 
         if ($this->usesPulseApiKey()) {
@@ -500,10 +511,538 @@ class SkolarisApiService
     }
 
     /**
+     * Resolve the Skolaris HR employee row for a People360 faculty member (employee_id / employee_number).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function resolveSkolarisEmployeeRecord(Employee $employee): ?array
+    {
+        $localNumber = trim((string) $employee->employee_number);
+        $email = trim(strtolower((string) ($employee->email ?? '')));
+        $cacheKey = 'skolaris:hr-employee:'.hash('sha256', $localNumber.'|'.$email);
+        $cached = Cache::get($cacheKey);
+
+        if ($cached === false) {
+            return null;
+        }
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $row = $this->fetchSkolarisEmployeeRecord($employee);
+        Cache::put($cacheKey, $row ?? false, $row !== null ? now()->addHours(12) : now()->addMinutes(20));
+
+        return $row;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function fetchSkolarisEmployeeRecord(Employee $employee): ?array
+    {
+        $localNumber = trim((string) $employee->employee_number);
+        $email = trim(strtolower((string) ($employee->email ?? '')));
+        $fullName = trim((string) $employee->full_name);
+
+        $searches = array_values(array_unique(array_filter([
+            $localNumber,
+            $email,
+            $fullName !== '' ? strtok($fullName, ' ') : '',
+        ])));
+
+        foreach ($searches as $term) {
+            try {
+                $response = $this->request('get', '/employees', [
+                    'search' => $term,
+                    'per_page' => 50,
+                    'page' => 1,
+                ]);
+            } catch (Throwable) {
+                continue;
+            }
+
+            $rows = $response->json('data.data') ?? $response->json('data') ?? [];
+
+            if (! is_array($rows)) {
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+
+                if ($localNumber !== '' && EmployeeNumberMatch::same($row['employee_number'] ?? null, $localNumber)) {
+                    return $row;
+                }
+
+                $rowEmail = strtolower(trim((string) ($row['user']['email'] ?? $row['email'] ?? '')));
+
+                if ($email !== '' && $rowEmail !== '' && $rowEmail === $email) {
+                    return $row;
+                }
+            }
+        }
+
+        foreach ($this->employeeSearchTermsFromFacultyLabel($fullName) as $term) {
+            try {
+                $response = $this->request('get', '/employees', [
+                    'search' => $term,
+                    'per_page' => 30,
+                    'page' => 1,
+                ]);
+            } catch (Throwable) {
+                continue;
+            }
+
+            $rows = $response->json('data.data') ?? $response->json('data') ?? [];
+
+            if (! is_array($rows) || $rows === []) {
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+
+                $rowEmail = strtolower(trim((string) ($row['user']['email'] ?? $row['email'] ?? '')));
+
+                if ($email !== '' && $rowEmail !== '' && $rowEmail === $email) {
+                    return $row;
+                }
+            }
+
+            if (count($rows) === 1 && is_array($rows[0])) {
+                return $rows[0];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, string> section code => faculty employee_number
+     */
+    public function mapSectionCodesToFacultyEmployeeNumbers(array $sectionCodes): array
+    {
+        $sectionCodes = array_values(array_unique(array_filter(array_map(
+            fn ($code) => strtoupper(trim((string) $code)),
+            $sectionCodes,
+        ))));
+
+        if ($sectionCodes === []) {
+            return [];
+        }
+
+        $map = [];
+
+        foreach (array_chunk($sectionCodes, 40) as $chunk) {
+            try {
+                $response = $this->request('get', '/course-offerings', [
+                    'sections' => $chunk,
+                    'per_page' => 500,
+                    'page' => 1,
+                ], $this->employeeLoadApiTimeout());
+            } catch (Throwable $exception) {
+                Log::warning('Course offering section lookup skipped', [
+                    'message' => $exception->getMessage(),
+                ]);
+
+                continue;
+            }
+
+            $rows = $response->json('data') ?? [];
+
+            if (isset($rows['data']) && is_array($rows['data'])) {
+                $rows = $rows['data'];
+            }
+
+            if (! is_array($rows)) {
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+
+                $section = strtoupper(trim((string) ($row['section'] ?? '')));
+                $facultyNumber = trim((string) ($row['faculty']['employee_number'] ?? ''));
+
+                if ($section !== '' && $facultyNumber !== '') {
+                    $map[$section] = $facultyNumber;
+                }
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function sectionCodesForFacultyId(int $facultyId): array
+    {
+        if ($facultyId <= 0) {
+            return [];
+        }
+
+        try {
+            $response = $this->request('get', '/course-offerings', [
+                'faculty_id' => $facultyId,
+                'per_page' => 500,
+                'page' => 1,
+            ], $this->employeeLoadApiTimeout());
+        } catch (Throwable $exception) {
+            Log::warning('Course offerings by faculty_id skipped', [
+                'faculty_id' => $facultyId,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        $rows = $response->json('data') ?? [];
+
+        if (isset($rows['data']) && is_array($rows['data'])) {
+            $rows = $rows['data'];
+        }
+
+        if (! is_array($rows)) {
+            return [];
+        }
+
+        $sections = [];
+
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $section = strtoupper(trim((string) ($row['section'] ?? '')));
+
+            if ($section !== '') {
+                $sections[] = $section;
+            }
+        }
+
+        return array_values(array_unique($sections));
+    }
+
+    /**
+     * Subject rows from Skolaris Uploaded Faculty Loading for one employee.
+     * Matches Skolaris employee_id / employee_number (not PDF faculty names).
+     *
+     * @return array<int, array{upload: array<string, mixed>, item: array<string, mixed>}>
+     */
+    public function uploadedFacultyLoadSubjectItemsForEmployee(
+        Employee $employee,
+        string $dateFrom,
+        string $dateTo,
+    ): array {
+        PhpExecutionTime::ensureAtLeast(max(30, (int) config('employee_load.pull_step_time_limit_seconds', 900)));
+
+        $localNumber = trim((string) $employee->employee_number);
+
+        if ($localNumber === '') {
+            return [];
+        }
+
+        $skolarisEmployee = $this->resolveSkolarisEmployeeRecord($employee);
+        $skolarisEmployeeId = (int) ($skolarisEmployee['employee_id'] ?? 0);
+        $skolarisNumber = trim((string) ($skolarisEmployee['employee_number'] ?? ''));
+
+        if ($skolarisEmployeeId <= 0) {
+            Log::warning('Uploaded faculty loading pull skipped — no Skolaris employee_id for People360 employee', [
+                'people360_employee_id' => $employee->employee_id,
+                'employee_number' => $localNumber,
+            ]);
+
+            return [];
+        }
+
+        $matches = [];
+
+        foreach ($this->cachedUploadedFacultyLoadSummaries(parseStatus: 'parsed') as $summary) {
+            if (! is_array($summary)) {
+                continue;
+            }
+                $uploadId = (int) ($summary['upload_id'] ?? 0);
+
+                if ($uploadId <= 0 || ! $this->uploadedFacultyLoadSummaryOverlapsRange($summary, $dateFrom, $dateTo)) {
+                    continue;
+                }
+
+                $summaryNumber = trim((string) ($summary['employee_number'] ?? ''));
+
+                if ($summaryNumber !== ''
+                    && ! EmployeeNumberMatch::same($summaryNumber, $localNumber)
+                    && ! EmployeeNumberMatch::same($summaryNumber, $skolarisNumber)) {
+                    continue;
+                }
+
+                try {
+                    $upload = $this->getUploadedFacultyLoad($uploadId);
+                } catch (Throwable $exception) {
+                    Log::warning('Uploaded faculty loading detail skipped', [
+                        'upload_id' => $uploadId,
+                        'employee_number' => $localNumber,
+                        'message' => $exception->getMessage(),
+                    ]);
+
+                    continue;
+                }
+
+                $uploadNumber = trim((string) ($upload['employee_number'] ?? ''));
+
+                if ($uploadNumber !== ''
+                    && ! EmployeeNumberMatch::same($uploadNumber, $localNumber)
+                    && ! EmployeeNumberMatch::same($uploadNumber, $skolarisNumber)) {
+                    continue;
+                }
+
+                $items = is_array($upload['items'] ?? null) ? $upload['items'] : [];
+                $employeeIdByFacultyLabel = $this->skolarisEmployeeIdsByUploadedFacultyLabels($items, $skolarisEmployeeId);
+
+                foreach ($items as $item) {
+                    if (! is_array($item) || ($item['row_type'] ?? '') !== 'subject') {
+                        continue;
+                    }
+
+                    if ($this->uploadedFacultyItemMatchesEmployee(
+                        $item,
+                        $localNumber,
+                        $skolarisNumber,
+                        $skolarisEmployeeId,
+                        $employeeIdByFacultyLabel,
+                    )) {
+                        $matches[] = [
+                            'upload' => $upload,
+                            'item' => $item,
+                        ];
+                    }
+                }
+        }
+
+        return $matches;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function cachedUploadedFacultyLoadSummaries(?string $parseStatus = 'parsed'): array
+    {
+        static $cache = [];
+
+        $cacheKey = $parseStatus ?? 'all';
+
+        if (isset($cache[$cacheKey])) {
+            return $cache[$cacheKey];
+        }
+
+        $summaries = [];
+        $page = 1;
+        $lastPage = 1;
+
+        do {
+            $payload = $this->listUploadedFacultyLoads(page: $page, perPage: 100, parseStatus: $parseStatus);
+            $lastPage = max(1, (int) ($payload['meta']['last_page'] ?? 1));
+
+            foreach ($payload['data'] as $summary) {
+                if (is_array($summary)) {
+                    $summaries[] = $summary;
+                }
+            }
+
+            $page++;
+        } while ($page <= $lastPage && $page <= 100);
+
+        return $cache[$cacheKey] = $summaries;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @param  array<string, int>  $employeeIdByFacultyLabel
+     */
+    private function uploadedFacultyItemMatchesEmployee(
+        array $item,
+        string $localEmployeeNumber,
+        string $skolarisEmployeeNumber,
+        int $skolarisEmployeeId,
+        array $employeeIdByFacultyLabel,
+    ): bool {
+        $itemNumber = trim((string) ($item['employee_number'] ?? ''));
+
+        if ($itemNumber !== '') {
+            return EmployeeNumberMatch::same($itemNumber, $localEmployeeNumber)
+                || EmployeeNumberMatch::same($itemNumber, $skolarisEmployeeNumber);
+        }
+
+        $itemEmployeeId = (int) ($item['employee_id'] ?? 0);
+
+        $label = trim((string) ($item['faculty_name'] ?? ''));
+
+        if ($itemEmployeeId <= 0 && $label !== '') {
+            $itemEmployeeId = (int) ($employeeIdByFacultyLabel[$label] ?? 0);
+        }
+
+        if ($itemEmployeeId <= 0) {
+            return false;
+        }
+
+        return $itemEmployeeId === $skolarisEmployeeId;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<string, int> faculty_name => employees.employee_id
+     */
+    private function skolarisEmployeeIdsByUploadedFacultyLabels(array $items, int $preferSkolarisEmployeeId): array
+    {
+        $labels = [];
+
+        foreach ($items as $item) {
+            if (! is_array($item) || ($item['row_type'] ?? '') !== 'subject') {
+                continue;
+            }
+
+            if ((int) ($item['employee_id'] ?? 0) > 0) {
+                continue;
+            }
+
+            $label = trim((string) ($item['faculty_name'] ?? ''));
+
+            if ($label !== '') {
+                $labels[$label] = true;
+            }
+        }
+
+        $map = [];
+
+        foreach (array_keys($labels) as $label) {
+            $resolvedId = $this->resolveSkolarisEmployeeIdForFacultyLabel($label, $preferSkolarisEmployeeId);
+
+            if ($resolvedId > 0 && $resolvedId === $preferSkolarisEmployeeId) {
+                $map[$label] = $resolvedId;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * Map a parsed PDF faculty label to Skolaris employees.employee_id (HR directory).
+     */
+    private function resolveSkolarisEmployeeIdForFacultyLabel(string $facultyName, int $preferSkolarisEmployeeId = 0): int
+    {
+        static $cache = [];
+
+        if ($facultyName === '') {
+            return 0;
+        }
+
+        $cacheKey = $facultyName.'|'.$preferSkolarisEmployeeId;
+
+        if (isset($cache[$cacheKey])) {
+            return $cache[$cacheKey];
+        }
+
+        foreach ($this->employeeSearchTermsFromFacultyLabel($facultyName) as $term) {
+            try {
+                $response = $this->request('get', '/employees', [
+                    'search' => $term,
+                    'per_page' => 30,
+                    'page' => 1,
+                ]);
+            } catch (Throwable) {
+                continue;
+            }
+
+            $rows = $response->json('data.data') ?? $response->json('data') ?? [];
+
+            if (! is_array($rows) || $rows === []) {
+                continue;
+            }
+
+            if ($preferSkolarisEmployeeId > 0) {
+                foreach ($rows as $row) {
+                    if (! is_array($row)) {
+                        continue;
+                    }
+
+                    if ((int) ($row['employee_id'] ?? 0) === $preferSkolarisEmployeeId) {
+                        return $cache[$cacheKey] = $preferSkolarisEmployeeId;
+                    }
+                }
+            }
+
+            if (count($rows) === 1 && is_array($rows[0])) {
+                return $cache[$cacheKey] = (int) ($rows[0]['employee_id'] ?? 0);
+            }
+        }
+
+        return $cache[$cacheKey] = 0;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function employeeSearchTermsFromFacultyLabel(string $facultyName): array
+    {
+        $normalized = preg_replace('/[^A-Za-z\s]/', ' ', $facultyName) ?? '';
+        $parts = preg_split('/\s+/', trim($normalized)) ?: [];
+        $terms = [];
+
+        foreach ($parts as $part) {
+            if (strlen($part) >= 4) {
+                $terms[] = $part;
+            }
+        }
+
+        if ($parts !== []) {
+            $terms[] = end($parts);
+        }
+
+        return array_values(array_unique(array_filter($terms)));
+    }
+
+    /**
+     * @param  array<string, mixed>  $summary
+     */
+    private function uploadedFacultyLoadSummaryOverlapsRange(array $summary, string $dateFrom, string $dateTo): bool
+    {
+        $rangeStart = trim((string) ($summary['period_start'] ?? ''));
+        $rangeEnd = trim((string) ($summary['period_end'] ?? ''));
+
+        if ($rangeStart === '' || $rangeEnd === '') {
+            return true;
+        }
+
+        try {
+            $start = CarbonImmutable::parse($rangeStart);
+            $end = CarbonImmutable::parse($rangeEnd);
+            $from = CarbonImmutable::parse($dateFrom);
+            $to = CarbonImmutable::parse($dateTo);
+        } catch (Throwable) {
+            return true;
+        }
+
+        return $start->lte($to) && $end->gte($from);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function getUploadedFacultyLoad(int $uploadId): array
     {
+        static $cache = [];
+
+        if (isset($cache[$uploadId])) {
+            return $cache[$uploadId];
+        }
+
         $response = $this->request('get', '/pulse-uploaded-faculty-loading/'.$uploadId);
         $data = $response->json('data');
 
@@ -511,7 +1050,7 @@ class SkolarisApiService
             throw new RuntimeException('Uploaded faculty load #'.$uploadId.' was not found in Skolaris.');
         }
 
-        return $data;
+        return $cache[$uploadId] = $data;
     }
 
     public function downloadUploadedFacultyLoadBinary(int $uploadId): string
@@ -600,6 +1139,122 @@ class SkolarisApiService
         $employee = $response->json('data.employee');
 
         return is_array($employee) ? $employee : [];
+    }
+
+    /**
+     * Loading Attendance for one Skolaris HR employee — match path by employees.employee_id.
+     *
+     * @return array{logs: array<int, array<string, mixed>>, source: string|null}
+     */
+    public function timekeepingEmployeeAttendance(
+        int $skolarisEmployeeId,
+        string $dateFrom,
+        string $dateTo,
+    ): array {
+        if ($skolarisEmployeeId <= 0) {
+            return ['logs' => [], 'source' => null];
+        }
+
+        $params = [
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+        ];
+
+        $timeout = $this->employeeLoadApiTimeout();
+
+        try {
+            if ($this->usesPulseApiKey()) {
+                $response = $this->pulseApiRequest(
+                    'get',
+                    '/timekeeping/employees/'.$skolarisEmployeeId.'/attendance',
+                    $params,
+                    $timeout,
+                );
+            } else {
+                $response = $this->request(
+                    'get',
+                    '/employees/'.$skolarisEmployeeId.'/timekeeping-attendance',
+                    $params,
+                    $timeout,
+                );
+            }
+        } catch (Throwable $exception) {
+            Log::warning('Skolaris timekeeping attendance skipped during teaching load pull', [
+                'skolaris_employee_id' => $skolarisEmployeeId,
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return ['logs' => [], 'source' => null];
+        }
+
+        $logs = $response->json('data.logs') ?? [];
+        $source = $response->json('data.source');
+
+        return [
+            'logs' => is_array($logs) ? array_values(array_filter($logs, 'is_array')) : [],
+            'source' => is_string($source) ? $source : null,
+        ];
+    }
+
+    /**
+     * Parallel Employee Attendance for many Skolaris employee ids.
+     *
+     * @param  array<int, int>  $skolarisEmployeeIds
+     * @return array<int, array<int, array<string, mixed>>>
+     */
+    public function timekeepingEmployeeAttendanceMany(array $skolarisEmployeeIds, string $dateFrom, string $dateTo): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $skolarisEmployeeIds), fn (int $id) => $id > 0)));
+        $out = [];
+
+        foreach ($ids as $id) {
+            $out[$id] = [];
+        }
+
+        if ($ids === [] || ! $this->usesPulseApiKey()) {
+            foreach ($ids as $id) {
+                $out[$id] = $this->timekeepingEmployeeAttendance($id, $dateFrom, $dateTo)['logs'];
+            }
+
+            return $out;
+        }
+
+        $apiKey = EncryptedEnv::reveal((string) config('skolaris.pulse_api_key'));
+        $baseUrl = rtrim((string) config('skolaris.pulse_api_base_url'), '/');
+        $timeout = $this->employeeLoadApiTimeout();
+
+        $responses = Http::pool(function (Pool $pool) use ($ids, $dateFrom, $dateTo, $apiKey, $baseUrl, $timeout) {
+            $requests = [];
+
+            foreach ($ids as $id) {
+                $requests[] = $pool->as((string) $id)
+                    ->baseUrl($baseUrl)
+                    ->acceptJson()
+                    ->timeout($timeout)
+                    ->withHeaders(['X-API-Key' => $apiKey])
+                    ->get('/timekeeping/employees/'.$id.'/attendance', [
+                        'date_from' => $dateFrom,
+                        'date_to' => $dateTo,
+                    ]);
+            }
+
+            return $requests;
+        });
+
+        foreach ($ids as $id) {
+            $response = $responses[(string) $id] ?? null;
+
+            if (! $response instanceof Response || $response->failed()) {
+                continue;
+            }
+
+            $logs = $response->json('data.logs') ?? [];
+            $out[$id] = is_array($logs) ? array_values(array_filter($logs, 'is_array')) : [];
+        }
+
+        return $out;
     }
 
     /**

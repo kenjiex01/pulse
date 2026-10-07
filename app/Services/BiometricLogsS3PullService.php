@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\RawTimekeepingInandout;
 use App\Models\RawTimekeepingTransaction;
 use App\Models\User;
+use App\Support\PhpExecutionTime;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -657,8 +658,7 @@ class BiometricLogsS3PullService
 
     private function prepareLongRunningS3(): void
     {
-        @set_time_limit(0);
-        @ini_set('max_execution_time', '0');
+        PhpExecutionTime::ensureAtLeast(86400);
     }
 
     private function s3FailureMessage(string $action, Throwable $exception): string

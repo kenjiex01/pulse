@@ -38,11 +38,26 @@ post_kb="$(to_kb "$post_raw")"
 
 echo "PHP upload_max_filesize: ${upload_raw} (${upload_kb} KB)"
 echo "PHP post_max_size:       ${post_raw} (${post_kb} KB)"
-echo "Pulse app requires:      upload >= ${REQUIRED_UPLOAD_KB} KB (${REQUIRED_UPLOAD_RAW}), post >= ${REQUIRED_POST_KB} KB (${REQUIRED_POST_RAW})"
+read -r REQUIRED_SQL_KB REQUIRED_SQL_UPLOAD_RAW REQUIRED_SQL_POST_RAW < <(
+    php -r "
+        require '$ROOT/vendor/autoload.php';
+        \$app = require '$ROOT/bootstrap/app.php';
+        \$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+        echo (int) config('uploads.sql_restore_max_kb') . ' ';
+        echo config('uploads.php_ini.upload_max_filesize') . ' ';
+        echo config('uploads.php_ini.post_max_size') . PHP_EOL;
+    "
+)
 
-if (( upload_kb < REQUIRED_UPLOAD_KB || post_kb < REQUIRED_POST_KB )); then
+REQUIRED_SQL_UPLOAD_KB="$(to_kb "$REQUIRED_SQL_UPLOAD_RAW")"
+REQUIRED_SQL_POST_KB="$(to_kb "$REQUIRED_SQL_POST_RAW")"
+
+echo "Pulse app requires:      upload >= ${REQUIRED_UPLOAD_KB} KB (${REQUIRED_UPLOAD_RAW}), post >= ${REQUIRED_POST_KB} KB (${REQUIRED_POST_RAW})"
+echo "SQL restore requires:    upload >= ${REQUIRED_SQL_UPLOAD_KB} KB (${REQUIRED_SQL_UPLOAD_RAW}), post >= ${REQUIRED_SQL_POST_KB} KB (${REQUIRED_SQL_POST_RAW}) (max ${REQUIRED_SQL_KB} KB file)"
+
+if (( upload_kb < REQUIRED_UPLOAD_KB || post_kb < REQUIRED_POST_KB || upload_kb < REQUIRED_SQL_UPLOAD_KB || post_kb < REQUIRED_SQL_POST_KB )); then
     echo
-    echo "FAIL: PHP limits are too low for payroll uploads."
+    echo "FAIL: PHP limits are too low for payroll or SQL restore uploads."
     echo "Fix (Homebrew PHP example):"
     echo "  mkdir -p /opt/homebrew/etc/php/8.5/conf.d"
     echo "  cp config/php-upload-limits.ini /opt/homebrew/etc/php/8.5/conf.d/99-pulse-uploads.ini"

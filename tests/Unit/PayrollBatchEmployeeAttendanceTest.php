@@ -12,6 +12,8 @@ use App\Models\PayrollBatchStatus;
 use App\Models\PayrollCalendar;
 use App\Models\PayrollIncome;
 use App\Models\PayType;
+use App\Models\RawEmployeeLoadEntry;
+use App\Models\RawEmployeeLoadTransaction;
 use App\Models\User;
 use App\Support\PayrollBatchEmployeeAttendance;
 use Database\Seeders\DatabaseSeeder;
@@ -45,12 +47,34 @@ class PayrollBatchEmployeeAttendanceTest extends TestCase
         $this->assertFalse(PayrollBatchEmployeeAttendance::isBelowHalfPayrollPeriod($this->refreshDetail($detail)));
     }
 
-    public function test_faculty_uses_hours_for_half_period_check(): void
+    public function test_faculty_expected_days_are_teaching_load_dates_not_calendar_days(): void
     {
-        $detail = $this->makeDetail(faculty: true, daysPerPeriod: 11.0, hoursPerDay: 8.0);
-        $this->addBascIncome($detail, days: 11.0, hours: 40.0);
+        // 8 class dates in the cutoff. Half is 4. Calendar length is not the threshold.
+        $below = $this->makeDetail(faculty: true, daysPerPeriod: 11.0, hoursPerDay: 6.0);
+        $this->addTeachingLoadDays($below, 8);
+        $this->addBascIncome($below, days: 3.0, hours: 6.0);
 
-        $this->assertTrue(PayrollBatchEmployeeAttendance::isBelowHalfPayrollPeriod($this->refreshDetail($detail)));
+        $refreshed = $this->refreshDetail($below);
+        $this->assertSame(8.0, PayrollBatchEmployeeAttendance::expectedFacultyDays($refreshed));
+        $this->assertTrue(PayrollBatchEmployeeAttendance::isBelowHalfPayrollPeriod($refreshed));
+
+        $met = $this->makeDetail(faculty: true, daysPerPeriod: 11.0, hoursPerDay: 6.0, payPeriod: 2);
+        $this->addTeachingLoadDays($met, 8);
+        $this->addBascIncome($met, days: 8.0, hours: 18.0);
+
+        $refreshed = $this->refreshDetail($met);
+        $this->assertSame(8.0, PayrollBatchEmployeeAttendance::expectedFacultyDays($refreshed));
+        $this->assertFalse(PayrollBatchEmployeeAttendance::isBelowHalfPayrollPeriod($refreshed));
+    }
+
+    public function test_faculty_with_zero_basic_and_no_loads_stays_below_half(): void
+    {
+        $detail = $this->makeDetail(faculty: true, daysPerPeriod: 11.0, hoursPerDay: 8.0, payPeriod: 3);
+        $this->addBascIncome($detail, days: 0.0, hours: 0.0);
+
+        $refreshed = $this->refreshDetail($detail);
+        $this->assertNull(PayrollBatchEmployeeAttendance::expectedFacultyDays($refreshed));
+        $this->assertTrue(PayrollBatchEmployeeAttendance::isBelowHalfPayrollPeriod($refreshed));
     }
 
     public function test_attendance_days_fallback_when_no_basc_income(): void
@@ -168,6 +192,26 @@ class PayrollBatchEmployeeAttendanceTest extends TestCase
             'incomes.incomeType',
             'attendanceDays',
         ]);
+    }
+
+    private function addTeachingLoadDays(PayrollBatchDetail $detail, int $days): void
+    {
+        $transaction = RawEmployeeLoadTransaction::query()->create([
+            'batch_no' => 1,
+            'uploaded_by_id' => User::query()->firstOrFail()->id,
+        ]);
+
+        $date = $detail->payrollBatch->payrollCalendar->dt_from->copy()->startOfDay();
+
+        for ($i = 0; $i < $days; $i++) {
+            RawEmployeeLoadEntry::query()->create([
+                'employee_load_transaction_id' => $transaction->employee_load_transaction_id,
+                'employee_id' => $detail->employee_id,
+                'session_date' => $date->toDateString(),
+                'total_hours' => 1.5,
+            ]);
+            $date = $date->addDay();
+        }
     }
 
     private function addBascIncome(PayrollBatchDetail $detail, float $days, float $hours): void

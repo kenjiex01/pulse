@@ -6,12 +6,17 @@ use App\Models\Employee;
 use App\Models\RawEmployeeLoadEntry;
 use App\Models\RawEmployeeLoadTransaction;
 use App\Models\TeachingLoadPullBatch;
+use App\Models\TeachingLoadPullBatchEmployee;
 use App\Models\TeachingLoadSession;
 use App\Models\TeachingLoadSyncStatus;
 use App\Models\User;
+use App\Support\EmployeeNumberMatch;
+use App\Support\PhpExecutionTime;
 use App\Support\SkolarisCheckerLoadStatus;
 use App\Support\SkolarisLoadSessionTimes;
+use App\Support\SkolarisScheduleWeekdays;
 use App\Support\TimeLogs;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +28,8 @@ use Throwable;
 class TeachingLoadPullService
 {
     private const CACHE_PREFIX = 'teaching_load_pull:';
+
+    private const CANCEL_KEY = 'teaching_load_pull:cancel';
 
     private const CACHE_TTL_MINUTES = 30;
 
@@ -55,13 +62,15 @@ class TeachingLoadPullService
             throw new RuntimeException('One or more selected employees are not eligible for teaching load pull.');
         }
 
+        Cache::forget(self::CANCEL_KEY);
+
         $token = Str::uuid()->toString();
 
         $pullBatch = TeachingLoadPullBatch::query()->create([
             'batch_no' => ((int) TeachingLoadPullBatch::query()->max('batch_no')) + 1,
             'date_from' => $dateFrom,
             'date_to' => $dateTo,
-            'employee_count' => 0,
+            'employee_count' => count($eligibleIds),
             'records_count' => 0,
             'pulled_by_id' => $user->id,
             'pulled_at' => now(),
@@ -77,6 +86,15 @@ class TeachingLoadPullService
             'uploaded_by_id' => $user->id,
             'dt_uploaded' => now(),
         ]);
+
+        foreach ($eligibleIds as $selectedEmployeeId) {
+            TeachingLoadPullBatchEmployee::query()->create([
+                'teaching_load_pull_batch_id' => $pullBatch->teaching_load_pull_batch_id,
+                'employee_id' => $selectedEmployeeId,
+                'rows_count' => 0,
+                'status' => 'pending',
+            ]);
+        }
 
         Cache::put(self::CACHE_PREFIX.$token, [
             'pull_batch_id' => $pullBatch->teaching_load_pull_batch_id,
@@ -110,7 +128,19 @@ class TeachingLoadPullService
      */
     public function processNext(string $token): array
     {
+        PhpExecutionTime::ensureAtLeast(max(30, (int) config('employee_load.pull_step_time_limit_seconds', 900)));
+
         $job = $this->getJob($token);
+
+        if (Cache::get(self::CANCEL_KEY)) {
+            $job['status'] = 'cancelled';
+            Cache::put(self::CACHE_PREFIX.$token, $job, now()->addMinutes(self::CACHE_TTL_MINUTES));
+
+            return $this->progressPayload($job, true, [
+                'sync_status' => 'error',
+                'error' => 'Pull cancelled.',
+            ]);
+        }
 
         if (($job['status'] ?? '') === 'done') {
             return $this->progressPayload($job, true);
@@ -135,58 +165,97 @@ class TeachingLoadPullService
             return $this->progressPayload($job, true);
         }
 
-        $employeeId = (int) $remaining[0];
-        $employee = Employee::query()->find($employeeId);
+        $batchSize = max(1, (int) config('employee_load.pull_employees_per_step', 10));
+        $slice = array_slice($remaining, 0, $batchSize);
+        $employees = Employee::query()->whereIn('employee_id', $slice)->get()->keyBy('employee_id');
+        $eligible = array_fill_keys(TimeLogs::eligibleEmployeeIds($slice), true);
+        $skolarisIds = [];
 
-        if ($employee === null || ! in_array($employeeId, TimeLogs::eligibleEmployeeIds([$employeeId]), true)) {
-            $job['errors'][] = [
-                'employee_id' => $employeeId,
-                'message' => 'Employee is not eligible for teaching load pull.',
-            ];
+        foreach ($slice as $employeeId) {
+            $employee = $employees->get($employeeId);
+
+            if ($employee === null || ! isset($eligible[$employeeId])) {
+                continue;
+            }
+
+            $skolarisIds[$employeeId] = (int) ($this->skolaris->resolveSkolarisEmployeeRecord($employee)['employee_id'] ?? 0);
+        }
+
+        $logsBySkolarisId = $this->skolaris->timekeepingEmployeeAttendanceMany(
+            array_values($skolarisIds),
+            $job['date_from'],
+            $job['date_to'],
+        );
+
+        $stepRecords = 0;
+        $lastNumber = null;
+        $lastStatus = null;
+        $lastError = null;
+
+        foreach ($slice as $employeeId) {
+            $employee = $employees->get($employeeId);
+
+            if ($employee === null || ! isset($eligible[$employeeId])) {
+                $job['errors'][] = [
+                    'employee_id' => $employeeId,
+                    'message' => 'Employee is not eligible for teaching load pull.',
+                ];
+                $job['completed'][] = $employeeId;
+                $lastNumber = $employee?->employee_number;
+                $lastStatus = 'error';
+                $lastError = 'Employee is not eligible for teaching load pull.';
+
+                continue;
+            }
+
+            $skolarisId = (int) ($skolarisIds[$employeeId] ?? 0);
+            $prefetched = $skolarisId > 0 ? ($logsBySkolarisId[$skolarisId] ?? []) : null;
+
+            try {
+                $result = $this->pullEmployee(
+                    $employee,
+                    $job['date_from'],
+                    $job['date_to'],
+                    (int) $job['user_id'],
+                    (int) ($job['pull_batch_id'] ?? 0),
+                    (int) ($job['employee_load_transaction_id'] ?? 0),
+                    $prefetched,
+                );
+                $error = null;
+            } catch (Throwable $exception) {
+                $result = [
+                    'records_count' => 0,
+                    'sync_status' => 'error',
+                ];
+                $error = $exception->getMessage();
+                $job['errors'][] = [
+                    'employee_id' => $employeeId,
+                    'employee_number' => $employee->employee_number,
+                    'message' => $error,
+                ];
+            }
+
             $job['completed'][] = $employeeId;
-            $job['current'] = count($job['completed']);
-            Cache::put(self::CACHE_PREFIX.$token, $job, now()->addMinutes(self::CACHE_TTL_MINUTES));
-
-            return $this->progressPayload($job, false, [
-                'employee_number' => $employee?->employee_number,
-                'records_count' => 0,
-                'sync_status' => 'error',
-                'error' => 'Employee is not eligible for teaching load pull.',
-            ]);
-        }
-
-        try {
-            $result = $this->pullEmployee(
-                $employee,
-                $job['date_from'],
-                $job['date_to'],
-                (int) $job['user_id'],
+            $this->recordBatchEmployee(
                 (int) ($job['pull_batch_id'] ?? 0),
-                (int) ($job['employee_load_transaction_id'] ?? 0),
+                $employeeId,
+                (int) ($result['records_count'] ?? 0),
+                (string) ($result['sync_status'] ?? 'empty'),
             );
-            $error = null;
-        } catch (RuntimeException $exception) {
-            $result = [
-                'records_count' => 0,
-                'sync_status' => 'error',
-            ];
-            $error = $exception->getMessage();
-            $job['errors'][] = [
-                'employee_id' => $employeeId,
-                'employee_number' => $employee->employee_number,
-                'message' => $error,
-            ];
+            $stepRecords += (int) ($result['records_count'] ?? 0);
+            $lastNumber = $employee->employee_number;
+            $lastStatus = $result['sync_status'] ?? null;
+            $lastError = $error;
+
+            if (($result['sync_status'] ?? '') === 'unchanged') {
+                $job['unchanged_count'] = (int) ($job['unchanged_count'] ?? 0) + 1;
+            } elseif (($result['sync_status'] ?? '') === 'updated') {
+                $job['updated_count'] = (int) ($job['updated_count'] ?? 0) + 1;
+                $job['records_count'] = (int) ($job['records_count'] ?? 0) + (int) ($result['records_count'] ?? 0);
+            }
         }
 
-        $job['completed'][] = $employeeId;
         $job['current'] = count($job['completed']);
-
-        if (($result['sync_status'] ?? '') === 'unchanged') {
-            $job['unchanged_count'] = (int) ($job['unchanged_count'] ?? 0) + 1;
-        } elseif (($result['sync_status'] ?? '') === 'updated') {
-            $job['updated_count'] = (int) ($job['updated_count'] ?? 0) + 1;
-            $job['records_count'] = (int) ($job['records_count'] ?? 0) + (int) ($result['records_count'] ?? 0);
-        }
 
         if ($job['current'] >= $job['total']) {
             $job['status'] = 'done';
@@ -202,11 +271,29 @@ class TeachingLoadPullService
         Cache::put(self::CACHE_PREFIX.$token, $job, now()->addMinutes(self::CACHE_TTL_MINUTES));
 
         return $this->progressPayload($job, ($job['status'] ?? '') === 'done', [
-            'employee_number' => $employee->employee_number,
-            'records_count' => (int) ($result['records_count'] ?? 0),
-            'sync_status' => $result['sync_status'] ?? null,
-            'error' => $error,
+            'employee_number' => count($slice) > 1 ? count($slice).' employees (last '.$lastNumber.')' : $lastNumber,
+            'records_count' => $stepRecords,
+            'sync_status' => $lastStatus,
+            'error' => $lastError,
         ]);
+    }
+
+    private function recordBatchEmployee(int $pullBatchId, int $employeeId, int $rowsCount, string $status): void
+    {
+        if ($pullBatchId <= 0 || $employeeId <= 0) {
+            return;
+        }
+
+        TeachingLoadPullBatchEmployee::query()->updateOrCreate(
+            [
+                'teaching_load_pull_batch_id' => $pullBatchId,
+                'employee_id' => $employeeId,
+            ],
+            [
+                'rows_count' => max(0, $rowsCount),
+                'status' => $status,
+            ],
+        );
     }
 
     /**
@@ -290,6 +377,7 @@ class TeachingLoadPullService
         int $userId,
         int $pullBatchId,
         int $employeeLoadTransactionId,
+        ?array $prefetchedLogs = null,
     ): array {
         $employeeNumber = trim((string) $employee->employee_number);
 
@@ -297,27 +385,92 @@ class TeachingLoadPullService
             throw new RuntimeException('Employee has no employee number.');
         }
 
-        $rows = $this->skolaris->dailyLoads($dateFrom, $dateTo, [$employeeNumber]);
-        $employeePayload = null;
+        PhpExecutionTime::ensureAtLeast(max(30, (int) config('employee_load.pull_step_time_limit_seconds', 900)));
 
-        foreach ($rows as $row) {
-            if (trim((string) ($row['employee_number'] ?? '')) === $employeeNumber) {
-                $employeePayload = $row;
-                break;
-            }
+        $skolarisEmployee = $prefetchedLogs === null
+            ? $this->skolaris->resolveSkolarisEmployeeRecord($employee)
+            : null;
+        $skolarisEmployeeId = (int) ($skolarisEmployee['employee_id'] ?? 0);
+        $skolarisNumber = trim((string) ($skolarisEmployee['employee_number'] ?? ''));
+
+        $incoming = [];
+
+        if ($prefetchedLogs !== null) {
+            $incoming = $this->normalizeIncomingLoads($prefetchedLogs, $employeeNumber);
+        } elseif ($skolarisEmployeeId > 0) {
+            $attendance = $this->skolaris->timekeepingEmployeeAttendance(
+                $skolarisEmployeeId,
+                $dateFrom,
+                $dateTo,
+            );
+            $incoming = $this->normalizeIncomingLoads($attendance['logs'], $employeeNumber);
         }
 
-        $incoming = $this->normalizeIncomingLoads(
-            is_array($employeePayload['loads'] ?? null) ? $employeePayload['loads'] : [],
-            $employeeNumber,
-        );
+        if ($incoming === [] && $prefetchedLogs === null) {
+            $dailyLoadNumbers = array_values(array_unique(array_filter([
+                $employeeNumber,
+                $skolarisNumber,
+            ])));
 
-        $incoming = $this->mergeAttendanceCheckerLoads(
-            $employeeNumber,
-            $dateFrom,
-            $dateTo,
-            $incoming,
-        );
+            $rows = $this->skolaris->dailyLoads($dateFrom, $dateTo, $dailyLoadNumbers);
+            $employeePayload = null;
+
+            foreach ($rows as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+
+                $rowNumber = trim((string) ($row['employee_number'] ?? ''));
+
+                if ($rowNumber === $employeeNumber
+                    || ($skolarisNumber !== '' && EmployeeNumberMatch::same($rowNumber, $skolarisNumber))) {
+                    $employeePayload = $row;
+                    break;
+                }
+            }
+
+            $incoming = $this->normalizeIncomingLoads(
+                is_array($employeePayload['loads'] ?? null) ? $employeePayload['loads'] : [],
+                $employeeNumber,
+            );
+        }
+
+        $useSlowFallbacks = (bool) config('employee_load.pull_slow_fallbacks', false);
+
+        if ($incoming === [] && $useSlowFallbacks) {
+            $incoming = $this->fetchUploadedFacultyLoadingSchedules(
+                $employee,
+                $dateFrom,
+                $dateTo,
+            );
+        }
+
+        if ($incoming !== [] && $prefetchedLogs === null) {
+            $incoming = $this->mergeAttendanceCheckerLoads(
+                $employeeNumber,
+                $dateFrom,
+                $dateTo,
+                $incoming,
+            );
+        } elseif ($useSlowFallbacks && $prefetchedLogs === null) {
+            $incoming = $this->mergeAttendanceCheckerLoads(
+                $employeeNumber,
+                $dateFrom,
+                $dateTo,
+                $incoming,
+            );
+        }
+
+        if ($incoming === []) {
+            $suffix = $useSlowFallbacks
+                ? ' Also tried Attendance Checker and Uploaded Faculty Loading.'
+                : ' Run Process Attendance on Skolaris for that faculty and date range, or set EMPLOYEE_LOAD_PULL_SLOW_FALLBACKS=true for PDF/checker fallbacks.';
+
+            throw new RuntimeException(
+                'No teaching load in Skolaris Employee Attendance for this date range (timekeeping/employees/{employee_id}/attendance).'
+                .$suffix
+            );
+        }
 
         $existing = TeachingLoadSession::query()
             ->where('employee_id', $employee->employee_id)
@@ -393,7 +546,6 @@ class TeachingLoadPullService
                     ->whereKey($pullBatchId)
                     ->update([
                         'records_count' => DB::raw('records_count + '.$insertedSessions),
-                        'employee_count' => DB::raw('employee_count + 1'),
                     ]);
             }
 
@@ -691,6 +843,10 @@ class TeachingLoadPullService
         string $dateTo,
         array $loads,
     ): array {
+        if ($loads === []) {
+            return $this->fetchCheckerSchedulesForPeriod($employeeNumber, $dateFrom, $dateTo);
+        }
+
         try {
             $campusIds = $this->resolveAttendanceCheckerCampusIds($loads, $dateFrom);
         } catch (Throwable $exception) {
@@ -711,25 +867,247 @@ class TeachingLoadPullService
             $indexed[$this->attendanceCheckerLoadKey($load, $employeeNumber)] = $load;
         }
 
-        try {
-            $period = CarbonPeriod::create($dateFrom, $dateTo);
-        } catch (Throwable) {
+        $dates = array_values(array_unique(array_filter(array_map(
+            fn (array $load) => trim((string) ($load['session_date'] ?? '')),
+            $loads,
+        ))));
+        sort($dates);
+
+        if ($dates === []) {
             return $loads;
         }
 
+        $this->mergeCheckerSchedulesIntoIndex(
+            $indexed,
+            $employeeNumber,
+            $campusIds,
+            $dates,
+        );
+
+        return $this->sortNormalizedLoads(array_values($indexed));
+    }
+
+    /**
+     * When daily-loads returns nothing, build rows from Attendance Checker (same source as Skolaris checker UI).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function fetchCheckerSchedulesForPeriod(
+        string $employeeNumber,
+        string $dateFrom,
+        string $dateTo,
+    ): array {
+        $maxDays = max(1, (int) config('employee_load.max_template_days', 45));
+
+        try {
+            $period = CarbonPeriod::create($dateFrom, $dateTo);
+        } catch (Throwable $exception) {
+            Log::warning('Attendance checker period skipped during teaching load pull', [
+                'employee_number' => $employeeNumber,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        $indexed = [];
+        $dayCount = 0;
+
+        foreach ($period as $date) {
+            $dayCount++;
+
+            if ($dayCount > $maxDays) {
+                break;
+            }
+
+            $dateString = $date->toDateString();
+            $campusIds = $this->checkerCampusIdsWithSchedulesForEmployee($dateString, $employeeNumber);
+
+            if ($campusIds === []) {
+                continue;
+            }
+
+            $this->mergeCheckerSchedulesIntoIndex(
+                $indexed,
+                $employeeNumber,
+                $campusIds,
+                [$dateString],
+            );
+        }
+
+        return $this->sortNormalizedLoads(array_values($indexed));
+    }
+
+    /**
+     * Build session rows from Skolaris People360 Uploaded Faculty Loading (parsed PDF grid).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function fetchUploadedFacultyLoadingSchedules(
+        Employee $employee,
+        string $dateFrom,
+        string $dateTo,
+    ): array {
+        if (! config('employee_load.pull_uploaded_faculty_loading', true)) {
+            return [];
+        }
+
+        $employeeNumber = trim((string) $employee->employee_number);
+
+        try {
+            $subjectRows = $this->skolaris->uploadedFacultyLoadSubjectItemsForEmployee(
+                $employee,
+                $dateFrom,
+                $dateTo,
+            );
+        } catch (Throwable $exception) {
+            Log::warning('Uploaded faculty loading list skipped during teaching load pull', [
+                'employee_number' => $employeeNumber,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        if ($subjectRows === []) {
+            return [];
+        }
+
+        $indexed = [];
+        $sessionCap = max(500, (int) config('employee_load.max_template_days', 45) * 24);
+
+        foreach ($subjectRows as $row) {
+            $detail = is_array($row['upload'] ?? null) ? $row['upload'] : [];
+            $item = is_array($row['item'] ?? null) ? $row['item'] : [];
+            $defaultCampus = $this->normalizeText($detail['campus_name'] ?? null);
+
+            foreach ($this->expandUploadedFacultyLoadItem(
+                $item,
+                $employeeNumber,
+                $dateFrom,
+                $dateTo,
+                $detail,
+                $defaultCampus,
+            ) as $normalized) {
+                $key = $this->attendanceCheckerLoadKey($normalized, $employeeNumber);
+                $indexed[$key] = $normalized;
+
+                if (count($indexed) >= $sessionCap) {
+                    break 2;
+                }
+            }
+        }
+
+        return $this->sortNormalizedLoads(array_values($indexed));
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @param  array<string, mixed>  $upload
+     * @return array<int, array<string, mixed>>
+     */
+    private function expandUploadedFacultyLoadItem(
+        array $item,
+        string $employeeNumber,
+        string $dateFrom,
+        string $dateTo,
+        array $upload,
+        ?string $defaultCampus,
+    ): array {
+        $weekdays = SkolarisScheduleWeekdays::fromDayField($item['day'] ?? null);
+
+        if ($weekdays === []) {
+            return [];
+        }
+
+        $expandFrom = $dateFrom;
+        $expandTo = $dateTo;
+
+        foreach ([
+            $item['period_start'] ?? null,
+            $upload['period_start'] ?? null,
+        ] as $start) {
+            $start = trim((string) $start);
+
+            if ($start !== '' && $start > $expandFrom) {
+                $expandFrom = $start;
+            }
+        }
+
+        foreach ([
+            $item['period_end'] ?? null,
+            $upload['period_end'] ?? null,
+        ] as $end) {
+            $end = trim((string) $end);
+
+            if ($end !== '' && $end < $expandTo) {
+                $expandTo = $end;
+            }
+        }
+
+        if ($expandFrom > $expandTo) {
+            return [];
+        }
+
+        $classSchedule = $this->normalizeText($item['class_schedule'] ?? null);
+        $sessionTimes = SkolarisLoadSessionTimes::forEmployeeLoadEntry([
+            'class_schedule' => $classSchedule,
+        ]);
+
+        $statusCode = SkolarisCheckerLoadStatus::statusCodeFromChecker('', '');
+
+        $rows = [];
+
+        foreach (SkolarisScheduleWeekdays::datesInRange($expandFrom, $expandTo, $weekdays) as $sessionDate) {
+            $normalized = [
+                'session_date' => $sessionDate,
+                'employee_number' => $employeeNumber,
+                'skolaris_offering_id' => isset($item['item_id']) ? (int) $item['item_id'] : null,
+                'subject_code' => $this->normalizeText($item['subject_code'] ?? null),
+                'subject_name' => $this->normalizeText($item['title'] ?? null),
+                'section' => $this->normalizeText($item['section'] ?? null),
+                'campus_id' => null,
+                'campus_name' => $this->normalizeText($item['campus_name'] ?? $defaultCampus),
+                'room' => $this->normalizeText($item['room'] ?? null),
+                'schedule_day' => $this->normalizeText($item['day'] ?? null),
+                'class_schedule' => $classSchedule,
+                'time_in' => $sessionTimes['time_in'],
+                'time_out' => $sessionTimes['time_out'],
+                'total_hours' => null,
+                'total_render_hours' => null,
+                'status_code' => $statusCode,
+            ];
+
+            $rows[] = $normalized;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $indexed
+     * @param  array<int, int>  $campusIds
+     * @param  array<int, string>  $dates
+     */
+    private function mergeCheckerSchedulesIntoIndex(
+        array &$indexed,
+        string $employeeNumber,
+        array $campusIds,
+        array $dates,
+    ): void {
         foreach ($campusIds as $campusId) {
-            foreach ($period as $date) {
+            foreach ($dates as $dateString) {
                 try {
                     $payload = $this->skolaris->attendanceCheckerDaily(
-                        $campusId,
-                        $date->toDateString(),
+                        (int) $campusId,
+                        $dateString,
                         [$employeeNumber],
                     );
                 } catch (Throwable $exception) {
                     Log::warning('Attendance checker daily fetch skipped during teaching load pull', [
                         'employee_number' => $employeeNumber,
                         'campus_id' => $campusId,
-                        'date' => $date->toDateString(),
+                        'date' => $dateString,
                         'message' => $exception->getMessage(),
                     ]);
 
@@ -737,11 +1115,19 @@ class TeachingLoadPullService
                 }
 
                 foreach ($payload['schedules'] as $schedule) {
+                    if (! is_array($schedule)) {
+                        continue;
+                    }
+
                     if (trim((string) ($schedule['employee_number'] ?? '')) !== $employeeNumber) {
                         continue;
                     }
 
-                    $normalized = $this->normalizeAttendanceCheckerSchedule($schedule, $employeeNumber, $payload['campus'] ?? null);
+                    $normalized = $this->normalizeAttendanceCheckerSchedule(
+                        $schedule,
+                        $employeeNumber,
+                        $payload['campus'] ?? null,
+                    );
                     $key = $this->attendanceCheckerLoadKey($normalized, $employeeNumber);
 
                     if (isset($indexed[$key])) {
@@ -754,14 +1140,58 @@ class TeachingLoadPullService
                 }
             }
         }
+    }
 
-        $merged = array_values($indexed);
-        usort($merged, function (array $left, array $right): int {
+    /**
+     * @return array<int, int>
+     */
+    private function checkerCampusIdsWithSchedulesForEmployee(string $date, string $employeeNumber): array
+    {
+        try {
+            $campuses = $this->skolaris->attendanceCheckerCampuses($date, [$employeeNumber]);
+        } catch (Throwable $exception) {
+            Log::warning('Attendance checker campus lookup skipped during teaching load pull', [
+                'employee_number' => $employeeNumber,
+                'date' => $date,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        $ids = [];
+
+        foreach ($campuses as $campus) {
+            if (! is_array($campus)) {
+                continue;
+            }
+
+            if ((int) ($campus['schedule_count'] ?? 0) <= 0) {
+                continue;
+            }
+
+            $campusId = (int) ($campus['campus_id'] ?? 0);
+
+            if ($campusId > 0) {
+                $ids[] = $campusId;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $loads
+     * @return array<int, array<string, mixed>>
+     */
+    private function sortNormalizedLoads(array $loads): array
+    {
+        usort($loads, function (array $left, array $right): int {
             return [$left['session_date'], $left['skolaris_offering_id'] ?? 0, $left['time_in'] ?? '', $left['subject_code'] ?? '']
                 <=> [$right['session_date'], $right['skolaris_offering_id'] ?? 0, $right['time_in'] ?? '', $right['subject_code'] ?? ''];
         });
 
-        return $merged;
+        return $loads;
     }
 
     /**
@@ -799,7 +1229,7 @@ class TeachingLoadPullService
                 continue;
             }
 
-            if ($campusNames === [] || in_array($campusName, $campusNames, true)) {
+            if ($campusNames !== [] && in_array($campusName, $campusNames, true)) {
                 $resolved[] = $campusId;
             }
         }

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\PhpExecutionTime;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Throwable;
@@ -79,7 +80,7 @@ class LibreOfficeRuntimeInstaller
             throw new \RuntimeException('No LibreOffice download is configured for this platform.');
         }
 
-        @set_time_limit(0);
+        PhpExecutionTime::ensureAtLeast(86400);
 
         $runtimeRoot = $this->runtimeRoot();
         $downloadDir = storage_path('app/private/libreoffice-downloads');

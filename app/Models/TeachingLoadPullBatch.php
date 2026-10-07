@@ -47,6 +47,11 @@ class TeachingLoadPullBatch extends Model
         return $this->hasMany(TeachingLoadSession::class, "teaching_load_pull_batch_id", "teaching_load_pull_batch_id");
     }
 
+    public function members(): HasMany
+    {
+        return $this->hasMany(TeachingLoadPullBatchEmployee::class, "teaching_load_pull_batch_id", "teaching_load_pull_batch_id");
+    }
+
     public function formattedBatchNo(): string
     {
         return str_pad((string) $this->batch_no, 4, "0", STR_PAD_LEFT);

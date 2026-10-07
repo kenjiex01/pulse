@@ -5464,9 +5464,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
+        const startPullDefaultLabel = startBtn?.textContent?.trim() || 'Start Pull';
+
         const setPulling = (pulling) => {
             if (startBtn) {
                 startBtn.disabled = pulling;
+                startBtn.textContent = pulling ? 'Pulling…' : startPullDefaultLabel;
+                startBtn.setAttribute('aria-busy', pulling ? 'true' : 'false');
             }
             if (cancelBtn) {
                 cancelBtn.disabled = pulling;
@@ -5530,7 +5534,32 @@ document.addEventListener('DOMContentLoaded', () => {
             observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
         }
 
+        const readJsonResponse = async (response) => {
+            const text = await response.text();
+
+            if (text === '') {
+                return {};
+            }
+
+            try {
+                return JSON.parse(text);
+            } catch {
+                const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 180);
+                const detail = snippet !== '' ? `: ${snippet}` : '';
+
+                throw new Error(
+                    response.ok
+                        ? 'Invalid server response during teaching load pull.'
+                        : `Teaching load pull failed (HTTP ${response.status})${detail}`,
+                );
+            }
+        };
+
         startBtn?.addEventListener('click', async () => {
+            if (startBtn?.disabled) {
+                return;
+            }
+
             clearError();
 
             const employeeIds = [...root.querySelectorAll('[data-tl-employee-row]:checked')].map((el) => el.value);
@@ -5550,6 +5579,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            if (employeeIds.length > 50) {
+                const proceed = window.confirm(
+                    `Pull ${employeeIds.length} employees? Each person is one server step (~few seconds from Employee Attendance). Large batches take several minutes — consider smaller groups.`,
+                );
+                if (! proceed) {
+                    return;
+                }
+            }
+
             setPulling(true);
             progressPanel?.classList.remove('hidden');
 
@@ -5566,12 +5604,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         date_to: dateTo.value,
                         employee_ids: employeeIds,
                     }),
+                    signal: AbortSignal.timeout(120000),
                 });
 
-                const startPayload = await startResponse.json();
+                const startPayload = await readJsonResponse(startResponse);
 
                 if (!startResponse.ok || !startPayload.success) {
                     throw new Error(startPayload.message ?? 'Unable to start pull.');
+                }
+
+                const pullTotal = startPayload.total ?? 0;
+                if (progressLabel) {
+                    progressLabel.textContent = `0 / ${pullTotal}`;
                 }
 
                 let done = false;
@@ -5585,9 +5629,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             'X-CSRF-TOKEN': csrf,
                         },
                         body: JSON.stringify({ job_token: startPayload.token }),
+                        signal: AbortSignal.timeout(120000),
                     });
 
-                    const stepPayload = await stepResponse.json();
+                    const stepPayload = await readJsonResponse(stepResponse);
 
                     if (!stepResponse.ok || !stepPayload.success) {
                         throw new Error(stepPayload.message ?? 'Pull step failed.');
@@ -5626,7 +5671,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 window.location.href = reloadUrl;
             } catch (error) {
-                showError(error.message ?? 'Teaching load pull failed.');
+                const message = error?.message ?? '';
+                const timedOut = /max_execution_time|Maximum execution time|timed out|TimeoutError|AbortError/i.test(message)
+                    || error?.name === 'TimeoutError'
+                    || error?.name === 'AbortError';
+                const friendly = message === 'Load failed' || message === 'Failed to fetch' || timedOut
+                    ? 'Pull stopped. Click Cancel to close this window, then start again with fewer employees.'
+                    : (message || 'Teaching load pull failed.');
+                showError(friendly);
                 setPulling(false);
             }
         });
@@ -5634,6 +5686,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('[data-teaching-load-pull-root]').forEach(initTeachingLoadPull);
     document.querySelectorAll('[data-modal-auto-open] [data-teaching-load-pull-root]').forEach(initTeachingLoadPull);
+
+    document.querySelectorAll('[data-pull-batch-employees]').forEach((root) => {
+        const input = root.querySelector('[data-pull-batch-search]');
+        const empty = root.querySelector('[data-pull-batch-search-empty]');
+        if (! input) {
+            return;
+        }
+
+        input.addEventListener('input', () => {
+            const term = (input.value || '').trim().toLowerCase();
+            let visible = 0;
+
+            root.querySelectorAll('[data-pull-batch-row]').forEach((row) => {
+                const match = term === '' || (row.dataset.searchText || '').includes(term);
+                row.hidden = ! match;
+                if (match) {
+                    visible += 1;
+                }
+            });
+
+            empty?.classList.toggle('hidden', visible !== 0);
+        });
+    });
 
     const initBiometricS3PullForm = (form) => {
         if (! form || form.dataset.biometricS3PullBound === '1') {

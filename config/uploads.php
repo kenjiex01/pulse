@@ -11,7 +11,7 @@ return [
      * Laravel validation max (kilobytes) for uploaded database restore (.sql) files.
      * Database dumps are large; keep at or below php_ini.upload_max_filesize / post_max_size.
      */
-    'sql_restore_max_kb' => (int) env('SQL_RESTORE_MAX_KB', 262144), // 256 MB
+    'sql_restore_max_kb' => (int) env('SQL_RESTORE_MAX_KB', 524288), // 512 MB
 
     /**
      * PHP ini directives applied by NativePHP desktop builds (ProvidesPhpIni).
@@ -19,10 +19,11 @@ return [
      */
     'php_ini' => [
         // Sized for database restore (.sql) uploads, which are much larger than data uploads.
-        'upload_max_filesize' => env('PHP_UPLOAD_MAX_FILESIZE', '256M'),
-        'post_max_size' => env('PHP_POST_MAX_SIZE', '300M'),
-        'memory_limit' => env('PHP_MEMORY_LIMIT', '1024M'),
-        'max_execution_time' => env('PHP_MAX_EXECUTION_TIME', '0'),
+        'upload_max_filesize' => env('PHP_UPLOAD_MAX_FILESIZE', '512M'),
+        'post_max_size' => env('PHP_POST_MAX_SIZE', '600M'),
+        'memory_limit' => env('PHP_MEMORY_LIMIT', '2048M'),
+        // Do not use 0 — NativePHP / php -d max_execution_time=0 can cap scripts at 0 seconds.
+        'max_execution_time' => env('PHP_MAX_EXECUTION_TIME', '600'),
 
         // Desktop serves pages with `php -S`, which recompiles every PHP file per request.
         // OPcache (compiled into the bundled binary) keeps them in memory for the app session.

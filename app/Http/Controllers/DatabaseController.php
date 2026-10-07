@@ -8,6 +8,7 @@ use App\Services\DesktopCloudBackupService;
 use App\Services\People360LanBeacon;
 use App\Services\People360LanClient;
 use App\Services\SysLogService;
+use App\Support\PhpIniSize;
 use App\Support\People360LanProtocol;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,6 +37,8 @@ class DatabaseController extends Controller
             'lanError' => $lanError,
             'lanConnection' => session('people360_lan_database'),
             'lanFirewallReady' => People360LanBeacon::windowsFirewallReady(),
+            'sqlRestoreMaxKb' => PhpIniSize::effectiveSqlRestoreMaxKb(),
+            'sqlRestorePhpLimitActive' => PhpIniSize::sqlRestoreLimitedByPhpIni(),
         ]);
     }
 
@@ -191,7 +194,7 @@ class DatabaseController extends Controller
         }
 
         $validated = $request->validate([
-            'sql_file' => ['required', 'file', 'max:'.config('uploads.sql_restore_max_kb', 262144)],
+            'sql_file' => ['required', 'file', 'max:'.PhpIniSize::effectiveSqlRestoreMaxKb()],
             'confirm_replace' => ['accepted'],
         ]);
 

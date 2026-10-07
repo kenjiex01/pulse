@@ -226,7 +226,7 @@ class TimeLogs
             return TeachingLoadPullBatch::query()
                 ->with('pulledBy')
                 ->withCount('sessions as records_count')
-                ->withCount(['sessions as employee_count' => fn ($query) => $query->select(DB::raw('count(distinct employee_id)'))])
+                ->withCount('members as employee_count')
                 ->orderByDesc('pulled_at')
                 ->orderByDesc('teaching_load_pull_batch_id');
         }

@@ -38,7 +38,7 @@
             data-tl-employee-search
         >
         <p class="mt-1 text-xs text-gray-500">
-            People360 faculty with a matching employee number in Skolaris. Multi-select who to pull for the date range above. Attendance Checker marks (P/A/L/U/E/M) in Skolaris are included when present.
+            People360 faculty with an employee number. Pull matches Skolaris HR <strong>employees.employee_id</strong>, then loads the same data as Skolaris <strong>Employee Attendance</strong> (<code class="text-xs">/people360/timekeeping/{employee_id}/attendance</code> → Pulse API <code class="text-xs">timekeeping/employees/{id}/attendance</code>). Fallbacks only if that page would be empty: daily-loads, Attendance Checker, Uploaded Faculty Loading.
         </p>
     </div>
 
