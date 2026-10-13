@@ -87,15 +87,134 @@ document.addEventListener('DOMContentLoaded', () => {
         window.open(url, '_blank', 'noopener,noreferrer');
     };
 
-    const startPulseDesktopDownload = (url) => {
-        const frame = document.createElement('iframe');
-        frame.setAttribute('aria-hidden', 'true');
-        frame.style.cssText = 'position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none;';
-        frame.src = url;
-        document.body.appendChild(frame);
+    const filenameFromContentDisposition = (disposition) => {
+        const match = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
 
-        window.setTimeout(() => frame.remove(), 5000);
+        if (! match) {
+            return '';
+        }
+
+        return decodeURIComponent((match[1] || match[2] || '').trim());
     };
+
+    const triggerBrowserFileDownload = (blob, filename) => {
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = filename;
+        link.rel = 'noopener';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    };
+
+    const pulseDesktopDownloadFile = async (url, options = {}) => {
+        const loadingText = options.loadingText || 'Preparing download...';
+        const fallbackFilename = options.fallbackFilename || 'download';
+
+        pulseLoader.show(loadingText);
+
+        try {
+            const response = await fetch(url, {
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,application/octet-stream,*/*',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const contentType = (response.headers.get('content-type') || '').toLowerCase();
+            const disposition = response.headers.get('content-disposition') || '';
+            const isFileResponse = /attachment/i.test(disposition)
+                || contentType.includes('spreadsheet')
+                || contentType.includes('ms-excel')
+                || contentType.includes('text/csv')
+                || contentType.includes('application/octet-stream')
+                || contentType.includes('application/zip')
+                || contentType.includes('application/pdf');
+
+            if (! response.ok || contentType.includes('text/html') || ! isFileResponse) {
+                throw new Error('Download failed. Sign in again or try from the browser dev server.');
+            }
+
+            const filename = filenameFromContentDisposition(disposition) || fallbackFilename;
+            const blob = await response.blob();
+            triggerBrowserFileDownload(blob, filename);
+        } catch (error) {
+            window.alert(error?.message || 'Download failed.');
+        } finally {
+            pulseLoader.hide();
+        }
+    };
+
+    const startPulseDesktopDownload = (url, fallbackFilename = 'download') => {
+        pulseDesktopDownloadFile(url, { fallbackFilename });
+    };
+
+    const isPulseDesktopFileDownloadLink = (link) => {
+        if (link.dataset.desktopInstallerDownload !== undefined) {
+            return false;
+        }
+
+        if (link.hasAttribute('download') || link.dataset.pulseFileDownload !== undefined) {
+            return true;
+        }
+
+        return link.matches(
+            '[data-employee-upload-template-link], [data-payroll-upload-template-link], [data-el-template-link]',
+        );
+    };
+
+    const initPulseDesktopFileDownloadLinks = () => {
+        if (! isPulseDesktop()) {
+            return;
+        }
+
+        document.addEventListener('click', (event) => {
+            const link = event.target.closest('a[href]');
+
+            if (! link || ! isPulseDesktopFileDownloadLink(link)) {
+                return;
+            }
+
+            if (link.dataset.disabled === 'true' || link.getAttribute('aria-disabled') === 'true') {
+                return;
+            }
+
+            const href = link.getAttribute('href') ?? '';
+
+            if (href === '' || href.startsWith('#') || href.startsWith('javascript:')) {
+                return;
+            }
+
+            let url;
+
+            try {
+                url = new URL(link.href, window.location.origin);
+            } catch {
+                return;
+            }
+
+            if (url.origin !== window.location.origin) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            const fallbackFilename = link.getAttribute('download')
+                || link.dataset.pulseFileDownloadFilename
+                || 'download';
+
+            pulseDesktopDownloadFile(url.href, {
+                loadingText: 'Downloading template...',
+                fallbackFilename,
+            });
+        }, true);
+    };
+
+    initPulseDesktopFileDownloadLinks();
 
     const initPulseDesktopSingleWindowNavigation = () => {
         if (! isPulseDesktop()) {
@@ -145,8 +264,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (link.hasAttribute('download')) {
-                startPulseDesktopDownload(url.href);
+            if (isPulseDesktopFileDownloadLink(link)) {
+                const fallbackFilename = link.getAttribute('download')
+                    || link.dataset.pulseFileDownloadFilename
+                    || 'download';
+                startPulseDesktopDownload(url.href, fallbackFilename);
 
                 return;
             }
@@ -4145,6 +4267,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             templateLink.href = `${templateBase}?${params.toString()}`;
+
+            const templateFilenames = {
+                'master-file': 'employee_upload_template.xlsx',
+                'employee-salary': 'employee_salary_upload_template.xlsx',
+                'employee-assignment': 'employee_assignment_upload_template.xlsx',
+            };
+            templateLink.setAttribute('download', templateFilenames[uploadType] || 'employee_upload_template.xlsx');
         }
     };
 

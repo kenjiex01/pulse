@@ -34,6 +34,7 @@
             <a
                 href="{{ route(TimekeepingEmployeeLoad::routeName('template')) }}"
                 class="text-[#0B318F] hover:underline data-[disabled=true]:pointer-events-none data-[disabled=true]:text-gray-400"
+                download="employee_load_template.csv"
                 data-el-template-link
                 data-disabled="true"
                 data-no-loader

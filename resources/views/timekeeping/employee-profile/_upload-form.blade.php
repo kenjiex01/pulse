@@ -22,7 +22,9 @@
             <a
                 href="{{ route(TimekeepingEmployeeProfile::routeName('upload.template')) }}"
                 class="text-[#0B318F] hover:underline"
+                download="employee_profile_upload_template.csv"
                 data-no-loader
+                data-pulse-file-download
             >
                 Download Template
             </a>

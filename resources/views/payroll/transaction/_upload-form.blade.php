@@ -60,8 +60,8 @@
             <a
                 href="{{ route(PayrollTransactionModule::routeName('upload.template'), $uploadType) }}"
                 class="text-[#0B318F] hover:underline"
-                target="_blank"
-                rel="noopener"
+                download="payroll_upload_template.csv"
+                data-no-loader
                 data-payroll-upload-template-link
                 data-payroll-upload-template-base="{{ route(PayrollTransactionModule::routeName('upload.template'), $uploadType) }}"
             >

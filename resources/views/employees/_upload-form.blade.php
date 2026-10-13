@@ -116,7 +116,7 @@
         <a
             href="{{ route('employees.upload.template', ['type' => $selectedUploadType]) }}"
             class="text-[#0B318F] hover:underline"
-            download
+            download="employee_upload_template.xlsx"
             data-no-loader
             data-employee-upload-template-link
             data-employee-upload-template-base="{{ route('employees.upload.template') }}"
