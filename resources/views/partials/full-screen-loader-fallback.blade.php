@@ -4,6 +4,7 @@
             var el = document.getElementById('pulse-full-screen-loader');
             if (el) {
                 el.classList.add('hidden');
+                el.style.display = 'none';
                 el.setAttribute('aria-hidden', 'true');
             }
         }

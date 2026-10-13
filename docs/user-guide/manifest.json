@@ -1,0 +1,580 @@
+[
+  {
+    "section": "Getting started",
+    "title": "Sign in",
+    "list": "00-login.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false
+  },
+  {
+    "section": "Getting started",
+    "title": "Dashboard",
+    "url": "/dashboard",
+    "list": "dashboard-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Access",
+    "title": "Users",
+    "url": "/users",
+    "list": "users-list.png",
+    "add": "users-add.png",
+    "edit": "users-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Access",
+    "title": "Roles",
+    "url": "/roles",
+    "list": "roles-list.png",
+    "add": "roles-add.png",
+    "edit": "roles-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Access",
+    "title": "Database",
+    "url": "/database",
+    "list": "database-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Campuses",
+    "url": "/hr/campuses",
+    "list": "campuses-list.png",
+    "add": "campuses-add.png",
+    "edit": "campuses-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Designations",
+    "url": "/hr/designations",
+    "list": "designations-list.png",
+    "add": "designations-add.png",
+    "edit": "designations-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Positions",
+    "url": "/hr/positions",
+    "list": "positions-list.png",
+    "add": "positions-add.png",
+    "edit": "positions-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Ranks",
+    "url": "/hr/ranks",
+    "list": "ranks-list.png",
+    "add": "ranks-add.png",
+    "edit": "ranks-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Employment Types",
+    "url": "/hr/employment-types",
+    "list": "employment-types-list.png",
+    "add": "employment-types-add.png",
+    "edit": "employment-types-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Employee Departments",
+    "url": "/hr/employee-departments",
+    "list": "employee-departments-list.png",
+    "add": "employee-departments-add.png",
+    "edit": "employee-departments-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Colleges",
+    "url": "/hr/colleges",
+    "list": "colleges-list.png",
+    "add": "colleges-add.png",
+    "edit": "colleges-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Programs",
+    "url": "/hr/programs",
+    "list": "programs-list.png",
+    "add": "programs-add.png",
+    "edit": "programs-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Document Types",
+    "url": "/hr/document-types",
+    "list": "document-types-list.png",
+    "add": "document-types-add.png",
+    "edit": "document-types-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Offense Categories",
+    "url": "/hr/offense-categories",
+    "list": "offense-categories-list.png",
+    "add": "offense-categories-add.png",
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Offense Frequencies",
+    "url": "/hr/offense-frequencies",
+    "list": "offense-frequencies-list.png",
+    "add": "offense-frequencies-add.png",
+    "edit": "offense-frequencies-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Category Penalties",
+    "url": "/hr/offense-penalties",
+    "list": "category-penalties-list.png",
+    "add": "category-penalties-add.png",
+    "edit": "category-penalties-edit.png",
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Nature of Offense",
+    "url": "/hr/nature-of-offenses",
+    "list": "nature-of-offense-list.png",
+    "add": "nature-of-offense-add.png",
+    "edit": "nature-of-offense-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Company Documents",
+    "url": "/company-documents",
+    "list": "company-documents-list.png",
+    "add": "company-documents-add.png",
+    "edit": "company-documents-edit.png",
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Document Approvals",
+    "url": "/company-documents/approvals",
+    "list": "document-approvals-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "HR Setup",
+    "url": "/hr/setup",
+    "list": "hr-setup-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Human Resource",
+    "title": "Employees",
+    "url": "/employees",
+    "list": "employees-list.png",
+    "add": "employees-add.png",
+    "edit": null,
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Timekeeping Policy",
+    "url": "/timekeeping/policy/policy",
+    "list": "timekeeping-policy-list.png",
+    "add": "timekeeping-policy-add.png",
+    "edit": "timekeeping-policy-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Shift Codes",
+    "url": "/timekeeping/policy/shift-codes",
+    "list": "shift-codes-list.png",
+    "add": "shift-codes-add.png",
+    "edit": "shift-codes-edit.png",
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Time Capturing Settings",
+    "url": "/timekeeping/policy/time-capturing-settings",
+    "list": "time-capturing-settings-list.png",
+    "add": "time-capturing-settings-add.png",
+    "edit": "time-capturing-settings-edit.png",
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Holiday Settings",
+    "url": "/timekeeping/policy/holiday-settings",
+    "list": "holiday-settings-list.png",
+    "add": "holiday-settings-add.png",
+    "edit": "holiday-settings-edit.png",
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Policy — Tardiness and Undertime",
+    "url": "/timekeeping/policy/settings/tardiness-undertime",
+    "list": "policy-tardiness-and-undertime-list.png",
+    "add": null,
+    "edit": "policy-tardiness-and-undertime-edit.png",
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Policy — Overtime",
+    "url": "/timekeeping/policy/settings/overtime",
+    "list": "policy-overtime-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Policy — Breaks",
+    "url": "/timekeeping/policy/settings/breaks",
+    "list": "policy-breaks-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Policy — Night Differential",
+    "url": "/timekeeping/policy/settings/night-differential",
+    "list": "policy-night-differential-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Policy — General",
+    "url": "/timekeeping/policy/settings/general",
+    "list": "policy-general-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Time Logs — Time In/Out",
+    "url": "/timekeeping/time-logs/time-in-out",
+    "list": "time-logs-time-in-out-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Time Logs — DTR",
+    "url": "/timekeeping/time-logs/timelogs-dtr",
+    "list": "time-logs-dtr-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Time Logs — Teaching Loads",
+    "url": "/timekeeping/time-logs/teaching-loads",
+    "list": "time-logs-teaching-loads-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Employee Profile",
+    "url": "/timekeeping/employee-profile",
+    "list": "employee-profile-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Employee Load",
+    "url": "/timekeeping/employee-load",
+    "list": "employee-load-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Memo Setup",
+    "url": "/timekeeping/memo-setup",
+    "list": "memo-setup-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Timekeeping",
+    "title": "Memo",
+    "url": "/timekeeping/memo",
+    "list": "memo-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Rate Groups",
+    "url": "/payroll/rate-definitions/rate-groups",
+    "list": "rate-groups-list.png",
+    "add": "rate-groups-add.png",
+    "edit": null,
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Night Differential Rate Groups",
+    "url": "/payroll/rate-definitions/nd-rate-groups",
+    "list": "night-differential-rate-groups-list.png",
+    "add": "night-differential-rate-groups-add.png",
+    "edit": null,
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Day Types",
+    "url": "/payroll/rate-definitions/day-types",
+    "list": "day-types-list.png",
+    "add": "day-types-add.png",
+    "edit": "day-types-edit.png",
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Income Types",
+    "url": "/payroll/maintenance-table/income-types",
+    "list": "income-types-list.png",
+    "add": "income-types-add.png",
+    "edit": "income-types-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Deduction Types",
+    "url": "/payroll/maintenance-table/deduction-types",
+    "list": "deduction-types-list.png",
+    "add": "deduction-types-add.png",
+    "edit": "deduction-types-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Loan Types",
+    "url": "/payroll/maintenance-table/loan-types",
+    "list": "loan-types-list.png",
+    "add": "loan-types-add.png",
+    "edit": "loan-types-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Leave Types",
+    "url": "/payroll/maintenance-table/leave-types",
+    "list": "leave-types-list.png",
+    "add": "leave-types-add.png",
+    "edit": "leave-types-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Pag-IBIG",
+    "url": "/payroll/government-tables/pag-ibig",
+    "list": "pag-ibig-list.png",
+    "add": "pag-ibig-add.png",
+    "edit": "pag-ibig-edit.png",
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "PhilHealth",
+    "url": "/payroll/government-tables/philhealth",
+    "list": "philhealth-list.png",
+    "add": "philhealth-add.png",
+    "edit": "philhealth-edit.png",
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "PhilHealth Minimum",
+    "url": "/payroll/government-tables/philhealth-minimum",
+    "list": "philhealth-minimum-list.png",
+    "add": null,
+    "edit": "philhealth-minimum-edit.png",
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "SSS",
+    "url": "/payroll/government-tables/sss",
+    "list": "sss-list.png",
+    "add": "sss-add.png",
+    "edit": "sss-edit.png",
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Withholding Tax",
+    "url": "/payroll/government-tables/withholding-tax-2023",
+    "list": "withholding-tax-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Payroll Calendar",
+    "url": "/payroll/calendar",
+    "list": "payroll-calendar-list.png",
+    "add": "payroll-calendar-add.png",
+    "edit": "payroll-calendar-edit.png",
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Calendar Priority",
+    "url": "/payroll/calendar/priority",
+    "list": "calendar-priority-list.png",
+    "add": "calendar-priority-add.png",
+    "edit": "calendar-priority-edit.png",
+    "hasDelete": true,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Payroll Batches",
+    "url": "/payroll/transaction/batches",
+    "list": "payroll-batches-list.png",
+    "add": "payroll-batches-add.png",
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Upload Transactions",
+    "url": "/payroll/transaction/upload-transactions",
+    "list": "upload-transactions-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Unpost Batches",
+    "url": "/payroll/transaction/unpost-batches",
+    "list": "unpost-batches-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Payslip",
+    "url": "/payroll/transaction/payslip",
+    "list": "payslip-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "BIR Forms",
+    "url": "/payroll/bir-forms",
+    "list": "bir-forms-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  },
+  {
+    "section": "Payroll",
+    "title": "Reports",
+    "url": "/payroll/reports",
+    "list": "reports-list.png",
+    "add": null,
+    "edit": null,
+    "hasDelete": false,
+    "error": null
+  }
+]

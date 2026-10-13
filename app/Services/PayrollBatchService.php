@@ -14,6 +14,7 @@ use App\Models\PayrollDeduction;
 use App\Models\PayrollIncome;
 use App\Models\IncomeType;
 use App\Models\PayrollLeave;
+use App\Models\PayrollLoanPayment;
 use App\Models\PayrollSettingOther;
 use App\Models\PayType;
 use App\Models\RawPayrollDeduction;
@@ -43,6 +44,7 @@ class PayrollBatchService
         private readonly GovernmentDeductionPayrollService $governmentDeductionPayroll,
         private readonly EmployeeSalaryResolverService $salaryResolver,
         private readonly PayrollAttendanceDayPersistenceService $attendanceDayPersistence,
+        private readonly LoanPayrollService $loanPayroll,
     ) {}
     /**
      * @return array{
@@ -544,6 +546,7 @@ class PayrollBatchService
                 'incomes.incomeType',
                 'deductions.deductionType',
                 'leaves.leaveType',
+                'loanPayments.employeeLoan.loanType',
             ])
             ->where('payroll_batch_id', $batchId)
             ->find($detailId);
@@ -579,6 +582,8 @@ class PayrollBatchService
         $slices = $this->payrollComputationSlices($employee, $calendar, (int) $payTypeId);
 
         if ($slices === []) {
+            $this->loanPayroll->syncForDetail($detail);
+
             return;
         }
 
@@ -821,10 +826,11 @@ class PayrollBatchService
             $this->applyUploadedDeductionsToDetail($detail);
             $this->applyUploadedIncomesToDetail($detail);
             $this->applyUploadedLeavesToDetail($detail);
+            $this->loanPayroll->syncForDetail($detail);
             $this->attendanceDayPersistence->replaceForDetail($detail);
         });
 
-        $detail->load(['incomes.incomeType', 'deductions.deductionType', 'leaves.leaveType']);
+        $detail->load(['incomes.incomeType', 'deductions.deductionType', 'leaves.leaveType', 'loanPayments.employeeLoan.loanType']);
     }
 
     /**
@@ -1567,11 +1573,13 @@ class PayrollBatchService
                 ->withTrashed()
                 ->each(fn (PayrollLeave $leave) => $leave->forceDelete());
 
+            $this->loanPayroll->clearAutoPayments($detail);
             $this->attendanceDayPersistence->clearForDetail($detail);
         } else {
             $detail->incomes()->withTrashed()->each(fn (PayrollIncome $income) => $income->forceDelete());
             $detail->deductions()->withTrashed()->each(fn (PayrollDeduction $deduction) => $deduction->forceDelete());
             $detail->leaves()->withTrashed()->each(fn (PayrollLeave $leave) => $leave->forceDelete());
+            $detail->loanPayments()->withTrashed()->each(fn (PayrollLoanPayment $payment) => $payment->forceDelete());
             $this->attendanceDayPersistence->clearForDetail($detail);
         }
     }

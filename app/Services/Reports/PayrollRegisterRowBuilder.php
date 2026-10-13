@@ -77,7 +77,9 @@ class PayrollRegisterRowBuilder
         $taxableIncome = $detail->incomes->sum(fn ($income) => (float) $income->taxable);
         $nonTaxableIncome = $detail->incomes->sum(fn ($income) => (float) $income->non_taxable);
         $grossIncome = $taxableIncome + $nonTaxableIncome;
-        $totalDeductions = $detail->deductions->sum(fn ($deduction) => (float) $deduction->employee_amount);
+        $loanPayments = $detail->relationLoaded('loanPayments') ? $detail->loanPayments : collect();
+        $loanPaymentTotal = $loanPayments->sum(fn ($payment) => (float) $payment->payment + (float) ($payment->penalty ?? 0));
+        $totalDeductions = $detail->deductions->sum(fn ($deduction) => (float) $deduction->employee_amount) + $loanPaymentTotal;
         $netPay = $grossIncome - $totalDeductions;
 
         $hourlyRate = $basc['hours'] > 0
@@ -184,10 +186,10 @@ class PayrollRegisterRowBuilder
             'sss' => $this->formatNumber($sssPremium),
             'sss_provident' => $this->formatNumber($sssProvident),
             'philhealth' => $this->formatNumber($this->deductionAmount($deductionsByCode, ['PHIL', 'PHIM'])),
-            'pagibig_loan' => $this->formatNumber($this->deductionAmount($deductionsByCode, ['MPL'])),
-            'pagibig_calamity' => $this->formatNumber($this->deductionAmount($deductionsByCode, ['PCAL'])),
-            'sss_loan' => $this->formatNumber($this->deductionAmount($deductionsByCode, ['SSAL', 'SSEL'])),
-            'sss_calamity' => $this->formatNumber($this->deductionAmount($deductionsByCode, ['SCAL'])),
+            'pagibig_loan' => $this->formatNumber($this->deductionAmount($deductionsByCode, ['MPL']) + $this->loanPaymentAmount($loanPayments, ['MPL'])),
+            'pagibig_calamity' => $this->formatNumber($this->deductionAmount($deductionsByCode, ['PCAL', 'PGCL']) + $this->loanPaymentAmount($loanPayments, ['PCAL', 'PGCL'])),
+            'sss_loan' => $this->formatNumber($this->deductionAmount($deductionsByCode, ['SSAL', 'SSEL']) + $this->loanPaymentAmount($loanPayments, ['SSAL', 'SSEL'])),
+            'sss_calamity' => $this->formatNumber($this->deductionAmount($deductionsByCode, ['SCAL']) + $this->loanPaymentAmount($loanPayments, ['SCAL'])),
             'ca_property_loan' => null,
             'shortages' => null,
             'uniform_textile' => null,
@@ -626,6 +628,17 @@ class PayrollRegisterRowBuilder
     private function deductionAmount(Collection $deductionsByCode, array $codes): float
     {
         return $this->sumDeductionCodes($deductionsByCode, $codes)['amount'];
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $payments
+     * @param  array<int, string>  $codes
+     */
+    private function loanPaymentAmount(Collection $payments, array $codes): float
+    {
+        return round($payments
+            ->filter(fn ($payment) => in_array((string) ($payment->employeeLoan?->loanType?->loan_type_code ?? ''), $codes, true))
+            ->sum(fn ($payment) => (float) $payment->payment + (float) ($payment->penalty ?? 0)), 2);
     }
 
     private function formatNumber(float $value, int $decimals = 2): ?float

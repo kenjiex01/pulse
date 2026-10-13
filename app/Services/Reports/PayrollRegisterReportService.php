@@ -82,6 +82,7 @@ class PayrollRegisterReportService
                 'details.employee.employmentInformations.salary',
                 'details.incomes.incomeType',
                 'details.deductions.deductionType',
+                'details.loanPayments.employeeLoan.loanType',
                 'details.leaves.leaveType',
             ])
             ->whereIn('payroll_batch_id', $batchIds)

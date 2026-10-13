@@ -432,6 +432,8 @@ class EmployeeController extends Controller
             'credentials',
             'loans.loanType',
             'loans.paymentScheme',
+            'loans.payments.payrollBatchDetail.payrollBatch.status',
+            'loans.payments.payrollBatchDetail.payrollBatch.payrollCalendar',
         ]);
 
         SysLogService::record(

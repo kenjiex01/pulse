@@ -62,6 +62,26 @@ class PayrollBatchNetPayLines
      * @param  Collection<int, array<string, mixed>>  $deductionRows
      * @return array<int, array{label: string, minutes: ?int, amount: float}>
      */
+    /**
+     * @param  Collection<int, mixed>  $payments
+     * @return Collection<int, array{label: string, minutes: null, hours: null, days: null, amount: float}>
+     */
+    public static function loanPaymentLines(Collection $payments): Collection
+    {
+        return $payments
+            ->map(fn ($payment) => [
+                'label' => (string) ($payment->employeeLoan?->loanType?->description
+                    ?? $payment->employeeLoan?->loanType?->loan_type_code
+                    ?? 'Loan'),
+                'minutes' => null,
+                'hours' => null,
+                'days' => null,
+                'amount' => round((float) $payment->payment + (float) ($payment->penalty ?? 0), 2),
+            ])
+            ->filter(fn (array $line) => $line['amount'] > 0)
+            ->values();
+    }
+
     public static function payslipDeductionLines(Collection $deductionRows): array
     {
         return $deductionRows

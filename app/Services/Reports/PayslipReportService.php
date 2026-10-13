@@ -112,6 +112,7 @@ class PayslipReportService
                 'details.employee.employmentInformations.salary.incomes.incomeType',
                 'details.incomes.incomeType',
                 'details.deductions.deductionType',
+                'details.loanPayments.employeeLoan.loanType',
             ])
             ->where('payroll_batch_id', $batchId)
             ->where('payroll_batch_status_id', PayrollBatchStatus::POSTED)
@@ -248,6 +249,7 @@ class PayslipReportService
                 'details.employee.employmentInformations.salary.incomes.incomeType',
                 'details.incomes.incomeType',
                 'details.deductions.deductionType',
+                'details.loanPayments.employeeLoan.loanType',
             ])
             ->where('payroll_batch_id', $batchId)
             ->where('payroll_batch_status_id', PayrollBatchStatus::POSTED)
@@ -315,7 +317,16 @@ class PayslipReportService
         $incomeLines = PayrollBatchNetPayLines::incomeLines($detail->incomes);
         $deductionRows = PayrollBatchNetPayLines::deductionRows($detail->deductions);
         $earnings = PayrollBatchNetPayLines::payslipEarningsLines($incomeLines);
-        $deductions = PayrollBatchNetPayLines::payslipDeductionLines($deductionRows);
+        $deductions = array_merge(
+            PayrollBatchNetPayLines::payslipDeductionLines($deductionRows),
+            PayrollBatchNetPayLines::loanPaymentLines($detail->loanPayments)
+                ->map(fn (array $line) => [
+                    'label' => $line['label'],
+                    'minutes' => null,
+                    'amount' => $line['amount'],
+                ])
+                ->all(),
+        );
 
         if ($earnings === [] && $deductions === []) {
             return null;

@@ -149,6 +149,17 @@ class HrLookup
                 $fieldRules[] = Rule::in(LuIcctOffense::allowedCategoryValues());
             }
 
+            if (($field['dynamic_in'] ?? null) === 'offense-heading-keys') {
+                $fieldRules[] = Rule::in(array_keys(LuIcctOffense::HEADING_LABELS));
+            }
+
+            if (! empty($field['exists_soft'])) {
+                [$table, $column] = array_pad(explode(',', (string) $field['exists_soft'], 2), 2, null);
+                if ($table && $column) {
+                    $fieldRules[] = Rule::exists($table, $column)->whereNull('deleted_at');
+                }
+            }
+
             if (! empty($field['unique'])) {
                 $unique = Rule::unique($table, $field['name'])
                     ->whereNull('deleted_at')

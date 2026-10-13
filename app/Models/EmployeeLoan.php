@@ -4,7 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class EmployeeLoan extends Model
 {
@@ -60,7 +62,16 @@ class EmployeeLoan extends Model
         return $this->belongsTo(PaymentScheme::class, 'payment_scheme_id', 'payment_scheme_id');
     }
 
-    public function loanBalance(): float
+    public function payments(): HasMany
+    {
+        return $this->hasMany(PayrollLoanPayment::class, 'employee_loan_id', 'employee_loan_id')
+            ->orderBy('payroll_loan_payment_id');
+    }
+
+    /**
+     * Balance before payroll batch payments (amount + interest − opening credits).
+     */
+    public function outstandingBeforePayroll(): float
     {
         return round(
             (float) $this->loan_amount
@@ -69,6 +80,20 @@ class EmployeeLoan extends Model
             - (float) ($this->deducted_from_new_loan ?? 0),
             2
         );
+    }
+
+    public function payrollPaymentsTotal(): float
+    {
+        if ($this->relationLoaded('payments')) {
+            return round($this->payments->sum(fn (PayrollLoanPayment $payment) => $payment->amount()), 2);
+        }
+
+        return round((float) $this->payments()->sum(DB::raw('COALESCE(payment, 0) + COALESCE(penalty, 0)')), 2);
+    }
+
+    public function loanBalance(): float
+    {
+        return round($this->outstandingBeforePayroll() - $this->payrollPaymentsTotal(), 2);
     }
 
     public static function computePrincipal(float $loanAmount, ?float $loanInterest): float

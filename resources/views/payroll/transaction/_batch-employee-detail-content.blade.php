@@ -3,7 +3,7 @@
     use App\Support\PayrollTransactionModule;
 
     $activeTab = PayrollTransactionModule::resolveBatchDetailTab($activeTab ?? 'incomes');
-    $hasPayrollData = $detail->incomes->isNotEmpty() || $detail->deductions->isNotEmpty();
+    $hasPayrollData = $detail->incomes->isNotEmpty() || $detail->deductions->isNotEmpty() || $detail->loanPayments->isNotEmpty();
     $incomes = $detail->incomes->sortBy(fn ($income) => $income->incomeType?->income_type_code ?? '');
     $deductionRows = PayrollBatchNetPayLines::deductionRows($detail->deductions);
     $taxableTotal = $incomes->sum(fn ($income) => (float) $income->taxable);
@@ -14,7 +14,9 @@
     $daysTotal = $incomes->contains(fn ($income) => $income->days !== null)
         ? $incomes->sum(fn ($income) => (float) ($income->days ?? 0))
         : null;
-    $employeeShareTotal = $deductionRows->sum(fn (array $row) => $row['employee_amount']);
+    $loanPaymentLines = PayrollBatchNetPayLines::loanPaymentLines($detail->loanPayments);
+    $employeeShareTotal = $deductionRows->sum(fn (array $row) => $row['employee_amount'])
+        + $loanPaymentLines->sum('amount');
     $employerShareTotal = $deductionRows->sum(fn (array $row) => $row['employer_amount']);
     $deductionHoursTotal = $deductionRows->contains(fn (array $row) => ($row['show_hours'] ?? false))
         ? $deductionRows->sum(fn (array $row) => ($row['show_hours'] ?? false) ? (float) ($row['hours'] ?? 0) : 0.0)
@@ -348,14 +350,30 @@
                             <td class="px-3 py-2 text-right text-gray-900">{{ number_format($deduction['employer_amount'], 2) }}</td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="7" class="px-3 py-8 text-center text-gray-500">
-                                No deduction records for this employee yet.
-                            </td>
-                        </tr>
+                        @if ($detail->loanPayments->isEmpty())
+                            <tr>
+                                <td colspan="7" class="px-3 py-8 text-center text-gray-500">
+                                    No deduction records for this employee yet.
+                                </td>
+                            </tr>
+                        @endif
                     @endforelse
+                    @foreach ($detail->loanPayments as $loanPayment)
+                        @if ((float) $loanPayment->payment + (float) ($loanPayment->penalty ?? 0) <= 0)
+                            @continue
+                        @endif
+                        <tr>
+                            <td class="px-3 py-2 font-medium text-gray-900">{{ $loanPayment->employeeLoan?->loanType?->loan_type_code ?? 'LOAN' }}</td>
+                            <td class="px-3 py-2 text-gray-600">{{ $loanPayment->employeeLoan?->loanType?->description ?? 'Loan' }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">—</td>
+                            <td class="px-3 py-2 text-right text-gray-900">—</td>
+                            <td class="px-3 py-2 text-right text-gray-900">—</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ number_format((float) $loanPayment->payment + (float) ($loanPayment->penalty ?? 0), 2) }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ number_format(0, 2) }}</td>
+                        </tr>
+                    @endforeach
                 </tbody>
-                @if ($deductionRows->isNotEmpty())
+                @if ($deductionRows->isNotEmpty() || $detail->loanPayments->isNotEmpty())
                     <tfoot>
                         <tr class="bg-gray-50 font-semibold">
                             <td class="px-3 py-2 text-gray-900" colspan="2">Total</td>

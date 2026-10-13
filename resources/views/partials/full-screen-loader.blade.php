@@ -1,3 +1,8 @@
+<style>
+    #pulse-full-screen-loader.hidden {
+        display: none !important;
+    }
+</style>
 <div
     id="pulse-full-screen-loader"
     class="fixed inset-0 z-[9999] flex items-center justify-center bg-white/70 backdrop-blur-md"

@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             loader.classList.remove('hidden');
+            loader.style.display = 'flex';
             loader.setAttribute('aria-hidden', 'false');
         },
         showProgress(current, total, detail = '') {
@@ -47,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             loader.classList.remove('hidden');
+            loader.style.display = 'flex';
             loader.setAttribute('aria-hidden', 'false');
         },
         hide() {
@@ -55,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             loader.classList.add('hidden');
+            loader.style.display = 'none';
             loader.setAttribute('aria-hidden', 'true');
 
             if (loaderProgressBar) {

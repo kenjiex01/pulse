@@ -2,7 +2,7 @@
 # Dev server with PHP limits aligned to config/uploads.php (large SQL restore uploads).
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="${PEOPLE360_PULSE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$ROOT"
 
 UPLOAD="${PHP_UPLOAD_MAX_FILESIZE:-512M}"

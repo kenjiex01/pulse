@@ -13,6 +13,8 @@
         ])
         ->filter(fn (array $line) => $line['amount'] !== 0.0)
         ->values();
+
+    $deductionLines = $deductionLines->concat($loanPaymentLines ?? collect())->values();
 @endphp
 
 <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">

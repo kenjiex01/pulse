@@ -4,7 +4,12 @@
 
     $loans = $employee->relationLoaded('loans')
         ? $employee->loans
-        : $employee->loans()->with(['loanType', 'paymentScheme'])->get();
+        : $employee->loans()->with([
+            'loanType',
+            'paymentScheme',
+            'payments.payrollBatchDetail.payrollBatch.status',
+            'payments.payrollBatchDetail.payrollBatch.payrollCalendar',
+        ])->get();
 
     $loanTypes = LoanType::query()
         ->where('is_active', true)
@@ -22,6 +27,34 @@
 @endphp
 
 @foreach ($loans as $loan)
+    @php
+        $loanPayments = $loan->relationLoaded('payments')
+            ? $loan->payments
+            : $loan->payments()->with([
+                'payrollBatchDetail.payrollBatch.status',
+                'payrollBatchDetail.payrollBatch.payrollCalendar',
+            ])->get();
+
+        $loanPayments = $loanPayments
+            ->sortBy(function ($payment) {
+                $calendar = $payment->payrollBatchDetail?->payrollBatch?->payrollCalendar;
+
+                return $calendar?->dt_from?->format('Y-m-d') ?? '9999-12-31';
+            })
+            ->values();
+    @endphp
+
+    @include('partials.modal', [
+        'id' => 'employee-loan-view-modal-'.$loan->employee_loan_id,
+        'title' => 'Loan Payroll Deductions',
+        'description' => ($loan->loanType?->description ?? 'Loan').' · balance '.number_format($loan->loanBalance(), 2),
+        'panelClass' => 'max-w-4xl',
+        'body' => view('employees.partials._loan-payments', [
+            'loan' => $loan,
+            'payments' => $loanPayments,
+        ])->render(),
+    ])
+
     <form
         id="destroy-employee-loan-{{ $loan->employee_loan_id }}"
         method="POST"

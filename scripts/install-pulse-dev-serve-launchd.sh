@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
-# Keep People360 dev server (php artisan serve) running after login — Safari http://127.0.0.1:8000
+# Keep People360 dev server (php artisan serve) running after login — http://127.0.0.1:8000
+# Runner lives under Application Support so launchd is not blocked from Documents (TCC).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PULSE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SERVE_SCRIPT="${PULSE_ROOT}/scripts/serve-dev.sh"
+APP_SUPPORT="${HOME}/Library/Application Support/People360/pulse-dev-serve"
+WATCHDOG_SCRIPT="${APP_SUPPORT}/serve-dev-watchdog.sh"
+SERVE_SCRIPT="${APP_SUPPORT}/serve-dev.sh"
 LABEL="com.people360.pulse-dev-serve"
 PLIST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
 LOG_DIR="${PULSE_ROOT}/storage/logs"
 PORT="${PULSE_DEV_PORT:-8000}"
 
-mkdir -p "${LOG_DIR}" "${HOME}/Library/LaunchAgents"
+mkdir -p "${APP_SUPPORT}" "${LOG_DIR}" "${HOME}/Library/LaunchAgents"
 
-if [[ ! -x "${SERVE_SCRIPT}" ]]; then
-  chmod +x "${SERVE_SCRIPT}"
-fi
+cp "${SCRIPT_DIR}/serve-dev.sh" "${SERVE_SCRIPT}"
+cp "${SCRIPT_DIR}/serve-dev-watchdog.sh" "${WATCHDOG_SCRIPT}"
+chmod +x "${SERVE_SCRIPT}" "${WATCHDOG_SCRIPT}"
 
 cat >"${PLIST}" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -26,12 +29,16 @@ cat >"${PLIST}" <<EOF
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${SERVE_SCRIPT}</string>
+        <string>${WATCHDOG_SCRIPT}</string>
     </array>
-    <key>WorkingDirectory</key>
-    <string>${PULSE_ROOT}</string>
     <key>EnvironmentVariables</key>
     <dict>
+        <key>PEOPLE360_PULSE_ROOT</key>
+        <string>${PULSE_ROOT}</string>
+        <key>PULSE_DEV_SERVE_SCRIPT</key>
+        <string>${SERVE_SCRIPT}</string>
+        <key>PULSE_DEV_SERVE_LOG</key>
+        <string>${APP_SUPPORT}/watchdog.log</string>
         <key>PULSE_DEV_PORT</key>
         <string>${PORT}</string>
         <key>PATH</key>
@@ -42,9 +49,9 @@ cat >"${PLIST}" <<EOF
     <key>RunAtLoad</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>${LOG_DIR}/pulse-dev-serve.launchd.log</string>
+    <string>${APP_SUPPORT}/launchd.log</string>
     <key>StandardErrorPath</key>
-    <string>${LOG_DIR}/pulse-dev-serve.launchd.log</string>
+    <string>${APP_SUPPORT}/launchd.log</string>
 </dict>
 </plist>
 EOF
@@ -54,14 +61,15 @@ launchctl bootstrap "gui/$(id -u)" "${PLIST}"
 launchctl enable "gui/$(id -u)/${LABEL}" 2>/dev/null || true
 launchctl kickstart -k "gui/$(id -u)/${LABEL}" 2>/dev/null || true
 
-sleep 2
-if curl -sf --connect-timeout 5 "http://127.0.0.1:${PORT}/login" >/dev/null; then
+sleep 4
+if curl -sf --connect-timeout 8 "http://127.0.0.1:${PORT}/login" >/dev/null; then
   echo "Dev server OK: http://127.0.0.1:${PORT}"
 else
-  echo "LaunchAgent installed but http://127.0.0.1:${PORT} not responding yet — check ${LOG_DIR}/pulse-dev-serve.launchd.log"
+  echo "LaunchAgent installed but http://127.0.0.1:${PORT} not responding yet — check ${APP_SUPPORT}/watchdog.log and ${APP_SUPPORT}/launchd.log"
   exit 1
 fi
 
-echo "Installed ${LABEL} (auto-restart on crash, starts at login)."
+echo "Installed ${LABEL} (watchdog + auto-restart, starts at login)."
+echo "Runner: ${APP_SUPPORT}/"
 echo "Stop: launchctl bootout gui/$(id -u)/${LABEL}"
-echo "Log: ${LOG_DIR}/pulse-dev-serve.launchd.log"
+echo "Logs: ${APP_SUPPORT}/watchdog.log, ${APP_SUPPORT}/launchd.log"

@@ -13,8 +13,6 @@ use App\Models\LuIcctOffensePenalty;
 use App\Models\Position;
 use App\Models\Program;
 use App\Models\Rank;
-use Illuminate\Validation\Rule;
-
 return [
     'campuses' => [
         'name' => 'Campuses',
@@ -296,7 +294,8 @@ return [
                 'type' => 'select',
                 'source' => 'offense-categories',
                 'placeholder' => 'Select category',
-                'rules' => ['required', 'integer', Rule::exists('lu_icct_offense_categories', 'icct_offense_category_id')->whereNull('deleted_at')],
+                'rules' => ['required', 'integer'],
+                'exists_soft' => 'lu_icct_offense_categories,icct_offense_category_id',
             ],
             [
                 'name' => 'frequency_ordinal',
@@ -337,7 +336,8 @@ return [
                 'type' => 'select',
                 'options' => LuIcctOffense::HEADING_LABELS,
                 'placeholder' => 'Select heading',
-                'rules' => ['required', 'string', Rule::in(array_keys(LuIcctOffense::HEADING_LABELS))],
+                'rules' => ['required', 'string'],
+                'dynamic_in' => 'offense-heading-keys',
             ],
             [
                 'name' => 'section_number',
