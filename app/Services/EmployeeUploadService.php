@@ -15,8 +15,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use PhpOffice\PhpSpreadsheet\Cell\Cell;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
-use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Cell\StringValueBinder;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -159,36 +160,37 @@ class EmployeeUploadService
 
         if ($uploadType === 'employee-assignment') {
             $freezePane = 'A3';
-            $dataRowStart = 3;
             $sheetRows = array_merge($headerRows, $dataRows);
         } else {
             $freezePane = 'A4';
-            $dataRowStart = 4;
             $spacer = $dataRows === [] ? [] : [array_fill(0, count($aliases), '')];
             $sheetRows = array_merge($headerRows, $spacer, $dataRows);
         }
 
-        foreach ($sheetRows as $rowIndex => $rowData) {
-            foreach ($rowData as $colIndex => $value) {
-                $coordinate = Coordinate::stringFromColumnIndex($colIndex + 1).($rowIndex + 1);
-                $sheet->setCellValueExplicit($coordinate, (string) $value, DataType::TYPE_STRING);
+        $previousBinder = Cell::getValueBinder();
+        Cell::setValueBinder(new StringValueBinder());
+
+        try {
+            $sheet->fromArray($sheetRows, null, 'A1', true);
+
+            $columnCount = count($aliases);
+            for ($columnIndex = 1; $columnIndex <= $columnCount; $columnIndex++) {
+                $column = Coordinate::stringFromColumnIndex($columnIndex);
+                $sheet->getStyle($column.':'.$column)
+                    ->getNumberFormat()
+                    ->setFormatCode(NumberFormat::FORMAT_TEXT);
             }
+
+            $sheet->freezePane($freezePane);
+
+            $writer = new Xlsx($spreadsheet);
+            ob_start();
+            $writer->save('php://output');
+        } finally {
+            Cell::setValueBinder($previousBinder);
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
         }
-
-        $dataRowEnd = max($dataRowStart + 150, $dataRowStart + count($dataRows) + 20);
-        $lastColumn = Coordinate::stringFromColumnIndex(count($aliases));
-
-        $sheet->getStyle("A{$dataRowStart}:{$lastColumn}{$dataRowEnd}")
-            ->getNumberFormat()
-            ->setFormatCode(NumberFormat::FORMAT_TEXT);
-
-        $sheet->freezePane($freezePane);
-
-        $writer = new Xlsx($spreadsheet);
-        ob_start();
-        $writer->save('php://output');
-        $spreadsheet->disconnectWorksheets();
-        unset($spreadsheet);
 
         return (string) ob_get_clean();
     }

@@ -109,6 +109,76 @@ document.addEventListener('DOMContentLoaded', () => {
         window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     };
 
+    const looksLikeZipBytes = (bytes) => bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+
+    const messageFromDownloadBody = (text, response) => {
+        const trimmed = text.trim();
+
+        if (trimmed.startsWith('{')) {
+            try {
+                const payload = JSON.parse(trimmed);
+
+                if (payload?.message) {
+                    return String(payload.message);
+                }
+            } catch {
+                // Fall through to HTML / status message.
+            }
+        }
+
+        if (response.redirected && /\/login(?:\?|$)/.test(response.url)) {
+            return 'Your session expired. Log in again, then download the template.';
+        }
+
+        if (/allowed memory size/i.test(trimmed)) {
+            return 'The Excel template is too large for this desktop session. Try Blank, or install the latest People360 update.';
+        }
+
+        if (/ziparchive/i.test(trimmed)) {
+            return 'This desktop install cannot create Excel files (Zip support is missing).';
+        }
+
+        if (! response.ok) {
+            return `Download failed (${response.status}).`;
+        }
+
+        return 'Download did not return an Excel file.';
+    };
+
+    const saveBytesToDesktopDownloads = (bytes, filename) => {
+        const safeName = (filename || 'download.xlsx').replace(/[\\/:*?"<>|]/g, '_');
+
+        try {
+            const fs = window.require?.('fs');
+            const path = window.require?.('path');
+            const os = window.require?.('os');
+            const electron = window.require?.('electron');
+
+            if (fs && path && os) {
+                const downloads = path.join(os.homedir(), 'Downloads');
+                fs.mkdirSync(downloads, { recursive: true });
+
+                const extension = path.extname(safeName);
+                const base = path.basename(safeName, extension);
+                let target = path.join(downloads, safeName);
+                if (fs.existsSync(target)) {
+                    target = path.join(downloads, `${base}-${Date.now()}${extension}`);
+                }
+
+                fs.writeFileSync(target, Buffer.from(bytes));
+                electron?.shell?.showItemInFolder?.(target);
+
+                return true;
+            }
+        } catch {
+            // Fall back to a browser download link.
+        }
+
+        triggerBrowserFileDownload(new Blob([bytes]), safeName);
+
+        return true;
+    };
+
     const pulseDesktopDownloadFile = async (url, options = {}) => {
         const loadingText = options.loadingText || 'Preparing download...';
         const fallbackFilename = options.fallbackFilename || 'download';
@@ -117,30 +187,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const response = await fetch(url, {
-                credentials: 'same-origin',
+                credentials: 'include',
                 headers: {
-                    Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,application/octet-stream,*/*',
+                    Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,application/json,application/octet-stream,*/*',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
             });
 
+            const buffer = await response.arrayBuffer();
+            const bytes = new Uint8Array(buffer);
             const contentType = (response.headers.get('content-type') || '').toLowerCase();
             const disposition = response.headers.get('content-disposition') || '';
-            const isFileResponse = /attachment/i.test(disposition)
-                || contentType.includes('spreadsheet')
-                || contentType.includes('ms-excel')
-                || contentType.includes('text/csv')
-                || contentType.includes('application/octet-stream')
-                || contentType.includes('application/zip')
-                || contentType.includes('application/pdf');
+            const filename = filenameFromContentDisposition(disposition) || fallbackFilename;
+            const isZip = looksLikeZipBytes(bytes);
+            const isTextFile = contentType.includes('text/csv') || contentType.includes('text/plain');
 
-            if (! response.ok || contentType.includes('text/html') || ! isFileResponse) {
-                throw new Error('Download failed. Sign in again or try from the browser dev server.');
+            if (response.ok && (isZip || isTextFile) && ! contentType.includes('text/html')) {
+                saveBytesToDesktopDownloads(bytes, isZip && ! filename.toLowerCase().endsWith('.xlsx') && ! filename.toLowerCase().endsWith('.xls')
+                    ? fallbackFilename
+                    : filename);
+
+                return;
             }
 
-            const filename = filenameFromContentDisposition(disposition) || fallbackFilename;
-            const blob = await response.blob();
-            triggerBrowserFileDownload(blob, filename);
+            const text = new TextDecoder().decode(bytes.slice(0, 8000));
+            throw new Error(messageFromDownloadBody(text, response));
         } catch (error) {
             window.alert(error?.message || 'Download failed.');
         } finally {

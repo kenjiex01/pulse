@@ -25,8 +25,8 @@ class EmployeeUploadTemplateDownloadTest extends TestCase
 
         $response->assertOk();
         $response->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        $this->assertStringContainsString('attachment', (string) $response->headers->get('content-disposition'));
-        $this->assertStringContainsString('employee_upload_template.xlsx', (string) $response->headers->get('content-disposition'));
+        $disposition = (string) $response->headers->get('content-disposition');
+        $this->assertStringContainsString('employee_upload_template.xlsx', $disposition);
         $this->assertStringStartsWith('PK', $response->streamedContent());
     }
 

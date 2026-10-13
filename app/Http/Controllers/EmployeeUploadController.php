@@ -5,30 +5,56 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Services\EmployeeUploadService;
 use App\Services\SysLogService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Throwable;
 
 class EmployeeUploadController extends Controller
 {
     public function __construct(private readonly EmployeeUploadService $uploadService) {}
 
-    public function downloadTemplate(Request $request): StreamedResponse
+    public function downloadTemplate(Request $request): BinaryFileResponse|JsonResponse
     {
         $this->authorize('create', Employee::class);
+
+        @ini_set('memory_limit', (string) config('uploads.php_ini.memory_limit', '2048M'));
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(300);
+        }
 
         $uploadType = $this->uploadService->normalizeUploadType((string) $request->query('type', 'master-file'));
         $blank = $request->boolean('blank');
         $filename = (string) (($this->uploadService->uploadTypes()[$uploadType]['template_filename'] ?? 'employee_upload_template.xlsx'));
-        $binary = $this->uploadService->buildTemplateBinary($uploadType, $blank);
 
-        return response()->streamDownload(function () use ($binary): void {
-            echo $binary;
-        }, $filename, [
+        try {
+            $binary = $this->uploadService->buildTemplateBinary($uploadType, $blank);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'message' => 'Could not build the Excel template. '.$exception->getMessage(),
+            ], 500);
+        }
+
+        $path = tempnam(sys_get_temp_dir(), 'p360-tpl-');
+        if ($path === false) {
+            return response()->json([
+                'message' => 'Could not create a temporary file for the Excel template.',
+            ], 500);
+        }
+
+        file_put_contents($path, $binary);
+        unset($binary);
+
+        return response()->file($path, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ]);
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Cache-Control' => 'no-store',
+        ])->deleteFileAfterSend(true);
     }
 
     public function processUpload(Request $request): RedirectResponse
