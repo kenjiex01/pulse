@@ -22,7 +22,6 @@ class PayrollAttendanceHoursWorkedService
     public function __construct(
         private readonly TimeLogsPayrollService $timeLogsPayroll,
         private readonly EmployeeLoadPayrollService $employeeLoadPayroll,
-        private readonly FacultyLoadPayrollService $facultyLoadPayroll,
         private readonly PayrollOvertimeService $overtimePayroll,
         private readonly PayrollBreakService $breakPayroll,
         private readonly FlexiShiftPayrollService $flexiShiftPayroll,
@@ -51,11 +50,11 @@ class PayrollAttendanceHoursWorkedService
         ]);
 
         $employee = $detail->employee;
-        $isFaculty = $employee?->isFaculty() ?? false;
+        $usesTeachingLoads = $employee?->usesTeachingLoadPayroll() ?? false;
 
-        // Faculty always derive hours from teaching loads (even when salary Basic Computation is Leaves).
-        // Staff/non-faculty still require Time-In/Time-Out basic computation.
-        if (! $isFaculty && (int) $salary->basic_computation_id !== BasicComputation::TIME_IN_OUT) {
+        // Teaching-load categories always derive hours from class schedules (even when Basic Computation is Leaves).
+        // Log categories still require Time-In/Time-Out basic computation.
+        if (! $usesTeachingLoads && (int) $salary->basic_computation_id !== BasicComputation::TIME_IN_OUT) {
             return collect();
         }
 
@@ -87,12 +86,7 @@ class PayrollAttendanceHoursWorkedService
         $totals = [];
 
         if (
-            ($employee !== null && $this->facultyLoadPayroll->shouldUseFacultyLoadPath(
-                $employee,
-                $salary,
-                $periodFrom,
-                $periodTo,
-            ))
+            $usesTeachingLoads
             || $this->timeLogsPayroll->hasPunchesInPeriod(
                 (int) $detail->employee_id,
                 $periodFrom,

@@ -1306,11 +1306,7 @@ class EmployeeUploadRowMapper
 
     private function isValidUserType(string $value): bool
     {
-        return in_array(strtolower(trim($value)), [
-            EmployeeEmploymentInformation::TYPE_FACULTY,
-            EmployeeEmploymentInformation::TYPE_STAFF,
-            EmployeeEmploymentInformation::TYPE_ADMIN,
-        ], true);
+        return in_array(strtolower(trim($value)), \App\Models\EmployeeCategory::knownCodes(), true);
     }
 
     private function isValidBankAccountType(string $value): bool

@@ -1697,6 +1697,34 @@ document.addEventListener('DOMContentLoaded', () => {
         return template.innerHTML;
     };
 
+    const salaryBasisNotes = {
+        '': 'Payroll hours follow the category. Logs uses time in/out like Staff. Teaching Loads uses class schedules like Faculty.',
+        logs: 'This category uses time logs, same as Staff. Basic hours count only when Basic Computation is Time In/Out.',
+        teaching_loads: 'This category uses teaching loads, same as Faculty. Basic hours come from class schedules even when Basic Computation is Leaves.',
+    };
+
+    const syncSalaryBasisNotes = (form) => {
+        if (! form) {
+            return;
+        }
+
+        const select = form.querySelector('[data-employment-single-panel] [data-employment-category-input]');
+        const selectedBasis = select?.selectedOptions?.[0]?.dataset?.basis || '';
+
+        form.querySelectorAll('[data-salary-basis-note]').forEach((note) => {
+            const basis = note.dataset.fixedBasis || selectedBasis;
+            note.textContent = salaryBasisNotes[basis] || salaryBasisNotes[''];
+        });
+    };
+
+    document.addEventListener('change', (event) => {
+        if (! event.target.matches?.('[data-employment-category-input]')) {
+            return;
+        }
+
+        syncSalaryBasisNotes(event.target.closest('form'));
+    });
+
     document.querySelectorAll('[data-employment-information-root]').forEach((root) => {
         const hybridToggle = root.querySelector('[data-employment-hybrid-toggle]');
         const singlePanel = root.querySelector('[data-employment-single-panel]');
@@ -1729,10 +1757,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             syncEmploymentPanels();
             syncSalaryPanels(hybridToggle.closest('form') || document);
+            syncSalaryBasisNotes(form);
         });
 
         syncEmploymentPanels();
         syncSalaryPanels(hybridToggle?.closest('form') || document);
+        syncSalaryBasisNotes(form);
     });
 
     const enableEmployeeFormPanelsForSubmit = (form) => {

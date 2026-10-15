@@ -10,9 +10,11 @@ use App\Models\LuIcctOffense;
 use App\Models\LuIcctOffenseCategory;
 use App\Models\LuIcctOffenseFrequency;
 use App\Models\LuIcctOffensePenalty;
+use App\Models\EmployeeCategory;
 use App\Models\Position;
 use App\Models\Program;
 use App\Models\Rank;
+
 return [
     'campuses' => [
         'name' => 'Campuses',
@@ -66,6 +68,39 @@ return [
         ],
         'fields' => [
             ['name' => 'designation_name', 'label' => 'Designation Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:100'], 'unique' => true],
+            ['name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'rules' => ['sometimes', 'boolean']],
+        ],
+    ],
+    'employee-categories' => [
+        'name' => 'Employee Categories',
+        'description' => 'Category (User Type) used on employment records. Payroll hours follow Logs or Teaching Loads.',
+        'model' => EmployeeCategory::class,
+        'primary_key' => 'employee_category_id',
+        'log_table' => 'tbl_employee_categories',
+        'icon' => 'position',
+        'sort_order' => 4,
+        'order' => ['sort_order' => 'asc', 'name' => 'asc'],
+        'search' => ['name', 'code'],
+        'columns' => [
+            ['key' => 'name', 'label' => 'Category'],
+            ['key' => 'payroll_basis_label', 'label' => 'Payroll Hours'],
+            ['key' => 'is_active', 'label' => 'Status', 'type' => 'boolean'],
+        ],
+        'fields' => [
+            ['name' => 'name', 'label' => 'Category Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:100'], 'unique' => true],
+            [
+                'name' => 'payroll_basis',
+                'label' => 'Payroll Hours',
+                'type' => 'select',
+                'options' => [
+                    EmployeeCategory::BASIS_LOGS => 'Logs',
+                    EmployeeCategory::BASIS_TEACHING_LOADS => 'Teaching Loads',
+                ],
+                'placeholder' => 'Select payroll hours',
+                'help' => 'Logs follows Staff (time in/out). Teaching Loads follows Faculty (class schedule).',
+                'rules' => ['required', 'string', 'in:logs,teaching_loads'],
+            ],
+            ['name' => 'sort_order', 'label' => 'Sort Order', 'type' => 'number', 'rules' => ['nullable', 'integer', 'min:0']],
             ['name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'rules' => ['sometimes', 'boolean']],
         ],
     ],

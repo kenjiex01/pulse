@@ -55,7 +55,7 @@ class TimekeepingMemoAttendanceService
         $violationType = $this->normalizeViolationType($violationType);
         $sentDates = $this->sentDatesForEmployee($employee->employee_id, $violationType, $dateFrom, $dateTo);
 
-        if ($employee->isFaculty()) {
+        if ($employee->usesTeachingLoadPayroll()) {
             return $this->facultyViolationDays($employee, $dateFrom, $dateTo, $violationType, $sentDates);
         }
 

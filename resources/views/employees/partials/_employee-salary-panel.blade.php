@@ -37,6 +37,8 @@
         "employee_salaries.$salaryIndex.is_fixed_rate",
         $salary['is_fixed_rate'] ?? false,
     );
+    $payrollBasis = $payrollBasis ?? \App\Models\EmployeeCategory::BASIS_LOGS;
+    $lockPayrollBasis = $lockPayrollBasis ?? false;
     $initialHourlyRate = $useBasicIncomeAsHourlyRate
         ? ($basicIncomeAmount > 0 ? round($basicIncomeAmount, 2) : null)
         : \App\Models\EmployeeSalary::computeHourlyRate(
@@ -162,6 +164,7 @@
                         </option>
                     @endforeach
                 </select>
+                <p class="mt-1 text-xs text-gray-500" data-salary-basis-note @if ($lockPayrollBasis) data-fixed-basis="{{ $payrollBasis }}" @endif>{{ \App\Models\EmployeeCategory::basisHelp($payrollBasis) }}</p>
             </div>
             <div>
                 <label class="form-label">

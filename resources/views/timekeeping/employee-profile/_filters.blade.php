@@ -11,7 +11,8 @@
         data-live-table-filter
     >
         <option value="all" @selected($currentEmploymentCategory === 'all')>All</option>
-        <option value="{{ \App\Models\EmployeeEmploymentInformation::TYPE_STAFF }}" @selected($currentEmploymentCategory === \App\Models\EmployeeEmploymentInformation::TYPE_STAFF)>Staff</option>
-        <option value="{{ \App\Models\EmployeeEmploymentInformation::TYPE_FACULTY }}" @selected($currentEmploymentCategory === \App\Models\EmployeeEmploymentInformation::TYPE_FACULTY)>Faculty</option>
+        @foreach (\App\Models\EmployeeCategory::optionsForSelect() as $categoryCode => $categoryName)
+            <option value="{{ $categoryCode }}" @selected($currentEmploymentCategory === $categoryCode)>{{ $categoryName }}</option>
+        @endforeach
     </select>
 </div>

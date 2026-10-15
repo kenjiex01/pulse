@@ -140,11 +140,7 @@ class TimekeepingEmployeeProfile
             return 'all';
         }
 
-        $allowed = [
-            'all',
-            EmployeeEmploymentInformation::TYPE_STAFF,
-            EmployeeEmploymentInformation::TYPE_FACULTY,
-        ];
+        $allowed = array_merge(['all'], \App\Models\EmployeeCategory::knownCodes());
 
         if (! in_array($employmentCategory, $allowed, true)) {
             return 'all';

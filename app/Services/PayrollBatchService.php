@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\EmployeeEmploymentInformation;
 use App\Models\DeductionType;
 use App\Models\Employee;
+use App\Models\EmployeeCategory;
 use App\Models\EmployeeSalary;
 use App\Models\PayrollBatch;
 use App\Models\PayrollBatchDetail;
@@ -1626,17 +1627,12 @@ class PayrollBatchService
             return Employee::query()->whereRaw('1 = 0');
         }
 
-        return Employee::query()
-            ->where('is_active', true)
-            ->where('employment_status', Employee::STATUS_ACTIVE)
-            ->whereHas('employmentInformations.salaries', function ($query) use ($calendar) {
-                $query->where('pay_type_id', $calendar->pay_type_id)
-                    ->where('date_effective_from', '<=', $calendar->dt_to)
-                    ->where(function ($overlap) use ($calendar) {
-                        $overlap->whereNull('date_effective_to')
-                            ->orWhere('date_effective_to', '>=', $calendar->dt_from);
-                    });
-            });
+        return $this->constrainToCalendarEligibility(
+            Employee::query()
+                ->where('is_active', true)
+                ->where('employment_status', Employee::STATUS_ACTIVE),
+            $calendar,
+        );
     }
 
     public function addEmployeesEmptyMessage(PayrollBatch $batch, bool $hasSearch): string
@@ -1652,13 +1648,16 @@ class PayrollBatchService
         }
 
         $payTypeLabel = $calendar->payType?->pay_type ?? 'this pay type';
+        $categoryPhrase = $this->calendarCategoryPhrase($calendar);
 
         if ($this->employeesWithPayTypeQuery($batch)->count() === 0) {
             return 'No active employees have an employee salary with pay type '.$payTypeLabel
+                .$categoryPhrase
                 .'. Check Employee → Employment → Employee Salary.';
         }
 
         return 'All eligible employees with pay type '.$payTypeLabel
+            .$categoryPhrase
             .' are already assigned to a batch for this pay period.';
     }
 
@@ -1677,17 +1676,12 @@ class PayrollBatchService
             ->whereHas('payrollBatch', fn ($query) => $query->where('payroll_calendar_id', $calendar->payroll_calendar_id))
             ->pluck('employee_id');
 
-        return Employee::query()
-            ->where('is_active', true)
-            ->where('employment_status', Employee::STATUS_ACTIVE)
-            ->whereHas('employmentInformations.salaries', function ($query) use ($calendar) {
-                $query->where('pay_type_id', $calendar->pay_type_id)
-                    ->where('date_effective_from', '<=', $calendar->dt_to)
-                    ->where(function ($overlap) use ($calendar) {
-                        $overlap->whereNull('date_effective_to')
-                            ->orWhere('date_effective_to', '>=', $calendar->dt_from);
-                    });
-            })
+        return $this->constrainToCalendarEligibility(
+            Employee::query()
+                ->where('is_active', true)
+                ->where('employment_status', Employee::STATUS_ACTIVE),
+            $calendar,
+        )
             ->when($alreadyAssigned->isNotEmpty(), fn ($query) => $query->whereNotIn('employee_id', $alreadyAssigned))
             ->when($search !== null && $search !== '', fn ($query) => $query->search($search))
             ->orderBy('last_name')
@@ -1815,6 +1809,67 @@ class PayrollBatchService
             ->all();
     }
 
+    /**
+     * Active employees whose employment category matches the pay period, with a salary of the same pay type.
+     *
+     * @param  Builder<Employee>  $query
+     * @return Builder<Employee>
+     */
+    private function constrainToCalendarEligibility(Builder $query, PayrollCalendar $calendar): Builder
+    {
+        $userTypes = $this->calendarUserTypes($calendar);
+
+        return $query->whereHas('employmentInformations', function (Builder $employment) use ($calendar, $userTypes) {
+            if ($userTypes !== []) {
+                $employment->whereIn('user_type', $userTypes);
+            }
+
+            $employment->whereHas('salaries', function (Builder $salary) use ($calendar) {
+                $salary->where('pay_type_id', $calendar->pay_type_id)
+                    ->where('date_effective_from', '<=', $calendar->dt_to)
+                    ->where(function (Builder $overlap) use ($calendar) {
+                        $overlap->whereNull('date_effective_to')
+                            ->orWhere('date_effective_to', '>=', $calendar->dt_from);
+                    });
+            });
+        });
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function calendarUserTypes(PayrollCalendar $calendar): array
+    {
+        $calendar->loadMissing('userTypes');
+
+        return $calendar->userTypes
+            ->pluck('user_type')
+            ->filter(fn ($type) => is_string($type) && $type !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function calendarCategoryPhrase(PayrollCalendar $calendar): string
+    {
+        $labels = collect($this->calendarUserTypes($calendar))
+            ->map(fn (string $code) => EmployeeCategory::labelFor($code))
+            ->filter()
+            ->values();
+
+        if ($labels->isEmpty()) {
+            return '';
+        }
+
+        if ($labels->count() === 1) {
+            return ' and category '.$labels->first();
+        }
+
+        $last = $labels->pop();
+
+        return ' and categories '.$labels->implode(', ').' or '.$last;
+    }
+
     private function attachEligibleEmployees(PayrollBatch $batch): void
     {
         $employeeIds = $this->eligibleEmployeesQuery($batch)->pluck('employee_id');
@@ -1913,7 +1968,7 @@ class PayrollBatchService
                 $slices[] = [
                     'user_type' => $userType,
                     'salaries' => $roleSalaries,
-                    'use_faculty_path' => $userType === EmployeeEmploymentInformation::TYPE_FACULTY,
+                    'use_faculty_path' => \App\Models\EmployeeCategory::usesTeachingLoads($userType),
                 ];
             }
 
@@ -1945,8 +2000,9 @@ class PayrollBatchService
             }
         }
 
-        $useFacultyPath = $employee->isFaculty()
-            && ($calendarUserTypes->isEmpty() || $calendarUserTypes->contains(EmployeeEmploymentInformation::TYPE_FACULTY));
+        $userType = $salaries->first()?->employmentInformation?->user_type ?? $employee->user_type;
+        $useFacultyPath = \App\Models\EmployeeCategory::usesTeachingLoads($userType)
+            && ($calendarUserTypes->isEmpty() || ($userType !== null && $calendarUserTypes->contains($userType)));
 
         return [[
             'user_type' => null,

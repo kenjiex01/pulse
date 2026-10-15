@@ -157,8 +157,12 @@ class PayrollTransactionController extends Controller
                     if ($this->batchService->isBatchEditable($viewBatch)) {
                         $eligibleEmployees = $this->batchService
                             ->eligibleEmployeesQuery($viewBatch, $addEmployeeSearch !== '' ? $addEmployeeSearch : null)
-                            ->limit(200)
-                            ->get();
+                            ->paginate(25, ['*'], 'add_employee_page')
+                            ->withQueryString()
+                            ->appends([
+                                'add_employees' => 1,
+                                'view_payroll_batch' => $viewBatch->payroll_batch_id,
+                            ]);
 
                         if ($eligibleEmployees->isEmpty()) {
                             $addEmployeesEmptyMessage = $this->batchService->addEmployeesEmptyMessage(

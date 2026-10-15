@@ -196,11 +196,7 @@ class PayrollCalendarModule
      */
     public static function userTypeOptions(): array
     {
-        return [
-            EmployeeEmploymentInformation::TYPE_FACULTY => 'Faculty',
-            EmployeeEmploymentInformation::TYPE_STAFF => 'Staff',
-            EmployeeEmploymentInformation::TYPE_ADMIN => 'Admin',
-        ];
+        return \App\Models\EmployeeCategory::optionsForSelect();
     }
 
     /**

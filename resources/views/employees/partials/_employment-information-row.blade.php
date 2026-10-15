@@ -2,9 +2,10 @@
     $index = $index ?? 0;
     $record = $record ?? [];
     $isHybrid = $isHybrid ?? false;
-    $categoryLabels = ['faculty' => 'Faculty', 'staff' => 'Staff', 'admin' => 'Admin'];
     $fixedCategory = $fixedCategory ?? null;
     $selectedCategory = $fixedCategory ?: old("employment_informations.$index.user_type", $record['user_type'] ?? '');
+    $categoryLabels = \App\Models\EmployeeCategory::optionsForSelect($selectedCategory !== '' ? $selectedCategory : null);
+    $categoryBasis = \App\Models\EmployeeCategory::basisByCode();
     $panelTitle = $fixedCategory
         ? ($categoryLabels[$fixedCategory] ?? ucfirst($fixedCategory)).' Employment'
         : 'Employment Information';
@@ -86,7 +87,7 @@
                 <select name="employment_informations[{{ $index }}][user_type]" class="form-input" data-employment-category-input required>
                     <option value="">Select Category</option>
                     @foreach ($categoryLabels as $value => $label)
-                        <option value="{{ $value }}" @selected($selectedCategory === $value)>{{ $label }}</option>
+                        <option value="{{ $value }}" data-basis="{{ $categoryBasis[$value] ?? 'logs' }}" @selected($selectedCategory === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
             @endif

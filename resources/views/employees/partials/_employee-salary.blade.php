@@ -75,6 +75,10 @@
                     'salaryIndex' => 0,
                     'salary' => $salaryRecords[0] ?? [],
                     'panelTitle' => 'Faculty Salary',
+                    'payrollBasis' => \App\Models\EmployeeCategory::usesTeachingLoads(\App\Models\EmployeeEmploymentInformation::TYPE_FACULTY)
+                        ? \App\Models\EmployeeCategory::BASIS_TEACHING_LOADS
+                        : \App\Models\EmployeeCategory::BASIS_LOGS,
+                    'lockPayrollBasis' => true,
                     'formOptions' => $formOptions,
                     'previousSalaries' => $employmentInfos->get(0)?->previousSalaries ?? collect(),
                 ])
@@ -82,16 +86,29 @@
                     'salaryIndex' => 1,
                     'salary' => $salaryRecords[1] ?? [],
                     'panelTitle' => 'Staff Salary',
+                    'payrollBasis' => \App\Models\EmployeeCategory::usesTeachingLoads(\App\Models\EmployeeEmploymentInformation::TYPE_STAFF)
+                        ? \App\Models\EmployeeCategory::BASIS_TEACHING_LOADS
+                        : \App\Models\EmployeeCategory::BASIS_LOGS,
+                    'lockPayrollBasis' => true,
                     'formOptions' => $formOptions,
                     'previousSalaries' => $employmentInfos->get(1)?->previousSalaries ?? collect(),
                 ])
             </div>
         @else
             <div data-employee-salary-single-panel>
+                @php
+                    $singleUserType = (string) ($employmentInfos->first()?->user_type ?? '');
+                    $singlePayrollBasis = $singleUserType === ''
+                        ? ''
+                        : (\App\Models\EmployeeCategory::usesTeachingLoads($singleUserType)
+                            ? \App\Models\EmployeeCategory::BASIS_TEACHING_LOADS
+                            : \App\Models\EmployeeCategory::BASIS_LOGS);
+                @endphp
                 @include('employees.partials._employee-salary-panel', [
                     'salaryIndex' => 0,
                     'salary' => $salaryRecords[0] ?? [],
                     'panelTitle' => 'Salary',
+                    'payrollBasis' => $singlePayrollBasis,
                     'formOptions' => $formOptions,
                     'previousSalaries' => $employmentInfos->first()?->previousSalaries ?? collect(),
                 ])

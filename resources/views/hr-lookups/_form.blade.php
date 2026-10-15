@@ -55,6 +55,9 @@
                     @endif
                 </select>
                 @error($fieldName)<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                @if (! empty($field['help']))
+                    <p class="mt-1 text-xs text-gray-500">{{ $field['help'] }}</p>
+                @endif
             </div>
         @else
             <div>

@@ -1,7 +1,7 @@
 @php
     $data = $wizardData ?? [];
     $employmentRecords = $data['employment_informations'] ?? [];
-    $userTypeLabels = ['faculty' => 'Faculty', 'staff' => 'Staff', 'admin' => 'Admin'];
+    $userTypeLabels = \App\Models\EmployeeCategory::optionsForSelect();
 @endphp
 
 @if ($selectedCampus)

@@ -292,9 +292,30 @@ class Employee extends Model
 
     public function scopeFacultyEligible(Builder $query): Builder
     {
-        return $query->whereHas('employmentInformations', function (Builder $employmentQuery) {
-            $employmentQuery->where('user_type', EmployeeEmploymentInformation::TYPE_FACULTY);
+        $codes = EmployeeCategory::teachingLoadCodes();
+
+        if ($codes === []) {
+            $codes = [EmployeeEmploymentInformation::TYPE_FACULTY];
+        }
+
+        return $query->whereHas('employmentInformations', function (Builder $employmentQuery) use ($codes) {
+            $employmentQuery->whereIn('user_type', $codes);
         });
+    }
+
+    public function usesTeachingLoadPayroll(): bool
+    {
+        $types = $this->relationLoaded('employmentInformations')
+            ? $this->employmentInformations->pluck('user_type')
+            : $this->employmentInformations()->pluck('user_type');
+
+        foreach ($types as $type) {
+            if (EmployeeCategory::usesTeachingLoads($type)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function isFaculty(): bool

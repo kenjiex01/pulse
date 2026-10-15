@@ -36,7 +36,7 @@
             >
             <span>
                 Include all eligible employees
-                <span class="block text-xs text-gray-500">Adds all active employees with the same pay type not yet in another batch for this pay period.</span>
+                <span class="block text-xs text-gray-500">Adds all active employees in this pay period's category and pay type who are not yet in another batch for this pay period.</span>
             </span>
         </label>
     </div>
@@ -70,9 +70,7 @@
         @endforelse
     </div>
 
-    @if ($eligibleEmployees->count() >= 200)
-        <p class="text-xs text-gray-500">Showing first 200 results. Use search to narrow the list.</p>
-    @endif
+    @include('partials.numbered-pagination', ['paginator' => $eligibleEmployees])
 
     @error('employee_ids')
         <p class="form-error">{{ $message }}</p>

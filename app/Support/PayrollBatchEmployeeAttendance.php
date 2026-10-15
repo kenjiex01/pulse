@@ -15,7 +15,7 @@ class PayrollBatchEmployeeAttendance
     {
         $detail->loadMissing('employee');
 
-        if ($detail->employee?->isFaculty()) {
+        if ($detail->employee?->usesTeachingLoadPayroll()) {
             $expectedDays = self::expectedFacultyDays($detail);
             $workedDays = self::facultyWorkedDays($detail);
 
@@ -98,7 +98,7 @@ class PayrollBatchEmployeeAttendance
         $detail->loadMissing(['incomes.incomeType', 'attendanceDays', 'employee']);
 
         $employee = $detail->employee;
-        $isFaculty = $employee?->isFaculty() ?? false;
+        $isFaculty = $employee?->usesTeachingLoadPayroll() ?? false;
 
         $bascIncomes = $detail->incomes
             ->filter(fn ($income) => strtoupper((string) ($income->incomeType?->income_type_code ?? '')) === 'BASC');
@@ -145,7 +145,7 @@ class PayrollBatchEmployeeAttendance
         if ($calendar->dt_from !== null && $calendar->dt_to !== null) {
             $workingDays = self::workingDaysInPeriod($employee, $calendar);
 
-            if ($employee->isFaculty()) {
+            if ($employee->usesTeachingLoadPayroll()) {
                 $hoursPerDay = (float) ($salary?->hours_per_day ?? 0);
 
                 if ($workingDays > 0 && $hoursPerDay > 0) {
@@ -158,7 +158,7 @@ class PayrollBatchEmployeeAttendance
 
         $daysPerPeriod = (float) ($salary?->days_per_period ?? 0);
 
-        if ($employee->isFaculty()) {
+        if ($employee->usesTeachingLoadPayroll()) {
             $hoursPerDay = (float) ($salary?->hours_per_day ?? 0);
 
             if ($daysPerPeriod > 0 && $hoursPerDay > 0) {

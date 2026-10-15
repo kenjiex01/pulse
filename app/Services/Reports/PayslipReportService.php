@@ -364,7 +364,7 @@ class PayslipReportService
 
     private function resolveLayoutType(Employee $employee): string
     {
-        return $employee->isFaculty() ? 'faculty' : 'staff';
+        return $employee->usesTeachingLoadPayroll() ? 'faculty' : 'staff';
     }
 
     private function resolveDaysPresent(PayrollBatchDetail $detail): ?float

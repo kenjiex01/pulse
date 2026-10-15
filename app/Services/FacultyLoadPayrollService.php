@@ -36,9 +36,19 @@ class FacultyLoadPayrollService
         CarbonInterface $from,
         CarbonInterface $to,
     ): bool {
-        unset($salary, $from, $to);
+        unset($from, $to);
 
-        return $employee !== null && $employee->isFaculty();
+        $userType = $salary->employmentInformation?->user_type;
+
+        if (($userType === null || $userType === '') && $employee !== null && ! $employee->is_hybrid && ($employee->exists || $employee->relationLoaded('employmentInformations'))) {
+            $userType = $employee->user_type;
+        }
+
+        if ($userType !== null && $userType !== '') {
+            return \App\Models\EmployeeCategory::usesTeachingLoads($userType);
+        }
+
+        return $employee?->isFaculty() ?? false;
     }
 
     /**

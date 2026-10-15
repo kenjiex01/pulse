@@ -112,11 +112,6 @@ class EmployeeEmploymentInformation extends Model
 
     public function getUserTypeLabelAttribute(): string
     {
-        return match ($this->user_type) {
-            self::TYPE_FACULTY => 'Faculty',
-            self::TYPE_STAFF => 'Staff',
-            self::TYPE_ADMIN => 'Admin',
-            default => (string) $this->user_type,
-        };
+        return EmployeeCategory::labelFor($this->user_type);
     }
 }

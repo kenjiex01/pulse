@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\EmployeeCategory;
 use App\Models\LuIcctOffenseCategory;
 use App\Models\LuIcctOffenseFrequency;
 use App\Services\SysLogService;
@@ -120,6 +121,11 @@ class HrLookupController extends Controller
         $validated = $request->validate(HrLookup::validationRules($lookup, $model));
         $payload = HrLookup::validatedPayload($lookup, $validated);
 
+        if ($model instanceof EmployeeCategory && $model->is_protected && array_key_exists('is_active', $payload) && ! $payload['is_active']) {
+            return $this->redirectAfterChange($lookup)
+                ->with('error', 'Faculty and Staff stay active because Hybrid employment uses them.');
+        }
+
         $model->update($payload);
 
         if ($lookup === 'offense-categories' && $model instanceof LuIcctOffenseCategory) {
@@ -155,6 +161,11 @@ class HrLookupController extends Controller
         $model = HrLookup::findOrFail($lookup, $record);
         $oldValues = $model->toArray();
 
+        if ($model instanceof EmployeeCategory && $model->is_protected && $model->is_active) {
+            return $this->redirectAfterChange($lookup)
+                ->with('error', 'Faculty and Staff stay active because Hybrid employment uses them.');
+        }
+
         $model->update(['is_active' => ! $model->is_active]);
         $this->runAfterChange($config);
 
@@ -184,6 +195,16 @@ class HrLookupController extends Controller
         if ($model->is_active) {
             return $this->redirectAfterChange($lookup)
                 ->with('error', 'Only inactive records can be deleted. Deactivate the record first.');
+        }
+
+        if ($model instanceof EmployeeCategory && $model->is_protected) {
+            return $this->redirectAfterChange($lookup)
+                ->with('error', 'Faculty and Staff cannot be deleted. Hybrid employment uses those categories.');
+        }
+
+        if ($model instanceof EmployeeCategory && $model->isInUse()) {
+            return $this->redirectAfterChange($lookup)
+                ->with('error', 'Cannot delete this category while an employee employment record still uses it.');
         }
 
         if ($lookup === 'offense-categories' && $model instanceof LuIcctOffenseCategory && $model->isInUse()) {

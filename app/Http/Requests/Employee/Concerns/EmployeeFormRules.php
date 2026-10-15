@@ -32,11 +32,7 @@ trait EmployeeFormRules
             'suffix' => ['nullable', 'string', 'max:20'],
             'is_hybrid' => ['sometimes', 'boolean'],
             'employment_informations' => ['required', 'array', 'min:1', 'max:2'],
-            'employment_informations.*.user_type' => ['required', Rule::in([
-                EmployeeEmploymentInformation::TYPE_FACULTY,
-                EmployeeEmploymentInformation::TYPE_STAFF,
-                EmployeeEmploymentInformation::TYPE_ADMIN,
-            ])],
+            'employment_informations.*.user_type' => ['required', Rule::in(\App\Models\EmployeeCategory::knownCodes())],
             'employment_informations.*.position' => ['nullable', 'string', 'max:150'],
             'employment_informations.*.designation' => ['nullable', 'string', 'max:150'],
             'employment_informations.*.rank' => ['nullable', 'string', 'max:150'],
