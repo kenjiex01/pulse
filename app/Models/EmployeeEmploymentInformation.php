@@ -81,18 +81,38 @@ class EmployeeEmploymentInformation extends Model
             ->orderByDesc('employee_salary_id');
     }
 
+    /**
+     * Salary in effect today. A later open row (effectivity still in the future) is not current.
+     */
     public function salary(): HasOne
     {
+        $today = now()->toDateString();
+
         return $this->hasOne(EmployeeSalary::class, 'employment_info_id', 'employment_info_id')
-            ->whereNull('date_effective_to')
-            ->latest('date_effective_from')
-            ->latest('employee_salary_id');
+            ->where('date_effective_from', '<=', $today)
+            ->where(function ($query) use ($today) {
+                $query->whereNull('date_effective_to')
+                    ->orWhere('date_effective_to', '>=', $today);
+            })
+            ->orderByDesc('date_effective_from')
+            ->orderByDesc('employee_salary_id');
     }
 
+    /**
+     * Ended salaries, plus salaries whose effectivity has not started yet.
+     */
     public function previousSalaries(): HasMany
     {
+        $today = now()->toDateString();
+
         return $this->hasMany(EmployeeSalary::class, 'employment_info_id', 'employment_info_id')
-            ->whereNotNull('date_effective_to')
+            ->where(function ($query) use ($today) {
+                $query->where('date_effective_from', '>', $today)
+                    ->orWhere(function ($ended) use ($today) {
+                        $ended->whereNotNull('date_effective_to')
+                            ->where('date_effective_to', '<', $today);
+                    });
+            })
             ->orderByDesc('date_effective_from')
             ->orderByDesc('employee_salary_id');
     }

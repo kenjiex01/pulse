@@ -61,6 +61,18 @@ class EmployeeSalarySync
             ->orderByDesc('employee_salary_id')
             ->first();
 
+        $today = now()->toDateString();
+        $effectiveToday = EmployeeSalary::query()
+            ->where('employment_info_id', $employmentInfo->employment_info_id)
+            ->where('date_effective_from', '<=', $today)
+            ->where(function ($query) use ($today) {
+                $query->whereNull('date_effective_to')
+                    ->orWhere('date_effective_to', '>=', $today);
+            })
+            ->orderByDesc('date_effective_from')
+            ->orderByDesc('employee_salary_id')
+            ->first();
+
         $effectiveFrom = self::normalizeDate(
             $salaryData['date_effective_from']
                 ?? $salaryData['date_effective']
@@ -70,6 +82,17 @@ class EmployeeSalarySync
         $headerPayload = self::headerPayload($salaryData, $effectiveFrom);
         $incomeRows = self::incomeRows($salaryData);
         $deductionRows = self::deductionRows($salaryData);
+
+        if (
+            $effectiveToday !== null
+            && $current !== null
+            && (int) $effectiveToday->employee_salary_id !== (int) $current->employee_salary_id
+            && ($effectiveToday->date_effective_from?->toDateString() ?? '') === $effectiveFrom
+        ) {
+            self::updateSalaryInEffectToday($effectiveToday, $headerPayload, $incomeRows, $deductionRows);
+
+            return;
+        }
 
         if ($current && self::shouldCreateSalaryHistory($current, $headerPayload, $incomeRows, $deductionRows)) {
             $currentFrom = $current->date_effective_from?->toDateString();
@@ -96,6 +119,34 @@ class EmployeeSalarySync
 
         self::syncIncomeRows($salary, $incomeRows);
         self::syncDeductionRows($salary, $deductionRows);
+    }
+
+    /**
+     * The employee form shows the salary in effect today. Saving it must not close or replace
+     * a later open row that has not started yet.
+     *
+     * @param  array<string, mixed>  $headerPayload
+     * @param  array<int, array<string, mixed>>  $incomeRows
+     * @param  array<int, array<string, mixed>>  $deductionRows
+     */
+    private static function updateSalaryInEffectToday(
+        EmployeeSalary $effectiveToday,
+        array $headerPayload,
+        array $incomeRows,
+        array $deductionRows,
+    ): void {
+        $effectiveToday->loadMissing(['incomes', 'deductions']);
+
+        if (! self::shouldCreateSalaryHistory($effectiveToday, $headerPayload, $incomeRows, $deductionRows)) {
+            return;
+        }
+
+        $headerPayload['date_effective_to'] = $effectiveToday->date_effective_to?->toDateString();
+        $effectiveToday->fill($headerPayload);
+        $effectiveToday->save();
+
+        self::syncIncomeRows($effectiveToday, $incomeRows);
+        self::syncDeductionRows($effectiveToday, $deductionRows);
     }
 
     /**

@@ -1140,10 +1140,20 @@ class PayrollBatchService
             return false;
         }
 
+        $periodFrom = $detail->payrollBatch?->payrollCalendar?->dt_from?->toDateString();
+        $periodTo = $detail->payrollBatch?->payrollCalendar?->dt_to?->toDateString();
+
         return EmployeeSalary::query()
             ->where('pay_type_id', $payTypeId)
             ->where('is_fixed_rate', true)
-            ->whereNull('date_effective_to')
+            ->when($periodTo !== null, fn (Builder $query) => $query->where('date_effective_from', '<=', $periodTo))
+            ->where(function (Builder $query) use ($periodFrom) {
+                $query->whereNull('date_effective_to');
+
+                if ($periodFrom !== null) {
+                    $query->orWhere('date_effective_to', '>=', $periodFrom);
+                }
+            })
             ->whereHas('employmentInformation', fn (Builder $query) => $query->where('employee_id', $detail->employee_id))
             ->exists();
     }

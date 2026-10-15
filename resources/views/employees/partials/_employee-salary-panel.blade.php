@@ -139,9 +139,21 @@
                 <input type="date" name="employee_salaries[{{ $salaryIndex }}][date_effective_from]" value="{{ old("employee_salaries.$salaryIndex.date_effective_from", $salary['date_effective_from'] ?? $salary['date_effective'] ?? now()->format('Y-m-d')) }}" class="form-input" required>
             </div>
             <div>
+                @php
+                    $effectivityTo = $salary['date_effective_to'] ?? null;
+                    $effectivityToLabel = filled($effectivityTo)
+                        ? \Carbon\Carbon::parse($effectivityTo)->format('M d, Y')
+                        : 'Present';
+                @endphp
                 <label class="form-label">Effectivity To</label>
-                <input type="text" value="Present" readonly class="form-input bg-gray-50" tabindex="-1">
-                <p class="mt-1 text-xs text-gray-500">Auto-closed when salary settings/amount change, or the day before a new effectivity date.</p>
+                <input type="text" value="{{ $effectivityToLabel }}" readonly class="form-input bg-gray-50" tabindex="-1">
+                <p class="mt-1 text-xs text-gray-500">
+                    @if (filled($effectivityTo))
+                        This salary stays current through this date. A later salary is listed under Previous Salary until its effectivity date.
+                    @else
+                        Auto-closed when salary settings/amount change, or the day before a new effectivity date.
+                    @endif
+                </p>
             </div>
             <div>
                 <label class="form-label">Pay Type <span class="text-red-500">*</span></label>

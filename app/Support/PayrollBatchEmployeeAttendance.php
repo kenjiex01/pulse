@@ -7,6 +7,7 @@ use App\Models\EmployeeSalary;
 use App\Models\PayrollBatchDetail;
 use App\Models\PayrollCalendar;
 use App\Models\RawEmployeeLoadEntry;
+use App\Services\EmployeeSalaryResolverService;
 use Carbon\CarbonInterface;
 
 class PayrollBatchEmployeeAttendance
@@ -233,16 +234,18 @@ class PayrollBatchEmployeeAttendance
             return null;
         }
 
-        if ($employment->relationLoaded('salary') && $employment->salary !== null) {
-            return $employment->salary;
+        $salaries = $employment->relationLoaded('salaries')
+            ? $employment->salaries
+            : $employment->salaries()->get();
+
+        if ($calendar->dt_from !== null && $salaries->isNotEmpty()) {
+            $match = app(EmployeeSalaryResolverService::class)->salaryEffectiveOnDate($salaries, $calendar->dt_from);
+
+            if ($match !== null) {
+                return $match;
+            }
         }
 
-        if ($employment->relationLoaded('salaries') && $employment->salaries->isNotEmpty()) {
-            return $employment->salaries
-                ->sortByDesc(fn (EmployeeSalary $salary) => $salary->date_effective_from?->format('Y-m-d') ?? '')
-                ->first();
-        }
-
-        return $employment->salary ?? $employment->salaries()->first();
+        return $employment->salary;
     }
 }

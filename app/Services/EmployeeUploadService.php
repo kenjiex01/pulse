@@ -538,11 +538,18 @@ class EmployeeUploadService
 
     private function currentSalary(EmployeeEmploymentInformation $employment): ?EmployeeSalary
     {
-        $open = $employment->salaries->first(
-            fn (EmployeeSalary $salary) => $salary->date_effective_to === null
-        );
+        $today = now()->toDateString();
 
-        return $open ?? $employment->salaries->first();
+        return $employment->salaries->first(function (EmployeeSalary $salary) use ($today) {
+            $from = $salary->date_effective_from?->toDateString();
+            $to = $salary->date_effective_to?->toDateString();
+
+            if ($from === null || $from > $today) {
+                return false;
+            }
+
+            return $to === null || $to >= $today;
+        });
     }
 
     /**

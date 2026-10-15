@@ -5,7 +5,7 @@
 @if ($previousSalaries->isEmpty())
     <p class="text-sm text-gray-500">No previous salary records yet.</p>
 @else
-    <p class="mb-3 text-sm text-gray-600">Select a previous salary to view its details.</p>
+    <p class="mb-3 text-sm text-gray-600">Select a previous or scheduled salary to view its details. Scheduled means the effectivity date has not started yet.</p>
 
     <div data-client-paginate data-page-size="10" data-paginate-always-show="1">
         <div class="overflow-x-auto rounded-lg border border-gray-200">
@@ -34,7 +34,15 @@
                             tabindex="0"
                         >
                             <td class="font-medium text-gray-900">{{ $previousSalary->date_effective_from?->format('M d, Y') ?: '—' }}</td>
-                            <td class="text-gray-600">{{ $previousSalary->date_effective_to?->format('M d, Y') ?: '—' }}</td>
+                            <td class="text-gray-600">
+                                @if ($previousSalary->date_effective_to)
+                                    {{ $previousSalary->date_effective_to->format('M d, Y') }}
+                                @elseif ($previousSalary->date_effective_from && $previousSalary->date_effective_from->gt(now()->startOfDay()))
+                                    Scheduled
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td class="text-gray-600">{{ $previousSalary->payType?->pay_type ?: '—' }}</td>
                             <td class="text-right text-gray-900">{{ number_format($basicIncome, 2) }}</td>
                             <td class="text-right text-gray-900">{{ $hourlyRate !== null ? number_format($hourlyRate, 2) : '—' }}</td>

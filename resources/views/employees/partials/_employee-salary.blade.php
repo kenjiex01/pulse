@@ -11,8 +11,7 @@
     if ($salaryRecords === null) {
         $salaryRecords = $employmentInfos
             ->map(function ($employmentInfo, $index) {
-                $salary = $employmentInfo->salary
-                    ?? $employmentInfo->salaries->first();
+                $salary = $employmentInfo->salary;
 
                 if (! $salary) {
                     return null;
@@ -61,7 +60,7 @@
 <section class="employee-tab-section" data-employee-salary-root>
     <h2 class="mb-2 text-lg font-semibold text-gray-900">Employee Salary</h2>
     <p class="mb-4 text-sm text-gray-600">
-        Configure salary per employment record. Changing the amount or other salary settings archives the current row under Previous Salary (and a new Effectivity From closes the prior period for payroll by date).
+        Configure salary per employment record. Current Salary is the setup in effect today. A new Effectivity From moves that salary to Previous Salary and closes it the day before the new date. Payroll still uses the salary that covers the pay period, so a salary that starts later does not apply until that date.
     </p>
 
     @error('employee_salaries')<p class="mb-4 text-sm text-red-600">{{ $message }}</p>@enderror
