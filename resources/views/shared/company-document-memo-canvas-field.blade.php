@@ -18,8 +18,10 @@
     $fieldTextColor = CompanyDocumentTextStyle::normalizeFieldTextColor($settings);
     $fieldTextStyle = $content === '' && $placeholder !== '' ? 'color:#9ca3af;' : 'color:'.$fieldTextColor.';';
     $labelStyle = 'display:block;margin:0 0 4px;font-size:14px;font-weight:600;color:'.$labelColor.';line-height:1.35;';
-    $requiredHtml = ! empty($element['is_required']) ? '<span style="'.$requiredStyle.'">*</span>' : '';
+    $requiredHtml = ! empty($element['is_required']) && empty($documentOutput) ? '<span style="'.$requiredStyle.'">*</span>' : '';
     $boxStyle = $inputBoxStyle.($fieldTextStyle !== '' ? $fieldTextStyle : '');
+    $documentOutput = ! empty($documentOutput);
+    $documentLineStyle = 'margin:0;width:100%;white-space:pre-wrap;overflow-wrap:break-word;font-size:14px;line-height:1.55;color:#111827;';
 @endphp
 
 @switch($type)
@@ -88,37 +90,60 @@
         @break
 
     @case(CompanyDocumentElement::TYPE_LONG_TEXT)
-        <div style="width:100%;">
-            @if ($label !== '')
-                <label style="{{ $labelStyle }}">{!! e($label) !!} {!! $requiredHtml !!}</label>
-            @endif
-            @include('shared.company-document-memo-canvas-field-box', [
-                'pdfBoxes' => $pdfBoxes ?? false,
-                'boxHeight' => 96,
-                'fieldText' => $fieldText,
-                'fieldTextStyle' => $fieldTextStyle,
-                'boxStyle' => $boxStyle,
-            ])
-        </div>
-        @break
-
-    @default
-        @if (in_array($type, CompanyDocumentElement::inputTypes(), true))
+        @if ($documentOutput)
+            <p style="{{ $documentLineStyle }}">{!! e($fieldText !== '' ? $fieldText : $label) !!}</p>
+        @else
             <div style="width:100%;">
                 @if ($label !== '')
                     <label style="{{ $labelStyle }}">{!! e($label) !!} {!! $requiredHtml !!}</label>
                 @endif
                 @include('shared.company-document-memo-canvas-field-box', [
                     'pdfBoxes' => $pdfBoxes ?? false,
-                    'boxHeight' => 38,
+                    'boxHeight' => 96,
                     'fieldText' => $fieldText,
                     'fieldTextStyle' => $fieldTextStyle,
                     'boxStyle' => $boxStyle,
                 ])
             </div>
         @endif
+        @break
+
+    @default
+        @if (in_array($type, CompanyDocumentElement::inputTypes(), true))
+            @if ($documentOutput)
+                @php
+                    $documentLine = $fieldText;
+                    if ($documentLine === '' && $label !== '') {
+                        $documentLine = $label;
+                    } elseif ($label !== '' && $fieldText !== '' && ! str_contains($label, ':')) {
+                        $documentLine = $label.': '.$fieldText;
+                    }
+                    if ($type === CompanyDocumentElement::TYPE_DATE && $fieldText !== '') {
+                        try {
+                            $documentLine = ($label !== '' && ! str_contains($label, ':') ? $label.': ' : '').\Illuminate\Support\Carbon::parse($fieldText)->format('F j, Y');
+                        } catch (\Throwable) {
+                            // keep formatted display value
+                        }
+                    }
+                @endphp
+                <p style="{{ $documentLineStyle }}">{!! e($documentLine) !!}</p>
+            @else
+                <div style="width:100%;">
+                    @if ($label !== '')
+                        <label style="{{ $labelStyle }}">{!! e($label) !!} {!! $requiredHtml !!}</label>
+                    @endif
+                    @include('shared.company-document-memo-canvas-field-box', [
+                        'pdfBoxes' => $pdfBoxes ?? false,
+                        'boxHeight' => 38,
+                        'fieldText' => $fieldText,
+                        'fieldTextStyle' => $fieldTextStyle,
+                        'boxStyle' => $boxStyle,
+                    ])
+                </div>
+            @endif
+        @endif
 @endswitch
 
-@if (! empty($element['help_text']))
+@if (! empty($element['help_text']) && ! $documentOutput)
     <p style="margin:4px 0 0;font-size:12px;color:#6b7280;">{{ $element['help_text'] }}</p>
 @endif

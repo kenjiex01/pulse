@@ -57,7 +57,7 @@ class PayrollAttendanceLeaveService
                     $policy,
                     $salary,
                     fn () => $this->timeLogsPayroll->resolvedLateForSession($session, $policy, $scheduleStart),
-                    fn () => $this->timeLogsPayroll->resolvedUndertimeForSession($session, $policy, $scheduleEnd),
+                    fn () => $this->timeLogsPayroll->resolvedUndertimeForSession($session, $policy, $scheduleEnd, $scheduleStart),
                 ),
             );
         }

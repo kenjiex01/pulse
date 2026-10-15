@@ -195,6 +195,15 @@ class HrLookup
             if (($field['type'] ?? 'text') === 'select' && ($payload[$field['name']] ?? '') === '') {
                 $payload[$field['name']] = null;
             }
+
+            if ($field['name'] === 'sort_order') {
+                $sortOrder = $payload['sort_order'] ?? null;
+                if ($sortOrder === null || $sortOrder === '') {
+                    $payload['sort_order'] = 0;
+                } else {
+                    $payload['sort_order'] = (int) $sortOrder;
+                }
+            }
         }
 
         return $payload;

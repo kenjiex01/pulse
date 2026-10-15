@@ -14,6 +14,7 @@
         ? "height:{$layout['canvas_height']}px;"
         : "min-height:{$layout['canvas_height']}px;";
     $pdfBoxes = ! empty($pdfBoxes);
+    $documentOutput = ! empty($documentOutput);
     $canvasWidthCss = $pdfBoxes
         ? ((int) $layout['canvas_width']).'px'
         : '100%';
@@ -65,6 +66,7 @@
                             'labelStyle' => $labelStyle,
                             'requiredStyle' => $requiredStyle,
                             'pdfBoxes' => $pdfBoxes,
+                            'documentOutput' => $documentOutput,
                         ])
                     </div>
                 </div>

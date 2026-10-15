@@ -70,12 +70,22 @@ class CompanyDocumentMergeTagService
             return (string) ($memoContext['days_before_end'] ?? '');
         }
 
+        if ($memoContext !== null && $tagKey === 'attendance_period') {
+            $formatted = $this->formatAttendancePeriod($memoContext);
+            if ($formatted !== '') {
+                return $formatted;
+            }
+        }
+
         return match ($tagKey) {
             'employee_full_name' => $employee !== null ? trim($employee->full_name) : $this->previewSample($tagKey),
             'employee_first_name' => $employee !== null ? trim((string) $employee->first_name) : $this->previewSample($tagKey),
             'employee_middle_name' => $employee !== null ? trim((string) ($employee->middle_name ?? '')) : $this->previewSample($tagKey),
             'employee_last_name' => $employee !== null ? trim((string) $employee->last_name) : $this->previewSample($tagKey),
             'employee_number' => $employee !== null ? trim((string) $employee->employee_number) : $this->previewSample($tagKey),
+            'employee_designation' => $employee !== null
+                ? trim((string) ($employee->designation ?? ''))
+                : $this->previewSample($tagKey),
             'hire_date' => $employee !== null && $employee->hire_date !== null
                 ? Carbon::parse($employee->hire_date)->format('F j, Y')
                 : $this->previewSample($tagKey),
@@ -85,9 +95,42 @@ class CompanyDocumentMergeTagService
             'current_date' => now()->format('F j, Y'),
             'current_time' => now()->format('g:i A'),
             'current_datetime' => now()->format('F j, Y g:i A'),
+            'memo_date' => now()->format('F j, Y'),
+            'attendance_period' => $this->formatAttendancePeriod($memoContext) ?: $this->previewSample($tagKey),
+            'control_no', 'memo_from', 'memo_cc' => $this->previewSample($tagKey),
             'nature_of_offense', 'disciplinary_action', 'offense_frequency' => $this->previewSample($tagKey),
             default => $this->previewSample($tagKey),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $memoContext
+     */
+    private function formatAttendancePeriod(?array $memoContext): string
+    {
+        $from = trim((string) ($memoContext['date_from'] ?? ''));
+        $to = trim((string) ($memoContext['date_to'] ?? ''));
+
+        if ($from === '' || $to === '') {
+            return '';
+        }
+
+        try {
+            $start = Carbon::parse($from);
+            $end = Carbon::parse($to);
+        } catch (\Throwable) {
+            return '';
+        }
+
+        if ($start->format('Y-m') === $end->format('Y-m')) {
+            return $start->format('F Y');
+        }
+
+        if ($start->year === $end->year) {
+            return $start->format('F').' and '.$end->format('F Y');
+        }
+
+        return $start->format('F Y').' and '.$end->format('F Y');
     }
 
     public function tagKeyFromElement(?array $settings): ?string

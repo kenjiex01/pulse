@@ -375,7 +375,7 @@ class PayrollAttendanceDayBreakdownService
             }
 
             $minutes = (int) $this->timeLogsPayroll
-                ->resolvedUndertimeForSession($session, $policy, $schedule['end'])['billable_minutes'];
+                ->resolvedUndertimeForSession($session, $policy, $schedule['end'], $schedule['start'])['billable_minutes'];
 
             if ($minutes <= 0) {
                 continue;

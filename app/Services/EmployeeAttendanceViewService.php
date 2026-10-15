@@ -166,27 +166,9 @@ class EmployeeAttendanceViewService
 
         $this->shiftResolver->loadOverridesForRange($employeeId, $queryFrom, $queryTo);
 
-        $logs = RawTimekeepingInandout::query()
-            ->where('employee_id', $employeeId)
-            ->whereBetween('dt_datetime', [$queryFrom, $queryTo])
-            ->orderBy('dt_datetime')
-            ->orderBy('timekeeping_inandout_id')
-            ->get();
-
-        /** @var Collection<string, Collection<int, RawTimekeepingInandout>> $logsByDate */
-        $logsByDate = $logs->groupBy(fn (RawTimekeepingInandout $log) => $log->dt_datetime?->toDateString() ?? '');
-
-        $sessions = $logsByDate
-            ->filter(fn ($group, $date) => $date !== null && $date !== '')
-            ->map(function (Collection $dayPunches, string $date) {
-                $session = $this->breakPayroll->payrollSessionFromPunches($dayPunches);
-
-                return [
-                    'date' => CarbonImmutable::parse($date),
-                    'time_in' => $session['time_in'],
-                    'time_out' => $session['time_out'],
-                ];
-            });
+        $logsByDate = $this->timeLogsPayroll->dayPunchesForPeriod($employeeId, $queryFrom, $queryTo);
+        $sessions = $this->timeLogsPayroll->daySessionsForPeriod($employeeId, $queryFrom, $queryTo)
+            ->keyBy(fn (array $session) => $session['date']->toDateString());
 
         $savedDays = $forceComputeMetrics
             ? collect()
@@ -536,6 +518,7 @@ class EmployeeAttendanceViewService
                 $session,
                 $policy,
                 $scheduleEnd,
+                $scheduleStart,
             )['billable_minutes'];
 
             if ($policy !== null && $this->breakPayroll->deductsBreakTardiness($policy) && $dayPunches->isNotEmpty()) {

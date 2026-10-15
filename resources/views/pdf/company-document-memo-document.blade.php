@@ -178,7 +178,8 @@
                 'layout' => $page,
                 'previewValues' => $previewValues,
                 'fixedCanvasHeight' => true,
-                'pdfBoxes' => $pdfMode,
+                'pdfBoxes' => false,
+                'documentOutput' => true,
                 'formSettings' => $formSettings,
             ])
             @if ($pdfMode)

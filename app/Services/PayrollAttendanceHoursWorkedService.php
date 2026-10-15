@@ -215,7 +215,7 @@ class PayrollAttendanceHoursWorkedService
         $scheduledHours = $this->scheduledHours($sessionDate, $scheduleStart, $scheduleEnd, $shiftCode);
         $deductionHours = (
             $lateResolved['billable_minutes']
-            + $this->timeLogsPayroll->resolvedUndertimeForSession($session, $policy, $scheduleEnd)['billable_minutes']
+            + $this->timeLogsPayroll->resolvedUndertimeForSession($session, $policy, $scheduleEnd, $scheduleStart)['billable_minutes']
             + $breakLateMinutes
         ) / 60;
 

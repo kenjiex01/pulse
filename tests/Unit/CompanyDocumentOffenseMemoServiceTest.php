@@ -94,7 +94,7 @@ class CompanyDocumentOffenseMemoServiceTest extends TestCase
         $this->assertSame('Dismissal', $context['disciplinary_action']);
     }
 
-    public function test_absences_tardiness_memo_body_includes_offense_merge_tags(): void
+    public function test_absences_tardiness_memo_body_matches_icct_offense_sections(): void
     {
         $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
@@ -103,8 +103,9 @@ class CompanyDocumentOffenseMemoServiceTest extends TestCase
             ->pluck('label')
             ->implode("\n");
 
-        $this->assertStringContainsString('{{disciplinary_action}}', $body);
-        $this->assertStringContainsString('{{offense_frequency}}', $body);
+        $this->assertStringContainsString('Section 8', $body);
+        $this->assertStringContainsString('Section 23', $body);
+        $this->assertStringContainsString('{{attendance_period}}', $body);
     }
 
     public function test_offense_tags_appear_when_template_has_nature_of_offense(): void

@@ -250,6 +250,22 @@ class CompanyDocumentFormTest extends TestCase
             ->assertSee('Legal size (8.5 × 14 in)', false);
     }
 
+    public function test_absences_tardiness_preview_renders_flat_memo_layout(): void
+    {
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
+
+        $response = $this->actingAs(User::query()->firstOrFail())
+            ->get(route('company-documents.preview-html', $form));
+
+        $response->assertOk();
+        $html = $response->getContent();
+        $this->assertStringContainsString('M E M O R A N D U M', $html);
+        $this->assertStringContainsString('Section 8', $html);
+        $this->assertStringContainsString('Section 23', $html);
+        $this->assertStringNotContainsString('memo-pdf-field-box', $html);
+        $this->assertStringNotContainsString('border:1px solid #d1d5db', $html);
+    }
+
     public function test_memo_template_preview_html_returns_designer_document(): void
     {
         $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();

@@ -29,7 +29,10 @@ class EmployeeUploadService
 {
     private const STAGING_TTL_MINUTES = 120;
 
-    public function __construct(private readonly EmployeeUploadRowMapper $rowMapper) {}
+    public function __construct(
+        private readonly EmployeeUploadRowMapper $rowMapper,
+        private readonly EmployeeMaintenanceLookupService $maintenanceLookups,
+    ) {}
 
     /**
      * @return array<string, array<string, mixed>>
@@ -961,6 +964,15 @@ class EmployeeUploadService
     }
 
     /**
+     * @param  array<string, mixed>  $payload
+     * @return array<int, array<string, mixed>>
+     */
+    private function employmentForSync(array $payload): array
+    {
+        return $this->maintenanceLookups->ensureFromEmployment($payload['employment_informations'] ?? []);
+    }
+
+    /**
      * @return array{created: int, updated: int, employee_ids: array<int, int>}
      */
     public function commit(User $user, string $token): array
@@ -998,7 +1010,7 @@ class EmployeeUploadService
                     }
 
                     if (! empty($payload['sync_employment'])) {
-                        EmployeeEmploymentSync::sync($employee, $payload['employment_informations'] ?? []);
+                        EmployeeEmploymentSync::sync($employee, $this->employmentForSync($payload));
                     }
 
                     if (! empty($payload['sync_campus'])) {
@@ -1034,7 +1046,7 @@ class EmployeeUploadService
                 $employee = Employee::query()->create($employeeAttributes);
 
                 if (! empty($payload['sync_employment']) || empty($payload['disable_required_fields'])) {
-                    EmployeeEmploymentSync::sync($employee, $payload['employment_informations'] ?? []);
+                    EmployeeEmploymentSync::sync($employee, $this->employmentForSync($payload));
                 }
 
                 if (! empty($payload['sync_campus']) || empty($payload['disable_required_fields'])) {

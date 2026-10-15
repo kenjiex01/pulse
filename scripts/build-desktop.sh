@@ -91,6 +91,9 @@ echo \"    Skolaris JWT login OK for identifier: {\$payload['identifier']}\\n\";
 echo "==> Verifying desktop bootstrap seeder"
 php artisan db:seed --class=DesktopBootstrapSeeder --force --no-interaction
 
+echo "==> Syncing company document templates"
+php artisan db:seed --class=CompanyDocumentsSeeder --force --no-interaction
+
 echo "==> Regenerating employee upload templates"
 php -r "require 'vendor/autoload.php'; \$app = require 'bootstrap/app.php'; \$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap(); \$svc = app(App\Services\EmployeeUploadService::class); file_put_contents(resource_path('templates/employee_upload_template.xlsx'), \$svc->buildTemplateBinary('master-file')); file_put_contents(resource_path('templates/employee_salary_upload_template.xlsx'), \$svc->buildTemplateBinary('employee-salary'));"
 

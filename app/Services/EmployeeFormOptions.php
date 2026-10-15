@@ -23,8 +23,12 @@ use Illuminate\Support\Collection;
 
 class EmployeeFormOptions
 {
+    public function __construct(private readonly EmployeeMaintenanceLookupService $maintenanceLookups) {}
+
     public function resolve(?int $campusId = null, ?string $regionName = null, ?string $provinceName = null): array
     {
+        $this->maintenanceLookups->adoptLegacyNames();
+
         $regions = Region::query()->active()->orderBy('region_name')->get();
         $selectedRegion = $regionName
             ? $regions->first(fn ($region) => strcasecmp($region->region_name, $regionName) === 0)

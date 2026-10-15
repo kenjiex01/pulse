@@ -85,6 +85,30 @@ class CompanyDocumentMergeTagCatalog
                 'label' => 'Current datetime',
                 'sample' => now()->format('F j, Y g:i A'),
             ],
+            'employee_designation' => [
+                'label' => 'Employee designation',
+                'sample' => 'SPO Internal Operations Manager',
+            ],
+            'attendance_period' => [
+                'label' => 'Attendance period (pay range)',
+                'sample' => 'February and March 2026',
+            ],
+            'control_no' => [
+                'label' => 'Memo control number',
+                'sample' => '2026-INV/MM-1107',
+            ],
+            'memo_from' => [
+                'label' => 'Memo from',
+                'sample' => 'Aurora G. Esma — Vice-President, HR & Administration',
+            ],
+            'memo_cc' => [
+                'label' => 'Memo CC',
+                'sample' => "Darwin S. Dulay — VP, SPAMO\nJulie Ang — VP, Accounting",
+            ],
+            'memo_date' => [
+                'label' => 'Memo date',
+                'sample' => now()->format('F j, Y'),
+            ],
         ];
     }
 

@@ -22,6 +22,7 @@ use Database\Seeders\PayrollMaintenanceSeeder;
 use Database\Seeders\ProvinceSeeder;
 use Database\Seeders\RegionSeeder;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
@@ -135,6 +136,15 @@ class ReferenceDataBootstrapService
 
     private function hrLetterTemplatesNeedSync(): bool
     {
+        $markerPath = storage_path(CompanyDocumentHrLetterTemplatesSeeder::REVISION_MARKER);
+        $storedRevision = File::exists($markerPath)
+            ? (int) trim((string) File::get($markerPath))
+            : 0;
+
+        if ($storedRevision < CompanyDocumentHrLetterTemplatesSeeder::REVISION) {
+            return true;
+        }
+
         foreach (CompanyDocumentHrLetterTemplatesSeeder::TEMPLATE_CODES as $code) {
             $exists = CompanyDocumentForm::query()
                 ->where('code', $code)

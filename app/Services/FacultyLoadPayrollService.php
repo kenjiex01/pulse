@@ -199,6 +199,7 @@ class FacultyLoadPayrollService
                         $session,
                         $policy,
                         $scheduleEnd,
+                        $scheduleStart,
                     )['billable_minutes'];
                 }
             }

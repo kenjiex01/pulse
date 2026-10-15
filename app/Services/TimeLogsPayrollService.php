@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\BasicComputation;
 use App\Models\EmployeeSalary;
 use App\Models\RawTimekeepingInandout;
+use App\Models\ShiftCode;
+use App\Models\TimekeepingEmployeeSetup;
 use App\Models\TimekeepingPolicy;
 use App\Support\TimekeepingPolicy as TimekeepingPolicySupport;
 use Carbon\CarbonImmutable;
@@ -170,7 +172,12 @@ class TimeLogsPayrollService
                 $lateDays++;
             }
 
-            $resolvedUndertime = $this->resolvedUndertimeForSession($session, $policy, $schedule['end']);
+            $resolvedUndertime = $this->resolvedUndertimeForSession(
+                $session,
+                $policy,
+                $schedule['end'],
+                $schedule['start'],
+            );
             if ($resolvedUndertime['billable_minutes'] > 0) {
                 $undertimeMinutes += $resolvedUndertime['billable_minutes'];
                 $undertimeDays++;
@@ -300,7 +307,12 @@ class TimeLogsPayrollService
             $dateKey = $session['date']->toDateString();
             $otForDay = (int) ($otMinutesByDate[$dateKey] ?? 0);
             $resolvedLate = $this->resolvedLateForSession($session, $policy, $schedule['start'], $otForDay);
-            $resolvedUndertime = $this->resolvedUndertimeForSession($session, $policy, $schedule['end']);
+            $resolvedUndertime = $this->resolvedUndertimeForSession(
+                $session,
+                $policy,
+                $schedule['end'],
+                $schedule['start'],
+            );
 
             if (! $resolvedLate['is_absent']) {
                 $workedDays++;
@@ -378,8 +390,10 @@ class TimeLogsPayrollService
     }
 
     /**
-     * Daily work sessions for payroll: first IN and last OUT per calendar day.
-     * Middle punches on the same day are interpreted as break logs (see PayrollBreakService).
+     * Daily work sessions for payroll.
+     *
+     * An OUT that falls after midnight still belongs to the previous shift when it
+     * is inside that shift's buffer time out (shift end + buffer hours).
      *
      * @return Collection<int, array{date: CarbonImmutable, time_in: string|null, time_out: string|null}>
      */
@@ -388,11 +402,9 @@ class TimeLogsPayrollService
         CarbonInterface $from,
         CarbonInterface $to,
     ): Collection {
-        return $this->punchesForEmployeeInPeriod($employeeId, $from, $to)
-            ->groupBy(fn (RawTimekeepingInandout $punch) => $punch->dt_datetime?->toDateString())
-            ->filter(fn ($group, $date) => $date !== null && $date !== '')
+        return $this->dayPunchesForPeriod($employeeId, $from, $to)
             ->map(function (Collection $dayPunches, string $date) {
-                $session = $this->breakPayroll->payrollSessionFromPunches($dayPunches);
+                $session = $this->workSessionFromPunches($dayPunches, CarbonImmutable::parse($date));
 
                 return [
                     'date' => CarbonImmutable::parse($date),
@@ -400,6 +412,7 @@ class TimeLogsPayrollService
                     'time_out' => $session['time_out'],
                 ];
             })
+            ->sortKeys()
             ->values();
     }
 
@@ -619,8 +632,9 @@ class TimeLogsPayrollService
         array $session,
         ?TimekeepingPolicy $policy,
         ?string $scheduleEnd,
+        ?string $scheduleStart = null,
     ): array {
-        $raw = $this->undertimeRawMinutesForSession($session, $scheduleEnd);
+        $raw = $this->undertimeRawMinutesForSession($session, $scheduleEnd, $scheduleStart);
 
         return TimekeepingPolicySupport::resolveUndertimeEquivalent($policy?->timekeeping_policy_id, $raw);
     }
@@ -684,9 +698,13 @@ class TimeLogsPayrollService
     /**
      * @param  array{date: CarbonImmutable, time_in: string|null, time_out: string|null}  $session
      */
-    public function undertimeRawMinutesForSession(array $session, ?string $scheduleEnd): int
-    {
-        if ($session['time_out'] === null || $session['time_out'] === '') {
+    public function undertimeRawMinutesForSession(
+        array $session,
+        ?string $scheduleEnd,
+        ?string $scheduleStart = null,
+    ): int {
+        if (($session['time_in'] ?? null) === null || $session['time_in'] === ''
+            || $session['time_out'] === null || $session['time_out'] === '') {
             return 0;
         }
 
@@ -697,6 +715,22 @@ class TimeLogsPayrollService
         try {
             $scheduledEnd = $session['date']->setTimeFromTimeString($scheduleEnd);
             $timeOutAt = $session['date']->setTimeFromTimeString($session['time_out']);
+            $timeInAt = filled($session['time_in'] ?? null)
+                ? $session['date']->setTimeFromTimeString((string) $session['time_in'])
+                : null;
+
+            if ($scheduleStart !== null && trim($scheduleStart) !== '') {
+                $scheduledStart = $session['date']->setTimeFromTimeString($scheduleStart);
+
+                if ($scheduledEnd->lessThanOrEqualTo($scheduledStart)) {
+                    $scheduledEnd = $scheduledEnd->addDay();
+                }
+            }
+
+            // 00:15 after a 11:59 time-in is the next calendar day, not 12:15 AM the same morning.
+            if ($timeInAt !== null && $timeOutAt->lessThanOrEqualTo($timeInAt)) {
+                $timeOutAt = $timeOutAt->addDay();
+            }
         } catch (\Throwable) {
             return 0;
         }
@@ -726,9 +760,280 @@ class TimeLogsPayrollService
         CarbonInterface $from,
         CarbonInterface $to,
     ): Collection {
-        return $this->punchesForEmployeeInPeriod($employeeId, $from, $to)
+        $buffers = $this->logBuffersForEmployee($employeeId);
+
+        if ($buffers['in_minutes'] <= 0 && $buffers['out_minutes'] <= 0) {
+            return $this->calendarPunchGroups(
+                $this->punchesForEmployeeInPeriod($employeeId, $from, $to),
+            );
+        }
+
+        $fetchFrom = $from->copy()->startOfDay()->subMinutes($buffers['in_minutes']);
+        $fetchTo = $to->copy()->endOfDay()->addMinutes($buffers['out_minutes']);
+
+        $punches = RawTimekeepingInandout::query()
+            ->where('employee_id', $employeeId)
+            ->whereBetween('dt_datetime', [$fetchFrom, $fetchTo])
+            ->orderBy('dt_datetime')
+            ->orderBy('timekeeping_inandout_id')
+            ->get();
+
+        $rangeStart = CarbonImmutable::parse($from->toDateString());
+        $rangeEnd = CarbonImmutable::parse($to->toDateString());
+        $this->shiftResolver->loadOverridesForRange(
+            $employeeId,
+            $rangeStart->subDay(),
+            $rangeEnd->addDay(),
+        );
+
+        /** @var array<string, array{start: CarbonImmutable, end: CarbonImmutable}> $windows */
+        $windows = [];
+        $cursor = $rangeStart;
+
+        while ($cursor->lte($rangeEnd)) {
+            $shift = $this->shiftResolver->forDate($employeeId, $cursor, $buffers['shift']);
+            $window = $this->logWindow($cursor, $shift, $buffers['in_minutes'], $buffers['out_minutes']);
+
+            if ($window !== null) {
+                $windows[$cursor->toDateString()] = $window;
+            }
+
+            $cursor = $cursor->addDay();
+        }
+
+        $remaining = $punches->keyBy(
+            fn (RawTimekeepingInandout $punch) => (int) $punch->timekeeping_inandout_id,
+        );
+        $trimmed = collect();
+
+        foreach ($windows as $date => $window) {
+            $inWindow = $remaining->filter(function (RawTimekeepingInandout $punch) use ($window) {
+                $at = $punch->dt_datetime;
+
+                return $at !== null && $at->gte($window['start']) && $at->lte($window['end']);
+            })->values();
+
+            $session = $this->workSessionFromPunches($inWindow, CarbonImmutable::parse($date));
+
+            if ($session['time_in'] === null || $session['punches']->isEmpty()) {
+                continue;
+            }
+
+            $trimmed->put($date, $session['punches']);
+
+            foreach ($session['punches'] as $punch) {
+                $remaining->forget((int) $punch->timekeeping_inandout_id);
+            }
+        }
+
+        $this->attachLeftoverIns($trimmed, $remaining->values(), $windows, $rangeStart, $rangeEnd);
+
+        return $trimmed;
+    }
+
+    /**
+     * An IN before the shift buffer still keeps the OUT that follows it, until the next shift window starts.
+     *
+     * @param  Collection<string, Collection<int, RawTimekeepingInandout>>  $trimmed
+     * @param  Collection<int, RawTimekeepingInandout>  $remaining
+     * @param  array<string, array{start: CarbonImmutable, end: CarbonImmutable}>  $windows
+     */
+    private function attachLeftoverIns(
+        Collection $trimmed,
+        Collection $remaining,
+        array $windows,
+        CarbonImmutable $rangeStart,
+        CarbonImmutable $rangeEnd,
+    ): void {
+        $remaining = $remaining->sortBy(fn (RawTimekeepingInandout $punch) => sprintf(
+            '%s-%010d',
+            $punch->dt_datetime?->format('Y-m-d H:i:s') ?? '',
+            (int) $punch->timekeeping_inandout_id,
+        ))->values();
+
+        $used = [];
+
+        foreach ($remaining as $punch) {
+            if (isset($used[(int) $punch->timekeeping_inandout_id]) || ! (bool) $punch->is_in || $punch->dt_datetime === null) {
+                continue;
+            }
+
+            $date = $punch->dt_datetime->toDateString();
+
+            if ($date < $rangeStart->toDateString() || $date > $rangeEnd->toDateString() || $trimmed->has($date)) {
+                continue;
+            }
+
+            $nextWindowStart = $windows[CarbonImmutable::parse($date)->addDay()->toDateString()]['start'] ?? null;
+            $follow = $remaining->first(function (RawTimekeepingInandout $candidate) use ($punch, $nextWindowStart, $used) {
+                if (isset($used[(int) $candidate->timekeeping_inandout_id]) || (bool) $candidate->is_in) {
+                    return false;
+                }
+
+                if ($candidate->dt_datetime === null || $punch->dt_datetime === null || $candidate->dt_datetime->lte($punch->dt_datetime)) {
+                    return false;
+                }
+
+                return $nextWindowStart === null || $candidate->dt_datetime->lt($nextWindowStart);
+            });
+
+            $bundle = collect([$punch]);
+
+            if ($follow !== null) {
+                $bundle->push($follow);
+                $used[(int) $follow->timekeeping_inandout_id] = true;
+            }
+
+            $used[(int) $punch->timekeeping_inandout_id] = true;
+            $session = $this->workSessionFromPunches($bundle, CarbonImmutable::parse($date));
+
+            if ($session['time_in'] === null || $session['punches']->isEmpty()) {
+                continue;
+            }
+
+            $trimmed->put($date, $session['punches']);
+        }
+    }
+
+    /**
+     * @return array{in_minutes: int, out_minutes: int, shift: ?ShiftCode}
+     */
+    private function logBuffersForEmployee(int $employeeId): array
+    {
+        $setup = TimekeepingEmployeeSetup::query()
+            ->with(['policy', 'shiftCode'])
+            ->where('employee_id', $employeeId)
+            ->first();
+
+        return [
+            'in_minutes' => max(0, (int) round(((float) ($setup?->policy?->buffer_time_in ?? 0)) * 60)),
+            'out_minutes' => max(0, (int) round(((float) ($setup?->policy?->buffer_time_out ?? 0)) * 60)),
+            'shift' => $setup?->shiftCode,
+        ];
+    }
+
+    /**
+     * @return array{start: CarbonImmutable, end: CarbonImmutable}|null
+     */
+    private function logWindow(
+        CarbonImmutable $workDate,
+        ?ShiftCode $shift,
+        int $bufferInMinutes,
+        int $bufferOutMinutes,
+    ): ?array {
+        if ($shift === null || (bool) $shift->is_flexi_time || $bufferOutMinutes <= 0) {
+            return null;
+        }
+
+        $startText = trim((string) $shift->time_in);
+        $endText = trim((string) $shift->time_out);
+
+        if ($startText === '' || $endText === '' || ($startText === '00:00' && $endText === '00:00')) {
+            return null;
+        }
+
+        try {
+            $start = $workDate->setTimeFromTimeString($startText);
+            $end = $workDate->setTimeFromTimeString($endText);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if ($end->lessThanOrEqualTo($start)) {
+            $end = $end->addDay();
+        }
+
+        return [
+            'start' => $start->subMinutes($bufferInMinutes),
+            'end' => $end->addMinutes($bufferOutMinutes),
+        ];
+    }
+
+    /**
+     * @param  Collection<int, RawTimekeepingInandout>  $punches
+     * @return Collection<string, Collection<int, RawTimekeepingInandout>>
+     */
+    private function calendarPunchGroups(Collection $punches): Collection
+    {
+        return $punches
             ->groupBy(fn (RawTimekeepingInandout $punch) => $punch->dt_datetime?->toDateString())
-            ->filter(fn ($group, $date) => $date !== null && $date !== '');
+            ->filter(fn ($group, $date) => $date !== null && $date !== '')
+            ->map(function (Collection $dayPunches, string $date) {
+                return $this->workSessionFromPunches($dayPunches, CarbonImmutable::parse($date))['punches'];
+            });
+    }
+
+    /**
+     * First IN through the shift's real OUT. A same-day IN with no later OUT is still
+     * the end of the session. An IN on the next calendar day does not replace an OUT
+     * that already crossed midnight.
+     *
+     * @param  Collection<int, RawTimekeepingInandout>  $punches
+     * @return array{
+     *     time_in: string|null,
+     *     time_out: string|null,
+     *     punches: Collection<int, RawTimekeepingInandout>
+     * }
+     */
+    private function workSessionFromPunches(Collection $punches, CarbonImmutable $workDate): array
+    {
+        $ordered = $punches->sortBy(fn (RawTimekeepingInandout $punch) => sprintf(
+            '%s-%010d',
+            $punch->dt_datetime?->format('Y-m-d H:i:s') ?? '',
+            (int) $punch->timekeeping_inandout_id,
+        ))->values();
+
+        $firstIn = $ordered->first(fn (RawTimekeepingInandout $punch) => (bool) $punch->is_in);
+        $lastOut = null;
+
+        foreach ($ordered as $punch) {
+            if ((bool) $punch->is_in) {
+                continue;
+            }
+
+            if ($firstIn?->dt_datetime !== null && $punch->dt_datetime !== null && $punch->dt_datetime->lt($firstIn->dt_datetime)) {
+                continue;
+            }
+
+            $lastOut = $punch;
+        }
+
+        $endPunch = $lastOut;
+        $last = $ordered->last();
+
+        if (
+            $last instanceof RawTimekeepingInandout
+            && $firstIn instanceof RawTimekeepingInandout
+            && (bool) $last->is_in
+            && (int) $last->timekeeping_inandout_id !== (int) $firstIn->timekeeping_inandout_id
+            && $last->dt_datetime?->toDateString() === $workDate->toDateString()
+            && ($lastOut === null || ($last->dt_datetime !== null && $lastOut->dt_datetime !== null && $last->dt_datetime->gt($lastOut->dt_datetime)))
+        ) {
+            $endPunch = $last;
+        }
+
+        $timeOut = null;
+
+        if ($endPunch !== null && ($firstIn === null || (int) $endPunch->timekeeping_inandout_id !== (int) $firstIn->timekeeping_inandout_id)) {
+            $timeOut = $endPunch->dt_datetime?->format('H:i:s');
+        }
+
+        $trimmed = $ordered;
+
+        if ($endPunch?->dt_datetime !== null) {
+            $endTs = $endPunch->dt_datetime->getTimestamp();
+            $endId = (int) $endPunch->timekeeping_inandout_id;
+            $trimmed = $ordered->filter(function (RawTimekeepingInandout $punch) use ($endTs, $endId) {
+                return (int) $punch->timekeeping_inandout_id === $endId
+                    || ($punch->dt_datetime !== null && $punch->dt_datetime->getTimestamp() <= $endTs);
+            })->values();
+        }
+
+        return [
+            'time_in' => $firstIn?->dt_datetime?->format('H:i:s'),
+            'time_out' => $timeOut,
+            'punches' => $trimmed,
+        ];
     }
 
     public function totalBreakLateMinutes(
