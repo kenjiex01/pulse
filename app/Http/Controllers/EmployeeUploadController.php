@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\EmployeeCategory;
 use App\Services\EmployeeUploadService;
 use App\Services\SysLogService;
 use Illuminate\Http\JsonResponse;
@@ -28,10 +29,11 @@ class EmployeeUploadController extends Controller
 
         $uploadType = $this->uploadService->normalizeUploadType((string) $request->query('type', 'master-file'));
         $blank = $request->boolean('blank');
+        $category = $this->templateCategory($request);
         $filename = (string) (($this->uploadService->uploadTypes()[$uploadType]['template_filename'] ?? 'employee_upload_template.xlsx'));
 
         try {
-            $binary = $this->uploadService->buildTemplateBinary($uploadType, $blank);
+            $binary = $this->uploadService->buildTemplateBinary($uploadType, $blank, $category);
         } catch (Throwable $exception) {
             report($exception);
 
@@ -154,5 +156,18 @@ class EmployeeUploadController extends Controller
         return redirect()
             ->route('employees.index')
             ->with('success', 'Upload discarded.');
+    }
+
+    private function templateCategory(Request $request): ?string
+    {
+        $category = strtolower(trim((string) $request->query('category', '')));
+
+        if ($category === '' || $category === 'all') {
+            return null;
+        }
+
+        $allowed = array_change_key_case(EmployeeCategory::optionsForSelect(), CASE_LOWER);
+
+        return array_key_exists($category, $allowed) ? $category : null;
     }
 }

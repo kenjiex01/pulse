@@ -132,9 +132,10 @@ class EmployeeUploadService
             .$this->formatCsvRow($sampleRow)."\n";
     }
 
-    public function buildTemplateBinary(string $uploadType = 'master-file', bool $blank = false): string
+    public function buildTemplateBinary(string $uploadType = 'master-file', bool $blank = false, ?string $category = null): string
     {
         $uploadType = $this->normalizeUploadType($uploadType);
+        $category = $this->normalizeTemplateCategory($category);
         $aliases = $this->aliases($uploadType);
         $labels = $this->labels($uploadType);
 
@@ -151,11 +152,11 @@ class EmployeeUploadService
         if ($blank) {
             $dataRows = [];
         } elseif ($uploadType === 'employee-assignment') {
-            $dataRows = $this->assignmentTemplateRows($aliases);
+            $dataRows = $this->assignmentTemplateRows($aliases, $category);
         } elseif ($uploadType === 'employee-salary') {
-            $dataRows = $this->salaryTemplateRows($aliases);
+            $dataRows = $this->salaryTemplateRows($aliases, $category);
         } else {
-            $dataRows = $this->masterTemplateRows($aliases);
+            $dataRows = $this->masterTemplateRows($aliases, $category);
         }
 
         if ($uploadType === 'employee-assignment') {
@@ -199,10 +200,13 @@ class EmployeeUploadService
      * @param  array<int, string>  $aliases
      * @return array<int, array<int, string>>
      */
-    private function assignmentTemplateRows(array $aliases): array
+    private function assignmentTemplateRows(array $aliases, ?string $category = null): array
     {
         $employees = Employee::query()
-            ->with(['campusAssignments.campus'])
+            ->with(['campusAssignments.campus', 'employmentInformations'])
+            ->when($category !== null, function ($query) use ($category) {
+                $query->whereHas('employmentInformations', fn ($employment) => $employment->where('user_type', $category));
+            })
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->orderBy('middle_name')
@@ -225,6 +229,32 @@ class EmployeeUploadService
         })->values()->all();
     }
 
+    private function normalizeTemplateCategory(?string $category): ?string
+    {
+        $category = strtolower(trim((string) $category));
+
+        if ($category === '' || $category === 'all') {
+            return null;
+        }
+
+        return $category;
+    }
+
+    private function templateEmployeeName(Employee $employee): string
+    {
+        $last = trim((string) $employee->last_name);
+        $given = trim(implode(' ', array_filter([
+            $employee->first_name,
+            $employee->middle_name,
+        ], fn ($part) => filled($part))));
+
+        if ($last === '') {
+            return $given;
+        }
+
+        return $given !== '' ? "{$last}, {$given}" : $last;
+    }
+
     private function assignmentEmployeeName(Employee $employee): string
     {
         $last = trim((string) $employee->last_name);
@@ -245,11 +275,11 @@ class EmployeeUploadService
      * @param  array<int, string>  $aliases
      * @return array<int, array<int, string>>
      */
-    private function masterTemplateRows(array $aliases): array
+    private function masterTemplateRows(array $aliases, ?string $category = null): array
     {
         $roles = $this->roleLabelsById();
 
-        return $this->employeesForTemplate()->map(function (Employee $employee) use ($aliases, $roles) {
+        return $this->employeesForTemplate($category)->map(function (Employee $employee) use ($aliases, $roles) {
             $values = $this->masterTemplateValues($employee, $roles);
 
             return array_map(fn (string $alias) => $values[$alias] ?? '', $aliases);
@@ -260,20 +290,26 @@ class EmployeeUploadService
      * @param  array<int, string>  $aliases
      * @return array<int, array<int, string>>
      */
-    private function salaryTemplateRows(array $aliases): array
+    private function salaryTemplateRows(array $aliases, ?string $category = null): array
     {
         $rows = [];
 
-        foreach ($this->employeesForTemplate() as $employee) {
+        foreach ($this->employeesForTemplate($category) as $employee) {
             $employments = $employee->employmentInformations->values();
 
             if ($employments->isEmpty()) {
-                $rows[] = $this->salaryTemplateLine($aliases, $employee, null, 1);
+                if ($category === null) {
+                    $rows[] = $this->salaryTemplateLine($aliases, $employee, null, 1);
+                }
 
                 continue;
             }
 
             foreach ($employments->take(2) as $index => $employment) {
+                if ($category !== null && strcasecmp((string) $employment->user_type, $category) !== 0) {
+                    continue;
+                }
+
                 $rows[] = $this->salaryTemplateLine($aliases, $employee, $employment, $index + 1);
             }
         }
@@ -290,6 +326,7 @@ class EmployeeUploadService
         $salary = $employment ? $this->currentSalary($employment) : null;
         $values = array_merge(
             [
+                'employee_name' => $this->templateEmployeeName($employee),
                 'employee_number' => (string) $employee->employee_number,
                 'employment_slot' => (string) $slot,
             ],
@@ -302,7 +339,7 @@ class EmployeeUploadService
     /**
      * @return \Illuminate\Support\Collection<int, Employee>
      */
-    private function employeesForTemplate()
+    private function employeesForTemplate(?string $category = null)
     {
         return Employee::query()
             ->with([
@@ -314,6 +351,9 @@ class EmployeeUploadService
                 'employmentInformations.salaries.incomes.incomeType',
                 'employmentInformations.salaries.deductions.deductionType',
             ])
+            ->when($category !== null, function ($query) use ($category) {
+                $query->whereHas('employmentInformations', fn ($employment) => $employment->where('user_type', $category));
+            })
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->orderBy('middle_name')

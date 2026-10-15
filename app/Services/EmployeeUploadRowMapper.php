@@ -1650,7 +1650,7 @@ class EmployeeUploadRowMapper
         $mapped = [];
 
         foreach ($row as $key => $value) {
-            if (in_array($key, ['employee_number', 'employment_slot'], true)) {
+            if (in_array($key, ['employee_number', 'employee_name', 'employment_slot'], true)) {
                 continue;
             }
 

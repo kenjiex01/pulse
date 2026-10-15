@@ -100,6 +100,7 @@ class EmployeeUploadTemplateExportTest extends TestCase
         $employee = Employee::query()->create([
             'employee_number' => 'TPL-SAL',
             'first_name' => 'Pedro',
+            'middle_name' => 'Jose',
             'last_name' => 'Cruz',
             'email' => 'pedro.cruz@example.com',
             'phone' => '09170000003',
@@ -121,11 +122,27 @@ class EmployeeUploadTemplateExportTest extends TestCase
 
         $sheet = $this->sheet('employee-salary');
 
-        $this->assertSame('TPL-SAL', $sheet[3][0] ?? null);
+        $this->assertSame('employee_name', $sheet[0][0] ?? null);
+        $this->assertSame('Cruz, Pedro Jose', $sheet[3][0] ?? null);
+        $this->assertSame('TPL-SAL', $this->cell($sheet, 3, 'employee_number'));
         $this->assertSame('1', $this->cell($sheet, 3, 'employment_slot'));
         $this->assertSame('2026-01-15', $this->cell($sheet, 3, 'date_effective_from'));
         $this->assertSame('Daily', $this->cell($sheet, 3, 'pay_type'));
         $this->assertSame('8', $this->cell($sheet, 3, 'hours_per_day'));
+    }
+
+    #[Test]
+    public function salary_template_category_filter_includes_only_the_selected_user_type(): void
+    {
+        $this->makeSalaryEmployee('TPL-STAFF', 'Ana', 'Reyes', 'Liza', 'staff');
+        $this->makeSalaryEmployee('TPL-FAC', 'Juan', 'Santos', 'Miguel', 'faculty');
+
+        $sheet = $this->sheet('employee-salary', false, 'staff');
+        $numbers = array_column(array_slice($sheet, 3), 1);
+
+        $this->assertContains('TPL-STAFF', $numbers);
+        $this->assertNotContains('TPL-FAC', $numbers);
+        $this->assertSame('Reyes, Ana Liza', $sheet[3][0] ?? null);
     }
 
     #[Test]
@@ -164,9 +181,30 @@ class EmployeeUploadTemplateExportTest extends TestCase
     /**
      * @return array<int, array<int, mixed>>
      */
-    private function sheet(string $uploadType, bool $blank = false): array
+    private function makeSalaryEmployee(string $number, string $first, string $last, string $middle, string $userType): void
     {
-        $binary = app(EmployeeUploadService::class)->buildTemplateBinary($uploadType, $blank);
+        $employee = Employee::query()->create([
+            'employee_number' => $number,
+            'first_name' => $first,
+            'middle_name' => $middle,
+            'last_name' => $last,
+            'email' => strtolower($number).'@example.com',
+            'phone' => '09170000099',
+            'employment_status' => Employee::STATUS_ACTIVE,
+            'is_active' => true,
+            'is_hybrid' => false,
+        ]);
+
+        EmployeeEmploymentInformation::query()->create([
+            'employee_id' => $employee->employee_id,
+            'user_type' => $userType,
+            'sort_order' => 0,
+        ]);
+    }
+
+    private function sheet(string $uploadType, bool $blank = false, ?string $category = null): array
+    {
+        $binary = app(EmployeeUploadService::class)->buildTemplateBinary($uploadType, $blank, $category);
         $temp = tempnam(sys_get_temp_dir(), 'emp-tpl').'.xlsx';
         file_put_contents($temp, $binary);
         $sheet = IOFactory::load($temp)->getActiveSheet()->toArray(null, true, true, false);

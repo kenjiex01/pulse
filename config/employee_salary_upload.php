@@ -2,6 +2,7 @@
 
 return [
     'columns' => [
+        ['alias' => 'employee_name', 'label' => 'Employee Name (Last Name, First Name Middle Name)'],
         ['alias' => 'employee_number', 'label' => 'Employee Number', 'required' => true],
         ['alias' => 'employment_slot', 'label' => 'Employment Slot (1=primary, 2=secondary/hybrid)', 'required' => true],
         ['alias' => 'date_effective_from', 'label' => 'Salary Effectivity From (YYYY-MM-DD or M/D/YYYY)', 'required' => true],
@@ -22,6 +23,7 @@ return [
     ],
 
     'sample_row' => [
+        'employee_name' => 'Dela Cruz, Juan Santos',
         'employee_number' => '2026-00099',
         'employment_slot' => '1',
         'date_effective_from' => '2026-01-01',

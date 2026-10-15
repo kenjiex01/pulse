@@ -85,6 +85,7 @@
         <ol class="mt-2 list-decimal space-y-1 pl-5">
             <li>Download the <strong>Employee Salary template (.xlsx)</strong> below.</li>
             <li>One row per salary update for an <strong>existing employee</strong> starting at row 4.</li>
+            <li>The first column, <strong>Employee Name</strong>, is Last Name, First Name Middle Name. It is for reference only and is not used when matching the employee.</li>
             <li>Required: <strong>Employee Number</strong>, <strong>Employment Slot</strong> (1=primary, 2=secondary/hybrid), pay type, basic computation, and rate group.</li>
             <li>Salary history is preserved when effectivity dates or amounts change.</li>
             <li>Preview valid rows and errors before applying salary updates.</li>
@@ -112,10 +113,10 @@
         </p>
     </div>
 
-    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+    <div class="flex flex-wrap items-end gap-x-4 gap-y-3 text-sm">
         <a
             href="{{ route('employees.upload.template', ['type' => $selectedUploadType]) }}"
-            class="text-[#0B318F] hover:underline"
+            class="pb-2 text-[#0B318F] hover:underline"
             download="employee_upload_template.xlsx"
             data-no-loader
             data-employee-upload-template-link
@@ -123,7 +124,20 @@
         >
             Download Template
         </a>
-        <label class="inline-flex items-center gap-2 text-gray-700">
+        <div class="min-w-[12rem] flex-1">
+            <label class="form-label" for="employee-upload-template-category">Category (User Type)</label>
+            <select
+                id="employee-upload-template-category"
+                class="form-input"
+                data-employee-upload-template-category
+            >
+                <option value="all">All</option>
+                @foreach (\App\Models\EmployeeCategory::optionsForSelect() as $categoryCode => $categoryName)
+                    <option value="{{ $categoryCode }}">{{ $categoryName }}</option>
+                @endforeach
+            </select>
+        </div>
+        <label class="inline-flex items-center gap-2 pb-2 text-gray-700">
             <input
                 type="checkbox"
                 class="rounded border-gray-300 text-[#0B318F] focus:ring-[#0B318F]"
@@ -132,7 +146,7 @@
             <span>Blank</span>
         </label>
     </div>
-    <p class="-mt-2 text-xs text-gray-500">Leave Blank unchecked to include every existing employee. Check it for headers only.</p>
+    <p class="-mt-2 text-xs text-gray-500">Leave Blank unchecked to include existing employees. Choose a category to limit who is included, or All for every category. Check Blank for headers only.</p>
 
     <div>
         <label class="form-label">Upload File <span class="text-red-500">*</span></label>

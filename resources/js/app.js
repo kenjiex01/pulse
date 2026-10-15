@@ -4349,6 +4349,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const templateLink = form.querySelector('[data-employee-upload-template-link]');
         const templateBase = templateLink?.dataset.employeeUploadTemplateBase;
         const blank = form.querySelector('[data-employee-upload-template-blank]');
+        const category = form.querySelector('[data-employee-upload-template-category]');
 
         if (!typeSelect) {
             return;
@@ -4365,6 +4366,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (blank?.checked) {
                 params.set('blank', '1');
+            }
+
+            const categoryValue = (category?.value || 'all').trim();
+
+            if (categoryValue !== '' && categoryValue !== 'all') {
+                params.set('category', categoryValue);
             }
 
             templateLink.href = `${templateBase}?${params.toString()}`;
@@ -4389,7 +4396,7 @@ document.addEventListener('DOMContentLoaded', () => {
         syncEmployeeUploadForm(form);
 
         form.addEventListener('change', (event) => {
-            if (event.target.matches('[data-employee-upload-type], [data-employee-upload-template-blank]')) {
+            if (event.target.matches('[data-employee-upload-type], [data-employee-upload-template-blank], [data-employee-upload-template-category]')) {
                 syncEmployeeUploadForm(form);
             }
         });
