@@ -75,8 +75,10 @@ class EmployeeOvertimeApprovalService
             ]);
         }
 
-        $punchIn = CarbonImmutable::parse($preview['punch_in']);
-        $punchOut = CarbonImmutable::parse($preview['punch_out']);
+        $punchIn = $this->toMinute(CarbonImmutable::parse($preview['punch_in']));
+        $punchOut = $this->toMinute(CarbonImmutable::parse($preview['punch_out']));
+        $otStart = $this->toMinute($otStart);
+        $otEnd = $this->toMinute($otEnd);
 
         if ($otStart->lessThan($punchIn) || $otEnd->greaterThan($punchOut)) {
             throw ValidationException::withMessages([
@@ -174,8 +176,8 @@ class EmployeeOvertimeApprovalService
             ];
         }
 
-        $punchIn = $this->combineDateAndTime($sessionDate, $context['time_in']);
-        $punchOut = $this->combineDateAndTime($sessionDate, $context['time_out']);
+        $punchIn = $this->toMinute($this->combineDateAndTime($sessionDate, $context['time_in']));
+        $punchOut = $this->toMinute($this->combineDateAndTime($sessionDate, $context['time_out']));
         if ($punchOut->lessThanOrEqualTo($punchIn)) {
             $punchOut = $punchOut->addDay();
         }
@@ -321,14 +323,14 @@ class EmployeeOvertimeApprovalService
                 continue;
             }
 
-            $punchIn = $this->combineDateAndTime($sessionDate, $timeIn);
-            $punchOut = $this->combineDateAndTime($sessionDate, $timeOut);
+            $punchIn = $this->toMinute($this->combineDateAndTime($sessionDate, $timeIn));
+            $punchOut = $this->toMinute($this->combineDateAndTime($sessionDate, $timeOut));
             if ($punchOut->lessThanOrEqualTo($punchIn)) {
                 $punchOut = $punchOut->addDay();
             }
 
-            $otStart = CarbonImmutable::parse($approval->ot_start);
-            $otEnd = CarbonImmutable::parse($approval->ot_end);
+            $otStart = $this->toMinute(CarbonImmutable::parse($approval->ot_start));
+            $otEnd = $this->toMinute(CarbonImmutable::parse($approval->ot_end));
 
             $excessWindows = $this->excessWindows(
                 $sessionDate,
@@ -416,15 +418,15 @@ class EmployeeOvertimeApprovalService
                 continue;
             }
 
-            $punchIn = $this->combineDateAndTime($sessionDate, $timeIn);
-            $punchOut = $this->combineDateAndTime($sessionDate, $timeOut);
+            $punchIn = $this->toMinute($this->combineDateAndTime($sessionDate, $timeIn));
+            $punchOut = $this->toMinute($this->combineDateAndTime($sessionDate, $timeOut));
 
             if ($punchOut->lessThanOrEqualTo($punchIn)) {
                 $punchOut = $punchOut->addDay();
             }
 
-            $otStart = CarbonImmutable::parse($approval->ot_start);
-            $otEnd = CarbonImmutable::parse($approval->ot_end);
+            $otStart = $this->toMinute(CarbonImmutable::parse($approval->ot_start));
+            $otEnd = $this->toMinute(CarbonImmutable::parse($approval->ot_end));
 
             $minutes = $this->intersectionMinutes(
                 $otStart,
@@ -525,6 +527,8 @@ class EmployeeOvertimeApprovalService
         ?string $scheduleStart,
         ?string $scheduleEnd,
     ): array {
+        $punchIn = $this->toMinute($punchIn);
+        $punchOut = $this->toMinute($punchOut);
         $windows = [];
 
         if ($scheduleStart) {
@@ -567,11 +571,15 @@ class EmployeeOvertimeApprovalService
         CarbonImmutable $otEnd,
         array $windows,
     ): int {
+        $otStart = $this->toMinute($otStart);
+        $otEnd = $this->toMinute($otEnd);
         $total = 0;
 
         foreach ($windows as $window) {
-            $start = $otStart->greaterThan($window['start']) ? $otStart : $window['start'];
-            $end = $otEnd->lessThan($window['end']) ? $otEnd : $window['end'];
+            $windowStart = $this->toMinute($window['start']);
+            $windowEnd = $this->toMinute($window['end']);
+            $start = $otStart->greaterThan($windowStart) ? $otStart : $windowStart;
+            $end = $otEnd->lessThan($windowEnd) ? $otEnd : $windowEnd;
 
             if ($end->greaterThan($start)) {
                 $total += (int) $start->diffInMinutes($end);
@@ -579,6 +587,11 @@ class EmployeeOvertimeApprovalService
         }
 
         return $total;
+    }
+
+    private function toMinute(CarbonImmutable $time): CarbonImmutable
+    {
+        return $time->setSecond(0)->setMicrosecond(0);
     }
 
     private function combineDateAndTime(CarbonImmutable $date, string $time): CarbonImmutable
