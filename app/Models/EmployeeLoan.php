@@ -12,6 +12,10 @@ class EmployeeLoan extends Model
 {
     use SoftDeletes;
 
+    public const CUTOFF_FIRST = 1;
+
+    public const CUTOFF_SECOND = 2;
+
     protected $table = 'tbl_employee_loans';
 
     protected $primaryKey = 'employee_loan_id';
@@ -30,6 +34,8 @@ class EmployeeLoan extends Model
         'deducted_from_new_loan',
         'loan_purpose',
         'dt_start_payment',
+        'deduct_half_per_cutoff',
+        'deduction_cutoff',
     ];
 
     protected function casts(): array
@@ -44,6 +50,8 @@ class EmployeeLoan extends Model
             'loan_interest' => 'decimal:2',
             'paid_from_previous' => 'decimal:2',
             'deducted_from_new_loan' => 'decimal:2',
+            'deduct_half_per_cutoff' => 'boolean',
+            'deduction_cutoff' => 'integer',
         ];
     }
 

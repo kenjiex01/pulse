@@ -14,6 +14,8 @@ Your payslip for **{{ $payPeriod }}** is attached to this email.
 Your payslip is attached to this email.
 @endif
 
+The attached PDF is password-protected. Open it using your birth date as **MMDDYYYY** (for example, May 15, 1990 is **05151990**).
+
 If you have questions about your payslip, please contact your HR or payroll office.
 
 Thanks,<br>

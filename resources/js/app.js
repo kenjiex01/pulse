@@ -2535,6 +2535,39 @@ document.addEventListener('DOMContentLoaded', () => {
             field.addEventListener('change', refresh);
         });
 
+        const halfCutoff = form.querySelector('[data-loan-half-cutoff]');
+        const cutoffRadios = [...form.querySelectorAll('[data-loan-cutoff]')];
+
+        const syncLoanCutoffChoice = () => {
+            if (!halfCutoff) {
+                return;
+            }
+
+            const cutoffSelected = cutoffRadios.some((radio) => radio.checked);
+            if (cutoffSelected) {
+                halfCutoff.checked = false;
+            }
+            halfCutoff.disabled = cutoffSelected;
+        };
+
+        cutoffRadios.forEach((radio) => {
+            radio.dataset.wasChecked = radio.checked ? '1' : '0';
+            radio.addEventListener('click', () => {
+                if (radio.dataset.wasChecked === '1') {
+                    radio.checked = false;
+                    radio.dataset.wasChecked = '0';
+                    cutoffRadios.forEach((other) => {
+                        other.dataset.wasChecked = '0';
+                    });
+                } else {
+                    cutoffRadios.forEach((other) => {
+                        other.dataset.wasChecked = other === radio ? '1' : '0';
+                    });
+                }
+                syncLoanCutoffChoice();
+            });
+        });
+
         form.addEventListener('submit', () => {
             form.querySelectorAll('[data-loan-number-of-payments], [data-loan-amortization]').forEach((field) => {
                 if (field.disabled) {
@@ -2544,6 +2577,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        syncLoanCutoffChoice();
         refresh();
     };
 

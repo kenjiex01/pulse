@@ -39,7 +39,7 @@ class PayslipEmailService
         $pdfPassword = PayslipPdfProtector::passwordFromBirthDate($employee?->birth_date);
         if ($pdfPassword === null) {
             throw ValidationException::withMessages([
-                'employee_id' => 'Employee has no birth date on file. Required for payslip PDF password.',
+                'employee_id' => 'Employee has no birth date on file. Required for payslip PDF password (MMDDYYYY).',
             ]);
         }
 

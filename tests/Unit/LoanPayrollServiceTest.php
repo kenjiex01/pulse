@@ -2,6 +2,8 @@
 
 namespace Tests\Unit;
 
+use App\Models\EmployeeLoan;
+use App\Models\PayrollCalendar;
 use App\Services\LoanPayrollService;
 use Tests\TestCase;
 
@@ -15,5 +17,29 @@ class LoanPayrollServiceTest extends TestCase
         $this->assertSame(400.0, $service->paymentForBalance(400, 0, 2500));
         $this->assertSame(0.0, $service->paymentForBalance(50000, 50000, 2500));
         $this->assertSame(0.0, $service->paymentForBalance(500.4, 500, 2500));
+    }
+
+    public function test_half_per_cutoff_uses_half_the_amortization(): void
+    {
+        $service = new LoanPayrollService;
+        $loan = new EmployeeLoan([
+            'amortization_amount' => 5000,
+            'deduct_half_per_cutoff' => true,
+        ]);
+
+        $this->assertSame(2500.0, $service->scheduledAmortization($loan));
+    }
+
+    public function test_cutoff_radio_matches_only_that_half_of_the_month(): void
+    {
+        $service = new LoanPayrollService;
+        $first = new PayrollCalendar(['dt_to' => '2026-10-10']);
+        $second = new PayrollCalendar(['dt_to' => '2026-10-25']);
+        $loan = new EmployeeLoan(['deduction_cutoff' => EmployeeLoan::CUTOFF_FIRST]);
+
+        $this->assertSame(EmployeeLoan::CUTOFF_FIRST, $first->cutoffNumber());
+        $this->assertSame(EmployeeLoan::CUTOFF_SECOND, $second->cutoffNumber());
+        $this->assertTrue($service->appliesToCalendar($loan, $first));
+        $this->assertFalse($service->appliesToCalendar($loan, $second));
     }
 }

@@ -248,6 +248,54 @@
             >
         </div>
 
+        <div class="sm:col-span-2 space-y-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+            <label class="flex items-start gap-2 text-sm text-gray-800">
+                <input
+                    type="checkbox"
+                    name="deduct_half_per_cutoff"
+                    value="1"
+                    class="mt-0.5"
+                    data-loan-half-cutoff
+                    @checked(old('deduct_half_per_cutoff', $loan?->deduct_half_per_cutoff) && blank(old('deduction_cutoff', $loan?->deduction_cutoff)))
+                    @disabled(filled(old('deduction_cutoff', $loan?->deduction_cutoff)))
+                >
+                <span>
+                    <span class="font-medium">Deduct half per cut off</span>
+                    <span class="mt-0.5 block text-xs text-gray-500">Each matching cut off deducts half of the amortization amount.</span>
+                </span>
+            </label>
+
+            <fieldset>
+                <legend class="form-label">Deduct on</legend>
+                <div class="mt-2 flex flex-wrap gap-4">
+                    <label class="flex items-center gap-2 text-sm text-gray-800">
+                        <input
+                            type="radio"
+                            name="deduction_cutoff"
+                            value="{{ \App\Models\EmployeeLoan::CUTOFF_FIRST }}"
+                            data-loan-cutoff
+                            @checked((string) old('deduction_cutoff', $loan?->deduction_cutoff) === (string) \App\Models\EmployeeLoan::CUTOFF_FIRST)
+                        >
+                        1st cut off
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-800">
+                        <input
+                            type="radio"
+                            name="deduction_cutoff"
+                            value="{{ \App\Models\EmployeeLoan::CUTOFF_SECOND }}"
+                            data-loan-cutoff
+                            @checked((string) old('deduction_cutoff', $loan?->deduction_cutoff) === (string) \App\Models\EmployeeLoan::CUTOFF_SECOND)
+                        >
+                        2nd cut off
+                    </label>
+                </div>
+                <p class="mt-2 text-xs text-gray-500">1st cut off ends on or before the 15th. 2nd cut off ends after the 15th. Choosing a cut off turns off Deduct half per cut off. Click the selected cut off again to clear it. Nothing is deducted unless this loan type is checked on that payroll calendar.</p>
+            </fieldset>
+            @error('deduction_cutoff')
+                <p class="text-xs text-red-600">{{ $message }}</p>
+            @enderror
+        </div>
+
         <div class="sm:col-span-2">
             <label for="{{ $fieldIdPrefix }}-purpose" class="form-label">Loan Purpose</label>
             <input

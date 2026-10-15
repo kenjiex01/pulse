@@ -49,6 +49,6 @@ class PayslipPdfProtector
             ? $birthDate
             : Carbon::parse((string) $birthDate);
 
-        return $parsed->format('Ymd');
+        return $parsed->format('mdY');
     }
 }

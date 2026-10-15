@@ -42,6 +42,8 @@ class EmployeeLoanController extends Controller
                 'deducted_from_new_loan',
                 'loan_purpose',
                 'dt_start_payment',
+                'deduct_half_per_cutoff',
+                'deduction_cutoff',
             ]),
             description: 'Added employee loan for '.$employee->employee_number,
         );
@@ -71,6 +73,8 @@ class EmployeeLoanController extends Controller
             'deducted_from_new_loan',
             'loan_purpose',
             'dt_start_payment',
+            'deduct_half_per_cutoff',
+            'deduction_cutoff',
         ]);
 
         $loan->update($validated);
@@ -161,6 +165,8 @@ class EmployeeLoanController extends Controller
                 'paid_from_previous' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
                 'deducted_from_new_loan' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
                 'loan_purpose' => ['nullable', 'string', 'max:150'],
+                'deduct_half_per_cutoff' => ['nullable', 'boolean'],
+                'deduction_cutoff' => ['nullable', 'integer', Rule::in([EmployeeLoan::CUTOFF_FIRST, EmployeeLoan::CUTOFF_SECOND])],
             ]);
         } catch (ValidationException $exception) {
             $params = [
@@ -225,6 +231,12 @@ class EmployeeLoanController extends Controller
             'loan_purpose' => filled($validated['loan_purpose'] ?? null)
                 ? trim((string) $validated['loan_purpose'])
                 : null,
+            'deduction_cutoff' => filled($validated['deduction_cutoff'] ?? null)
+                ? (int) $validated['deduction_cutoff']
+                : null,
+            'deduct_half_per_cutoff' => filled($validated['deduction_cutoff'] ?? null)
+                ? false
+                : $request->boolean('deduct_half_per_cutoff'),
         ];
     }
 

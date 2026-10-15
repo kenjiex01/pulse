@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\EmployeeLoan;
 use App\Models\PayrollBatchDetail;
+use App\Models\PayrollCalendar;
 use App\Models\PayrollLoanPayment;
 
 class LoanPayrollService
@@ -40,14 +41,18 @@ class LoanPayrollService
         $created = 0;
 
         foreach ($loans as $loan) {
-            if ($this->deductedOnAnotherBatch($loan, (int) $detail->payroll_batch_detail_id)) {
+            if (! $this->appliesToCalendar($loan, $calendar)) {
+                continue;
+            }
+
+            if ($this->alreadyDeducted($loan, $calendar, (int) $detail->payroll_batch_detail_id)) {
                 continue;
             }
 
             $payment = $this->paymentForBalance(
                 $loan->outstandingBeforePayroll(),
                 0,
-                (float) ($loan->amortization_amount ?? 0),
+                $this->scheduledAmortization($loan),
             );
 
             if ($payment <= 0) {
@@ -105,10 +110,41 @@ class LoanPayrollService
         return $amortization > 0 ? round($amortization, 2) : 0.0;
     }
 
+    public function scheduledAmortization(EmployeeLoan $loan): float
+    {
+        $amount = round((float) ($loan->amortization_amount ?? 0), 2);
+
+        if ($loan->deduct_half_per_cutoff) {
+            $amount = round($amount / 2, 2);
+        }
+
+        return $amount;
+    }
+
+    public function appliesToCalendar(EmployeeLoan $loan, PayrollCalendar $calendar): bool
+    {
+        $cutoff = $loan->deduction_cutoff;
+
+        if ($cutoff === null) {
+            return true;
+        }
+
+        return $calendar->cutoffNumber() === (int) $cutoff;
+    }
+
     /**
-     * One employee loan is deducted on a single batch only.
-     * A later pay period still checked on the calendar does not deduct it again.
+     * Loans without a cut-off choice stay a one-time deduction.
+     * A chosen cut off (or half per cut off) can deduct again on the next matching period.
      */
+    private function alreadyDeducted(EmployeeLoan $loan, PayrollCalendar $calendar, int $exceptDetailId): bool
+    {
+        if ($loan->deduction_cutoff === null && ! $loan->deduct_half_per_cutoff) {
+            return $this->deductedOnAnotherBatch($loan, $exceptDetailId);
+        }
+
+        return $this->deductedOnThisCalendar($loan, $calendar, $exceptDetailId);
+    }
+
     private function deductedOnAnotherBatch(EmployeeLoan $loan, int $exceptDetailId): bool
     {
         return PayrollLoanPayment::query()
@@ -116,6 +152,20 @@ class LoanPayrollService
             ->where('payroll_batch_detail_id', '!=', $exceptDetailId)
             ->where(function ($query) {
                 $query->where('payment', '>', 0)->orWhere('penalty', '>', 0);
+            })
+            ->exists();
+    }
+
+    private function deductedOnThisCalendar(EmployeeLoan $loan, PayrollCalendar $calendar, int $exceptDetailId): bool
+    {
+        return PayrollLoanPayment::query()
+            ->where('employee_loan_id', $loan->employee_loan_id)
+            ->where('payroll_batch_detail_id', '!=', $exceptDetailId)
+            ->where(function ($query) {
+                $query->where('payment', '>', 0)->orWhere('penalty', '>', 0);
+            })
+            ->whereHas('payrollBatchDetail.payrollBatch', function ($query) use ($calendar) {
+                $query->where('payroll_calendar_id', $calendar->payroll_calendar_id);
             })
             ->exists();
     }

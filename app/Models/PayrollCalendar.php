@@ -63,4 +63,14 @@ class PayrollCalendar extends Model
     {
         return str_pad((string) $this->pay_period, 3, '0', STR_PAD_LEFT);
     }
+
+    /**
+     * 1st cut off ends on or before the 15th. 2nd cut off ends after the 15th.
+     */
+    public function cutoffNumber(): int
+    {
+        $endDay = (int) ($this->dt_to?->day ?? 0);
+
+        return $endDay <= 15 ? EmployeeLoan::CUTOFF_FIRST : EmployeeLoan::CUTOFF_SECOND;
+    }
 }
