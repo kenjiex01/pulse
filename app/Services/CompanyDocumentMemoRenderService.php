@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CompanyDocumentElement;
 use App\Models\CompanyDocumentForm;
 use App\Models\Employee;
+use App\Support\AbsencesTardinessMemoDocument;
 use App\Support\CompanyDocumentInlineFormatting;
 use App\Support\CompanyDocumentMemoDocxExporter;
 use App\Support\CompanyDocumentMemoDompdfPreparer;
@@ -132,6 +133,14 @@ class CompanyDocumentMemoRenderService
      */
     public function renderDocumentHtml(array $preview, bool $browserPreview = false): string
     {
+        if (AbsencesTardinessMemoDocument::matches($preview['form'])) {
+            return View::make('pdf.company-document-absences-tardiness-memo', [
+                'form' => $preview['form'],
+                'memo' => AbsencesTardinessMemoDocument::data($preview),
+                'browserPreview' => $browserPreview,
+            ])->render();
+        }
+
         $elements = collect($preview['elements'])->sortBy('sort_order')->values()->all();
         $layout = CompanyDocumentMemoPdfLayout::buildForPdf($elements);
 
@@ -159,7 +168,13 @@ class CompanyDocumentMemoRenderService
             $elements = collect($materialized['preview']['elements'])->sortBy('sort_order')->values()->all();
             $layout = CompanyDocumentMemoPdfLayout::buildForPdf($elements);
 
-            $html = View::make('pdf.company-document-memo-document', [
+            $html = AbsencesTardinessMemoDocument::matches($materialized['preview']['form'])
+                ? View::make('pdf.company-document-absences-tardiness-memo', [
+                    'form' => $materialized['preview']['form'],
+                    'memo' => AbsencesTardinessMemoDocument::data($materialized['preview']),
+                    'browserPreview' => false,
+                ])->render()
+                : View::make('pdf.company-document-memo-document', [
                 'form' => $materialized['preview']['form'],
                 'layout' => $layout,
                 'previewValues' => $materialized['preview']['preview_values'],

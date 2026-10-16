@@ -109,16 +109,39 @@ class EmployeeLoan extends Model
         return round($loanAmount + (float) ($loanInterest ?? 0), 2);
     }
 
+    /**
+     * Principal shown on the loan form.
+     * With a payment count: amortization × number of payments.
+     * Otherwise: loan amount + interest.
+     */
+    public static function computePrincipalAmount(
+        float $loanAmount,
+        ?float $loanInterest,
+        ?float $amortizationAmount,
+        ?int $numberOfPayments,
+    ): float {
+        if ($numberOfPayments !== null && $numberOfPayments > 0 && $amortizationAmount !== null) {
+            return round($amortizationAmount * $numberOfPayments, 2);
+        }
+
+        return self::computePrincipal($loanAmount, $loanInterest);
+    }
+
+    public static function computeLoanInterest(float $principalLoanAmount, float $loanAmount): float
+    {
+        return round($principalLoanAmount - $loanAmount, 2);
+    }
+
     public static function computeAmortization(int $paymentSchemeId, float $loanAmount, ?int $numberOfPayments, ?float $amortizationAmount): ?float
     {
-        if ($paymentSchemeId === PaymentScheme::BASED_ON_NUMBER_OF_PAYMENTS) {
-            if (! $numberOfPayments || $numberOfPayments < 1) {
-                return null;
-            }
+        if ($amortizationAmount !== null) {
+            return round($amortizationAmount, 2);
+        }
 
+        if ($paymentSchemeId === PaymentScheme::BASED_ON_NUMBER_OF_PAYMENTS && $numberOfPayments && $numberOfPayments > 0) {
             return round($loanAmount / $numberOfPayments, 2);
         }
 
-        return $amortizationAmount !== null ? round($amortizationAmount, 2) : null;
+        return null;
     }
 }

@@ -9,6 +9,21 @@ use Tests\TestCase;
 
 class LoanPayrollServiceTest extends TestCase
 {
+    public function test_principal_is_amortization_times_number_of_payments(): void
+    {
+        $principal = EmployeeLoan::computePrincipalAmount(12000, 99999, 553.74, 24);
+        $this->assertSame('13289.76', number_format($principal, 2, '.', ''));
+        $this->assertSame('1289.76', number_format(EmployeeLoan::computeLoanInterest($principal, 12000), 2, '.', ''));
+        $this->assertSame(
+            '6644.88',
+            number_format(EmployeeLoan::computePrincipalAmount(12000, null, 553.74, 12), 2, '.', ''),
+        );
+        $this->assertSame(
+            '13289.76',
+            number_format(EmployeeLoan::computePrincipalAmount(12000, 1289.76, null, null), 2, '.', ''),
+        );
+    }
+
     public function test_payment_is_capped_to_remaining_balance(): void
     {
         $service = new LoanPayrollService;

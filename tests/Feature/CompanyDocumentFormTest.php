@@ -260,8 +260,14 @@ class CompanyDocumentFormTest extends TestCase
         $response->assertOk();
         $html = $response->getContent();
         $this->assertStringContainsString('M E M O R A N D U M', $html);
+        $this->assertStringContainsString('text-align:right', $html);
+        $this->assertStringContainsString('border-bottom:1px solid #000', $html);
+        $this->assertStringContainsString('border: 1px solid #000', $html);
         $this->assertStringContainsString('Section 8', $html);
         $this->assertStringContainsString('Section 23', $html);
+        $this->assertStringContainsString('Whole day', $html);
+        $this->assertStringContainsString('B (Written Warning)', $html);
+        $this->assertStringContainsString('attached summary of attendance', $html);
         $this->assertStringNotContainsString('memo-pdf-field-box', $html);
         $this->assertStringNotContainsString('border:1px solid #d1d5db', $html);
     }

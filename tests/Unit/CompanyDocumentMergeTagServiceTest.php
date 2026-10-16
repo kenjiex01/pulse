@@ -2,7 +2,9 @@
 
 namespace Tests\Unit;
 
+use App\Models\Employee;
 use App\Services\CompanyDocumentMergeTagService;
+use App\Support\CompanyDocumentMergeTagCatalog;
 use Tests\TestCase;
 
 class CompanyDocumentMergeTagServiceTest extends TestCase
@@ -75,5 +77,23 @@ class CompanyDocumentMergeTagServiceTest extends TestCase
 
         $this->assertSame('Written Warning', $service->resolve('disciplinary_action', null, $context));
         $this->assertSame('Second Offense', $service->resolve('offense_frequency', null, $context));
+    }
+
+    public function test_blank_offense_tags_use_the_same_sample_shown_in_preview(): void
+    {
+        $service = app(CompanyDocumentMergeTagService::class);
+        $employee = new Employee([
+            'first_name' => 'Criselda',
+            'last_name' => 'Bautista',
+        ]);
+
+        $this->assertSame(
+            CompanyDocumentMergeTagCatalog::sample('nature_of_offense'),
+            $service->resolve('nature_of_offense', $employee, []),
+        );
+        $this->assertSame(
+            CompanyDocumentMergeTagCatalog::sample('disciplinary_action'),
+            $service->resolve('disciplinary_action', $employee, []),
+        );
     }
 }

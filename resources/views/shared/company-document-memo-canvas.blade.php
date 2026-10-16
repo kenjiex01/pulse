@@ -15,7 +15,8 @@
         : "min-height:{$layout['canvas_height']}px;";
     $pdfBoxes = ! empty($pdfBoxes);
     $documentOutput = ! empty($documentOutput);
-    $canvasWidthCss = $pdfBoxes
+    $lockPixelWidth = $pdfBoxes || $documentOutput;
+    $canvasWidthCss = $lockPixelWidth
         ? ((int) $layout['canvas_width']).'px'
         : '100%';
 @endphp
@@ -44,7 +45,7 @@
                 $fieldPadding = $isImage ? '0' : '8px';
                 $fieldOverflow = $isImage ? 'visible' : ($box['height_px'] ? 'auto' : 'visible');
                 $widthCss = $box['width_css'];
-                if ($pdfBoxes && $widthCss === '100%' && ! $isImage) {
+                if ($lockPixelWidth && $widthCss === '100%' && ! $isImage) {
                     $widthCss = ((int) $layout['canvas_width']).'px';
                 }
                 $bodyWidthCss = $pdfBoxes ? 'auto' : '100%';

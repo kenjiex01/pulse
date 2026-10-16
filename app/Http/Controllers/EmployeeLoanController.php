@@ -154,14 +154,8 @@ class EmployeeLoanController extends Controller
                     'max:999',
                 ],
                 'loan_amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
-                'amortization_amount' => [
-                    Rule::requiredIf(fn () => (int) $request->input('payment_scheme_id') === PaymentScheme::USER_ENTERED_AMORTIZATION),
-                    'nullable',
-                    'numeric',
-                    'min:0',
-                    'max:99999999.99',
-                ],
-                'loan_interest' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
+                'amortization_amount' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+                'loan_interest' => ['nullable', 'numeric', 'min:-99999999.99', 'max:99999999.99'],
                 'paid_from_previous' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
                 'deducted_from_new_loan' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
                 'loan_purpose' => ['nullable', 'string', 'max:150'],
@@ -190,7 +184,7 @@ class EmployeeLoanController extends Controller
             : null;
         $paidFromPrevious = round((float) ($validated['paid_from_previous'] ?? 0), 2);
         $deductedFromNewLoan = round((float) ($validated['deducted_from_new_loan'] ?? 0), 2);
-        $numberOfPayments = $paymentSchemeId === PaymentScheme::BASED_ON_NUMBER_OF_PAYMENTS
+        $numberOfPayments = isset($validated['number_of_payments']) && $validated['number_of_payments'] !== null
             ? (int) $validated['number_of_payments']
             : null;
         $amortizationAmount = EmployeeLoan::computeAmortization(
@@ -199,9 +193,19 @@ class EmployeeLoanController extends Controller
             $numberOfPayments,
             isset($validated['amortization_amount']) ? (float) $validated['amortization_amount'] : null,
         );
+        $principalLoanAmount = EmployeeLoan::computePrincipalAmount(
+            $loanAmount,
+            $loanInterest,
+            $amortizationAmount,
+            $numberOfPayments,
+        );
+
+        if ($numberOfPayments && $amortizationAmount !== null) {
+            $loanInterest = EmployeeLoan::computeLoanInterest($principalLoanAmount, $loanAmount);
+        }
 
         $balance = round(
-            $loanAmount + (float) ($loanInterest ?? 0) - $paidFromPrevious - $deductedFromNewLoan,
+            $principalLoanAmount - $paidFromPrevious - $deductedFromNewLoan,
             2
         );
 
@@ -223,7 +227,7 @@ class EmployeeLoanController extends Controller
             'dt_start_payment' => $validated['dt_start_payment'] ?: null,
             'number_of_payments' => $numberOfPayments,
             'loan_amount' => $loanAmount,
-            'principal_loan_amount' => EmployeeLoan::computePrincipal($loanAmount, $loanInterest),
+            'principal_loan_amount' => $principalLoanAmount,
             'amortization_amount' => $amortizationAmount,
             'loan_interest' => $loanInterest,
             'paid_from_previous' => $paidFromPrevious,

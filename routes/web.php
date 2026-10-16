@@ -125,6 +125,8 @@ Route::middleware('auth')->group(function () {
     foreach (HrLookup::keys() as $lookup) {
         Route::middleware('module:'.HrLookup::routeName($lookup))->group(function () use ($lookup) {
             Route::get("hr/$lookup", [HrLookupController::class, 'index'])->name(HrLookup::routeName($lookup));
+            Route::get("hr/$lookup/upload/template", [HrLookupController::class, 'downloadTemplate'])->name(HrLookup::routeName($lookup, 'upload.template'));
+            Route::post("hr/$lookup/upload", [HrLookupController::class, 'upload'])->name(HrLookup::routeName($lookup, 'upload'));
             Route::post("hr/$lookup", [HrLookupController::class, 'store'])->name(HrLookup::routeName($lookup, 'store'));
             Route::put("hr/$lookup/{record}", [HrLookupController::class, 'update'])->name(HrLookup::routeName($lookup, 'update'));
             Route::post("hr/$lookup/{record}/toggle-status", [HrLookupController::class, 'toggleStatus'])->name(HrLookup::routeName($lookup, 'toggle-status'));

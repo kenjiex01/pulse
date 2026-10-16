@@ -18,6 +18,7 @@ use App\Models\Rank;
 return [
     'campuses' => [
         'name' => 'Campuses',
+        'upload' => true,
         'model' => Campus::class,
         'primary_key' => 'campus_id',
         'log_table' => 'tbl_campuses',
@@ -55,6 +56,7 @@ return [
     ],
     'designations' => [
         'name' => 'Designations',
+        'upload' => true,
         'model' => Designation::class,
         'primary_key' => 'designation_id',
         'log_table' => 'tbl_designations',
@@ -73,6 +75,7 @@ return [
     ],
     'employee-categories' => [
         'name' => 'Employee Categories',
+        'upload' => true,
         'description' => 'Category (User Type) used on employment records. Payroll hours follow Logs or Teaching Loads.',
         'model' => EmployeeCategory::class,
         'primary_key' => 'employee_category_id',
@@ -106,6 +109,7 @@ return [
     ],
     'positions' => [
         'name' => 'Positions',
+        'upload' => true,
         'model' => Position::class,
         'primary_key' => 'position_id',
         'log_table' => 'tbl_positions',
@@ -124,6 +128,7 @@ return [
     ],
     'ranks' => [
         'name' => 'Ranks',
+        'upload' => true,
         'model' => Rank::class,
         'primary_key' => 'rank_id',
         'log_table' => 'tbl_ranks',
@@ -142,6 +147,7 @@ return [
     ],
     'employment-types' => [
         'name' => 'Employment Types',
+        'upload' => true,
         'model' => EmploymentType::class,
         'primary_key' => 'employment_type_id',
         'log_table' => 'tbl_employment_types',
@@ -165,6 +171,7 @@ return [
     ],
     'employee-departments' => [
         'name' => 'Employee Departments',
+        'upload' => true,
         'model' => EmployeeDepartment::class,
         'primary_key' => 'employee_department_id',
         'log_table' => 'tbl_employee_departments',
@@ -187,6 +194,7 @@ return [
     ],
     'colleges' => [
         'name' => 'Colleges',
+        'upload' => true,
         'model' => College::class,
         'primary_key' => 'college_id',
         'log_table' => 'tbl_colleges',
@@ -211,6 +219,7 @@ return [
     ],
     'programs' => [
         'name' => 'Programs',
+        'upload' => true,
         'model' => Program::class,
         'primary_key' => 'program_id',
         'log_table' => 'tbl_programs',
@@ -234,6 +243,7 @@ return [
     ],
     'document-types' => [
         'name' => 'Document Types',
+        'upload' => true,
         'model' => DocumentType::class,
         'primary_key' => 'document_type_id',
         'log_table' => 'tbl_document_types',

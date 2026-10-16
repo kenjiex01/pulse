@@ -48,7 +48,7 @@ class CompanyDocumentInlineFormatting
 
     public static function renderSegment(string $text): string
     {
-        $text = self::sanitize($text);
+        $text = str_replace("\t", '    ', self::sanitize($text));
 
         if ($text === '') {
             return '';

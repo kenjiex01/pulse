@@ -14,13 +14,22 @@
     $loanInterest = old('loan_interest', $loan?->loan_interest);
     $paidFromPrevious = old('paid_from_previous', $loan?->paid_from_previous ?? 0);
     $deductedFromNewLoan = old('deducted_from_new_loan', $loan?->deducted_from_new_loan ?? 0);
-    $principal = \App\Models\EmployeeLoan::computePrincipal(
+    $amortizationAmount = old('amortization_amount', $loan?->amortization_amount);
+    $numberOfPayments = old('number_of_payments', $loan?->number_of_payments);
+    $paymentCount = $numberOfPayments !== null && $numberOfPayments !== '' ? (int) $numberOfPayments : null;
+    $amortizationValue = $amortizationAmount !== null && $amortizationAmount !== '' ? (float) $amortizationAmount : null;
+    $principal = \App\Models\EmployeeLoan::computePrincipalAmount(
         (float) ($loanAmount ?? 0),
-        $loanInterest !== null && $loanInterest !== '' ? (float) $loanInterest : null
+        $loanInterest !== null && $loanInterest !== '' ? (float) $loanInterest : null,
+        $amortizationValue,
+        $paymentCount,
     );
+    $interestFromPayments = $paymentCount !== null && $paymentCount > 0 && $amortizationValue !== null;
+    if ($interestFromPayments) {
+        $loanInterest = \App\Models\EmployeeLoan::computeLoanInterest($principal, (float) ($loanAmount ?? 0));
+    }
     $balance = round(
-        (float) ($loanAmount ?? 0)
-        + (float) ($loanInterest ?: 0)
+        $principal
         - (float) ($paidFromPrevious ?: 0)
         - (float) ($deductedFromNewLoan ?: 0),
         2
@@ -112,7 +121,6 @@
                 step="1"
                 value="{{ old('number_of_payments', $loan?->number_of_payments) }}"
                 data-loan-number-of-payments
-                @disabled($paymentSchemeId !== \App\Models\PaymentScheme::BASED_ON_NUMBER_OF_PAYMENTS)
             >
             @error('number_of_payments')
                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
@@ -148,7 +156,7 @@
                 tabindex="-1"
                 data-loan-principal
             >
-            <p class="mt-1 text-xs text-gray-500">Loan amount + interest</p>
+            <p class="mt-1 text-xs text-gray-500" data-loan-principal-hint>{{ ($numberOfPayments !== null && $numberOfPayments !== '' && (int) $numberOfPayments > 0) ? 'Amortization × no. of payments' : 'Loan amount + interest' }}</p>
         </div>
 
         <div>
@@ -162,8 +170,7 @@
                 step="0.01"
                 value="{{ old('amortization_amount', $loan?->amortization_amount) }}"
                 data-loan-amortization
-                @disabled($paymentSchemeId === \App\Models\PaymentScheme::BASED_ON_NUMBER_OF_PAYMENTS)
-                @required($paymentSchemeId === \App\Models\PaymentScheme::USER_ENTERED_AMORTIZATION)
+                required
             >
             @error('amortization_amount')
                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
@@ -195,7 +202,11 @@
                 step="0.01"
                 value="{{ $loanInterest }}"
                 data-loan-interest
+                @readonly($interestFromPayments)
             >
+            @if ($interestFromPayments)
+                <p class="mt-1 text-xs text-gray-500">Principal loan amount − loan amount</p>
+            @endif
             @error('loan_interest')
                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
             @enderror

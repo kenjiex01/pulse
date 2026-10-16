@@ -48,6 +48,15 @@ class CompanyDocumentMemoDocxExporterTest extends TestCase
         }
     }
 
+    public function test_absences_tardiness_docx_uses_aligned_header_and_offense_table(): void
+    {
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
+        $service = app(CompanyDocumentMemoRenderService::class);
+        $xml = $this->documentXml($service->renderDocx($service->buildSamplePreviewData($form)));
+
+        $this->assertStringContainsString('We have noted your continued absences', $xml);
+    }
+
     public function test_render_docx_includes_resolved_paragraph_text(): void
     {
         $form = CompanyDocumentForm::query()->create([

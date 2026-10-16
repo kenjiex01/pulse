@@ -105,6 +105,8 @@ class CompanyDocumentOffenseMemoServiceTest extends TestCase
 
         $this->assertStringContainsString('Section 8', $body);
         $this->assertStringContainsString('Section 23', $body);
+        $this->assertStringContainsString('{{nature_of_offense}}', $body);
+        $this->assertStringContainsString('{{disciplinary_action}}', $body);
         $this->assertStringContainsString('{{attendance_period}}', $body);
     }
 

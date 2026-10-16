@@ -31,7 +31,7 @@
 
     @case(CompanyDocumentElement::TYPE_PARAGRAPH)
         @php $paragraphStyle = CompanyDocumentTextStyle::normalize($settings); @endphp
-        <p style="margin:0;width:100%;overflow:hidden;white-space:pre-wrap;overflow-wrap:break-word;font-size:{{ $paragraphStyle['font_size'] }}px;line-height:1.55;{{ CompanyDocumentTextStyle::inlineStyle($settings) }}">{!! $label !!}</p>
+        <p style="margin:0;width:100%;overflow:visible;white-space:pre-wrap;word-wrap:break-word;font-size:{{ $paragraphStyle['font_size'] }}px;line-height:1.55;{{ CompanyDocumentTextStyle::inlineStyle($settings) }}">{!! $label !!}</p>
         @break
 
     @case(CompanyDocumentElement::TYPE_DIVIDER)

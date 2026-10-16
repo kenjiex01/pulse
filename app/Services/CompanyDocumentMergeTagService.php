@@ -51,15 +51,24 @@ class CompanyDocumentMergeTagService
         }
 
         if ($memoContext !== null && $tagKey === 'disciplinary_action') {
-            return (string) ($memoContext['disciplinary_action'] ?? '');
+            $value = trim((string) ($memoContext['disciplinary_action'] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
         }
 
         if ($memoContext !== null && $tagKey === 'offense_frequency') {
-            return (string) ($memoContext['offense_frequency_label'] ?? '');
+            $value = trim((string) ($memoContext['offense_frequency_label'] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
         }
 
         if ($memoContext !== null && $tagKey === 'nature_of_offense') {
-            return (string) ($memoContext['nature_of_offense'] ?? '');
+            $value = trim((string) ($memoContext['nature_of_offense'] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
         }
 
         if ($memoContext !== null && $tagKey === 'probationary_end_date') {

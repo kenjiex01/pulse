@@ -21,6 +21,11 @@ class HrLookup
         return array_keys(config('hr_lookups', []));
     }
 
+    public static function supportsUpload(string $lookup): bool
+    {
+        return (bool) (self::config($lookup)['upload'] ?? false);
+    }
+
     public static function config(string $lookup): array
     {
         $config = config("hr_lookups.$lookup");

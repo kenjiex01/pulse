@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Storage;
 class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
 {
     /** Bump when ICCT memo/letter template content or layout changes (desktop + dev bootstrap). */
-    public const REVISION = 2;
+    public const REVISION = 3;
 
     public const REVISION_MARKER = 'app/hr-letter-templates.revision';
 
@@ -440,14 +440,11 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
      */
     private function memoAbsencesTardiness(): array
     {
-        $offenseTable = "<i>Section 8</i>\tWhole day absence without official leave (AWOL).\n"
-            ."(Each day of absence without notice will be on an accrual basis)\t<i>B (Written Warning)</i>\n\n"
-            ."<i>Section 23</i>\tHabitual tardiness, committing five (5) times late in a month. For faculty, please see Appendix A\t"
-            ."<i>A (Verbal Reprimand - but recorded for reference)</i>";
-
         $body = "We have noted your continued absences and tardiness for the months of {{attendance_period}} as shown on the attached summary of attendance.\n\n"
             ."Please be reminded that as per the Code of Offenses & Table of Penalties, Table II. Offenses Against Administration:\n\n"
-            .$offenseTable."\n\n"
+            ."Section 8    Whole day absence without official leave (AWOL).    B (Written Warning)\n"
+            ."Section 23    Habitual tardiness, committing five (5) times late in a month. For faculty, please see Appendix A    A (Verbal Reprimand - but recorded for reference)\n\n"
+            ."{{nature_of_offense}} {{disciplinary_action}}\n\n"
             ."Please submit a written explanation regarding the issue within forty-eight (48) hours upon receipt of this memorandum.\n\n"
             ."We look forward to your cooperation.\n\n\n"
             ."Aurora G. Esma\n"

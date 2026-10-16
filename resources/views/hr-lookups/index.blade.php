@@ -7,7 +7,11 @@
         $openCreate = ($errors->any() && old('form_context') === "create-$lookup") || request()->boolean('create');
         $openCreateFrequency = ($errors->any() && old('form_context') === 'create-offense-frequencies') || request()->boolean('create_frequency');
         $isOffenseCategories = $lookup === 'offense-categories';
+        $supportsUpload = \App\Support\HrLookup::supportsUpload($lookup);
+        $canCreate = auth()->user()->can('hr-lookup.create', $lookup);
         $addIcon = '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>';
+        $uploadIcon = '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5 5 5M12 5v10"/></svg>';
+        $openUpload = ($openUpload ?? false) || ($errors->any() && old('form_context') === "upload-$lookup");
     @endphp
 
     @include('partials.flash')
@@ -15,9 +19,11 @@
     @include('partials.page-header', [
         'title' => $config['name'],
         'description' => $config['description'] ?? 'Maintain '.$config['name'].' used in employee forms.',
-        'secondaryActionModalId' => $isOffenseCategories && auth()->user()->can('hr-lookup.create', 'offense-frequencies') ? 'hr-lookup-create-offense-frequencies' : null,
-        'secondaryActionLabel' => 'Add Frequency',
-        'secondaryActionIcon' => $addIcon,
+        'secondaryActionModalId' => $isOffenseCategories && auth()->user()->can('hr-lookup.create', 'offense-frequencies')
+            ? 'hr-lookup-create-offense-frequencies'
+            : ($supportsUpload && $canCreate ? "hr-lookup-upload-$lookup" : null),
+        'secondaryActionLabel' => $isOffenseCategories ? 'Add Frequency' : 'Upload',
+        'secondaryActionIcon' => $isOffenseCategories ? $addIcon : $uploadIcon,
         'actionModalId' => $isOffenseCategories
             ? (auth()->user()->can('hr-lookup.create', $lookup) ? "hr-lookup-create-$lookup" : null)
             : (auth()->user()->can('hr-lookup.create', $lookup) ? "hr-lookup-create-$lookup" : null),
@@ -55,6 +61,20 @@
                 'records' => $records,
                 'selectOptions' => $selectOptions,
                 'openEditId' => old('edit_record_id', request('edit')),
+            ])->render(),
+        ])
+    @endif
+
+    @if ($supportsUpload && $canCreate)
+        @include('partials.modal', [
+            'id' => "hr-lookup-upload-$lookup",
+            'title' => 'Upload '.$config['name'],
+            'description' => 'Download the template, fill it in, then upload it.',
+            'open' => $openUpload,
+            'panelClass' => 'max-w-2xl',
+            'body' => view('hr-lookups._upload-form', [
+                'lookup' => $lookup,
+                'config' => $config,
             ])->render(),
         ])
     @endif

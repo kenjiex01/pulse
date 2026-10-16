@@ -2483,33 +2483,52 @@ document.addEventListener('DOMContentLoaded', () => {
         const basedOnPayments = schemeValue === SCHEME_BASED_ON_PAYMENTS;
 
         if (nop) {
-            nop.disabled = !basedOnPayments;
+            nop.disabled = false;
             nop.required = basedOnPayments;
         }
 
         if (amortization) {
-            amortization.disabled = basedOnPayments;
-            amortization.required = !basedOnPayments;
+            amortization.disabled = false;
+            amortization.required = true;
         }
 
         const loanAmount = parseLoanNumber(amount.value);
-        const loanInterest = parseLoanNumber(interest?.value);
         const paid = parseLoanNumber(paidPrevious?.value);
         const deducted = parseLoanNumber(deductedNew?.value);
+        const amortizationAmount = parseLoanNumber(amortization?.value);
+        const payments = Number.parseInt(String(nop?.value || ''), 10);
+        const principalFromPayments = payments > 0 && String(amortization?.value ?? '').trim() !== '';
+        let loanInterest = parseLoanNumber(interest?.value);
 
-        if (basedOnPayments && amortization && nop) {
-            const payments = Number.parseInt(String(nop.value || ''), 10);
-            if (payments > 0) {
-                amortization.value = formatLoanMoney(loanAmount / payments);
+        if (principalFromPayments) {
+            loanInterest = (amortizationAmount * payments) - loanAmount;
+            if (interest) {
+                interest.value = formatLoanMoney(loanInterest);
+                interest.readOnly = true;
+                interest.classList.add('bg-gray-50');
             }
+        } else if (interest) {
+            interest.readOnly = false;
+            interest.classList.remove('bg-gray-50');
         }
 
+        const principalAmount = principalFromPayments
+            ? amortizationAmount * payments
+            : loanAmount + loanInterest;
+
         if (principal) {
-            principal.value = formatLoanMoney(loanAmount + loanInterest);
+            principal.value = formatLoanMoney(principalAmount);
+        }
+
+        const principalHint = form.querySelector('[data-loan-principal-hint]');
+        if (principalHint) {
+            principalHint.textContent = principalFromPayments
+                ? 'Amortization × no. of payments'
+                : 'Loan amount + interest';
         }
 
         if (balance) {
-            balance.value = formatLoanMoney(loanAmount + loanInterest - paid - deducted);
+            balance.value = formatLoanMoney(principalAmount - paid - deducted);
         }
     };
 
