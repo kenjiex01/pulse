@@ -5,8 +5,9 @@ namespace App\Services;
 use App\Models\CompanyDocumentElement;
 use App\Models\CompanyDocumentForm;
 use App\Models\Employee;
-use App\Support\AbsencesTardinessMemoDocument;
 use App\Support\CompanyDocumentInlineFormatting;
+use App\Support\CompanyDocumentMemoTable;
+use App\Support\CompanyDocumentOffensePairTable;
 use App\Support\CompanyDocumentMemoDocxExporter;
 use App\Support\CompanyDocumentMemoDompdfPreparer;
 use App\Support\CompanyDocumentMemoPdfLayout;
@@ -133,14 +134,6 @@ class CompanyDocumentMemoRenderService
      */
     public function renderDocumentHtml(array $preview, bool $browserPreview = false): string
     {
-        if (AbsencesTardinessMemoDocument::matches($preview['form'])) {
-            return View::make('pdf.company-document-absences-tardiness-memo', [
-                'form' => $preview['form'],
-                'memo' => AbsencesTardinessMemoDocument::data($preview),
-                'browserPreview' => $browserPreview,
-            ])->render();
-        }
-
         $elements = collect($preview['elements'])->sortBy('sort_order')->values()->all();
         $layout = CompanyDocumentMemoPdfLayout::buildForPdf($elements);
 
@@ -168,13 +161,7 @@ class CompanyDocumentMemoRenderService
             $elements = collect($materialized['preview']['elements'])->sortBy('sort_order')->values()->all();
             $layout = CompanyDocumentMemoPdfLayout::buildForPdf($elements);
 
-            $html = AbsencesTardinessMemoDocument::matches($materialized['preview']['form'])
-                ? View::make('pdf.company-document-absences-tardiness-memo', [
-                    'form' => $materialized['preview']['form'],
-                    'memo' => AbsencesTardinessMemoDocument::data($materialized['preview']),
-                    'browserPreview' => false,
-                ])->render()
-                : View::make('pdf.company-document-memo-document', [
+            $html = View::make('pdf.company-document-memo-document', [
                 'form' => $materialized['preview']['form'],
                 'layout' => $layout,
                 'previewValues' => $materialized['preview']['preview_values'],
@@ -258,6 +245,7 @@ class CompanyDocumentMemoRenderService
         $settings = $element->settings_json ?? ['label_align' => 'top'];
         $type = $element->type;
         $label = (string) ($element->label ?? '');
+        $options = $element->options_json ?? [];
 
         if ($element->isMergeTag()) {
             $tagKey = (string) (($settings['tag_key'] ?? '') ?: '');
@@ -265,7 +253,26 @@ class CompanyDocumentMemoRenderService
                 ? $this->mergeTagService->resolve($tagKey, $employee, $memoContext)
                 : '';
             $type = CompanyDocumentElement::TYPE_PARAGRAPH;
-        } elseif (in_array($type, [CompanyDocumentElement::TYPE_PARAGRAPH, CompanyDocumentElement::TYPE_HEADING], true)) {
+        } elseif ($type === CompanyDocumentElement::TYPE_PARAGRAPH) {
+            $label = CompanyDocumentOffensePairTable::render(
+                $label,
+                fn (string $text): string => CompanyDocumentInlineFormatting::renderSegment(
+                    $this->mergeTagService->resolveInlineTags($text, $employee, $memoContext),
+                ),
+                fn (string $tagKey): string => e($this->mergeTagService->resolve($tagKey, $employee, $memoContext)),
+            );
+        } elseif ($type === CompanyDocumentElement::TYPE_TABLE) {
+            $resolvedRows = [];
+            foreach (CompanyDocumentMemoTable::normalizeRows($options['rows'] ?? null) as $row) {
+                $resolvedRows[] = array_map(
+                    fn (string $cell): string => CompanyDocumentInlineFormatting::renderSegment(
+                        $this->mergeTagService->resolveInlineTags($cell, $employee, $memoContext),
+                    ),
+                    $row,
+                );
+            }
+            $options = ['rows' => $resolvedRows];
+        } elseif ($type === CompanyDocumentElement::TYPE_HEADING) {
             $label = $this->mergeTagService->resolveInlineTags($label, $employee, $memoContext);
             $label = CompanyDocumentInlineFormatting::renderSegment($label);
         }
@@ -308,7 +315,7 @@ class CompanyDocumentMemoRenderService
             'is_required' => (bool) $element->is_required,
             'width' => $element->width,
             'sort_order' => $element->sort_order,
-            'options' => $element->options_json ?? [],
+            'options' => $options,
             'settings' => $settings,
         ];
     }

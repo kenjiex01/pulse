@@ -116,7 +116,17 @@ class CompanyDocumentFormTest extends TestCase
     public function test_update_preserves_is_nte_on_seeded_nte_letter(): void
     {
         $user = User::query()->firstOrFail();
-        $nte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
+        $nte = CompanyDocumentForm::query()->create([
+            'code' => 'test_nte_letter',
+            'name' => 'Notice to Explain',
+            'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'is_nte' => true,
+            'requires_nte' => false,
+            'expects_web_nte_response' => true,
+            'nte_response_days' => 7,
+            'is_active' => true,
+            'version' => 1,
+        ]);
         $updatedName = $nte->name.' Updated';
 
         $this->actingAs($user)
@@ -139,7 +149,7 @@ class CompanyDocumentFormTest extends TestCase
     public function test_update_does_not_assign_is_nte_to_other_templates(): void
     {
         $user = User::query()->firstOrFail();
-        $otherForm = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $otherForm = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $this->actingAs($user)
             ->put(route('company-documents.update', $otherForm), [
@@ -157,7 +167,14 @@ class CompanyDocumentFormTest extends TestCase
     public function test_duplicate_clears_is_nte_on_copy(): void
     {
         $user = User::query()->firstOrFail();
-        $nte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
+        $nte = CompanyDocumentForm::query()->create([
+            'code' => 'test_nte_letter_copy',
+            'name' => 'Notice to Explain',
+            'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'is_nte' => true,
+            'is_active' => true,
+            'version' => 1,
+        ]);
 
         $this->actingAs($user)
             ->post(route('company-documents.duplicate', $nte))
@@ -210,38 +227,54 @@ class CompanyDocumentFormTest extends TestCase
 
     public function test_sample_memo_seeder_is_available_after_bootstrap(): void
     {
-        $this->assertDatabaseHas('tbl_company_document_forms', [
-            'code' => 'hr_internal_memo',
-        ]);
+        $expected = \Database\Seeders\CompanyDocumentHrLetterTemplatesSeeder::TEMPLATE_CODES;
+        sort($expected);
+
+        $this->assertSame(
+            $expected,
+            CompanyDocumentForm::query()->orderBy('code')->pluck('code')->all(),
+        );
     }
 
     public function test_hr_letter_and_memo_templates_are_seeded(): void
     {
-        foreach (\Database\Seeders\CompanyDocumentHrLetterTemplatesSeeder::TEMPLATE_CODES as $code) {
-            $this->assertDatabaseHas('tbl_company_document_forms', [
-                'code' => $code,
-                'document_type' => CompanyDocumentForm::TYPE_MEMO,
-                'is_active' => true,
-            ]);
+        $expectedPhrases = [
+            'hr_memo_absences_tardiness' => '{{attendance_period}}',
+            'hr_internal_memo' => 'pattern of repeated tardiness',
+            'hr_memo_company_property' => '{{nature_of_offense}}',
+            'hr_memo_philhealth_compliance' => 'PhilHealth Number',
+            'hr_notice_to_explain' => '{{disciplinary_action}}',
+            'hr_letter_nte_followup_2' => '2nd Request',
+            'hr_letter_nte_followup_3' => '3rd Request',
+            'hr_letter_admin_investigation' => 'Administrative Investigation',
+            'hr_letter_dismissal_notice' => 'dismiss your employment',
+        ];
+
+        foreach ($expectedPhrases as $code => $phrase) {
+            $form = CompanyDocumentForm::query()->where('code', $code)->firstOrFail();
+            $this->assertTrue($form->is_active);
+            $stored = $form->elements->map(function (CompanyDocumentElement $element): string {
+                if ($element->type === CompanyDocumentElement::TYPE_TABLE) {
+                    return json_encode($element->options_json);
+                }
+
+                return (string) $element->label;
+            })->implode("\n");
+            $this->assertStringContainsString($phrase, $stored);
         }
+
+        $memo = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
+        $this->assertFalse($memo->is_nte);
+        $this->assertTrue($memo->elements()->where('type', 'image')->exists());
 
         $nte = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
         $this->assertTrue($nte->is_nte);
-        $this->assertFalse($nte->requires_nte);
-        $this->assertTrue($nte->expects_web_nte_response);
-        $this->assertSame(7, $nte->nte_response_days);
-        $this->assertTrue(
-            $nte->elements()->where('type', 'image')->exists(),
-            'NTE letter should include the ICCT logo.',
-        );
-
-        $internalMemo = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
-        $this->assertGreaterThan(5, $internalMemo->elements()->count());
+        $this->assertSame(5, $nte->nte_response_days);
     }
 
     public function test_memo_template_preview_modal_uses_pdf_iframe(): void
     {
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $this->actingAs(User::query()->firstOrFail())
             ->get(route('company-documents.index', ['view_form' => $form->company_document_form_id]))
@@ -250,31 +283,81 @@ class CompanyDocumentFormTest extends TestCase
             ->assertSee('Legal size (8.5 × 14 in)', false);
     }
 
-    public function test_absences_tardiness_preview_renders_flat_memo_layout(): void
+    public function test_absences_tardiness_preview_matches_designer_content(): void
     {
         $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
+        $designerBody = "We have noted your continued absences and tardiness for the months of {{attendance_period}} as shown on the attached summary of attendance.\n\n"
+            ."Please be reminded that as per the Code of Offenses & Table of Penalties, Table II. Offenses Against Administration:\n\n"
+            ."{{nature_of_offense}} {{disciplinary_action}}\n\n"
+            ."Please submit a written explanation regarding the issue within forty-eight (48) hours upon receipt of this memorandum.\n\n"
+            ."We look forward to your cooperation.\n\n\n"
+            ."Aurora G. Esma\n"
+            ."Vice-President, HR & Administration";
 
-        $response = $this->actingAs(User::query()->firstOrFail())
-            ->get(route('company-documents.preview-html', $form));
+        $form->elements()
+            ->where('type', CompanyDocumentElement::TYPE_PARAGRAPH)
+            ->where('label', 'like', '%Section 8%')
+            ->update(['label' => $designerBody]);
 
-        $response->assertOk();
-        $html = $response->getContent();
-        $this->assertStringContainsString('M E M O R A N D U M', $html);
-        $this->assertStringContainsString('text-align:right', $html);
-        $this->assertStringContainsString('border-bottom:1px solid #000', $html);
-        $this->assertStringContainsString('border: 1px solid #000', $html);
-        $this->assertStringContainsString('Section 8', $html);
-        $this->assertStringContainsString('Section 23', $html);
-        $this->assertStringContainsString('Whole day', $html);
-        $this->assertStringContainsString('B (Written Warning)', $html);
-        $this->assertStringContainsString('attached summary of attendance', $html);
-        $this->assertStringNotContainsString('memo-pdf-field-box', $html);
-        $this->assertStringNotContainsString('border:1px solid #d1d5db', $html);
+        $service = app(\App\Services\CompanyDocumentMemoRenderService::class);
+        $preview = $service->buildSamplePreviewData($form->fresh(['elements', 'icctOffense']));
+        $html = $service->renderDocumentHtml($preview, true);
+        $plain = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($html))) ?? '';
+
+        foreach ($preview['elements'] as $element) {
+            if (in_array($element['type'] ?? '', ['image', 'table'], true)) {
+                continue;
+            }
+
+            $text = trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags((string) ($element['label'] ?? '')))) ?? '');
+            if ($text === '') {
+                continue;
+            }
+
+            $this->assertStringContainsString(mb_substr($text, 0, 48), $plain);
+        }
+
+        $this->assertStringContainsString('From:', $plain);
+        $this->assertStringContainsString('Aurora G. Esma', $plain);
+        $this->assertStringContainsString('<table', $html);
+        $this->assertStringContainsString('border:1px solid #111', $html);
+        $this->assertStringContainsString('Nature of offense', $html);
+        $this->assertStringContainsString('Disciplinary action', $html);
+        $this->assertStringNotContainsString('Section 23', $html);
+        $this->assertStringNotContainsString('please see Appendix A', $html);
+        $this->assertStringNotContainsString('accrual basis', $html);
+    }
+
+    public function test_table_element_preview_resolves_tags_inside_bordered_cells(): void
+    {
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
+        CompanyDocumentElement::query()->create([
+            'company_document_form_id' => $form->company_document_form_id,
+            'type' => CompanyDocumentElement::TYPE_TABLE,
+            'label' => 'Table',
+            'sort_order' => 50,
+            'width' => 'full',
+            'options_json' => [
+                'rows' => [
+                    ['Employee', 'Note'],
+                    ['{{employee_full_name}}', 'Reviewed'],
+                ],
+            ],
+            'settings_json' => ['label_align' => 'top'],
+        ]);
+
+        $service = app(\App\Services\CompanyDocumentMemoRenderService::class);
+        $html = $service->renderDocumentHtml($service->buildSamplePreviewData($form->fresh('elements')), true);
+
+        $this->assertStringContainsString('border:1px solid #111', $html);
+        $this->assertStringContainsString('>Employee</th>', $html);
+        $this->assertStringContainsString('Juan Dela Cruz', $html);
+        $this->assertStringContainsString('Reviewed', $html);
     }
 
     public function test_memo_template_preview_html_returns_designer_document(): void
     {
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $response = $this->actingAs(User::query()->firstOrFail())
             ->get(route('company-documents.preview-html', $form));
@@ -295,7 +378,7 @@ class CompanyDocumentFormTest extends TestCase
 
     public function test_memo_template_preview_pdf_returns_valid_legal_pdf(): void
     {
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $response = $this->actingAs(User::query()->firstOrFail())
             ->get(route('company-documents.preview-pdf', $form));
@@ -315,7 +398,7 @@ class CompanyDocumentFormTest extends TestCase
     public function test_designer_save_persists_field_positions(): void
     {
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $this->actingAs($user)
             ->putJson(route('company-documents.designer.elements', $form), [
@@ -349,7 +432,7 @@ class CompanyDocumentFormTest extends TestCase
     public function test_designer_paragraph_newlines_persist(): void
     {
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
         $label = "First line of the memo.\n\nSecond paragraph after a blank line.";
 
         $this->actingAs($user)
@@ -386,7 +469,7 @@ class CompanyDocumentFormTest extends TestCase
         Storage::fake('local');
 
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $response = $this->actingAs($user)
             ->post(route('company-documents.designer.upload-image', $form), [
@@ -442,7 +525,7 @@ class CompanyDocumentFormTest extends TestCase
     public function test_designer_field_box_size_persists(): void
     {
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $this->actingAs($user)
             ->putJson(route('company-documents.designer.elements', $form), [
@@ -485,7 +568,7 @@ class CompanyDocumentFormTest extends TestCase
         Storage::fake('local');
 
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
         $pngPath = $this->makeTransparentStampPng();
 
         try {
@@ -531,7 +614,20 @@ class CompanyDocumentFormTest extends TestCase
         Storage::fake('local');
 
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->create([
+            'code' => 'test_submission_memo',
+            'name' => 'Submission Memo',
+            'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'is_active' => true,
+            'version' => 1,
+        ]);
+        CompanyDocumentElement::query()->create([
+            'company_document_form_id' => $form->company_document_form_id,
+            'type' => CompanyDocumentElement::TYPE_SHORT_TEXT,
+            'label' => 'Control No.',
+            'field_key' => 'control_no',
+            'sort_order' => 1,
+        ]);
 
         $response = $this->actingAs($user)
             ->post(route('company-documents.submissions.store', $form), [
@@ -558,7 +654,7 @@ class CompanyDocumentFormTest extends TestCase
     public function test_designer_save_persists_merge_tag_elements(): void
     {
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $this->actingAs($user)
             ->putJson(route('company-documents.designer.elements', $form), [
@@ -606,7 +702,7 @@ class CompanyDocumentFormTest extends TestCase
     public function test_designer_save_persists_signature_preview_drawing(): void
     {
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
         $dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
         $this->actingAs($user)
@@ -644,7 +740,7 @@ class CompanyDocumentFormTest extends TestCase
     public function test_designer_page_includes_tags_palette_category(): void
     {
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $this->actingAs($user)
             ->get(route('company-documents.designer', $form))
@@ -673,7 +769,7 @@ class CompanyDocumentFormTest extends TestCase
     public function test_designer_paragraph_font_settings_persist(): void
     {
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $this->actingAs($user)
             ->putJson(route('company-documents.designer.elements', $form), [
@@ -711,7 +807,7 @@ class CompanyDocumentFormTest extends TestCase
     public function test_designer_empty_field_label_persists_after_save(): void
     {
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $this->actingAs($user)
             ->putJson(route('company-documents.designer.elements', $form), [
@@ -750,7 +846,7 @@ class CompanyDocumentFormTest extends TestCase
     public function test_designer_canvas_background_and_field_colors_persist(): void
     {
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $this->actingAs($user)
             ->putJson(route('company-documents.designer.elements', $form), [
@@ -813,7 +909,7 @@ class CompanyDocumentFormTest extends TestCase
     public function test_designer_paragraph_inline_formatting_persists(): void
     {
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
         $label = 'Employee Name: <b>{{employee_full_name}}</b>';
 
         $this->actingAs($user)
@@ -847,7 +943,7 @@ class CompanyDocumentFormTest extends TestCase
     public function test_designer_paragraph_float_formatting_persists(): void
     {
         $user = User::query()->firstOrFail();
-        $form = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
         $label = '<float-left><b>Control No.</b></float-left><float-right>Date: {{current_date}}</float-right>';
 
         $this->actingAs($user)

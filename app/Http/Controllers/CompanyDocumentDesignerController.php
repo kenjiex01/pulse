@@ -13,6 +13,7 @@ use App\Services\CompanyDocumentMergeTagService;
 use App\Services\SysLogService;
 use App\Support\CompanyDocumentElementCatalog;
 use App\Support\CompanyDocumentInlineFormatting;
+use App\Support\CompanyDocumentMemoTable;
 use App\Support\CompanyDocumentMergeTagCatalog;
 use App\Support\CompanyDocumentTextStyle;
 use Illuminate\Http\JsonResponse;
@@ -440,6 +441,12 @@ class CompanyDocumentDesignerController extends Controller
 
         if (array_is_list($options)) {
             return null;
+        }
+
+        if ($type === CompanyDocumentElement::TYPE_TABLE) {
+            return [
+                'rows' => CompanyDocumentMemoTable::normalizeRows($options['rows'] ?? null),
+            ];
         }
 
         if ($type === 'image') {

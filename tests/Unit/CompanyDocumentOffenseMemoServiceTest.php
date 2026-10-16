@@ -64,7 +64,12 @@ class CompanyDocumentOffenseMemoServiceTest extends TestCase
 
     public function test_offense_tags_are_not_available_without_nature_of_offense(): void
     {
-        $form = CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->firstOrFail();
+        $form = CompanyDocumentForm::query()->create([
+            'code' => 'test_memo_without_offense',
+            'name' => 'Memo Without Offense',
+            'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'is_active' => true,
+        ]);
         $form->load('elements');
 
         $palette = \App\Support\CompanyDocumentElementCatalog::palette($form);
@@ -99,12 +104,18 @@ class CompanyDocumentOffenseMemoServiceTest extends TestCase
         $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
 
         $body = $form->elements()
-            ->where('type', CompanyDocumentElement::TYPE_PARAGRAPH)
-            ->pluck('label')
+            ->get()
+            ->map(function (CompanyDocumentElement $element): string {
+                if ($element->type === CompanyDocumentElement::TYPE_TABLE) {
+                    return json_encode($element->options_json);
+                }
+
+                return (string) $element->label;
+            })
             ->implode("\n");
 
-        $this->assertStringContainsString('Section 8', $body);
-        $this->assertStringContainsString('Section 23', $body);
+        $this->assertStringNotContainsString('Section 8', $body);
+        $this->assertStringNotContainsString('Section 23', $body);
         $this->assertStringContainsString('{{nature_of_offense}}', $body);
         $this->assertStringContainsString('{{disciplinary_action}}', $body);
         $this->assertStringContainsString('{{attendance_period}}', $body);

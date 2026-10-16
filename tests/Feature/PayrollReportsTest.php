@@ -145,6 +145,9 @@ class PayrollReportsTest extends TestCase
         $response->assertDontSee('0.25 hrs');
         $response->assertDontSee('1.00 days');
         $response->assertSee('Mins');
+        $response->assertSee('Year To Date Figures');
+        $response->assertSee('Gross Income');
+        $response->assertSee('HDMF EE');
     }
 
     public function test_generate_payslip_html_keeps_mins_column_without_late_deduction(): void

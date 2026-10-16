@@ -26,7 +26,7 @@ class ReferenceDataBootstrapServiceTest extends TestCase
     {
         $this->seed(CompanyDocumentHrLetterTemplatesSeeder::class);
 
-        CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->delete();
+        CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->delete();
 
         LuIcctOffense::query()->forceDelete();
 
@@ -38,7 +38,7 @@ class ReferenceDataBootstrapServiceTest extends TestCase
         );
 
         $this->assertTrue(
-            CompanyDocumentForm::query()->where('code', 'hr_internal_memo')->where('is_active', true)->exists(),
+            CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->where('is_active', true)->exists(),
         );
     }
 
@@ -56,12 +56,69 @@ class ReferenceDataBootstrapServiceTest extends TestCase
 
         app(ReferenceDataBootstrapService::class)->ensureCriticalLookups();
 
-        $labels = $form->fresh()->elements()->where('type', 'paragraph')->pluck('label')->implode("\n");
-        $this->assertStringContainsString('Section 8', $labels);
+        $stored = $form->fresh()->elements()->get()->map(function ($element): string {
+            if ($element->type === 'table') {
+                return json_encode($element->options_json);
+            }
+
+            return (string) $element->label;
+        })->implode("\n");
+        $this->assertStringContainsString('{{nature_of_offense}}', $stored);
 
         $this->assertSame(
             (string) CompanyDocumentHrLetterTemplatesSeeder::REVISION,
             trim((string) file_get_contents(storage_path(CompanyDocumentHrLetterTemplatesSeeder::REVISION_MARKER))),
+        );
+    }
+
+    public function test_revision_bump_replaces_installed_company_documents(): void
+    {
+        $this->seed(CompanyDocumentHrLetterTemplatesSeeder::class);
+
+        CompanyDocumentForm::query()->create([
+            'code' => 'campus_custom_memo',
+            'name' => 'Campus Custom Memo',
+            'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'is_active' => true,
+        ]);
+
+        $absences = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
+        $absences->update([
+            'name' => 'Old installed name',
+            'description' => 'Edited on an installed campus',
+        ]);
+        $absences->elements()->update(['label' => 'Old installed body']);
+
+        file_put_contents(
+            storage_path(CompanyDocumentHrLetterTemplatesSeeder::REVISION_MARKER),
+            (string) (CompanyDocumentHrLetterTemplatesSeeder::REVISION - 1),
+        );
+
+        app(ReferenceDataBootstrapService::class)->ensureCriticalLookups();
+
+        $this->assertSoftDeleted('tbl_company_document_forms', [
+            'code' => 'campus_custom_memo',
+        ]);
+
+        $fresh = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
+        $this->assertSame('Internal Memo — Absences & Tardiness', $fresh->name);
+        $this->assertStringNotContainsString('Old installed', (string) $fresh->description);
+
+        $stored = $fresh->elements()->get()->map(function ($element): string {
+            if ($element->type === 'table') {
+                return json_encode($element->options_json);
+            }
+
+            return (string) $element->label;
+        })->implode("\n");
+        $this->assertStringContainsString('{{nature_of_offense}}', $stored);
+        $this->assertStringNotContainsString('Old installed body', $stored);
+
+        $expected = CompanyDocumentHrLetterTemplatesSeeder::TEMPLATE_CODES;
+        sort($expected);
+        $this->assertSame(
+            $expected,
+            CompanyDocumentForm::query()->orderBy('code')->pluck('code')->all(),
         );
     }
 }

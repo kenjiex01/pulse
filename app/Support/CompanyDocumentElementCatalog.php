@@ -19,6 +19,7 @@ class CompanyDocumentElementCatalog
                 ['type' => 'heading', 'label' => 'Heading'],
                 ['type' => 'paragraph', 'label' => 'Paragraph'],
                 ['type' => 'divider', 'label' => 'Divider'],
+                ['type' => 'table', 'label' => 'Table'],
                 ['type' => 'image', 'label' => 'Image'],
                 ['type' => 'section', 'label' => 'Section'],
                 ['type' => 'page_break', 'label' => 'Page break'],

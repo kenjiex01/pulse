@@ -108,6 +108,7 @@ class CompanyDocumentMemoDocxExporter
             CompanyDocumentElement::TYPE_HEADING => $this->addHeading($section, $element),
             CompanyDocumentElement::TYPE_PARAGRAPH => $this->addParagraph($section, $element),
             CompanyDocumentElement::TYPE_DIVIDER => $section->addText(str_repeat('—', 72), ['color' => 'D1D5DB'], ['spaceAfter' => 120]),
+            CompanyDocumentElement::TYPE_TABLE => $this->addTable($section, $element),
             'image' => $this->addInlineImage($section, $element, $assetRoot),
             CompanyDocumentElement::TYPE_SIGNATURE => $this->addSignatureField($section, $element, $index, $previewValues, $assetRoot),
             CompanyDocumentElement::TYPE_LONG_TEXT => $this->addInputField($section, $element, $index, $previewValues, multiline: true),
@@ -118,6 +119,19 @@ class CompanyDocumentMemoDocxExporter
         if ($helpText !== '' && $type !== CompanyDocumentElement::TYPE_PARAGRAPH) {
             $section->addText($helpText, ['size' => 9, 'color' => '6B7280'], ['spaceAfter' => 120]);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $element
+     */
+    private function addTable(Section $section, array $element): void
+    {
+        $rows = $element['options']['rows'] ?? [];
+        if (! is_array($rows) || $rows === []) {
+            return;
+        }
+
+        Html::addHtml($section, CompanyDocumentMemoTable::html($rows), false, false);
     }
 
     /**
@@ -147,7 +161,9 @@ class CompanyDocumentMemoDocxExporter
         }
 
         $style = CompanyDocumentTextStyle::normalize($settings);
-        $html = CompanyDocumentInlineFormatting::renderSegment($label);
+        $html = str_contains($label, '<table')
+            ? $label
+            : CompanyDocumentInlineFormatting::renderSegment($label);
 
         if (str_contains($html, '<')) {
             Html::addHtml(

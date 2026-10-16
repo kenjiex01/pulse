@@ -53,7 +53,7 @@ const PARAGRAPH_FONT_FAMILIES = [
     { value: '"Trebuchet MS", Helvetica, sans-serif', label: 'Trebuchet MS' },
 ];
 const PREVIEW_INPUT_CLASS = 'block w-full min-w-0 max-w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-[#00A3E6] focus:outline-none focus:ring-1 focus:ring-[#00A3E6]/30';
-const LAYOUT_TYPES = new Set(['heading', 'paragraph', 'divider', 'image', 'section', 'page_break', 'merge_tag']);
+const LAYOUT_TYPES = new Set(['heading', 'paragraph', 'divider', 'table', 'image', 'section', 'page_break', 'merge_tag']);
 const INPUT_TYPES = new Set(['short_text', 'long_text', 'number', 'email', 'phone', 'date', 'dropdown', 'radio', 'checkbox', 'yes_no', 'file_upload', 'signature']);
 
 /** @type {Record<string, string>} */
@@ -172,7 +172,62 @@ const buildParagraphFormatToolbarHtml = () => `
     <p class="mb-2 text-[10px] text-white/40">Select text, then B / I / U or Float L / Float R. Use Float L and Float R on the same line for control no. left and date right.</p>
 `;
 
+const offensePairLine = (line) => {
+    const keys = [];
+    const pattern = /\{\{([a-z0-9_]+)\}\}/gi;
+    let match = pattern.exec(line);
+
+    while (match !== null) {
+        keys.push(String(match[1] || '').toLowerCase());
+        match = pattern.exec(line);
+    }
+
+    if (keys.length === 0) {
+        return false;
+    }
+
+    const stripped = line.replace(/\{\{[a-z0-9_]+\}\}/gi, '').trim();
+    if (stripped !== '') {
+        return false;
+    }
+
+    const unique = [...new Set(keys)].sort();
+
+    return unique.length === 2 && unique[0] === 'disciplinary_action' && unique[1] === 'nature_of_offense';
+};
+
+const offensePairTableHtml = () => {
+    const cell = 'border:1px solid #111;padding:6px 8px;vertical-align:top;width:50%;text-align:left;';
+    const header = `${cell}font-weight:700;background:#f3f4f6;`;
+
+    return `<table class="cd-offense-pair-table" style="width:100%;border-collapse:collapse;margin:8px 0;white-space:normal;">
+        <tr>
+            <th style="${header}">Nature of offense</th>
+            <th style="${header}">Disciplinary action</th>
+        </tr>
+        <tr>
+            <td style="${cell}">${renderInlineTagChipHtml('nature_of_offense', inlineTagLabel('nature_of_offense'))}</td>
+            <td style="${cell}">${renderInlineTagChipHtml('disciplinary_action', inlineTagLabel('disciplinary_action'))}</td>
+        </tr>
+    </table>`;
+};
+
 const renderInlineTagsHtml = (text) => {
+    const source = String(text ?? '');
+
+    if (source === '') {
+        return '';
+    }
+
+    const lines = source.split(/\r\n|\n|\r/);
+    if (lines.some((line) => offensePairLine(line))) {
+        return lines.map((line) => (offensePairLine(line) ? offensePairTableHtml() : renderInlineTagLineHtml(line))).join('\n');
+    }
+
+    return renderInlineTagLineHtml(source);
+};
+
+const renderInlineTagLineHtml = (text) => {
     const source = String(text ?? '');
 
     if (source === '') {
@@ -508,6 +563,71 @@ const buildParagraphTypographyControlsHtml = (element) => {
     `;
 };
 
+const tableRows = (element) => {
+    const source = element.options?.rows;
+    if (!Array.isArray(source) || source.length === 0) {
+        return [['Column 1', 'Column 2'], ['', '']];
+    }
+
+    const width = Math.max(1, ...source.map((row) => (Array.isArray(row) ? row.length : 0)));
+
+    return source.slice(0, 12).map((row) => {
+        const cells = (Array.isArray(row) ? row : []).slice(0, 6).map((cell) => String(cell ?? ''));
+        while (cells.length < width) {
+            cells.push('');
+        }
+
+        return cells;
+    });
+};
+
+const renderDesignerTableHtml = (element) => {
+    const rows = tableRows(element);
+    const cell = 'border:1px solid #111;padding:6px 8px;vertical-align:top;text-align:left;white-space:normal;overflow-wrap:anywhere;word-wrap:break-word;';
+    const header = `${cell}font-weight:700;background:#f3f4f6;`;
+    const useHeader = rows.length > 1;
+    const body = rows.map((row, rowIndex) => {
+        const tag = useHeader && rowIndex === 0 ? 'th' : 'td';
+        const style = tag === 'th' ? header : cell;
+        const cells = row.map((cellText) => {
+            const content = renderInlineTagsHtml(cellText);
+
+            return `<${tag} style="${style}">${content || '&nbsp;'}</${tag}>`;
+        }).join('');
+
+        return `<tr>${cells}</tr>`;
+    }).join('');
+
+    return `<table style="width:100%;border-collapse:collapse;margin:0;table-layout:fixed;white-space:normal;">${body}</table>`;
+};
+
+const buildTableEditorHtml = (element) => {
+    const rows = tableRows(element);
+    const cells = rows.map((row, rowIndex) => row.map((cell, columnIndex) => `
+        <label class="block">
+            <span class="mb-1 block text-[10px] text-white/40">${rowIndex === 0 ? 'Header' : 'Row ' + rowIndex} · Col ${columnIndex + 1}</span>
+            <textarea rows="2" class="cd-dark-input min-h-[52px] w-full resize-y whitespace-pre-wrap text-xs" data-table-cell="${rowIndex},${columnIndex}" data-tag-insert-target>${escapeHtml(cell)}</textarea>
+        </label>
+    `).join('')).join('');
+
+    return `
+        <div class="border-b border-white/[0.06] px-4 py-4">
+            <div class="mb-2 flex items-center justify-between gap-2">
+                <label class="text-[11px] font-medium text-white/70">Table cells</label>
+                <div class="flex flex-wrap justify-end gap-1">
+                    <button type="button" class="rounded bg-white/10 px-2 py-1 text-[10px] text-white/80 hover:bg-white/20" data-table-add-column>+ Column</button>
+                    <button type="button" class="rounded bg-white/10 px-2 py-1 text-[10px] text-white/80 hover:bg-white/20" data-table-add-row>+ Row</button>
+                    <button type="button" class="rounded bg-white/10 px-2 py-1 text-[10px] text-white/80 hover:bg-white/20" data-table-remove-column>− Column</button>
+                    <button type="button" class="rounded bg-white/10 px-2 py-1 text-[10px] text-white/80 hover:bg-white/20" data-table-remove-row>− Row</button>
+                </div>
+            </div>
+            <div class="grid gap-2">${cells}</div>
+            <p class="mt-2 text-[10px] text-white/40">The first row is the header. Click a cell, then insert a tag. Borders show on the canvas, preview, and PDF.</p>
+            ${buildTagInsertControlsHtml()}
+        </div>
+    `;
+};
+
 const estimateElementHeight = (element) => {
     const customHeight = Number(element.settings?.box_height);
     if (Number.isFinite(customHeight) && customHeight > 0) {
@@ -526,6 +646,22 @@ const estimateElementHeight = (element) => {
             const lineCount = lines.reduce((count, line) => count + Math.max(1, Math.ceil(line.length / 72)), 0);
 
             return Math.max(56, lineCount * 22 + 16);
+        }
+        case 'table': {
+            const rows = tableRows(element);
+            const columnCount = Math.max(1, rows[0]?.length || 1);
+            const charactersPerLine = Math.max(8, Math.floor(280 / columnCount));
+            const height = rows.reduce((total, row) => {
+                const lines = row.reduce((maxLines, cellText) => {
+                    const length = Math.max(1, String(cellText || '').length);
+
+                    return Math.max(maxLines, Math.ceil(length / charactersPerLine));
+                }, 1);
+
+                return total + (lines * 22) + 18;
+            }, 4);
+
+            return Math.max(72, height);
         }
         case 'signature':
             return 210;
@@ -674,6 +810,7 @@ const PALETTE_ICONS = {
     heading: '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M4 6h16M4 12h10M4 18h14"/></svg>',
     paragraph: '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M4 6h16M4 10h16M4 14h12M4 18h10"/></svg>',
     divider: '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M4 12h16"/></svg>',
+    table: '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M4 5h16v14H4zM4 10h16M4 15h16M10 5v14M15 5v14"/></svg>',
     image: '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>',
     section: '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>',
     page_break: '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>',
@@ -711,6 +848,12 @@ const makeElement = (type, label = '', tagKey = '') => {
             return { ...base, label: 'Section title' };
         case 'paragraph':
             return { ...base, label: 'Add descriptive text here.' };
+        case 'table':
+            return {
+                ...base,
+                label: 'Table',
+                options: { rows: [['Column 1', 'Column 2'], ['', '']] },
+            };
         case 'section':
             return { ...base, label: 'New section' };
         case 'short_text':
@@ -913,10 +1056,16 @@ const renderFieldPreview = (element, index, previewValues = {}, assetUrlBase = '
     switch (element.type) {
         case 'heading':
             return `<h3 class="cd-designer-text-block w-full max-w-full break-words text-lg font-semibold" style="${headingTextStyleAttr(element)}">${renderInlineTagsHtml(element.label || '')}</h3>`;
-        case 'paragraph':
-            return `<p class="cd-designer-text-block cd-designer-paragraph cd-paragraph-clears-floats w-full max-w-full whitespace-pre-wrap" style="${paragraphTextStyleAttr(element)}">${renderInlineTagsHtml(element.label || '')}</p>`;
+        case 'paragraph': {
+            const paragraphHtml = renderInlineTagsHtml(element.label || '');
+            const paragraphTag = paragraphHtml.includes('<table') ? 'div' : 'p';
+
+            return `<${paragraphTag} class="cd-designer-text-block cd-designer-paragraph cd-paragraph-clears-floats w-full max-w-full whitespace-pre-wrap" style="${paragraphTextStyleAttr(element)}">${paragraphHtml}</${paragraphTag}>`;
+        }
         case 'divider':
             return '<hr class="border-gray-200">';
+        case 'table':
+            return renderDesignerTableHtml(element);
         case 'section':
             return `<div class="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700 break-words">${label}</div>`;
         case 'page_break':
@@ -1390,6 +1539,24 @@ export const initCompanyDocumentDesigner = (root) => {
         }
 
         const element = elements[selectedIdx];
+        if (element?.type === 'table') {
+            const field = activeTagInsertField?.dataset?.tableCell
+                ? activeTagInsertField
+                : propertiesBody?.querySelector('[data-table-cell]');
+
+            if (field instanceof HTMLTextAreaElement) {
+                const [rowIndex, columnIndex] = String(field.dataset.tableCell || '0,0').split(',').map((part) => Number(part));
+                const rows = tableRows(element);
+                if (rows[rowIndex]) {
+                    rows[rowIndex][columnIndex] = insertTextAtCursor(field, inlineTagToken(tagKey));
+                    element.options = { ...asObject(element.options), rows };
+                    renderCanvas();
+
+                    return true;
+                }
+            }
+        }
+
         const target = tagInsertTargetForElement(element);
 
         if (target === null) {
@@ -1581,10 +1748,10 @@ export const initCompanyDocumentDesigner = (root) => {
             const widthCss = elementBoxWidthCss(innerWidth, element);
             const x = fieldPositionX(element);
             const y = Number(element.settings?.pos_y ?? CANVAS_INSET);
-            const lockedHeight = element.type === 'image' || hasCustomBoxHeight(element);
+            const lockedHeight = (element.type === 'image' || hasCustomBoxHeight(element)) && element.type !== 'table';
             const heightStyle = lockedHeight ? `height:${box.height}px;` : '';
             const fieldPaddingClass = element.type === 'image' ? 'p-0' : 'p-2';
-            const fieldOverflowClass = element.type === 'image' ? 'overflow-visible' : 'overflow-auto';
+            const fieldOverflowClass = element.type === 'image' || element.type === 'table' ? 'overflow-visible' : 'overflow-auto';
             const boxLeft = isFullWidth(element) && element.type !== 'image' ? '0' : `${x}px`;
             return `
                 <div
@@ -1848,6 +2015,7 @@ export const initCompanyDocumentDesigner = (root) => {
             : '';
 
         const isParagraph = element.type === 'paragraph';
+        const isTable = element.type === 'table';
         const supportsInlineTags = ['paragraph', 'heading', 'long_text', 'short_text'].includes(element.type);
         const tagInsertControlsHtml = supportsInlineTags ? buildTagInsertControlsHtml() : '';
         const labelFieldHtml = isParagraph
@@ -1888,10 +2056,11 @@ export const initCompanyDocumentDesigner = (root) => {
                 : (TYPOGRAPHY_FIELD_TYPES.has(element.type) ? buildFieldColorControlsHtml(element) : ''));
 
         propertiesBody.innerHTML = `
+            ${isTable ? buildTableEditorHtml(element) : `
             <div class="border-b border-white/[0.06] px-4 py-4">
                 <label class="mb-1.5 block text-[11px] font-medium text-white/70">${isParagraph ? 'Paragraph text' : element.type === 'long_text' || element.type === 'short_text' ? 'Field label' : 'Field Label'}</label>
                 ${labelFieldHtml}
-            </div>
+            </div>`}
             ${paragraphTypographyHtml}
             ${defaultTextFieldHtml}
             ${isInput && element.type !== 'checkbox' ? `
@@ -2006,6 +2175,59 @@ export const initCompanyDocumentDesigner = (root) => {
                 <input type="text" class="cd-dark-input w-full font-mono" data-prop="field_key" value="${escapeHtml(element.field_key || '')}">
             </div>
         `;
+
+        const setTableRows = (rows) => {
+            element.options = { ...asObject(element.options), rows };
+            renderProperties();
+            renderCanvas();
+        };
+
+        propertiesBody.querySelectorAll('[data-table-cell]').forEach((field) => {
+            wireTagInsertField(field, (nextValue) => {
+                const [rowIndex, columnIndex] = String(field.dataset.tableCell || '0,0').split(',').map((part) => Number(part));
+                const rows = tableRows(element);
+                if (!rows[rowIndex]) {
+                    return;
+                }
+                rows[rowIndex][columnIndex] = nextValue;
+                element.options = { ...asObject(element.options), rows };
+                renderCanvas();
+            });
+        });
+
+        propertiesBody.querySelector('[data-table-add-row]')?.addEventListener('click', () => {
+            const rows = tableRows(element);
+            if (rows.length >= 12) {
+                return;
+            }
+            rows.push(rows[0].map(() => ''));
+            setTableRows(rows);
+        });
+
+        propertiesBody.querySelector('[data-table-add-column]')?.addEventListener('click', () => {
+            const rows = tableRows(element);
+            if ((rows[0] || []).length >= 6) {
+                return;
+            }
+            setTableRows(rows.map((row) => [...row, '']));
+        });
+
+        propertiesBody.querySelector('[data-table-remove-row]')?.addEventListener('click', () => {
+            const rows = tableRows(element);
+            if (rows.length <= 1) {
+                return;
+            }
+            rows.pop();
+            setTableRows(rows);
+        });
+
+        propertiesBody.querySelector('[data-table-remove-column]')?.addEventListener('click', () => {
+            const rows = tableRows(element);
+            if ((rows[0] || []).length <= 1) {
+                return;
+            }
+            setTableRows(rows.map((row) => row.slice(0, -1)));
+        });
 
         const labelField = propertiesBody.querySelector('[data-prop="label"]');
         wireTagInsertField(labelField, (nextValue) => {
@@ -2587,10 +2809,10 @@ const renderReadOnlyPreviewCanvas = async (canvas, elements, assetUrl, previewVa
         const x = fieldPositionX(element);
         const y = Number(element.settings?.pos_y ?? CANVAS_INSET);
         const isImage = element.type === 'image';
-        const lockedHeight = isImage || hasCustomBoxHeight(element);
+        const lockedHeight = (isImage || hasCustomBoxHeight(element)) && element.type !== 'table';
         const heightStyle = lockedHeight ? `height:${box.height}px;` : '';
         const fieldPaddingClass = isImage ? 'p-0' : 'p-2';
-        const fieldOverflowClass = isImage ? 'overflow-visible' : (lockedHeight ? 'overflow-auto' : '');
+        const fieldOverflowClass = isImage || element.type === 'table' ? 'overflow-visible' : (lockedHeight ? 'overflow-auto' : '');
         const boxLeft = isFullWidth(element) && ! isImage ? '0' : `${x}px`;
 
         return `

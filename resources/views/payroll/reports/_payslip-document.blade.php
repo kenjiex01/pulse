@@ -40,8 +40,34 @@
                         <div><dt class="font-medium text-gray-600">Employee</dt><dd>{{ $payslip['employee_name'] ?? '' }}</dd></div>
                         <div><dt class="font-medium text-gray-600">Net Pay</dt><dd class="font-semibold">{{ number_format($payslip['net_pay'] ?? 0, 2) }}</dd></div>
                     </dl>
-                    <div @class(['mt-10 border-t border-gray-400 pt-2 text-center text-xs text-gray-600' => ! $forPdf]) style="{{ $forPdf ? 'margin-top:24px;border-top:1px solid #666;padding-top:6px;text-align:center;font-size:9px;' : '' }}">
+                    <div @class(['mt-10 border-t border-gray-400 pt-4 pb-3 text-center text-xs text-gray-600' => ! $forPdf]) style="{{ $forPdf ? 'margin-top:24px;border-top:1px solid #666;padding-top:14px;padding-bottom:10px;text-align:center;font-size:9px;' : '' }}">
                         Signature
+                    </div>
+                    <div @class(['mt-8 border-b border-gray-400' => ! $forPdf]) style="{{ $forPdf ? 'margin-top:24px;border-bottom:1px solid #666;height:0;' : '' }}"></div>
+                    @php
+                        $ytd = $payslip['ytd'] ?? [];
+                        $ytdRows = [
+                            ['label' => 'Gross Income', 'key' => 'gross_income'],
+                            ['label' => 'Taxable Income', 'key' => 'taxable_income'],
+                            ['label' => 'Withholding Tax', 'key' => 'withholding_tax'],
+                            ['label' => 'SSS EE', 'key' => 'sss_ee'],
+                            ['label' => 'PHIC EE', 'key' => 'phic_ee'],
+                            ['label' => 'HDMF EE', 'key' => 'hdmf_ee'],
+                            ['label' => 'Net Pay', 'key' => 'net_pay'],
+                        ];
+                    @endphp
+                    <div @class(['mt-3' => ! $forPdf]) style="{{ $forPdf ? 'margin-top:8px;' : '' }}">
+                        <p @class(['border-b border-gray-400 pb-1 text-center text-xs font-semibold text-gray-800' => ! $forPdf]) style="{{ $forPdf ? 'border-bottom:1px solid #666;padding-bottom:4px;text-align:center;font-size:9px;font-weight:700;margin:0 0 4px;' : '' }}">
+                            Year To Date Figures
+                        </p>
+                        <table @class(['w-full border-collapse text-xs text-gray-800' => ! $forPdf]) style="{{ $forPdf ? 'width:100%;border-collapse:collapse;font-size:8px;' : '' }}">
+                            @foreach ($ytdRows as $ytdRow)
+                                <tr>
+                                    <td @class(['py-0.5 pr-2 align-top' => ! $forPdf]) style="{{ $forPdf ? 'padding:1px 4px 1px 0;vertical-align:top;' : '' }}">{{ $ytdRow['label'] }}</td>
+                                    <td @class(['py-0.5 text-right font-medium tabular-nums whitespace-nowrap' => ! $forPdf]) style="{{ $forPdf ? 'padding:1px 0;text-align:right;font-weight:600;white-space:nowrap;' : '' }}">{{ number_format((float) ($ytd[$ytdRow['key']] ?? 0), 2) }}</td>
+                                </tr>
+                            @endforeach
+                        </table>
                     </div>
                 </div>
 

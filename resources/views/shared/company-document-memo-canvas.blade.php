@@ -43,7 +43,7 @@
                 }
                 $leftStyle = ($box['width_css'] === '100%' && ! $isImage) ? 'left:0;' : "left:{$box['x']}px;";
                 $fieldPadding = $isImage ? '0' : '8px';
-                $fieldOverflow = $isImage ? 'visible' : ($box['height_px'] ? 'auto' : 'visible');
+                $fieldOverflow = ($isImage || $type === 'table') ? 'visible' : ($box['height_px'] ? 'auto' : 'visible');
                 $widthCss = $box['width_css'];
                 if ($lockPixelWidth && $widthCss === '100%' && ! $isImage) {
                     $widthCss = ((int) $layout['canvas_width']).'px';

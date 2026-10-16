@@ -31,11 +31,15 @@
 
     @case(CompanyDocumentElement::TYPE_PARAGRAPH)
         @php $paragraphStyle = CompanyDocumentTextStyle::normalize($settings); @endphp
-        <p style="margin:0;width:100%;overflow:visible;white-space:pre-wrap;word-wrap:break-word;font-size:{{ $paragraphStyle['font_size'] }}px;line-height:1.55;{{ CompanyDocumentTextStyle::inlineStyle($settings) }}">{!! $label !!}</p>
+        <div style="margin:0;width:100%;overflow:visible;white-space:pre-wrap;word-wrap:break-word;font-size:{{ $paragraphStyle['font_size'] }}px;line-height:1.55;{{ CompanyDocumentTextStyle::inlineStyle($settings) }}">{!! $label !!}</div>
         @break
 
     @case(CompanyDocumentElement::TYPE_DIVIDER)
         <hr style="margin:0;border:0;border-top:1px solid #e5e7eb;">
+        @break
+
+    @case(CompanyDocumentElement::TYPE_TABLE)
+        {!! \App\Support\CompanyDocumentMemoTable::html(is_array($element['options']['rows'] ?? null) ? $element['options']['rows'] : []) !!}
         @break
 
     @case('image')

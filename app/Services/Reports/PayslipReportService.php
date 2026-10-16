@@ -11,6 +11,7 @@ use App\Models\TeachingLoadSession;
 use App\Models\User;
 use App\Support\PayrollBatchNetPayLines;
 use App\Support\PayslipFilename;
+use App\Support\PayslipYearToDate;
 use App\Support\SpreadsheetDownload;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
@@ -359,6 +360,9 @@ class PayslipReportService
             'total_deductions' => $totalDeductions,
             'net_pay' => $netPay,
             'is_confidential' => (bool) ($employee->is_confidential ?? false),
+            'ytd' => $calendar
+                ? PayslipYearToDate::forEmployee((int) $employee->employee_id, $calendar)
+                : PayslipYearToDate::emptyTotals(),
         ];
     }
 

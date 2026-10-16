@@ -13,6 +13,8 @@ class CompanyDocumentElement extends Model
     public const TYPE_HEADING = 'heading';
     public const TYPE_PARAGRAPH = 'paragraph';
     public const TYPE_DIVIDER = 'divider';
+
+    public const TYPE_TABLE = 'table';
     public const TYPE_SHORT_TEXT = 'short_text';
     public const TYPE_LONG_TEXT = 'long_text';
     public const TYPE_NUMBER = 'number';

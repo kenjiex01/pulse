@@ -251,7 +251,8 @@ class CompanyDocumentMemoPdfLayout
                 $settings = is_array($element['settings'] ?? null) ? $element['settings'] : $settings;
             }
             $box = self::fieldBoxSize($canvasWidth, $element);
-            $lockedHeight = $isImage || self::hasCustomBoxHeight($element);
+            $isTable = ($element['type'] ?? '') === CompanyDocumentElement::TYPE_TABLE;
+            $lockedHeight = ($isImage || self::hasCustomBoxHeight($element)) && ! $isTable;
             $elementHeight = $lockedHeight
                 ? $box['height']
                 : self::estimateElementHeight($element, $canvasWidth);
@@ -271,11 +272,61 @@ class CompanyDocumentMemoPdfLayout
             $maxBottom = max($maxBottom, $y + $elementHeight + 48);
         }
 
+        $layoutElements = self::expandTables($layoutElements);
+        foreach ($layoutElements as $element) {
+            $y = (int) ($element['layout']['y'] ?? 0);
+            $height = (int) ($element['layout']['height_px'] ?: $element['layout']['min_height_px'] ?? 36);
+            $maxBottom = max($maxBottom, $y + $height + 48);
+        }
+
         return [
             'canvas_width' => $canvasWidth,
             'canvas_height' => $maxBottom,
             'elements' => $layoutElements,
         ];
+    }
+
+    /**
+     * Keep elements below a table from covering rows that grew taller than the saved gap.
+     *
+     * @param  list<array<string, mixed>>  $elements
+     * @return list<array<string, mixed>>
+     */
+    private static function expandTables(array $elements): array
+    {
+        foreach ($elements as $index => $element) {
+            if (($element['type'] ?? '') !== CompanyDocumentElement::TYPE_TABLE) {
+                continue;
+            }
+
+            $y = (int) ($element['layout']['y'] ?? 0);
+            $height = (int) ($element['layout']['min_height_px'] ?? $element['layout']['height_px'] ?? 72);
+            $bottom = $y + $height + 12;
+            $delta = 0;
+
+            foreach ($elements as $otherIndex => $other) {
+                if ($otherIndex === $index) {
+                    continue;
+                }
+
+                $otherY = (int) ($other['layout']['y'] ?? 0);
+                if ($otherY > $y && $otherY < $bottom) {
+                    $delta = max($delta, $bottom - $otherY);
+                }
+            }
+
+            if ($delta <= 0) {
+                continue;
+            }
+
+            foreach ($elements as $otherIndex => $other) {
+                if ((int) ($other['layout']['y'] ?? 0) > $y) {
+                    $elements[$otherIndex]['layout']['y'] += $delta;
+                }
+            }
+        }
+
+        return $elements;
     }
 
     /**
@@ -511,6 +562,10 @@ class CompanyDocumentMemoPdfLayout
             CompanyDocumentElement::TYPE_LONG_TEXT => ((int) ($settings['rows'] ?? 4)) * 24 + 48,
             CompanyDocumentElement::TYPE_HEADING => 40,
             CompanyDocumentElement::TYPE_PARAGRAPH => max(56, self::paragraphLineCount((string) ($element['label'] ?? ''), $containerWidth) * 22 + 16),
+            CompanyDocumentElement::TYPE_TABLE => CompanyDocumentMemoTable::contentHeight(
+                is_array($element['options']['rows'] ?? null) ? $element['options']['rows'] : [],
+                max(160, $containerWidth - 16),
+            ),
             CompanyDocumentElement::TYPE_SIGNATURE => 210,
             'merge_tag' => 44,
             CompanyDocumentElement::TYPE_FILE_UPLOAD => 96,

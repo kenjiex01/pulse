@@ -23,7 +23,7 @@ class CompanyDocumentMemoDocxExporterTest extends TestCase
 
     public function test_render_docx_produces_valid_docx_for_nte_template(): void
     {
-        $form = CompanyDocumentForm::query()->where('code', 'hr_notice_to_explain')->firstOrFail();
+        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
         $service = app(CompanyDocumentMemoRenderService::class);
         $preview = $service->buildSamplePreviewData($form);
 
@@ -33,7 +33,7 @@ class CompanyDocumentMemoDocxExporterTest extends TestCase
         $this->assertGreaterThan(2000, strlen($docx));
         $xml = $this->documentXml($docx);
         $this->assertStringNotContainsString('position:absolute', $xml);
-        $this->assertStringContainsString('ICCT Colleges Foundation, Inc.', $xml);
+        $this->assertStringContainsString('ICCT COLLEGES FOUNDATION, INC.', $xml);
 
         $path = tempnam(sys_get_temp_dir(), 'pulse-nte-docx-').'.docx';
         file_put_contents($path, $docx);
