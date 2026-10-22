@@ -111,6 +111,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const looksLikeZipBytes = (bytes) => bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b;
 
+    const looksLikePdfBytes = (bytes) => bytes.length >= 4
+        && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+
     const messageFromDownloadBody = (text, response) => {
         const trimmed = text.trim();
 
@@ -142,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `Download failed (${response.status}).`;
         }
 
-        return 'Download did not return an Excel file.';
+        return 'Download did not return a file.';
     };
 
     const saveBytesToDesktopDownloads = (bytes, filename) => {
@@ -200,7 +203,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const disposition = response.headers.get('content-disposition') || '';
             const filename = filenameFromContentDisposition(disposition) || fallbackFilename;
             const isZip = looksLikeZipBytes(bytes);
+            const isPdf = looksLikePdfBytes(bytes);
             const isTextFile = contentType.includes('text/csv') || contentType.includes('text/plain');
+
+            if (response.ok && isPdf) {
+                saveBytesToDesktopDownloads(bytes, filename.toLowerCase().endsWith('.pdf') ? filename : `${fallbackFilename.replace(/\.[^.]+$/, '')}.pdf`);
+
+                return;
+            }
 
             if (response.ok && (isZip || isTextFile) && ! contentType.includes('text/html')) {
                 saveBytesToDesktopDownloads(bytes, isZip && ! filename.toLowerCase().endsWith('.xlsx') && ! filename.toLowerCase().endsWith('.xls')
@@ -255,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const href = link.getAttribute('href') ?? '';
 
-            if (href === '' || href.startsWith('#') || href.startsWith('javascript:')) {
+            if (href === '' || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('blob:') || href.startsWith('data:')) {
                 return;
             }
 
@@ -5192,17 +5202,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         : 'report.xlsx'
                 );
                 const filename = decodeURIComponent(rawName.trim());
-
                 const blob = await response.blob();
-                const objectUrl = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = objectUrl;
-                link.download = filename;
-                link.rel = 'noopener';
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-                window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+
+                if (isPulseDesktop()) {
+                    saveBytesToDesktopDownloads(new Uint8Array(await blob.arrayBuffer()), filename);
+
+                    return;
+                }
+
+                triggerBrowserFileDownload(blob, filename);
             } catch (error) {
                 window.alert(error?.message || `${outputFormat === 'pdf' ? 'PDF' : 'Excel'} download failed.`);
             } finally {
