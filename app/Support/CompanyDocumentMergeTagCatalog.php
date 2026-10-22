@@ -95,7 +95,7 @@ class CompanyDocumentMergeTagCatalog
             ],
             'control_no' => [
                 'label' => 'Memo control number',
-                'sample' => '2026-INV/MM-1107',
+                'sample' => now('Asia/Manila')->year.'-INV/MM-001',
             ],
             'memo_from' => [
                 'label' => 'Memo from',

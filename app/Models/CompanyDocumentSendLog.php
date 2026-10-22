@@ -15,6 +15,7 @@ class CompanyDocumentSendLog extends Model
         'company_document_form_id',
         'employee_id',
         'submission_id',
+        'control_no',
         'sent_by_user_id',
         'sent_at',
     ];

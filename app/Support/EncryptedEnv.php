@@ -27,6 +27,8 @@ class EncryptedEnv
             'BIOMETRIC_LOGS_S3_SECRET',
             'AWS_ACCESS_KEY_ID',
             'AWS_SECRET_ACCESS_KEY',
+            'MAIL_SES_KEY',
+            'MAIL_SES_SECRET',
             'MAIL_PASSWORD',
         ];
     }

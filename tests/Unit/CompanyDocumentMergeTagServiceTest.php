@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Models\Employee;
 use App\Services\CompanyDocumentMergeTagService;
 use App\Support\CompanyDocumentMergeTagCatalog;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class CompanyDocumentMergeTagServiceTest extends TestCase
@@ -94,6 +95,25 @@ class CompanyDocumentMergeTagServiceTest extends TestCase
         $this->assertSame(
             CompanyDocumentMergeTagCatalog::sample('disciplinary_action'),
             $service->resolve('disciplinary_action', $employee, []),
+        );
+    }
+
+    public function test_control_no_uses_the_number_assigned_when_the_memo_is_sent(): void
+    {
+        $service = app(CompanyDocumentMergeTagService::class);
+        $year = Carbon::now('Asia/Manila')->year;
+
+        $this->assertSame(
+            $year.'-INV/MM-001',
+            $service->resolve('control_no'),
+        );
+        $this->assertSame(
+            '2026-INV/MM-1107',
+            $service->resolve('control_no', null, ['control_no' => '2026-INV/MM-1107']),
+        );
+        $this->assertSame(
+            'Control No. 2026-INV/MM-1108',
+            $service->resolveInlineTags('Control No. {{control_no}}', null, ['control_no' => '2026-INV/MM-1108']),
         );
     }
 }

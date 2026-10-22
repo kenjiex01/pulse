@@ -5,11 +5,13 @@ namespace Tests\Unit;
 use App\Mail\TimekeepingMemoMail;
 use App\Models\CompanyDocumentElement;
 use App\Models\CompanyDocumentForm;
+use App\Models\CompanyDocumentMemoSequence;
 use App\Models\CompanyDocumentNteCase;
 use App\Models\CompanyDocumentSendLog;
 use App\Models\CompanyDocumentSubmission;
 use App\Models\Employee;
 use App\Models\User;
+use App\Services\CompanyDocumentMemoRenderService;
 use App\Services\CompanyDocumentSendService;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -157,5 +159,65 @@ class CompanyDocumentSendServiceTest extends TestCase
             $employee,
             User::query()->firstOrFail(),
         );
+    }
+
+    public function test_each_sent_memo_gets_the_next_control_number(): void
+    {
+        Mail::fake();
+
+        $sender = User::query()->firstOrFail();
+        $form = CompanyDocumentForm::query()->create([
+            'code' => 'control_no_memo',
+            'name' => 'Control Number Memo',
+            'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'is_active' => true,
+            'version' => 1,
+        ]);
+        CompanyDocumentElement::query()->create([
+            'company_document_form_id' => $form->company_document_form_id,
+            'type' => CompanyDocumentElement::TYPE_PARAGRAPH,
+            'label' => 'Control No. {{control_no}}',
+            'sort_order' => 1,
+            'settings_json' => ['label_align' => 'top'],
+        ]);
+
+        $first = Employee::query()->create([
+            'employee_number' => 'DOC-CTRL-001',
+            'first_name' => 'Lara',
+            'last_name' => 'Santos',
+            'email' => 'lara.santos@example.com',
+        ]);
+        $second = Employee::query()->create([
+            'employee_number' => 'DOC-CTRL-002',
+            'first_name' => 'Mark',
+            'last_name' => 'Reyes',
+            'email' => 'mark.reyes@example.com',
+        ]);
+
+        $service = app(CompanyDocumentSendService::class);
+        $year = now('Asia/Manila')->year;
+
+        $service->sendToEmployee($form, $first, $sender);
+        $service->sendToEmployee($form, $second, $sender);
+
+        $this->assertDatabaseHas('tbl_company_document_send_logs', [
+            'employee_id' => $first->employee_id,
+            'control_no' => $year.'-INV/MM-001',
+        ]);
+        $this->assertDatabaseHas('tbl_company_document_send_logs', [
+            'employee_id' => $second->employee_id,
+            'control_no' => $year.'-INV/MM-002',
+        ]);
+
+        $copyContext = $service->memoContextForEmployeeCopy($form, $first);
+        $html = app(CompanyDocumentMemoRenderService::class)->renderHtml(
+            app(CompanyDocumentMemoRenderService::class)->buildPreviewData($form, $first, $copyContext),
+        );
+
+        $this->assertStringContainsString('Control No. '.$year.'-INV/MM-001', $html);
+
+        $service->sendCopiesToAdditionalEmails($form, [$first->employee_id], ['hr.copy@example.com'], $sender);
+
+        $this->assertSame(2, (int) CompanyDocumentMemoSequence::query()->where('year', $year)->value('last_number'));
     }
 }

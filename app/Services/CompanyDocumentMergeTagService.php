@@ -86,6 +86,15 @@ class CompanyDocumentMergeTagService
             }
         }
 
+        if ($tagKey === 'control_no') {
+            $assigned = trim((string) ($memoContext['control_no'] ?? ''));
+            if ($assigned !== '') {
+                return $assigned;
+            }
+
+            return $this->previewSample($tagKey);
+        }
+
         return match ($tagKey) {
             'employee_full_name' => $employee !== null ? trim($employee->full_name) : $this->previewSample($tagKey),
             'employee_first_name' => $employee !== null ? trim((string) $employee->first_name) : $this->previewSample($tagKey),
@@ -106,7 +115,7 @@ class CompanyDocumentMergeTagService
             'current_datetime' => now()->format('F j, Y g:i A'),
             'memo_date' => now()->format('F j, Y'),
             'attendance_period' => $this->formatAttendancePeriod($memoContext) ?: $this->previewSample($tagKey),
-            'control_no', 'memo_from', 'memo_cc' => $this->previewSample($tagKey),
+            'memo_from', 'memo_cc' => $this->previewSample($tagKey),
             'nature_of_offense', 'disciplinary_action', 'offense_frequency' => $this->previewSample($tagKey),
             default => $this->previewSample($tagKey),
         };

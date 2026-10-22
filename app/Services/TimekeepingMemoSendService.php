@@ -25,6 +25,7 @@ class TimekeepingMemoSendService
         private readonly TimekeepingMemoAttendanceService $attendanceService,
         private readonly TimekeepingMemoEmailService $emailService,
         private readonly CompanyDocumentNteCaseService $nteCaseService,
+        private readonly CompanyDocumentMemoControlNumberService $controlNumbers,
     ) {}
 
     /**
@@ -82,6 +83,7 @@ class TimekeepingMemoSendService
             'violation_type' => $violationType,
             'violation_count' => count($selectedDates),
             'selected_dates' => $selectedDates,
+            'control_no' => $this->controlNumbers->allocate(),
         ];
 
         $preview = $this->memoRenderService->buildPreviewData($form, $employee, $memoContext);
@@ -147,6 +149,7 @@ class TimekeepingMemoSendService
                     [
                         'company_document_form_id' => $form->company_document_form_id,
                         'submission_id' => $submission->submission_id,
+                        'control_no' => $memoContext['control_no'],
                         'sent_by_user_id' => $sender->id,
                         'sent_at' => $sentAt,
                     ],
@@ -159,6 +162,7 @@ class TimekeepingMemoSendService
                     'company_document_form_id' => $form->company_document_form_id,
                     'employee_id' => $employee->employee_id,
                     'submission_id' => $submission->submission_id,
+                    'control_no' => $memoContext['control_no'],
                     'sent_by_user_id' => $sender->id,
                     'sent_at' => $sentAt,
                 ]);

@@ -1741,7 +1741,7 @@ class PayrollTransactionController extends Controller
             || str_contains($message, 'security token included in the request is invalid')
         ) {
             if (config('mail.default') === 'ses') {
-                return 'AWS email authentication failed. Check AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in pulse/.env, then restart the app.';
+                return 'AWS email authentication failed. Check MAIL_SES_KEY and MAIL_SES_SECRET in pulse/.env, then restart the app.';
             }
 
             return 'Email authentication failed. Set a valid Google App Password in MAIL_PASSWORD inside pulse/.env, then restart the app.';

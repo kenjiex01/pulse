@@ -22,10 +22,12 @@ return [
         'key' => env('RESEND_API_KEY'),
     ],
 
+    // Desktop builds strip AWS_* from the bundled .env (nativephp.cleanup_env_keys), so the
+    // installed app needs MAIL_SES_* — otherwise it falls back to the backup-only IAM user.
     'ses' => [
-        'key' => env('AWS_ACCESS_KEY_ID', env('DB_BACKUP_S3_KEY')),
-        'secret' => env('AWS_SECRET_ACCESS_KEY', env('DB_BACKUP_S3_SECRET')),
-        'region' => env('AWS_DEFAULT_REGION', env('DB_BACKUP_S3_REGION', 'us-east-1')),
+        'key' => env('MAIL_SES_KEY', env('AWS_ACCESS_KEY_ID', env('DB_BACKUP_S3_KEY'))),
+        'secret' => env('MAIL_SES_SECRET', env('AWS_SECRET_ACCESS_KEY', env('DB_BACKUP_S3_SECRET'))),
+        'region' => env('MAIL_SES_REGION', env('AWS_DEFAULT_REGION', env('DB_BACKUP_S3_REGION', 'us-east-1'))),
     ],
 
     'slack' => [

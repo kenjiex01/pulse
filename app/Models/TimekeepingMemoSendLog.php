@@ -17,6 +17,7 @@ class TimekeepingMemoSendLog extends Model
         'work_date',
         'company_document_form_id',
         'submission_id',
+        'control_no',
         'sent_by_user_id',
         'sent_at',
     ];

@@ -23,6 +23,7 @@ class CompanyDocumentSendService
         private readonly CompanyDocumentMemoValueResolver $valueResolver,
         private readonly TimekeepingMemoEmailService $emailService,
         private readonly CompanyDocumentNteCaseService $nteCaseService,
+        private readonly CompanyDocumentMemoControlNumberService $controlNumbers,
     ) {}
 
     /**
@@ -38,6 +39,7 @@ class CompanyDocumentSendService
 
         $form->load('elements');
         $memoContext = $this->defaultMemoContext();
+        $memoContext['control_no'] = $this->controlNumbers->allocate();
         $emailAttachments = $this->buildEmailAttachments($form, $employee, $memoContext);
 
         $result = DB::transaction(function () use ($employee, $form, $sender, $memoContext) {
@@ -91,6 +93,7 @@ class CompanyDocumentSendService
                 'company_document_form_id' => $form->company_document_form_id,
                 'employee_id' => $employee->employee_id,
                 'submission_id' => $submission->submission_id,
+                'control_no' => $memoContext['control_no'],
                 'sent_by_user_id' => $sender->id,
                 'sent_at' => $sentAt,
             ]);
@@ -144,7 +147,6 @@ class CompanyDocumentSendService
         }
 
         $form->load('elements');
-        $memoContext = $this->defaultMemoContext();
         $attachments = [];
 
         foreach ($employeeIds as $employeeId) {
@@ -153,7 +155,10 @@ class CompanyDocumentSendService
                 continue;
             }
 
-            $attachments = array_merge($attachments, $this->buildEmailAttachments($form, $employee, $memoContext));
+            $attachments = array_merge(
+                $attachments,
+                $this->buildEmailAttachments($form, $employee, $this->memoContextForEmployeeCopy($form, $employee)),
+            );
         }
 
         if ($attachments === []) {
@@ -190,6 +195,27 @@ class CompanyDocumentSendService
             'filename' => MemoPdfFilename::forStandalone($form, $employee),
             'mime' => 'application/pdf',
         ]];
+    }
+
+    /**
+     * @return array{date_from: string, date_to: string, violation_type: string, violation_count: int, selected_dates: list<string>, control_no?: string}
+     */
+    public function memoContextForEmployeeCopy(CompanyDocumentForm $form, Employee $employee): array
+    {
+        $memoContext = $this->defaultMemoContext();
+        $controlNo = CompanyDocumentSendLog::query()
+            ->where('company_document_form_id', $form->company_document_form_id)
+            ->where('employee_id', $employee->employee_id)
+            ->whereNotNull('control_no')
+            ->orderByDesc('sent_at')
+            ->orderByDesc('company_document_send_log_id')
+            ->value('control_no');
+
+        if (is_string($controlNo) && $controlNo !== '') {
+            $memoContext['control_no'] = $controlNo;
+        }
+
+        return $memoContext;
     }
 
     /**

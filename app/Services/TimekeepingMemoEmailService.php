@@ -123,7 +123,7 @@ class TimekeepingMemoEmailService
             }
 
             throw ValidationException::withMessages([
-                'mail' => 'Email is not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in pulse/.env (or leave empty to reuse DB_BACKUP_S3_* keys), then restart the app.',
+                'mail' => 'Email is not configured. Set MAIL_SES_KEY and MAIL_SES_SECRET in pulse/.env, then restart the app.',
             ]);
         }
 
