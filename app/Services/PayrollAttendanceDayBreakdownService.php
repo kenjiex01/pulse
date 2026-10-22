@@ -30,6 +30,77 @@ class PayrollAttendanceDayBreakdownService
      */
     public function forDetail(PayrollBatchDetail $detail): array
     {
+        $breakdown = $this->attendanceBreakdown($detail);
+
+        foreach ($this->deductionLineDays($detail) as $code => $rows) {
+            if ($rows === []) {
+                continue;
+            }
+
+            $breakdown[$code] = collect($breakdown[$code])
+                ->map(fn (array $row) => $row + ['source' => 'Biometric'])
+                ->concat($rows)
+                ->sortBy('work_date')
+                ->values()
+                ->all();
+        }
+
+        return $breakdown;
+    }
+
+    /**
+     * Manually added and uploaded LTDE/UTDE lines that carry their own work date and time.
+     *
+     * @return array{LTDE: list<array<string, mixed>>, UTDE: list<array<string, mixed>>}
+     */
+    private function deductionLineDays(PayrollBatchDetail $detail): array
+    {
+        $rows = ['LTDE' => [], 'UTDE' => []];
+
+        $lines = $detail->deductions()
+            ->with('deductionType')
+            ->whereNotNull('dt_reference')
+            ->whereHas('deductionType', fn ($query) => $query->whereIn('deduction_type_code', array_keys($rows)))
+            ->get();
+
+        if ($lines->isEmpty()) {
+            return $rows;
+        }
+
+        $employeeId = (int) $detail->employee_id;
+        $defaultShift = $detail->employee?->timekeepingSetup?->shiftCode;
+        $dates = $lines->map(fn ($line) => $line->dt_reference->copy()->startOfDay());
+        $this->shiftResolver->loadOverridesForRange($employeeId, $dates->min(), $dates->max());
+
+        foreach ($lines as $line) {
+            $code = $line->deductionType->deduction_type_code;
+            $date = $line->dt_reference->copy()->startOfDay();
+            $shift = $this->shiftResolver->forDate($employeeId, $date, $defaultShift);
+
+            $rows[$code][] = [
+                'work_date' => $date->toDateString(),
+                'shift_code' => $shift?->shift_code,
+                'schedule_start' => $this->formatClock($shift?->time_in),
+                'schedule_end' => $this->formatClock($shift?->time_out),
+                'time_in' => $code === 'LTDE' ? $this->formatClock($line->time_in) : null,
+                'time_out' => $code === 'UTDE' ? $this->formatClock($line->time_out) : null,
+                'minutes' => (int) round((float) $line->hours * 60),
+                'source' => $line->is_manual ? 'Manual' : 'Upload',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array{
+     *     LTDE: list<array<string, mixed>>,
+     *     UTDE: list<array<string, mixed>>,
+     *     OVRT: list<array<string, mixed>>
+     * }
+     */
+    private function attendanceBreakdown(PayrollBatchDetail $detail): array
+    {
         $detail->loadMissing([
             'payrollBatch.payrollCalendar',
             'employee.timekeepingSetup.policy',

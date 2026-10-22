@@ -19,6 +19,9 @@ class PayrollAttendanceHoursWorkedService
 {
     private ?int $regularDayTypeId = null;
 
+    /** @var array<string, array<string, true>> day/time type key => work dates with basic hours */
+    private array $basicWorkDates = [];
+
     public function __construct(
         private readonly TimeLogsPayrollService $timeLogsPayroll,
         private readonly EmployeeLoadPayrollService $employeeLoadPayroll,
@@ -84,6 +87,7 @@ class PayrollAttendanceHoursWorkedService
         );
 
         $totals = [];
+        $this->basicWorkDates = [];
 
         if (
             $usesTeachingLoads
@@ -222,7 +226,7 @@ class PayrollAttendanceHoursWorkedService
         $basicHours = max(0.0, round($scheduledHours - $deductionHours, 4));
 
         if ($basicHours > 0) {
-            $this->addHours($totals, $dayTypeId, 1, $basicHours);
+            $this->addHours($totals, $dayTypeId, 1, $basicHours, $sessionDate);
         }
 
         $isRegularDay = $dayTypeId === $this->regularDayTypeId();
@@ -281,7 +285,7 @@ class PayrollAttendanceHoursWorkedService
         $dayTypeId = $this->holidayPay->resolveDayTypeId($employeeId, $sessionDate);
 
         if ($breakdown['basic_hours'] > 0) {
-            $this->addHours($totals, $dayTypeId, 1, $breakdown['basic_hours']);
+            $this->addHours($totals, $dayTypeId, 1, $breakdown['basic_hours'], $sessionDate);
         }
 
         if ($breakdown['overtime_hours'] > 0) {
@@ -431,7 +435,7 @@ class PayrollAttendanceHoursWorkedService
     /**
      * @param  array<string, float>  $totals
      */
-    private function addHours(array &$totals, int $dayTypeId, int $timeTypeId, float $hours): void
+    private function addHours(array &$totals, int $dayTypeId, int $timeTypeId, float $hours, ?CarbonInterface $workDate = null): void
     {
         if ($hours <= 0) {
             return;
@@ -439,6 +443,10 @@ class PayrollAttendanceHoursWorkedService
 
         $key = $dayTypeId.'-'.$timeTypeId;
         $totals[$key] = ($totals[$key] ?? 0.0) + $hours;
+
+        if ($workDate !== null) {
+            $this->basicWorkDates[$key][$workDate->toDateString()] = true;
+        }
     }
 
     /**
@@ -447,6 +455,7 @@ class PayrollAttendanceHoursWorkedService
      *     day_type_id: int,
      *     time_type_id: int,
      *     hours: float,
+     *     days: float|null,
      *     time_type_code: string|null
      * }>
      */
@@ -473,6 +482,7 @@ class PayrollAttendanceHoursWorkedService
                 'day_type_id' => $dayTypeId,
                 'time_type_id' => $timeTypeId,
                 'hours' => round($hours, 4),
+                'days' => isset($this->basicWorkDates[$key]) ? (float) count($this->basicWorkDates[$key]) : null,
                 'time_type_code' => $timeTypeCodes[$timeTypeId] ?? null,
             ];
         }

@@ -25,6 +25,8 @@ class RawPayrollDeduction extends Model
         'is_adjustment',
         'reference_number',
         'dt_reference',
+        'time_in',
+        'time_out',
     ];
 
     protected function casts(): array

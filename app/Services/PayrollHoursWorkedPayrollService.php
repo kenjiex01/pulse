@@ -139,7 +139,7 @@ class PayrollHoursWorkedPayrollService
             }
 
             if (! isset($byIncomeType[$incomeTypeId])) {
-                $byIncomeType[$incomeTypeId] = ['taxable' => 0.0, 'non_taxable' => 0.0, 'hours' => 0.0];
+                $byIncomeType[$incomeTypeId] = ['taxable' => 0.0, 'non_taxable' => 0.0, 'hours' => 0.0, 'days' => 0.0];
             }
 
             if ($line['is_taxable']) {
@@ -149,6 +149,7 @@ class PayrollHoursWorkedPayrollService
             }
 
             $byIncomeType[$incomeTypeId]['hours'] += (float) ($row->hours ?? 0);
+            $byIncomeType[$incomeTypeId]['days'] += (float) ($row->days ?? 0);
         }
 
         foreach ($byIncomeType as $incomeTypeId => $amounts) {
@@ -156,6 +157,7 @@ class PayrollHoursWorkedPayrollService
                 'taxable' => round($amounts['taxable'], 2),
                 'non_taxable' => round($amounts['non_taxable'], 2),
                 'hours' => round($amounts['hours'], 4),
+                'days' => round($amounts['days'], 4),
             ];
         }
 
@@ -196,12 +198,14 @@ class PayrollHoursWorkedPayrollService
                         'day_type_id' => $dayTypeId,
                         'time_type_id' => $timeTypeId,
                         'hours' => 0.0,
+                        'days' => 0.0,
                         'time_type_code' => $this->timeTypeCodeForRow($row),
                         'timeType' => $row instanceof RawPayrollHoursWorked ? $row->timeType : null,
                     ];
                 }
 
                 $merged[$key]->hours += $hours;
+                $merged[$key]->days += (float) ($row->days ?? 0);
             }
         }
 

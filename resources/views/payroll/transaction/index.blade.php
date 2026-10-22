@@ -149,7 +149,33 @@
                     'overtimeApprovals' => $overtimeApprovals ?? collect(),
                     'shiftCodes' => $shiftCodes ?? collect(),
                     'attendanceDayBreakdown' => $attendanceDayBreakdown ?? ['LTDE' => [], 'UTDE' => [], 'OVRT' => []],
+                    'disputes' => $disputes ?? collect(),
+                    'disputesEditable' => $disputesEditable ?? false,
                 ])->render(),
+            ])
+
+            @if ($batchEditable ?? false)
+                @include('payroll.transaction._batch-employee-manual-line-modals', [
+                    'batch' => $viewBatch,
+                    'detail' => $viewBatchDetail,
+                    'incomeTypes' => $incomeTypes,
+                    'deductionTypes' => $deductionTypes,
+                    'openEditIncomeId' => $openEditIncomeId ?? null,
+                    'openEditDeductionId' => $openEditDeductionId ?? null,
+                    'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
+                ])
+            @endif
+
+            @include('payroll.transaction._batch-employee-dispute-modals', [
+                'batch' => $viewBatch,
+                'detail' => $viewBatchDetail,
+                'disputes' => $disputes ?? collect(),
+                'disputesEditable' => $disputesEditable ?? false,
+                'shiftCodes' => $shiftCodes ?? collect(),
+                'maxWorkDate' => $disputeMaxWorkDate ?? null,
+                'openAdd' => $openAddEmployeeDispute ?? false,
+                'openEditId' => $openEditDisputeId ?? null,
+                'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
             ])
 
             @include('payroll.transaction._batch-employee-attendance-breakdown-modal', [

@@ -26,6 +26,8 @@ class PayrollDeduction extends Model
         'is_editable',
         'is_deletable',
         'is_manual',
+        'time_in',
+        'time_out',
     ];
 
     protected function casts(): array

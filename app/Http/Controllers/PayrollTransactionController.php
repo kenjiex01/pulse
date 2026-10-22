@@ -10,11 +10,15 @@ use App\Models\PayrollBatch;
 use App\Models\PayrollBatchDetail;
 use App\Models\PayrollBatchStatus;
 use App\Models\PayrollCalendar;
+use App\Models\PayrollDeduction;
+use App\Models\PayrollIncome;
 use App\Models\RawPayrollTransaction;
 use App\Models\ShiftCode;
 use App\Services\EmployeeOvertimeApprovalService;
 use App\Services\PayrollAttendanceDayBreakdownService;
 use App\Services\PayrollBatchService;
+use App\Services\ManualAttendanceDeductionService;
+use App\Services\PayrollDisputeService;
 use App\Services\PayrollTransactionUploadService;
 use App\Services\PayslipEmailService;
 use App\Services\TimekeepingMemoPayrollPostService;
@@ -43,6 +47,8 @@ class PayrollTransactionController extends Controller
         private readonly ReportBatchOptionsService $batchOptions,
         private readonly PayslipEmailService $payslipEmail,
         private readonly TimekeepingMemoPayrollPostService $memoPayrollPostService,
+        private readonly PayrollDisputeService $disputeService,
+        private readonly ManualAttendanceDeductionService $manualAttendanceDeductions,
     ) {}
 
     public function index(Request $request, string $tab): View|RedirectResponse
@@ -79,6 +85,13 @@ class PayrollTransactionController extends Controller
         $openAddEmployeeDeduction = false;
         $openAddEmployeeShiftCode = false;
         $openAddEmployeeOvertime = false;
+        $openEditIncomeId = null;
+        $openEditDeductionId = null;
+        $disputes = collect();
+        $openAddEmployeeDispute = false;
+        $openEditDisputeId = null;
+        $disputesEditable = false;
+        $disputeMaxWorkDate = null;
         $uploadRecords = null;
         $uploadConfig = null;
         $openUpload = false;
@@ -143,6 +156,10 @@ class PayrollTransactionController extends Controller
                             'add_deduction' => $request->boolean('add_deduction') ? 1 : null,
                             'add_shift_code' => $request->boolean('add_shift_code') ? 1 : null,
                             'add_overtime' => $request->boolean('add_overtime') ? 1 : null,
+                            'add_dispute' => $request->boolean('add_dispute') ? 1 : null,
+                            'edit_dispute' => $request->input('edit_dispute'),
+                            'edit_income' => $request->input('edit_income'),
+                            'edit_deduction' => $request->input('edit_deduction'),
                         ]));
                     }
 
@@ -258,6 +275,32 @@ class PayrollTransactionController extends Controller
                             }
 
                             $attendanceDayBreakdown = $this->attendanceDayBreakdown->forDetail($viewBatchDetail);
+
+                            $disputes = $viewBatchDetail->disputes()
+                                ->with(['shiftCode', 'sourcePayrollBatch'])
+                                ->orderBy('work_date')
+                                ->orderBy('category')
+                                ->get();
+                            $disputesEditable = $this->disputeService->canEditDisputes($viewBatch);
+                            $disputeMaxWorkDate = $calendar?->dt_from?->copy()->subDay()->toDateString();
+                            $hasErrors = (bool) $request->session()->get('errors')?->any();
+                            $openAddEmployeeDispute = $request->boolean('add_dispute')
+                                || ($hasErrors && old('form_context') === 'create-payroll-dispute');
+                            $openEditDisputeId = $hasErrors && old('edit_payroll_dispute_id')
+                                ? (int) old('edit_payroll_dispute_id')
+                                : ($request->filled('edit_dispute') ? (int) $request->input('edit_dispute') : null);
+
+                            $openEditIncomeId = old('edit_payroll_income_id')
+                                ? (int) old('edit_payroll_income_id')
+                                : ($request->filled('edit_income') ? (int) $request->input('edit_income') : null);
+                            $openEditDeductionId = old('edit_payroll_deduction_id')
+                                ? (int) old('edit_payroll_deduction_id')
+                                : ($request->filled('edit_deduction') ? (int) $request->input('edit_deduction') : null);
+
+                            if (! $disputesEditable) {
+                                $openAddEmployeeDispute = false;
+                                $openEditDisputeId = null;
+                            }
                         }
                     }
 
@@ -276,6 +319,8 @@ class PayrollTransactionController extends Controller
                         $openAddEmployeeDeduction = false;
                         $openAddEmployeeShiftCode = false;
                         $openAddEmployeeOvertime = false;
+                        $openEditIncomeId = null;
+                        $openEditDeductionId = null;
                     }
                 }
             }
@@ -394,6 +439,13 @@ class PayrollTransactionController extends Controller
             'openAddEmployeeDeduction' => $openAddEmployeeDeduction,
             'openAddEmployeeShiftCode' => $openAddEmployeeShiftCode,
             'openAddEmployeeOvertime' => $openAddEmployeeOvertime,
+            'openEditIncomeId' => $openEditIncomeId,
+            'openEditDeductionId' => $openEditDeductionId,
+            'disputes' => $disputes,
+            'openAddEmployeeDispute' => $openAddEmployeeDispute,
+            'openEditDisputeId' => $openEditDisputeId,
+            'disputesEditable' => $disputesEditable,
+            'disputeMaxWorkDate' => $disputeMaxWorkDate,
             'uploadRecords' => $uploadRecords,
             'uploadConfig' => $uploadConfig,
             'openUpload' => $openUpload,
@@ -638,12 +690,15 @@ class PayrollTransactionController extends Controller
             ],
         ]);
 
-        $detail->loadMissing(['employee.timekeepingSetup.shiftCode']);
+        $detail->loadMissing(['employee.timekeepingSetup.shiftCode', 'employee.timekeepingSetup.policy']);
+        $policy = $detail->employee?->timekeepingSetup?->policy;
 
         $preview = $this->overtimeApprovalService->previewForDate(
             (int) $detail->employee_id,
             $validated['work_date'],
             $detail->employee?->timekeepingSetup?->shiftCode,
+            autofillBeforeShift: $policy?->is_ot_autofill_before_shift ?? true,
+            autofillAfterShift: $policy?->is_ot_autofill_after_shift ?? true,
         );
 
         return response()->json($preview);
@@ -847,15 +902,7 @@ class PayrollTransactionController extends Controller
             abort(404);
         }
 
-        $validated = $request->validate([
-            'deduction_type_id' => ['required', 'integer', 'exists:tbl_deduction_types,deduction_type_id'],
-            'hours' => ['nullable', 'numeric', 'min:0'],
-            'days' => ['nullable', 'numeric', 'min:0'],
-            'employee_amount' => ['nullable', 'numeric', 'min:0'],
-            'employer_amount' => ['nullable', 'numeric', 'min:0'],
-            'reference_number' => ['nullable', 'string', 'max:45'],
-            'reference_date' => ['nullable', 'date'],
-        ]);
+        $validated = $request->validate($this->manualDeductionRules());
 
         try {
             $deduction = $this->batchService->addDeductionToDetail($batch, $detail, $validated);
@@ -896,6 +943,236 @@ class PayrollTransactionController extends Controller
                 'search' => $request->input('search'),
             ])
             ->with('success', 'Deduction line added for '.$detail->employee?->full_name.'.');
+    }
+
+    public function updateEmployeeIncome(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail, PayrollIncome $income): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        $validated = $request->validate($this->manualIncomeRules());
+        $oldValues = $this->manualIncomeLogValues($income);
+
+        try {
+            $income = $this->batchService->updateIncomeOnDetail($batch, $detail, $income, $validated);
+        } catch (ValidationException $exception) {
+            return $this->manualLineRedirect($request, $batch, $detail, 'incomes', ['edit_income' => $income->payroll_income_id])
+                ->withErrors($exception->errors(), 'editIncome'.$income->payroll_income_id)
+                ->withInput();
+        }
+
+        $detail->loadMissing('employee');
+
+        SysLogService::record(
+            action: 'update',
+            table: 'trn_payroll_incomes',
+            recordId: $income->payroll_income_id,
+            oldValues: $oldValues,
+            newValues: $this->manualIncomeLogValues($income),
+            description: 'Updated manual income '.($income->incomeType?->income_type_code ?? $income->income_type_id)
+                .' for employee '.($detail->employee?->employee_number ?? $detail->employee_id)
+                .' in payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return $this->manualLineRedirect($request, $batch, $detail, 'incomes')
+            ->with('success', 'Income line updated for '.$detail->employee?->full_name.'.');
+    }
+
+    public function destroyEmployeeIncome(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail, PayrollIncome $income): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        $income->loadMissing('incomeType');
+        $oldValues = $this->manualIncomeLogValues($income);
+
+        try {
+            $this->batchService->deleteIncomeFromDetail($batch, $detail, $income);
+        } catch (ValidationException $exception) {
+            return $this->manualLineRedirect($request, $batch, $detail, 'incomes')
+                ->with('error', collect($exception->errors())->flatten()->first());
+        }
+
+        $detail->loadMissing('employee');
+
+        SysLogService::record(
+            action: 'delete',
+            table: 'trn_payroll_incomes',
+            recordId: $income->payroll_income_id,
+            oldValues: $oldValues,
+            description: 'Deleted manual income '.($income->incomeType?->income_type_code ?? $income->income_type_id)
+                .' for employee '.($detail->employee?->employee_number ?? $detail->employee_id)
+                .' in payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return $this->manualLineRedirect($request, $batch, $detail, 'incomes')
+            ->with('success', 'Income line deleted for '.$detail->employee?->full_name.'.');
+    }
+
+    public function updateEmployeeDeduction(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail, PayrollDeduction $deduction): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        $validated = $request->validate($this->manualDeductionRules());
+        $oldValues = $this->manualDeductionLogValues($deduction);
+
+        try {
+            $deduction = $this->batchService->updateDeductionOnDetail($batch, $detail, $deduction, $validated);
+        } catch (ValidationException $exception) {
+            return $this->manualLineRedirect($request, $batch, $detail, 'deductions', ['edit_deduction' => $deduction->payroll_deduction_id])
+                ->withErrors($exception->errors(), 'editDeduction'.$deduction->payroll_deduction_id)
+                ->withInput();
+        }
+
+        $detail->loadMissing('employee');
+
+        SysLogService::record(
+            action: 'update',
+            table: 'trn_payroll_deductions',
+            recordId: $deduction->payroll_deduction_id,
+            oldValues: $oldValues,
+            newValues: $this->manualDeductionLogValues($deduction),
+            description: 'Updated manual deduction '.($deduction->deductionType?->deduction_type_code ?? $deduction->deduction_type_id)
+                .' for employee '.($detail->employee?->employee_number ?? $detail->employee_id)
+                .' in payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return $this->manualLineRedirect($request, $batch, $detail, 'deductions')
+            ->with('success', 'Deduction line updated for '.$detail->employee?->full_name.'.');
+    }
+
+    public function destroyEmployeeDeduction(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail, PayrollDeduction $deduction): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        $deduction->loadMissing('deductionType');
+        $oldValues = $this->manualDeductionLogValues($deduction);
+
+        try {
+            $this->batchService->deleteDeductionFromDetail($batch, $detail, $deduction);
+        } catch (ValidationException $exception) {
+            return $this->manualLineRedirect($request, $batch, $detail, 'deductions')
+                ->with('error', collect($exception->errors())->flatten()->first());
+        }
+
+        $detail->loadMissing('employee');
+
+        SysLogService::record(
+            action: 'delete',
+            table: 'trn_payroll_deductions',
+            recordId: $deduction->payroll_deduction_id,
+            oldValues: $oldValues,
+            description: 'Deleted manual deduction '.($deduction->deductionType?->deduction_type_code ?? $deduction->deduction_type_id)
+                .' for employee '.($detail->employee?->employee_number ?? $detail->employee_id)
+                .' in payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return $this->manualLineRedirect($request, $batch, $detail, 'deductions')
+            ->with('success', 'Deduction line deleted for '.$detail->employee?->full_name.'.');
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    private function manualIncomeRules(): array
+    {
+        return [
+            'income_type_id' => ['required', 'integer', 'exists:tbl_income_types,income_type_id'],
+            'hours' => ['nullable', 'numeric', 'min:0'],
+            'days' => ['nullable', 'numeric', 'min:0'],
+            'taxable' => ['nullable', 'numeric', 'min:0'],
+            'non_taxable' => ['nullable', 'numeric', 'min:0'],
+        ];
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    private function manualDeductionRules(): array
+    {
+        return [
+            'deduction_type_id' => ['required', 'integer', 'exists:tbl_deduction_types,deduction_type_id'],
+            'hours' => ['nullable', 'numeric', 'min:0'],
+            'days' => ['nullable', 'numeric', 'min:0'],
+            'employee_amount' => ['nullable', 'numeric', 'min:0'],
+            'employer_amount' => ['nullable', 'numeric', 'min:0'],
+            'reference_number' => ['nullable', 'string', 'max:45'],
+            'reference_date' => ['nullable', 'date'],
+            'time_in' => ['nullable', 'date_format:H:i'],
+            'time_out' => ['nullable', 'date_format:H:i'],
+        ];
+    }
+
+    public function previewEmployeeAttendanceDeduction(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail): JsonResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'view');
+
+        if ((int) $detail->payroll_batch_id !== (int) $batch->payroll_batch_id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'deduction_type_id' => ['required', 'integer', 'exists:tbl_deduction_types,deduction_type_id'],
+            'reference_date' => ['nullable', 'date_format:Y-m-d'],
+            'time' => ['nullable', 'string', 'max:8'],
+            'hours' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $code = (string) DeductionType::query()->whereKey($validated['deduction_type_id'])->value('deduction_type_code');
+
+        return response()->json($this->manualAttendanceDeductions->preview(
+            $detail,
+            $code,
+            $validated['reference_date'] ?? null,
+            $validated['time'] ?? null,
+            isset($validated['hours']) ? (float) $validated['hours'] : null,
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function manualIncomeLogValues(PayrollIncome $income): array
+    {
+        return [
+            'income_type_id' => $income->income_type_id,
+            'hours' => $income->hours,
+            'days' => $income->days,
+            'taxable' => (float) $income->taxable,
+            'non_taxable' => (float) $income->non_taxable,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function manualDeductionLogValues(PayrollDeduction $deduction): array
+    {
+        return [
+            'deduction_type_id' => $deduction->deduction_type_id,
+            'hours' => $deduction->hours,
+            'days' => $deduction->days,
+            'employee_amount' => (float) $deduction->employee_amount,
+            'employer_amount' => (float) $deduction->employer_amount,
+            'reference_number' => $deduction->reference_number,
+            'dt_reference' => $deduction->dt_reference?->toDateString(),
+            'time_in' => $deduction->time_in,
+            'time_out' => $deduction->time_out,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $extra
+     */
+    private function manualLineRedirect(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail, string $tab, array $extra = []): RedirectResponse
+    {
+        return redirect()->route(PayrollTransactionModule::routeName('tab'), array_filter([
+            'tab' => $this->batchTabFor($batch),
+            'view_payroll_batch' => $batch->payroll_batch_id,
+            'view_batch_detail' => $detail->payroll_batch_detail_id,
+            'batch_detail_tab' => $tab,
+            'batch_employee_search' => $request->input('batch_employee_search'),
+            'search' => $request->input('search'),
+            ...$extra,
+        ]));
     }
 
     public function storeEmployees(Request $request, PayrollBatch $batch): RedirectResponse
@@ -1232,7 +1509,7 @@ class PayrollTransactionController extends Controller
                 ->with('error', $exception->getMessage());
         }
 
-        $applied = in_array($uploadType, ['shift-codes', 'overtime'], true)
+        $applied = in_array($uploadType, ['shift-codes', 'overtime', 'disputes'], true)
             ? 0
             : $this->batchService->applyRawUploadToOpenBatches($transaction);
 
@@ -1241,6 +1518,7 @@ class PayrollTransactionController extends Controller
         $recordsCount = match ($uploadType) {
             'shift-codes' => $transaction->shiftCodeRecords()->count(),
             'overtime' => $transaction->overtimeRecords()->count(),
+            'disputes' => $transaction->disputeRecords()->count(),
             default => null,
         };
 
@@ -1248,7 +1526,7 @@ class PayrollTransactionController extends Controller
             action: 'create',
             table: 'raw_payroll_transactions',
             recordId: $transaction->payroll_transaction_id,
-            newValues: in_array($uploadType, ['shift-codes', 'overtime'], true)
+            newValues: in_array($uploadType, ['shift-codes', 'overtime', 'disputes'], true)
                 ? [
                     'upload_type' => $uploadType,
                     'batch_no' => $transaction->batch_no,
@@ -1260,7 +1538,8 @@ class PayrollTransactionController extends Controller
                 .' ('.$uploadType.')'
                 .($applied > 0 ? '; applied '.$applied.' payroll line(s) to open payroll batch(es)' : '')
                 .($uploadType === 'shift-codes' ? '; upserted employee day shift overrides' : '')
-                .($uploadType === 'overtime' ? '; upserted employee overtime approvals' : ''),
+                .($uploadType === 'overtime' ? '; upserted employee overtime approvals' : '')
+                .($uploadType === 'disputes' ? '; filed payroll disputes in open payroll batch(es)' : ''),
         );
 
         $successMessage = 'Upload batch #'.$transaction->batch_no.' loaded successfully.';
@@ -1269,6 +1548,9 @@ class PayrollTransactionController extends Controller
             $successMessage .= ' Day shift overrides saved. Process/Reprocess the batch to apply them to pay.';
         } elseif ($uploadType === 'overtime') {
             $successMessage .= ' Overtime approvals saved. Process/Reprocess the batch to apply them to pay.';
+        } elseif ($uploadType === 'disputes') {
+            $successMessage .= ' '.$recordsCount.' dispute'.($recordsCount === 1 ? '' : 's')
+                .' filed. Process/Reprocess the batch to apply them to pay.';
         } elseif ($applied > 0) {
             $successMessage .= ' Applied '.$applied.' payroll line'
                 .($applied === 1 ? '' : 's').' to the matching payroll batch.';
@@ -1356,6 +1638,7 @@ class PayrollTransactionController extends Controller
             'hours-worked' => ['employee', 'dayType', 'timeType'],
             'shift-codes' => ['employee', 'shiftCode'],
             'overtime' => ['employee'],
+            'disputes' => ['employee', 'shiftCode', 'payrollBatch'],
             'leaves' => ['employee', 'leaveType'],
             'loans' => ['employee', 'loanType'],
             default => ['employee'],

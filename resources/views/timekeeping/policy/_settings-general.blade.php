@@ -57,6 +57,24 @@
                     @error('max_rest_days_per_week')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
             </div>
+
+            <div class="border-t border-gray-100 pt-4">
+                <p class="text-sm font-medium text-gray-900">Overtime auto-fill (Payroll Batch → Add Overtime)</p>
+                <p class="mt-0.5 text-xs text-gray-500">Excess hours to use when OT Start / OT End are auto-filled after picking a work date. You can still adjust the times before saving.</p>
+                <div class="mt-2 flex flex-wrap gap-6">
+                    <label class="flex items-center gap-2 text-sm">
+                        <input type="hidden" name="is_ot_autofill_before_shift" value="0">
+                        <input type="checkbox" name="is_ot_autofill_before_shift" value="1" @checked((bool) old('is_ot_autofill_before_shift', $policy->is_ot_autofill_before_shift ?? true))>
+                        Before Shift
+                    </label>
+                    <label class="flex items-center gap-2 text-sm">
+                        <input type="hidden" name="is_ot_autofill_after_shift" value="0">
+                        <input type="checkbox" name="is_ot_autofill_after_shift" value="1" @checked((bool) old('is_ot_autofill_after_shift', $policy->is_ot_autofill_after_shift ?? true))>
+                        After Shift
+                    </label>
+                </div>
+                @error('is_ot_autofill_after_shift')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+            </div>
         </div>
     </div>
 

@@ -10,7 +10,10 @@ use App\Models\EmployeeShiftOverride;
 use App\Models\IncomeType;
 use App\Models\LeaveType;
 use App\Models\LoanType;
+use App\Models\PayrollBatchDetail;
+use App\Models\PayrollBatchStatus;
 use App\Models\PayrollCalendar;
+use App\Models\PayrollDispute;
 use App\Models\RawPayrollDeduction;
 use App\Models\RawPayrollHoursWorked;
 use App\Models\RawPayrollIncome;
@@ -42,6 +45,8 @@ class PayrollTransactionUploadService
 
     public function __construct(
         private readonly EmployeeOvertimeApprovalService $overtimeApprovals,
+        private readonly PayrollDisputeService $disputes,
+        private readonly ManualAttendanceDeductionService $attendanceDeductions,
     ) {}
 
     /**
@@ -168,6 +173,7 @@ class PayrollTransactionUploadService
         $delimiter = "\t";
         $seenShiftKeys = [];
         $seenOvertimeKeys = [];
+        $seenDisputeKeys = [];
 
         try {
             while (($line = fgets($handle)) !== false) {
@@ -239,6 +245,19 @@ class PayrollTransactionUploadService
                         $parsed = null;
                     } else {
                         $seenOvertimeKeys[$dupKey] = $lineNumber;
+                    }
+                }
+
+                if ($parsed !== null && $uploadType === 'disputes') {
+                    $dupKey = ((int) $parsed['employee_id']).'|'
+                        .($parsed['work_date'] ?? '').'|'
+                        .($parsed['category'] ?? '');
+
+                    if (isset($seenDisputeKeys[$dupKey])) {
+                        $errors[] = "Line {$lineNumber}: Duplicate employee, work date, and dispute type in this file (also on line {$seenDisputeKeys[$dupKey]}).";
+                        $parsed = null;
+                    } else {
+                        $seenDisputeKeys[$dupKey] = $lineNumber;
                     }
                 }
 
@@ -543,8 +562,7 @@ class PayrollTransactionUploadService
         }
 
         if (in_array($uploadType, ['deductions', 'deduction-adjustments'], true)) {
-            $this->validateDeductionHoursRow($parsed, $lineNumber, $errors, $hasError);
-            $this->validateDeductionDaysRow($parsed, $lineNumber, $errors, $hasError);
+            $this->validateDeductionAttendanceRow($parsed, $lineNumber, $errors, $hasError, $calendar);
         }
 
         if ($uploadType === 'shift-codes' && ! $hasError) {
@@ -553,6 +571,10 @@ class PayrollTransactionUploadService
 
         if ($uploadType === 'overtime' && ! $hasError) {
             $this->validateOvertimeRow($parsed, $lineNumber, $errors, $hasError, $calendar);
+        }
+
+        if ($uploadType === 'disputes' && ! $hasError) {
+            $this->validateDisputeRow($parsed, $lineNumber, $errors, $hasError, $calendar);
         }
 
         if ($uploadType === 'resigned-employees' && ! $hasError && isset($parsed['dt_resigned'])) {
@@ -582,6 +604,7 @@ class PayrollTransactionUploadService
                 : $this->lookupLeaveType($value, $lineNumber, $label, $errors, $hasError, 'leave_type_id'),
             'loan_type' => $this->lookupLoanType($value, $lineNumber, $label, $errors, $hasError),
             'shift_code' => $this->lookupShiftCode($value, $lineNumber, $label, $errors, $hasError),
+            'dispute_category' => $this->lookupDisputeCategory($value, $lineNumber, $label, $errors, $hasError),
             'decimal' => $this->validateDecimal($field, $value, $lineNumber, $label, $errors, $hasError),
             'date' => $this->validateDateField($alias, $value, $lineNumber, $label, $errors, $hasError),
             'time' => $this->validateTimeField($alias, $value, $lineNumber, $label, $errors, $hasError),
@@ -1027,73 +1050,84 @@ class PayrollTransactionUploadService
     }
 
     /**
-     * Hours is required only for Late (LTDE) and Undertime (UTDE) deduction uploads.
+     * Late (LTDE) / Undertime (UTDE) rows: reference date and Time In (LTDE) / Time Out (UTDE) are required;
+     * hours auto-compute from the time and shift when blank, and the employee amount is hours x hourly rate.
      *
      * @param  array<string, mixed>  $parsed
      * @param  array<int, string>  $errors
      */
-    private function validateDeductionHoursRow(array $parsed, int $lineNumber, array &$errors, bool &$hasError): void
+    private function validateDeductionAttendanceRow(array &$parsed, int $lineNumber, array &$errors, bool &$hasError, ?PayrollCalendar $calendar): void
     {
         $deductionTypeId = (int) ($parsed['deduction_type_id'] ?? 0);
 
-        if ($deductionTypeId <= 0) {
+        if ($deductionTypeId <= 0 || $hasError) {
             return;
         }
 
-        $code = DeductionType::query()
-            ->whereKey($deductionTypeId)
-            ->value('deduction_type_code');
+        $code = (string) DeductionType::query()->whereKey($deductionTypeId)->value('deduction_type_code');
 
-        if (! in_array($code, ['LTDE', 'UTDE'], true)) {
+        if (! ManualAttendanceDeductionService::isAttendanceCode($code)) {
+            unset($parsed['time_in'], $parsed['time_out']);
+
             return;
         }
 
-        if (! array_key_exists('hours', $parsed) || $parsed['hours'] === null || $parsed['hours'] === '') {
+        $isLate = $code === ManualAttendanceDeductionService::LATE;
+        $timeField = $isLate ? 'time_in' : 'time_out';
+        $label = $isLate ? 'Late (LTDE)' : 'Undertime (UTDE)';
+
+        if (empty($parsed['dt_reference'])) {
             $hasError = true;
-            $errors[] = "Line {$lineNumber}: Hours is required for Late (LTDE) and Undertime (UTDE).";
+            $errors[] = "Line {$lineNumber}: Reference Date (work date) is required for {$label}.";
 
             return;
         }
 
-        if ((float) $parsed['hours'] <= 0) {
+        if (empty($parsed[$timeField])) {
             $hasError = true;
-            $errors[] = "Line {$lineNumber}: Hours must be greater than 0 for Late (LTDE) and Undertime (UTDE).";
-        }
-    }
+            $errors[] = "Line {$lineNumber}: ".($isLate ? 'Time In' : 'Time Out')." is required for {$label}.";
 
-    /**
-     * Days is required only for Late (LTDE) and Undertime (UTDE) deduction uploads.
-     *
-     * @param  array<string, mixed>  $parsed
-     * @param  array<int, string>  $errors
-     */
-    private function validateDeductionDaysRow(array $parsed, int $lineNumber, array &$errors, bool &$hasError): void
-    {
-        $deductionTypeId = (int) ($parsed['deduction_type_id'] ?? 0);
-
-        if ($deductionTypeId <= 0) {
             return;
         }
 
-        $code = DeductionType::query()
-            ->whereKey($deductionTypeId)
-            ->value('deduction_type_code');
+        $hours = isset($parsed['hours']) && $parsed['hours'] !== '' ? (float) $parsed['hours'] : null;
 
-        if (! in_array($code, ['LTDE', 'UTDE'], true)) {
-            return;
-        }
-
-        if (! array_key_exists('days', $parsed) || $parsed['days'] === null || $parsed['days'] === '') {
+        if ($hours !== null && $hours <= 0) {
             $hasError = true;
-            $errors[] = "Line {$lineNumber}: Days is required for Late (LTDE) and Undertime (UTDE).";
+            $errors[] = "Line {$lineNumber}: Hours must be greater than 0 for {$label}.";
 
             return;
         }
 
-        if ((float) $parsed['days'] <= 0) {
+        $preview = $this->attendanceDeductions->previewFor(
+            Employee::query()->find((int) ($parsed['employee_id'] ?? 0)),
+            (int) ($calendar?->pay_type_id ?? 0),
+            $code,
+            Carbon::parse((string) $parsed['dt_reference'])->toDateString(),
+            (string) $parsed[$timeField],
+            $hours,
+        );
+
+        if (($preview['hours'] ?? null) === null || $preview['hours'] <= 0) {
             $hasError = true;
-            $errors[] = "Line {$lineNumber}: Days must be greater than 0 for Late (LTDE) and Undertime (UTDE).";
+            $errors[] = "Line {$lineNumber}: ".($preview['message'] ?? "Hours could not be computed for {$label}. Enter the hours.");
+
+            return;
         }
+
+        if (! $preview['ok'] || $preview['amount'] === null) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: ".($preview['message'] ?? 'Unable to compute the employee amount.');
+
+            return;
+        }
+
+        $parsed['hours'] = $preview['hours'];
+        $parsed['days'] = 1;
+        $parsed['emp_amount'] = $preview['amount'];
+        $parsed['empr_amount'] = 0;
+        unset($parsed['amount']);
+        unset($parsed[$isLate ? 'time_out' : 'time_in']);
     }
 
     private function isValidDate(string $value): bool
@@ -1132,6 +1166,8 @@ class PayrollTransactionUploadService
                 'is_adjustment' => (bool) ($config['is_adjustment'] ?? false),
                 'reference_number' => $row['reference_number'] ?? null,
                 'dt_reference' => isset($row['dt_reference']) ? Carbon::parse($row['dt_reference']) : null,
+                'time_in' => $row['time_in'] ?? null,
+                'time_out' => $row['time_out'] ?? null,
             ]),
             'hours-worked' => RawPayrollHoursWorked::query()->create([
                 'payroll_transaction_id' => $transaction->payroll_transaction_id,
@@ -1143,6 +1179,7 @@ class PayrollTransactionUploadService
             ]),
             'shift-codes' => $this->persistShiftCodeRow($transaction, $row),
             'overtime' => $this->persistOvertimeRow($transaction, $row),
+            'disputes' => $this->persistDisputeRow($transaction, $row, $calendar),
             'leaves' => RawPayrollLeave::query()->create([
                 'payroll_transaction_id' => $transaction->payroll_transaction_id,
                 'employee_id' => $row['employee_id'],
@@ -1378,6 +1415,175 @@ class PayrollTransactionUploadService
             description: 'Created overtime approval from upload for employee '.$employeeNumber
                 .' on '.$workDate
                 .' (upload batch no. '.$transaction->batch_no.')',
+        );
+    }
+
+    /**
+     * @param  array<int, string>  $errors
+     * @return array<string, mixed>|null
+     */
+    private function lookupDisputeCategory(string $value, int $lineNumber, string $label, array &$errors, bool &$hasError): ?array
+    {
+        $needle = strtoupper(trim($value));
+
+        foreach (PayrollDispute::CATEGORIES as $code => $name) {
+            if ($needle === $code || $needle === strtoupper($name)) {
+                return ['category' => $code];
+            }
+        }
+
+        $hasError = true;
+        $errors[] = "Line {$lineNumber}: Invalid {$label} ({$value}). Use UPD, UOT, ODU, or ODL.";
+
+        return null;
+    }
+
+    private function openDisputeDetail(int $employeeId, ?PayrollCalendar $calendar): ?PayrollBatchDetail
+    {
+        if (! $calendar) {
+            return null;
+        }
+
+        return PayrollBatchDetail::query()
+            ->where('employee_id', $employeeId)
+            ->whereHas('payrollBatch', function ($query) use ($calendar) {
+                $query->where('payroll_calendar_id', $calendar->payroll_calendar_id)
+                    ->whereIn('payroll_batch_status_id', [PayrollBatchStatus::PENDING, PayrollBatchStatus::PROCESSED]);
+            })
+            ->orderByDesc('payroll_batch_detail_id')
+            ->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $parsed
+     * @return array<string, mixed>
+     */
+    private function disputeInput(PayrollBatchDetail $detail, array $parsed): array
+    {
+        $input = [
+            'category' => $parsed['category'],
+            'work_date' => Carbon::parse($parsed['work_date'])->toDateString(),
+            'shift_code_id' => $parsed['shift_code_id'] ?? null,
+            'time_in' => $parsed['time_in'] ?? null,
+            'time_out' => $parsed['time_out'] ?? null,
+            'ot_start' => $parsed['ot_start'] ?? null,
+            'ot_end' => $parsed['ot_end'] ?? null,
+            'remarks' => $parsed['remarks'] ?? null,
+        ];
+
+        $prefill = $this->disputes->prefill($detail, $input['work_date'], $input['category']);
+
+        foreach (($prefill['values'] ?? []) as $key => $value) {
+            if (($input[$key] ?? null) === null || $input[$key] === '') {
+                $input[$key] = $value;
+            }
+        }
+
+        return $input;
+    }
+
+    /**
+     * @param  array<string, mixed>  $parsed
+     * @param  array<int, string>  $errors
+     */
+    private function validateDisputeRow(
+        array &$parsed,
+        int $lineNumber,
+        array &$errors,
+        bool &$hasError,
+        ?PayrollCalendar $calendar,
+    ): void {
+        if (! isset($parsed['employee_id'], $parsed['category'], $parsed['work_date'])) {
+            return;
+        }
+
+        $detail = $this->openDisputeDetail((int) $parsed['employee_id'], $calendar);
+
+        if (! $detail) {
+            $hasError = true;
+            $errors[] = "Line {$lineNumber}: Employee is not in an open (Pending/Processed) payroll batch for the selected pay period.";
+
+            return;
+        }
+
+        $input = $this->disputeInput($detail, $parsed);
+
+        try {
+            $payload = $this->disputes->validateForStore($detail, $input);
+        } catch (ValidationException $exception) {
+            $hasError = true;
+            $messages = collect($exception->errors())->flatten()->filter()->unique()->values();
+            $errors[] = "Line {$lineNumber}: ".($messages->isNotEmpty() ? $messages->implode(' ') : 'Invalid dispute.');
+
+            return;
+        }
+
+        $attributes = $payload['attributes'];
+        $parsed = [
+            'employee_id' => $parsed['employee_id'],
+            'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
+            'category' => $attributes['category'],
+            'work_date' => $input['work_date'],
+            'shift_code_id' => $attributes['shift_code_id'] ?? null,
+            'time_in' => $attributes['time_in'] ?? null,
+            'time_out' => $attributes['time_out'] ?? null,
+            'ot_start' => $attributes['ot_start'] ?? null,
+            'ot_end' => $attributes['ot_end'] ?? null,
+            'remarks' => $attributes['remarks'] ?? null,
+            'expected_pay' => number_format((float) ($attributes['expected_pay'] ?? 0) + (float) ($attributes['expected_ot_pay'] ?? 0), 2, '.', ''),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function persistDisputeRow(RawPayrollTransaction $transaction, array $row, PayrollCalendar $calendar): void
+    {
+        $detail = PayrollBatchDetail::query()->find((int) ($row['payroll_batch_detail_id'] ?? 0))
+            ?? $this->openDisputeDetail((int) $row['employee_id'], $calendar);
+
+        $employeeNumber = Employee::query()->whereKey((int) $row['employee_id'])->value('employee_number') ?? (string) $row['employee_id'];
+
+        if (! $detail || ! $this->disputes->canEditDisputes($detail->payrollBatch)) {
+            throw new RuntimeException('Employee '.$employeeNumber.' is no longer in an open payroll batch for this pay period. Upload the file again.');
+        }
+
+        try {
+            $payload = $this->disputes->validateForStore($detail, $this->disputeInput($detail, $row));
+        } catch (ValidationException $exception) {
+            $messages = collect($exception->errors())->flatten()->filter()->unique()->implode(' ');
+
+            throw new RuntimeException('Employee '.$employeeNumber.' ('.$row['work_date'].'): '.$messages);
+        }
+
+        $userId = $transaction->uploaded_by_id;
+        $dispute = PayrollDispute::query()->create([
+            ...$payload['attributes'],
+            'payroll_batch_id' => $detail->payroll_batch_id,
+            'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
+            'employee_id' => $detail->employee_id,
+            'payroll_transaction_id' => $transaction->payroll_transaction_id,
+            'created_by_id' => $userId,
+            'updated_by_id' => $userId,
+        ]);
+
+        SysLogService::record(
+            action: 'create',
+            table: 'trn_payroll_disputes',
+            recordId: $dispute->payroll_dispute_id,
+            newValues: [
+                'payroll_transaction_id' => $transaction->payroll_transaction_id,
+                'batch_no' => $transaction->batch_no,
+                'employee_id' => $dispute->employee_id,
+                'payroll_batch_id' => $dispute->payroll_batch_id,
+                'category' => $dispute->category,
+                'work_date' => $dispute->work_date?->toDateString(),
+                'expected_pay' => (float) $dispute->expected_pay,
+                'expected_ot_pay' => (float) $dispute->expected_ot_pay,
+            ],
+            description: 'Uploaded '.$dispute->categoryName().' dispute for employee '.$employeeNumber
+                .' on '.$dispute->work_date?->toDateString()
+                .' in upload batch no. '.$transaction->batch_no,
         );
     }
 

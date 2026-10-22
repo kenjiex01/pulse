@@ -39,6 +39,10 @@
     $canAddOvertime = (bool) ($batchEditable ?? false);
     $shiftOverrides = $shiftOverrides ?? collect();
     $overtimeApprovals = $overtimeApprovals ?? collect();
+    $canEditManualLines = (bool) ($batchEditable ?? false);
+    $manualDeductions = $detail->deductions->where('is_manual', true)->sortBy('payroll_deduction_id');
+    $trashIcon = '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>';
+    $editIcon = '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>';
 @endphp
 
 <div class="space-y-4" data-employee-form-tabs>
@@ -226,6 +230,9 @@
                         <th class="px-3 py-2 text-right">Days</th>
                         <th class="px-3 py-2 text-right">Taxable</th>
                         <th class="px-3 py-2 text-right">Non-Taxable</th>
+                        @if ($canEditManualLines)
+                            <th class="px-3 py-2 text-right">Actions</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -249,7 +256,15 @@
                                     <span class="ml-1 text-xs font-normal text-[#00A3E6]">View days</span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2 text-gray-600">{{ $income->incomeType?->description ?? '—' }}</td>
+                            <td class="px-3 py-2 text-gray-600">
+                                {{ $income->incomeType?->description ?? '—' }}
+                                @if (filled($income->remarks))
+                                    <span class="text-gray-500">({{ $income->remarks }})</span>
+                                @endif
+                                @if ($income->is_manual)
+                                    <span class="ml-1 rounded bg-[#00A3E6]/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[#0B318F]">Manual</span>
+                                @endif
+                            </td>
                             <td class="px-3 py-2 text-right text-gray-900">
                                 {{ $income->hours !== null ? number_format((float) $income->hours, 2) : '—' }}
                             </td>
@@ -258,10 +273,36 @@
                             </td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ number_format((float) $income->taxable, 2) }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ number_format((float) $income->non_taxable, 2) }}</td>
+                            @if ($canEditManualLines)
+                                <td class="px-3 py-2 text-right whitespace-nowrap">
+                                    @if ($income->is_manual)
+                                        <button
+                                            type="button"
+                                            class="btn-icon"
+                                            title="Edit"
+                                            data-modal-open="payroll-batch-edit-income-modal-{{ $income->payroll_income_id }}"
+                                        >{!! $editIcon !!}</button>
+                                        <form
+                                            method="POST"
+                                            action="{{ route('payroll.transaction.employees.incomes.destroy', [$batch, $detail, $income]) }}"
+                                            class="inline"
+                                            onsubmit="return confirm('Delete this manually added income line?');"
+                                        >
+                                            @csrf
+                                            @method('DELETE')
+                                            <input type="hidden" name="batch_employee_search" value="{{ request('batch_employee_search') }}">
+                                            <input type="hidden" name="search" value="{{ request('search') }}">
+                                            <button type="submit" class="btn-icon text-red-600 hover:bg-red-50" title="Delete">{!! $trashIcon !!}</button>
+                                        </form>
+                                    @else
+                                        <span class="text-xs text-gray-400" title="Computed by the system; changes on Process/Reprocess">Auto</span>
+                                    @endif
+                                </td>
+                            @endif
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-3 py-8 text-center text-gray-500">
+                            <td colspan="{{ $canEditManualLines ? 7 : 6 }}" class="px-3 py-8 text-center text-gray-500">
                                 No income records for this employee yet.
                             </td>
                         </tr>
@@ -279,6 +320,9 @@
                             </td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ number_format($taxableTotal, 2) }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ number_format($nonTaxableTotal, 2) }}</td>
+                            @if ($canEditManualLines)
+                                <td></td>
+                            @endif
                         </tr>
                     </tfoot>
                 @endif
@@ -393,6 +437,84 @@
                 @endif
             </table>
         </div>
+
+        @if ($manualDeductions->isNotEmpty())
+            <h3 class="mb-2 mt-4 text-sm font-semibold text-gray-900">Manually added deductions</h3>
+            <p class="mb-2 text-xs text-gray-500">Only these lines can be edited or deleted. System-computed deductions are rebuilt on Process/Reprocess.</p>
+            <div class="overflow-x-auto rounded-lg border border-gray-200">
+                <table class="table-skolaris min-w-full text-sm">
+                    <thead>
+                        <tr>
+                            <th class="px-3 py-2 text-left">Deduction Type Code</th>
+                            <th class="px-3 py-2 text-left">Reference</th>
+                            <th class="px-3 py-2 text-right">Hours</th>
+                            <th class="px-3 py-2 text-right">Employee Amount</th>
+                            <th class="px-3 py-2 text-right">Employer Share</th>
+                            @if ($canEditManualLines)
+                                <th class="px-3 py-2 text-right">Actions</th>
+                            @endif
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($manualDeductions as $manualDeduction)
+                            <tr>
+                                <td class="px-3 py-2 font-medium text-gray-900">
+                                    {{ $manualDeduction->deductionType?->deduction_type_code ?? '—' }}
+                                    <span class="block text-xs font-normal text-gray-500">{{ $manualDeduction->deductionType?->description }}</span>
+                                </td>
+                                <td class="px-3 py-2 text-gray-600">
+                                    {{ $manualDeduction->reference_number ?: '—' }}
+                                    @if ($manualDeduction->dt_reference)
+                                        <span class="block text-xs text-gray-500">
+                                            {{ $manualDeduction->dt_reference->format('M j, Y') }}
+                                            @if ($manualDeduction->time_in)
+                                                · In {{ $manualDeduction->time_in }}
+                                            @elseif ($manualDeduction->time_out)
+                                                · Out {{ $manualDeduction->time_out }}
+                                            @endif
+                                        </span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2 text-right text-gray-900">{{ $manualDeduction->hours !== null ? number_format((float) $manualDeduction->hours, 2) : '—' }}</td>
+                                <td class="px-3 py-2 text-right text-gray-900">{{ number_format((float) $manualDeduction->employee_amount, 2) }}</td>
+                                <td class="px-3 py-2 text-right text-gray-900">{{ number_format((float) $manualDeduction->employer_amount, 2) }}</td>
+                                @if ($canEditManualLines)
+                                    <td class="px-3 py-2 text-right whitespace-nowrap">
+                                        <button
+                                            type="button"
+                                            class="btn-icon"
+                                            title="Edit"
+                                            data-modal-open="payroll-batch-edit-deduction-modal-{{ $manualDeduction->payroll_deduction_id }}"
+                                        >{!! $editIcon !!}</button>
+                                        <form
+                                            method="POST"
+                                            action="{{ route('payroll.transaction.employees.deductions.destroy', [$batch, $detail, $manualDeduction]) }}"
+                                            class="inline"
+                                            onsubmit="return confirm('Delete this manually added deduction line?');"
+                                        >
+                                            @csrf
+                                            @method('DELETE')
+                                            <input type="hidden" name="batch_employee_search" value="{{ request('batch_employee_search') }}">
+                                            <input type="hidden" name="search" value="{{ request('search') }}">
+                                            <button type="submit" class="btn-icon text-red-600 hover:bg-red-50" title="Delete">{!! $trashIcon !!}</button>
+                                        </form>
+                                    </td>
+                                @endif
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </div>
+
+    <div class="employee-tab-panel {{ $activeTab === 'disputes' ? '' : 'hidden' }}" data-employee-tab-panel="disputes">
+        @include('payroll.transaction._batch-employee-disputes-tab', [
+            'batch' => $batch,
+            'detail' => $detail,
+            'disputes' => $disputes ?? collect(),
+            'disputesEditable' => $disputesEditable ?? false,
+        ])
     </div>
 
     <div class="employee-tab-panel {{ $activeTab === 'net-pay' ? '' : 'hidden' }}" data-employee-tab-panel="net-pay">

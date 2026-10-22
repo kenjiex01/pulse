@@ -233,6 +233,8 @@ class TimekeepingPolicy
             'buffer_time_out' => 10,
             'enable_employee_validation_for_rest_days' => true,
             'max_rest_days_per_week' => 2,
+            'is_ot_autofill_before_shift' => true,
+            'is_ot_autofill_after_shift' => true,
             'min_hours_rendered_per_week' => 40,
         ];
     }
@@ -840,6 +842,12 @@ class TimekeepingPolicy
             'buffer_time_out' => ['required', 'numeric', 'gt:0'],
             'enable_employee_validation_for_rest_days' => ['nullable', 'boolean'],
             'max_rest_days_per_week' => ['nullable', 'integer', 'min:0', 'max:7'],
+            'is_ot_autofill_before_shift' => ['nullable', 'boolean'],
+            'is_ot_autofill_after_shift' => ['nullable', 'boolean', function (string $attribute, mixed $value, \Closure $fail): void {
+                if (! filter_var(request('is_ot_autofill_before_shift'), FILTER_VALIDATE_BOOLEAN) && ! filter_var($value, FILTER_VALIDATE_BOOLEAN)) {
+                    $fail('Select Before Shift, After Shift, or both for the overtime auto-fill.');
+                }
+            }],
         ];
     }
 
@@ -855,6 +863,8 @@ class TimekeepingPolicy
             'max_rest_days_per_week' => $validateRestDays && filled($validated['max_rest_days_per_week'] ?? null)
                 ? $validated['max_rest_days_per_week']
                 : null,
+            'is_ot_autofill_before_shift' => filter_var($validated['is_ot_autofill_before_shift'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'is_ot_autofill_after_shift' => filter_var($validated['is_ot_autofill_after_shift'] ?? false, FILTER_VALIDATE_BOOLEAN),
         ];
     }
 

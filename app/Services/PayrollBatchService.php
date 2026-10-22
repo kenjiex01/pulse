@@ -46,6 +46,8 @@ class PayrollBatchService
         private readonly EmployeeSalaryResolverService $salaryResolver,
         private readonly PayrollAttendanceDayPersistenceService $attendanceDayPersistence,
         private readonly LoanPayrollService $loanPayroll,
+        private readonly PayrollDisputeService $disputePayroll,
+        private readonly ManualAttendanceDeductionService $manualAttendanceDeductions,
     ) {}
     /**
      * @return array{
@@ -262,6 +264,104 @@ class PayrollBatchService
      */
     public function addIncomeToDetail(PayrollBatch $batch, PayrollBatchDetail $detail, array $validated): PayrollIncome
     {
+        $this->assertDetailLinesEditable($batch, $detail, 'income');
+        $attributes = $this->manualIncomeAttributes($validated);
+
+        return DB::transaction(function () use ($batch, $detail, $attributes) {
+            $income = PayrollIncome::query()->create([
+                ...$attributes,
+                'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
+                'is_manual' => true,
+                'is_editable' => true,
+                'is_deletable' => true,
+            ]);
+
+            $detail->load('incomes');
+            $this->governmentDeductionPayroll->refreshGovernmentDeductionsForDetail($detail, $batch);
+
+            return $income->load('incomeType');
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    public function updateIncomeOnDetail(PayrollBatch $batch, PayrollBatchDetail $detail, PayrollIncome $income, array $validated): PayrollIncome
+    {
+        $this->assertManualLine($batch, $detail, (int) $income->payroll_batch_detail_id, (bool) $income->is_manual, 'income');
+        $attributes = $this->manualIncomeAttributes($validated);
+
+        return DB::transaction(function () use ($batch, $detail, $income, $attributes) {
+            $income->update($attributes);
+
+            $detail->load('incomes');
+            $this->governmentDeductionPayroll->refreshGovernmentDeductionsForDetail($detail, $batch);
+
+            return $income->load('incomeType');
+        });
+    }
+
+    public function deleteIncomeFromDetail(PayrollBatch $batch, PayrollBatchDetail $detail, PayrollIncome $income): void
+    {
+        $this->assertManualLine($batch, $detail, (int) $income->payroll_batch_detail_id, (bool) $income->is_manual, 'income');
+
+        DB::transaction(function () use ($batch, $detail, $income) {
+            $income->delete();
+
+            $detail->load('incomes');
+            $this->governmentDeductionPayroll->refreshGovernmentDeductionsForDetail($detail, $batch);
+        });
+    }
+
+    /**
+     * @param  array{
+     *     deduction_type_id: int,
+     *     hours?: float|null,
+     *     days?: float|null,
+     *     employee_amount?: float|null,
+     *     employer_amount?: float|null,
+     *     reference_number?: string|null,
+     *     reference_date?: string|null
+     * }  $validated
+     */
+    public function addDeductionToDetail(PayrollBatch $batch, PayrollBatchDetail $detail, array $validated): PayrollDeduction
+    {
+        $this->assertDetailLinesEditable($batch, $detail, 'deduction');
+        $attributes = $this->manualDeductionAttributes($detail, $validated);
+
+        return DB::transaction(function () use ($detail, $attributes) {
+            return PayrollDeduction::query()->create([
+                ...$attributes,
+                'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
+                'is_manual' => true,
+                'is_editable' => true,
+                'is_deletable' => true,
+            ])->load('deductionType');
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    public function updateDeductionOnDetail(PayrollBatch $batch, PayrollBatchDetail $detail, PayrollDeduction $deduction, array $validated): PayrollDeduction
+    {
+        $this->assertManualLine($batch, $detail, (int) $deduction->payroll_batch_detail_id, (bool) $deduction->is_manual, 'deduction');
+        $attributes = $this->manualDeductionAttributes($detail, $validated);
+
+        $deduction->update($attributes);
+
+        return $deduction->load('deductionType');
+    }
+
+    public function deleteDeductionFromDetail(PayrollBatch $batch, PayrollBatchDetail $detail, PayrollDeduction $deduction): void
+    {
+        $this->assertManualLine($batch, $detail, (int) $deduction->payroll_batch_detail_id, (bool) $deduction->is_manual, 'deduction');
+
+        $deduction->delete();
+    }
+
+    private function assertDetailLinesEditable(PayrollBatch $batch, PayrollBatchDetail $detail, string $lineLabel): void
+    {
         if ((int) $detail->payroll_batch_id !== (int) $batch->payroll_batch_id) {
             abort(404);
         }
@@ -274,10 +374,39 @@ class PayrollBatchService
 
         if (! $this->detailHasPayrollData($detail)) {
             throw ValidationException::withMessages([
-                'batch' => 'Process the payroll batch first before adding income lines.',
+                'batch' => 'Process the payroll batch first before adding '.$lineLabel.' lines.',
+            ]);
+        }
+    }
+
+    /**
+     * Only lines added by a user (is_manual) may be edited or deleted; system-computed lines are rebuilt on Process/Reprocess.
+     */
+    private function assertManualLine(PayrollBatch $batch, PayrollBatchDetail $detail, int $lineDetailId, bool $isManual, string $lineLabel): void
+    {
+        if ((int) $detail->payroll_batch_id !== (int) $batch->payroll_batch_id || $lineDetailId !== (int) $detail->payroll_batch_detail_id) {
+            abort(404);
+        }
+
+        if (! $this->isBatchEditable($batch)) {
+            throw ValidationException::withMessages([
+                'batch' => 'This payroll batch cannot be modified.',
             ]);
         }
 
+        if (! $isManual) {
+            throw ValidationException::withMessages([
+                'batch' => 'System-computed '.$lineLabel.' lines cannot be edited or deleted. Only manually added lines can be changed.',
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function manualIncomeAttributes(array $validated): array
+    {
         $taxable = round((float) ($validated['taxable'] ?? 0), 2);
         $nonTaxable = round((float) ($validated['non_taxable'] ?? 0), 2);
 
@@ -316,57 +445,23 @@ class PayrollBatchService
             $days = $days !== null && $days > 0 ? $days : null;
         }
 
-        return DB::transaction(function () use ($batch, $detail, $validated, $taxable, $nonTaxable, $hours, $days) {
-            $income = PayrollIncome::query()->create([
-                'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
-                'income_type_id' => (int) $validated['income_type_id'],
-                'hours' => $hours,
-                'days' => $days,
-                'taxable' => $taxable,
-                'non_taxable' => $nonTaxable,
-                'orig_taxable' => $taxable,
-                'orig_non_taxable' => $nonTaxable,
-                'is_manual' => true,
-                'is_editable' => true,
-                'is_deletable' => true,
-            ]);
-
-            $detail->load('incomes');
-            $this->governmentDeductionPayroll->refreshGovernmentDeductionsForDetail($detail, $batch);
-
-            return $income->load('incomeType');
-        });
+        return [
+            'income_type_id' => (int) $incomeType->income_type_id,
+            'hours' => $hours,
+            'days' => $days,
+            'taxable' => $taxable,
+            'non_taxable' => $nonTaxable,
+            'orig_taxable' => $taxable,
+            'orig_non_taxable' => $nonTaxable,
+        ];
     }
 
     /**
-     * @param  array{
-     *     deduction_type_id: int,
-     *     hours?: float|null,
-     *     days?: float|null,
-     *     employee_amount?: float|null,
-     *     employer_amount?: float|null,
-     *     reference_number?: string|null,
-     *     reference_date?: string|null
-     * }  $validated
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
      */
-    public function addDeductionToDetail(PayrollBatch $batch, PayrollBatchDetail $detail, array $validated): PayrollDeduction
+    private function manualDeductionAttributes(PayrollBatchDetail $detail, array $validated): array
     {
-        if ((int) $detail->payroll_batch_id !== (int) $batch->payroll_batch_id) {
-            abort(404);
-        }
-
-        if (! $this->isBatchEditable($batch)) {
-            throw ValidationException::withMessages([
-                'batch' => 'This payroll batch cannot be modified.',
-            ]);
-        }
-
-        if (! $this->detailHasPayrollData($detail)) {
-            throw ValidationException::withMessages([
-                'batch' => 'Process the payroll batch first before adding deduction lines.',
-            ]);
-        }
-
         $deductionType = DeductionType::query()->find((int) $validated['deduction_type_id']);
 
         if (! $deductionType || $deductionType->is_valid_govt_deduction) {
@@ -377,25 +472,56 @@ class PayrollBatchService
 
         $employeeAmount = round((float) ($validated['employee_amount'] ?? 0), 2);
         $employerAmount = round((float) ($validated['employer_amount'] ?? 0), 2);
-        $hours = isset($validated['hours']) ? round((float) $validated['hours'], 4) : null;
+        $hours = isset($validated['hours']) && $validated['hours'] !== '' ? round((float) $validated['hours'], 4) : null;
         $days = isset($validated['days']) ? round((float) $validated['days'], 4) : null;
         $referenceDate = $validated['reference_date'] ?? null;
         $code = $deductionType->deduction_type_code;
+        $timeIn = null;
+        $timeOut = null;
 
-        if (in_array($code, ['LTDE', 'UTDE'], true)) {
-            if ($hours === null || $hours <= 0) {
-                throw ValidationException::withMessages([
-                    'hours' => 'Hours is required and must be greater than zero for Late (LTDE) and Undertime (UTDE).',
-                ]);
-            }
+        if (ManualAttendanceDeductionService::isAttendanceCode($code)) {
+            $isLate = $code === ManualAttendanceDeductionService::LATE;
+            $timeField = $isLate ? 'time_in' : 'time_out';
+            $time = $this->manualAttendanceDeductions->normalizeTime($validated[$timeField] ?? null);
 
             if (empty($referenceDate)) {
                 throw ValidationException::withMessages([
-                    'reference_date' => 'Reference date is required for Late (LTDE) and Undertime (UTDE).',
+                    'reference_date' => 'Reference date (work date) is required for Late (LTDE) and Undertime (UTDE).',
                 ]);
             }
 
+            if ($time === null) {
+                throw ValidationException::withMessages([
+                    $timeField => ($isLate ? 'Time In' : 'Time Out').' is required for '.($isLate ? 'Late (LTDE)' : 'Undertime (UTDE)').'.',
+                ]);
+            }
+
+            $preview = $this->manualAttendanceDeductions->preview(
+                $detail,
+                $code,
+                Carbon::parse((string) $referenceDate)->toDateString(),
+                $time,
+                $hours,
+            );
+
+            if (($preview['hours'] ?? null) === null || $preview['hours'] <= 0) {
+                throw ValidationException::withMessages([
+                    'hours' => $preview['message'] ?? 'Hours is required and must be greater than zero for Late (LTDE) and Undertime (UTDE).',
+                ]);
+            }
+
+            if (! $preview['ok'] || $preview['amount'] === null) {
+                throw ValidationException::withMessages([
+                    'employee_amount' => $preview['message'] ?? 'Unable to compute the employee amount.',
+                ]);
+            }
+
+            $hours = $preview['hours'];
             $days = 1;
+            $employeeAmount = $preview['amount'];
+            $employerAmount = 0.0;
+            $timeIn = $isLate ? $time : null;
+            $timeOut = $isLate ? null : $time;
         } else {
             $hours = null;
             $days = $days !== null && $days > 0 ? $days : null;
@@ -407,23 +533,17 @@ class PayrollBatchService
             ]);
         }
 
-        return DB::transaction(function () use ($detail, $validated, $deductionType, $employeeAmount, $employerAmount, $hours, $days, $referenceDate) {
-            return PayrollDeduction::query()->create([
-                'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
-                'deduction_type_id' => $deductionType->deduction_type_id,
-                'hours' => $hours,
-                'days' => $days,
-                'employee_amount' => $employeeAmount,
-                'employer_amount' => $employerAmount,
-                'reference_number' => $validated['reference_number'] ?? null,
-                'dt_reference' => ! empty($referenceDate)
-                    ? Carbon::parse((string) $referenceDate)
-                    : null,
-                'is_manual' => true,
-                'is_editable' => true,
-                'is_deletable' => true,
-            ])->load('deductionType');
-        });
+        return [
+            'deduction_type_id' => $deductionType->deduction_type_id,
+            'hours' => $hours,
+            'days' => $days,
+            'employee_amount' => $employeeAmount,
+            'employer_amount' => $employerAmount,
+            'reference_number' => $validated['reference_number'] ?? null,
+            'dt_reference' => ! empty($referenceDate) ? Carbon::parse((string) $referenceDate) : null,
+            'time_in' => $timeIn,
+            'time_out' => $timeOut,
+        ];
     }
 
     public function processBatch(User $user, PayrollBatch $batch): int
@@ -805,6 +925,7 @@ class PayrollBatchService
                         'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
                         'income_type_id' => $incomeTypeId,
                         'hours' => $this->incomeHoursFromAmounts($amounts),
+                        'days' => $this->incomeDaysFromAmounts($amounts),
                         'taxable' => $amounts['taxable'],
                         'non_taxable' => $amounts['non_taxable'],
                         'orig_taxable' => $amounts['taxable'],
@@ -815,6 +936,8 @@ class PayrollBatchService
                     ]);
                 }
             }
+
+            $this->disputePayroll->applyToDetail($detail);
 
             $detail->load('incomes');
             $batch->loadMissing('payrollCalendar.deductions.deductionType');
@@ -1054,6 +1177,8 @@ class PayrollBatchService
                 'employer_amount' => round($employerAmount, 2),
                 'reference_number' => $row->reference_number,
                 'dt_reference' => $row->dt_reference,
+                'time_in' => $row->time_in,
+                'time_out' => $row->time_out,
                 'is_manual' => false,
                 'is_editable' => true,
                 'is_deletable' => true,
@@ -1182,6 +1307,7 @@ class PayrollBatchService
                     'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
                     'income_type_id' => $incomeTypeId,
                     'hours' => $this->incomeHoursFromAmounts($amounts),
+                    'days' => $this->incomeDaysFromAmounts($amounts),
                     'taxable' => $amounts['taxable'],
                     'non_taxable' => $amounts['non_taxable'],
                     'orig_taxable' => $amounts['taxable'],
@@ -1199,6 +1325,7 @@ class PayrollBatchService
                 'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
                 'income_type_id' => $incomeTypeId,
                 'hours' => $this->incomeHoursFromAmounts($amounts),
+                'days' => $this->incomeDaysFromAmounts($amounts),
                 'taxable' => $amounts['taxable'],
                 'non_taxable' => $amounts['non_taxable'],
                 'orig_taxable' => $amounts['taxable'],

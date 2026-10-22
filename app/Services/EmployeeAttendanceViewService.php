@@ -118,6 +118,22 @@ class EmployeeAttendanceViewService
     }
 
     /**
+     * Day metrics (hours) computed from given punch times instead of recorded logs.
+     *
+     * @return array{basic: float|null, excess_hours: float|null, ot: float|null, sot: float|null, ndiff: float|null, ndot: float|null, ndsot: float|null, late: float|null, undertime: float|null, break_late: float|null}
+     */
+    public function metricsForTimes(
+        int $employeeId,
+        CarbonImmutable $date,
+        ?string $timeIn,
+        ?string $timeOut,
+        ?TimekeepingPolicy $policy,
+        ?ShiftCode $shift,
+    ): array {
+        return $this->metricsForDay($employeeId, $date, $timeIn, $timeOut, collect(), $policy, $shift, 0);
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public function daysForRange(Employee $employee, CarbonInterface $from, CarbonInterface $to): array

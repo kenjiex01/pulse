@@ -21,6 +21,7 @@ class PayrollIncome extends Model
         'days',
         'taxable',
         'non_taxable',
+        'remarks',
         'is_editable',
         'is_deletable',
         'orig_taxable',

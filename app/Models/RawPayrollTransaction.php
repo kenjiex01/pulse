@@ -67,6 +67,11 @@ class RawPayrollTransaction extends Model
         return $this->hasMany(RawPayrollOvertime::class, 'payroll_transaction_id', 'payroll_transaction_id');
     }
 
+    public function disputeRecords(): HasMany
+    {
+        return $this->hasMany(PayrollDispute::class, 'payroll_transaction_id', 'payroll_transaction_id')->withTrashed();
+    }
+
     public function leaveRecords(): HasMany
     {
         return $this->hasMany(RawPayrollLeave::class, 'payroll_transaction_id', 'payroll_transaction_id');

@@ -27,6 +27,7 @@ class PayrollBatchDetail extends Model
             $detail->attendanceDays()->withTrashed()->each(
                 fn (PayrollAttendanceDay $day) => $day->forceDelete()
             );
+            $detail->disputes()->each(fn (PayrollDispute $dispute) => $dispute->delete());
         });
     }
 
@@ -58,6 +59,11 @@ class PayrollBatchDetail extends Model
     public function attendanceDays(): HasMany
     {
         return $this->hasMany(PayrollAttendanceDay::class, 'payroll_batch_detail_id', 'payroll_batch_detail_id');
+    }
+
+    public function disputes(): HasMany
+    {
+        return $this->hasMany(PayrollDispute::class, 'payroll_batch_detail_id', 'payroll_batch_detail_id');
     }
 
     public function loanPayments(): HasMany

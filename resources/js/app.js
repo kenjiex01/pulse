@@ -3469,7 +3469,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const hoursInput = form?.querySelector('[data-batch-add-deduction-hours]');
         const daysInput = form?.querySelector('[data-batch-add-deduction-days]');
         const referenceDateInput = form?.querySelector('[data-batch-add-deduction-reference-date]');
-        const referenceDateRequired = form?.querySelector('[data-batch-add-deduction-reference-date-required]');
+        const timeInWrap = form?.querySelector('[data-batch-add-deduction-time-in-wrap]');
+        const timeOutWrap = form?.querySelector('[data-batch-add-deduction-time-out-wrap]');
+        const timeInInput = form?.querySelector('[data-batch-add-deduction-time-in]');
+        const timeOutInput = form?.querySelector('[data-batch-add-deduction-time-out]');
+        const employeeAmountInput = form?.querySelector('[data-batch-add-deduction-employee-amount]');
+        const employerAmountInput = form?.querySelector('[data-batch-add-deduction-employer-amount]');
 
         if (!typeSelect || !ltdeWrap) {
             return;
@@ -3496,8 +3501,156 @@ document.addEventListener('DOMContentLoaded', () => {
             referenceDateInput.required = needsLateUndertimeFields;
         }
 
-        referenceDateRequired?.classList.toggle('hidden', !needsLateUndertimeFields);
+        form.querySelectorAll('[data-batch-add-deduction-reference-date-required]').forEach((marker) => {
+            marker.classList.toggle('hidden', !needsLateUndertimeFields);
+        });
+
+        timeInWrap?.classList.toggle('hidden', code !== 'LTDE');
+        timeOutWrap?.classList.toggle('hidden', code !== 'UTDE');
+
+        if (timeInInput) {
+            timeInInput.required = code === 'LTDE';
+            if (code !== 'LTDE') {
+                timeInInput.value = '';
+            }
+        }
+
+        if (timeOutInput) {
+            timeOutInput.required = code === 'UTDE';
+            if (code !== 'UTDE') {
+                timeOutInput.value = '';
+            }
+        }
+
+        [employeeAmountInput, employerAmountInput].forEach((input) => {
+            if (!input) {
+                return;
+            }
+
+            input.readOnly = needsLateUndertimeFields;
+            input.classList.toggle('bg-gray-100', needsLateUndertimeFields);
+        });
+
+        if (needsLateUndertimeFields && employerAmountInput) {
+            employerAmountInput.value = '0.00';
+        }
+
+        if (!needsLateUndertimeFields) {
+            form.querySelector('[data-batch-add-deduction-attendance-hint]')?.classList.add('hidden');
+        }
     };
+
+    const loadBatchDeductionAttendancePreview = async (form, { fromTime = false } = {}) => {
+        const previewUrl = form?.getAttribute('data-attendance-preview-url');
+        const typeSelect = form?.querySelector('[data-batch-add-deduction-type]');
+        const code = typeSelect?.selectedOptions[0]?.dataset.code ?? '';
+        const hint = form?.querySelector('[data-batch-add-deduction-attendance-hint]');
+        const hoursInput = form?.querySelector('[data-batch-add-deduction-hours]');
+        const employeeAmountInput = form?.querySelector('[data-batch-add-deduction-employee-amount]');
+        const referenceDate = form?.querySelector('[data-batch-add-deduction-reference-date]')?.value || '';
+        const time = code === 'LTDE'
+            ? form?.querySelector('[data-batch-add-deduction-time-in]')?.value
+            : form?.querySelector('[data-batch-add-deduction-time-out]')?.value;
+
+        if (!previewUrl || !hint || (code !== 'LTDE' && code !== 'UTDE')) {
+            return;
+        }
+
+        if (!referenceDate) {
+            hint.textContent = 'Pick the Reference Date (work date) to compute Hours and Employee Amount.';
+            hint.classList.remove('hidden');
+            return;
+        }
+
+        const url = new URL(previewUrl, window.location.origin);
+        url.searchParams.set('deduction_type_id', typeSelect.value);
+        url.searchParams.set('reference_date', referenceDate);
+
+        if (time) {
+            url.searchParams.set('time', time);
+        }
+
+        if (!fromTime && hoursInput?.value) {
+            url.searchParams.set('hours', hoursInput.value);
+        }
+
+        const token = String(Date.now());
+        form.dataset.attendancePreviewToken = token;
+
+        try {
+            const response = await fetch(url.toString(), {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+
+            if (form.dataset.attendancePreviewToken !== token) {
+                return;
+            }
+
+            if (!response.ok) {
+                hint.textContent = 'Unable to compute the deduction for this date.';
+                hint.classList.remove('hidden');
+                return;
+            }
+
+            const payload = await response.json();
+
+            if (fromTime && hoursInput && payload.computed_hours !== null && payload.computed_hours !== undefined) {
+                hoursInput.value = Number(payload.computed_hours).toFixed(2);
+            }
+
+            if (employeeAmountInput) {
+                employeeAmountInput.value = payload.amount !== null && payload.amount !== undefined
+                    ? Number(payload.amount).toFixed(2)
+                    : '';
+            }
+
+            const parts = [];
+            if (payload.shift_label) {
+                parts.push(`Shift ${payload.shift_label}`);
+            }
+            if (payload.minutes !== null && payload.minutes !== undefined) {
+                parts.push(`${payload.minutes} min`);
+            }
+            if (payload.hourly_rate) {
+                parts.push(`Hourly rate ${Number(payload.hourly_rate).toFixed(2)}`);
+            }
+            if (payload.amount !== null && payload.amount !== undefined) {
+                parts.push(`Amount ${Number(payload.amount).toFixed(2)}`);
+            }
+
+            hint.textContent = [parts.join(' · '), payload.message].filter(Boolean).join(' — ');
+            hint.classList.toggle('hidden', hint.textContent === '');
+        } catch {
+            hint.textContent = 'Unable to compute the deduction for this date.';
+            hint.classList.remove('hidden');
+        }
+    };
+
+    let batchDeductionPreviewTimer = null;
+
+    document.addEventListener('change', (event) => {
+        const form = event.target instanceof Element ? event.target.closest('[data-batch-add-deduction-form]') : null;
+
+        if (!form) {
+            return;
+        }
+
+        if (event.target.matches('[data-batch-add-deduction-type], [data-batch-add-deduction-reference-date], [data-batch-add-deduction-time-in], [data-batch-add-deduction-time-out]')) {
+            window.setTimeout(() => loadBatchDeductionAttendancePreview(form, { fromTime: true }), 0);
+        }
+    });
+
+    document.addEventListener('input', (event) => {
+        const hoursInput = event.target instanceof Element ? event.target.closest('[data-batch-add-deduction-hours]') : null;
+        const form = hoursInput?.closest('[data-batch-add-deduction-form]');
+
+        if (!form) {
+            return;
+        }
+
+        window.clearTimeout(batchDeductionPreviewTimer);
+        batchDeductionPreviewTimer = window.setTimeout(() => loadBatchDeductionAttendancePreview(form), 350);
+    });
 
     const initBatchAddDeductionForm = (form) => {
         if (!form || form.dataset.batchAddDeductionInit === 'true') {
@@ -6235,10 +6388,20 @@ tr { page-break-inside: avoid; }
             }
 
             const windows = Array.isArray(payload.windows) ? payload.windows : [];
-            const labels = windows.map((window) => `${window.label} (${window.minutes} min)`).join('; ');
+            const sideLabel = { before: 'before shift', after: 'after shift' };
+            const labels = windows
+                .map((window) => `${window.label} (${window.minutes} min${window.side ? `, ${sideLabel[window.side] ?? window.side}` : ''})`)
+                .join('; ');
             const total = Number(payload.excess_minutes || 0);
+            const policySides = [
+                payload.autofill_before_shift !== false ? 'Before Shift' : null,
+                payload.autofill_after_shift !== false ? 'After Shift' : null,
+            ].filter(Boolean).join(' + ');
+            const autofillNote = payload.suggested_ot_start && payload.suggested_ot_end
+                ? `OT fields auto-filled from ${policySides} (${Number(payload.autofill_minutes ?? total)} min); adjust if needed.`
+                : `No ${policySides} excess to auto-fill (policy setting) — enter OT Start / OT End manually.`;
             hint.textContent = labels
-                ? `Excess outside shift: ${labels}. Total ${total} min — OT fields auto-filled; adjust if needed.`
+                ? `Excess outside shift: ${labels}. Total ${total} min — ${autofillNote}`
                 : `Excess outside shift: ${total} min.`;
 
             if (autofill && startInput && endInput && payload.suggested_ot_start && payload.suggested_ot_end) {
@@ -6268,6 +6431,239 @@ tr { page-break-inside: avoid; }
         const startInput = form.querySelector('[data-ot-start]');
         const hasOldTimes = Boolean(startInput?.value);
         loadOvertimeExcessPreview(form, { autofill: ! hasOldTimes });
+    });
+
+    const disputeJsonHeaders = () => ({
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+    });
+
+    const disputeFormState = (form) => {
+        const category = form.querySelector('[data-dispute-category]')?.value || '';
+        const workDate = form.querySelector('[data-dispute-work-date]')?.value || '';
+        const values = { category, work_date: workDate };
+
+        form.querySelectorAll('[data-dispute-input]').forEach((input) => {
+            if (! input.disabled) {
+                values[input.getAttribute('data-dispute-input')] = input.value;
+            }
+        });
+
+        return values;
+    };
+
+    const toggleDisputeFields = (form) => {
+        const category = form.querySelector('[data-dispute-category]')?.value || '';
+
+        form.querySelectorAll('[data-dispute-field]').forEach((wrapper) => {
+            const categories = (wrapper.getAttribute('data-dispute-field') || '').split(/\s+/);
+            const visible = category !== '' && categories.includes(category);
+            wrapper.classList.toggle('hidden', ! visible);
+            wrapper.querySelectorAll('input, select').forEach((input) => {
+                input.disabled = ! visible;
+            });
+        });
+
+        const timeInLabel = form.querySelector('[data-dispute-time-in-label]');
+        if (timeInLabel) {
+            timeInLabel.textContent = category === 'ODL' ? 'Actual Time In' : 'Time In';
+        }
+    };
+
+    const setDisputeBlocked = (form, message) => {
+        const box = form.querySelector('[data-dispute-already-filed]');
+        const submit = form.querySelector('button[type="submit"]');
+
+        if (box) {
+            box.textContent = message || '';
+            box.classList.toggle('hidden', ! message);
+        }
+
+        if (submit) {
+            submit.disabled = Boolean(message);
+            submit.classList.toggle('opacity-50', Boolean(message));
+            submit.classList.toggle('cursor-not-allowed', Boolean(message));
+        }
+    };
+
+    const renderDisputePaid = (form, paid, recorded) => {
+        const box = form.querySelector('[data-dispute-paid]');
+
+        if (! box) {
+            return;
+        }
+
+        if (! paid) {
+            box.classList.add('hidden');
+            box.textContent = '';
+            return;
+        }
+
+        const parts = [`Previously paid in Batch #${paid.batch_no}:`];
+
+        if (paid.has_snapshot) {
+            parts.push(`basic ${Number(paid.basic_hours || 0).toFixed(2)} hrs`);
+            parts.push(`OT ${Number(paid.ot_hours || 0).toFixed(2)} hrs`);
+            parts.push(`late ${paid.late_minutes || 0} min`);
+            parts.push(`undertime ${paid.undertime_minutes || 0} min`);
+        } else {
+            parts.push('no attendance recorded for this day (treated as unpaid).');
+        }
+
+        if (recorded && (recorded.time_in || recorded.time_out)) {
+            parts.push(`· Logs: ${recorded.time_in || '—'} – ${recorded.time_out || '—'}`);
+        }
+
+        box.textContent = parts.join(' ');
+        box.classList.remove('hidden');
+    };
+
+    const loadDisputePreview = async (form) => {
+        const previewUrl = form.getAttribute('data-dispute-preview-url');
+        const expected = form.querySelector('[data-dispute-expected]');
+        const breakdown = form.querySelector('[data-dispute-breakdown]');
+        const warnings = form.querySelector('[data-dispute-warnings]');
+        const state = disputeFormState(form);
+
+        if (! previewUrl || ! expected || ! state.category || ! state.work_date) {
+            return;
+        }
+
+        const token = String(Date.now());
+        form.dataset.disputePreviewToken = token;
+        breakdown.textContent = 'Computing…';
+
+        try {
+            const response = await fetch(previewUrl, {
+                method: 'POST',
+                headers: disputeJsonHeaders(),
+                body: JSON.stringify(state),
+            });
+
+            if (form.dataset.disputePreviewToken !== token) {
+                return;
+            }
+
+            if (! response.ok) {
+                breakdown.textContent = 'Unable to compute the expected pay.';
+                return;
+            }
+
+            const payload = await response.json();
+            warnings.innerHTML = '';
+
+            if (! payload.ok) {
+                expected.value = '';
+                breakdown.textContent = payload.message || 'Unable to compute the expected pay.';
+                return;
+            }
+
+            expected.value = Number(payload.total || 0).toFixed(2);
+            breakdown.textContent = payload.breakdown || '';
+            (payload.warnings || []).forEach((message) => {
+                const item = document.createElement('li');
+                item.textContent = message;
+                warnings.appendChild(item);
+            });
+        } catch {
+            breakdown.textContent = 'Unable to compute the expected pay.';
+        }
+    };
+
+    const loadDisputePrefill = async (form, { autofill = true } = {}) => {
+        const prefillUrl = form.getAttribute('data-dispute-prefill-url');
+        const state = disputeFormState(form);
+
+        toggleDisputeFields(form);
+
+        if (! prefillUrl || ! state.category || ! state.work_date) {
+            setDisputeBlocked(form, null);
+            renderDisputePaid(form, null, null);
+            return;
+        }
+
+        try {
+            const url = new URL(prefillUrl, window.location.origin);
+            url.searchParams.set('work_date', state.work_date);
+            url.searchParams.set('category', state.category);
+
+            const disputeId = form.getAttribute('data-dispute-id');
+            if (disputeId) {
+                url.searchParams.set('ignore_dispute_id', disputeId);
+            }
+
+            const response = await fetch(url.toString(), {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+
+            if (! response.ok) {
+                setDisputeBlocked(form, null);
+                return;
+            }
+
+            const payload = await response.json();
+
+            if (! payload.ok) {
+                renderDisputePaid(form, null, null);
+                setDisputeBlocked(form, payload.message || 'This work date cannot be disputed.');
+                return;
+            }
+
+            renderDisputePaid(form, payload.paid, payload.recorded);
+            setDisputeBlocked(form, payload.already_filed?.message || null);
+
+            if (autofill && payload.values) {
+                form.querySelectorAll('[data-dispute-input]').forEach((input) => {
+                    const key = input.getAttribute('data-dispute-input');
+                    if (! input.disabled) {
+                        const next = payload.values[key];
+                        input.value = next === null || next === undefined ? '' : String(next);
+                    }
+                });
+            }
+        } catch {
+            setDisputeBlocked(form, null);
+        }
+
+        loadDisputePreview(form);
+    };
+
+    let disputePreviewTimer = null;
+
+    document.addEventListener('change', (event) => {
+        const form = event.target.closest('[data-dispute-form]');
+
+        if (! form) {
+            return;
+        }
+
+        if (event.target.matches('[data-dispute-work-date], [data-dispute-category]')) {
+            loadDisputePrefill(form, { autofill: true });
+            return;
+        }
+
+        if (event.target.matches('[data-dispute-input]')) {
+            window.clearTimeout(disputePreviewTimer);
+            disputePreviewTimer = window.setTimeout(() => loadDisputePreview(form), 250);
+        }
+    });
+
+    document.addEventListener('input', (event) => {
+        const input = event.target.closest('[data-dispute-input]');
+        const form = input?.closest('[data-dispute-form]');
+
+        if (! form || input.tagName === 'SELECT') {
+            return;
+        }
+
+        window.clearTimeout(disputePreviewTimer);
+        disputePreviewTimer = window.setTimeout(() => loadDisputePreview(form), 500);
+    });
+
+    document.querySelectorAll('[data-dispute-form]').forEach((form) => {
+        loadDisputePrefill(form, { autofill: form.getAttribute('data-dispute-autofill') === '1' });
     });
 
     const initEmployeeSkolarisSync = () => {

@@ -15,7 +15,8 @@ class PayrollBatchNetPayLines
         return $incomes
             ->sortBy(fn ($income) => $income->incomeType?->income_type_code ?? '')
             ->map(fn ($income) => [
-                'label' => $income->incomeType?->description ?? $income->incomeType?->income_type_code ?? 'Income',
+                'label' => ($income->incomeType?->description ?? $income->incomeType?->income_type_code ?? 'Income')
+                    .(filled($income->remarks ?? null) ? ' ('.$income->remarks.')' : ''),
                 'hours' => $income->hours !== null ? (float) $income->hours : null,
                 'days' => $income->days !== null ? (float) $income->days : null,
                 'amount' => round((float) $income->taxable + (float) $income->non_taxable, 2),

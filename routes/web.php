@@ -21,6 +21,7 @@ use App\Http\Controllers\CompanyDocumentFormController;
 use App\Http\Controllers\CompanyDocumentSubmissionController;
 use App\Http\Controllers\GovernmentTablesController;
 use App\Http\Controllers\PayrollCalendarController;
+use App\Http\Controllers\PayrollDisputeController;
 use App\Http\Controllers\PayrollMaintenanceController;
 use App\Http\Controllers\PayrollReportsController;
 use App\Http\Controllers\PayrollTransactionController;
@@ -349,6 +350,62 @@ Route::middleware('auth')->group(function () {
             ->whereNumber('detail')
             ->whereNumber('approval')
             ->name('payroll.transaction.employees.overtime-approvals.destroy');
+
+        Route::get('payroll/transaction/batches/{batch}/employees/{detail}/disputes/prefill', [PayrollDisputeController::class, 'prefill'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->name('payroll.transaction.employees.disputes.prefill');
+
+        Route::post('payroll/transaction/batches/{batch}/employees/{detail}/disputes/preview', [PayrollDisputeController::class, 'preview'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->name('payroll.transaction.employees.disputes.preview');
+
+        Route::post('payroll/transaction/batches/{batch}/employees/{detail}/disputes', [PayrollDisputeController::class, 'store'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->name('payroll.transaction.employees.disputes.store');
+
+        Route::put('payroll/transaction/batches/{batch}/employees/{detail}/disputes/{dispute}', [PayrollDisputeController::class, 'update'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->whereNumber('dispute')
+            ->name('payroll.transaction.employees.disputes.update');
+
+        Route::delete('payroll/transaction/batches/{batch}/employees/{detail}/disputes/{dispute}', [PayrollDisputeController::class, 'destroy'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->whereNumber('dispute')
+            ->name('payroll.transaction.employees.disputes.destroy');
+
+        Route::put('payroll/transaction/batches/{batch}/employees/{detail}/incomes/{income}', [PayrollTransactionController::class, 'updateEmployeeIncome'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->whereNumber('income')
+            ->name('payroll.transaction.employees.incomes.update');
+
+        Route::delete('payroll/transaction/batches/{batch}/employees/{detail}/incomes/{income}', [PayrollTransactionController::class, 'destroyEmployeeIncome'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->whereNumber('income')
+            ->name('payroll.transaction.employees.incomes.destroy');
+
+        Route::get('payroll/transaction/batches/{batch}/employees/{detail}/deductions/attendance-preview', [PayrollTransactionController::class, 'previewEmployeeAttendanceDeduction'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->name('payroll.transaction.employees.deductions.attendance-preview');
+
+        Route::put('payroll/transaction/batches/{batch}/employees/{detail}/deductions/{deduction}', [PayrollTransactionController::class, 'updateEmployeeDeduction'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->whereNumber('deduction')
+            ->name('payroll.transaction.employees.deductions.update');
+
+        Route::delete('payroll/transaction/batches/{batch}/employees/{detail}/deductions/{deduction}', [PayrollTransactionController::class, 'destroyEmployeeDeduction'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->whereNumber('deduction')
+            ->name('payroll.transaction.employees.deductions.destroy');
 
         Route::post('payroll/transaction/batches/{batch}/employees/{detail}/deductions', [PayrollTransactionController::class, 'storeEmployeeDeduction'])
             ->whereNumber('batch')

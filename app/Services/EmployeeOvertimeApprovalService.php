@@ -149,6 +149,8 @@ class EmployeeOvertimeApprovalService
         int $employeeId,
         string $workDate,
         ?ShiftCode $defaultShift = null,
+        bool $autofillBeforeShift = true,
+        bool $autofillAfterShift = true,
     ): array {
         $sessionDate = CarbonImmutable::parse($workDate)->startOfDay();
         $context = $this->sessionContext($employeeId, $sessionDate, $defaultShift);
@@ -201,6 +203,7 @@ class EmployeeOvertimeApprovalService
                 'end' => $window['end']->toDateTimeString(),
                 'label' => $window['start']->format('H:i').'–'.$window['end']->format('H:i'),
                 'minutes' => $minutes,
+                'side' => $window['side'],
             ];
         }
 
@@ -220,8 +223,12 @@ class EmployeeOvertimeApprovalService
             ];
         }
 
-        $first = $excessWindows[0];
-        $last = $excessWindows[array_key_last($excessWindows)];
+        $autofillWindows = array_values(array_filter(
+            $excessWindows,
+            static fn (array $window): bool => $window['side'] === 'before' ? $autofillBeforeShift : $autofillAfterShift,
+        ));
+        $first = $autofillWindows[0] ?? null;
+        $last = $autofillWindows === [] ? null : $autofillWindows[array_key_last($autofillWindows)];
 
         return [
             'ok' => true,
@@ -231,8 +238,14 @@ class EmployeeOvertimeApprovalService
             'schedule_start' => $context['schedule_start'],
             'schedule_end' => $context['schedule_end'],
             'excess_minutes' => $excessMinutes,
-            'suggested_ot_start' => $first['start']->format('H:i'),
-            'suggested_ot_end' => $last['end']->format('H:i'),
+            'suggested_ot_start' => $first !== null ? $first['start']->format('H:i') : null,
+            'suggested_ot_end' => $last !== null ? $last['end']->format('H:i') : null,
+            'autofill_minutes' => array_sum(array_map(
+                static fn (array $window): int => (int) $window['start']->diffInMinutes($window['end']),
+                $autofillWindows,
+            )),
+            'autofill_before_shift' => $autofillBeforeShift,
+            'autofill_after_shift' => $autofillAfterShift,
             'windows' => $windows,
         ];
     }
@@ -539,7 +552,7 @@ class EmployeeOvertimeApprovalService
             }
 
             if ($schedIn !== null && $punchIn->lessThan($schedIn)) {
-                $windows[] = ['start' => $punchIn, 'end' => $schedIn];
+                $windows[] = ['start' => $punchIn, 'end' => $schedIn, 'side' => 'before'];
             }
         }
 
@@ -555,7 +568,7 @@ class EmployeeOvertimeApprovalService
                     $schedOut = $schedOut->addDay();
                 }
                 if ($punchOut->greaterThan($schedOut)) {
-                    $windows[] = ['start' => $schedOut, 'end' => $punchOut];
+                    $windows[] = ['start' => $schedOut, 'end' => $punchOut, 'side' => 'after'];
                 }
             }
         }

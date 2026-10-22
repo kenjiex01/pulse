@@ -1,15 +1,34 @@
 @php
     use App\Support\PayrollTransactionModule;
+
+    $line = $line ?? null;
+    $lineId = $line?->payroll_income_id;
+    $idPrefix = $line ? 'batch-edit-income-'.$lineId : 'batch-add-income';
+    $errorBag = $line ? 'editIncome'.$lineId : 'default';
+    $useOld = $line === null ? old('edit_payroll_income_id') === null : (int) old('edit_payroll_income_id') === (int) $lineId;
+    $fieldValue = function (string $field) use ($line, $useOld) {
+        $current = match ($field) {
+            'reference_date' => $line?->dt_reference?->format('Y-m-d'),
+            default => $line?->{$field},
+        };
+
+        return $useOld ? old($field, $current) : $current;
+    };
 @endphp
 
 <form
     method="POST"
-    action="{{ route(PayrollTransactionModule::routeName('employees.incomes.store'), [$batch, $detail]) }}"
+    action="{{ $line ? route('payroll.transaction.employees.incomes.update', [$batch, $detail, $line]) : route(PayrollTransactionModule::routeName('employees.incomes.store'), [$batch, $detail]) }}"
     class="space-y-4"
     data-batch-add-income-form
 >
     @csrf
-    <input type="hidden" name="form_context" value="add-batch-employee-income">
+    @if ($line)
+        @method('PUT')
+        <input type="hidden" name="edit_payroll_income_id" value="{{ $lineId }}">
+    @else
+        <input type="hidden" name="form_context" value="add-batch-employee-income">
+    @endif
     <input type="hidden" name="payroll_batch_detail_id" value="{{ $detail->payroll_batch_detail_id }}">
     <input type="hidden" name="batch_detail_tab" value="incomes">
     <input type="hidden" name="batch_employee_search" value="{{ $batchEmployeeSearch ?? '' }}">
@@ -21,9 +40,9 @@
     </div>
 
     <div>
-        <label for="batch-add-income-type" class="form-label">Income Type <span class="text-red-500">*</span></label>
+        <label for="{{ $idPrefix }}-type" class="form-label">Income Type <span class="text-red-500">*</span></label>
         <select
-            id="batch-add-income-type"
+            id="{{ $idPrefix }}-type"
             name="income_type_id"
             class="form-input"
             required
@@ -35,56 +54,56 @@
                 <option
                     value="{{ $incomeType->income_type_id }}"
                     data-code="{{ $incomeType->income_type_code }}"
-                    @selected((string) old('income_type_id') === (string) $incomeType->income_type_id)
+                    @selected((string) $fieldValue('income_type_id') === (string) $incomeType->income_type_id)
                 >
                     {{ $incomeType->income_type_code }} — {{ $incomeType->description }}
                 </option>
             @endforeach
         </select>
-        @error('income_type_id')
+        @error('income_type_id', $errorBag)
             <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
         @enderror
     </div>
 
     @php
-        $selectedIncomeCode = optional($incomeTypes->firstWhere('income_type_id', (int) old('income_type_id')))->income_type_code;
+        $selectedIncomeCode = optional($incomeTypes->firstWhere('income_type_id', (int) $fieldValue('income_type_id')))->income_type_code;
         $showHoursDays = in_array($selectedIncomeCode, ['BASC', 'OVRT'], true);
     @endphp
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 {{ $showHoursDays ? '' : 'hidden' }}" data-batch-add-income-hours-days-wrap>
         <div>
-            <label for="batch-add-income-hours" class="form-label">Hours <span class="text-red-500">*</span></label>
+            <label for="{{ $idPrefix }}-hours" class="form-label">Hours <span class="text-red-500">*</span></label>
             <input
                 type="number"
-                id="batch-add-income-hours"
+                id="{{ $idPrefix }}-hours"
                 name="hours"
                 min="0"
                 step="0.0001"
                 class="form-input text-right"
                 placeholder="0.00"
-                value="{{ old('hours') }}"
+                value="{{ $fieldValue('hours') }}"
                 data-batch-add-income-hours
                 @if ($showHoursDays) required @endif
             >
-            @error('hours')
+            @error('hours', $errorBag)
                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
             @enderror
         </div>
         <div>
-            <label for="batch-add-income-days" class="form-label">Days <span class="text-red-500">*</span></label>
+            <label for="{{ $idPrefix }}-days" class="form-label">Days <span class="text-red-500">*</span></label>
             <input
                 type="number"
-                id="batch-add-income-days"
+                id="{{ $idPrefix }}-days"
                 name="days"
                 min="0"
                 step="0.0001"
                 class="form-input text-right"
                 placeholder="0.00"
-                value="{{ old('days') }}"
+                value="{{ $fieldValue('days') }}"
                 data-batch-add-income-days
                 @if ($showHoursDays) required @endif
             >
-            @error('days')
+            @error('days', $errorBag)
                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
             @enderror
         </div>
@@ -92,34 +111,34 @@
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-            <label for="batch-add-income-taxable" class="form-label">Taxable</label>
+            <label for="{{ $idPrefix }}-taxable" class="form-label">Taxable</label>
             <input
                 type="number"
-                id="batch-add-income-taxable"
+                id="{{ $idPrefix }}-taxable"
                 name="taxable"
                 min="0"
                 step="0.01"
                 class="form-input text-right"
                 placeholder="0.00"
-                value="{{ old('taxable') }}"
+                value="{{ $fieldValue('taxable') }}"
             >
-            @error('taxable')
+            @error('taxable', $errorBag)
                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
             @enderror
         </div>
         <div>
-            <label for="batch-add-income-non-taxable" class="form-label">Non-Taxable</label>
+            <label for="{{ $idPrefix }}-non-taxable" class="form-label">Non-Taxable</label>
             <input
                 type="number"
-                id="batch-add-income-non-taxable"
+                id="{{ $idPrefix }}-non-taxable"
                 name="non_taxable"
                 min="0"
                 step="0.01"
                 class="form-input text-right"
                 placeholder="0.00"
-                value="{{ old('non_taxable') }}"
+                value="{{ $fieldValue('non_taxable') }}"
             >
-            @error('non_taxable')
+            @error('non_taxable', $errorBag)
                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
             @enderror
         </div>
@@ -127,12 +146,12 @@
 
     <p class="text-xs text-gray-500">Enter at least one amount greater than zero. Government deductions (SSS, PhilHealth, Pag-IBIG, WHT) will be recalculated when taxable income changes.</p>
 
-    @error('batch')
+    @error('batch', $errorBag)
         <p class="text-sm text-red-600">{{ $message }}</p>
     @enderror
 
     @include('partials.modal-form-actions', [
-        'submitLabel' => 'Add Income',
-        'cancelModalId' => 'payroll-batch-add-income-modal',
+        'submitLabel' => $line ? 'Update Income' : 'Add Income',
+        'cancelModalId' => $line ? 'payroll-batch-edit-income-modal-'.$lineId : 'payroll-batch-add-income-modal',
     ])
 </form>

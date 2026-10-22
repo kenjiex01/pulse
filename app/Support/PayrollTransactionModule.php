@@ -27,6 +27,7 @@ class PayrollTransactionModule
     public const BATCH_DETAIL_TABS = [
         'incomes' => 'Incomes',
         'deductions' => 'Deductions',
+        'disputes' => 'Disputes',
         'net-pay' => 'Net Pay',
     ];
 

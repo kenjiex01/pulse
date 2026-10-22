@@ -63,6 +63,7 @@
                         <th class="px-3 py-2 text-left">Employee No.</th>
                         <th class="px-3 py-2 text-left">Employee Name</th>
                         <th class="px-3 py-2 text-left">Deduction Type</th>
+                        <th class="px-3 py-2 text-left">Reference Date / Time</th>
                         <th class="px-3 py-2 text-right">Hours</th>
                         <th class="px-3 py-2 text-right">Days</th>
                         <th class="px-3 py-2 text-right">Employee</th>
@@ -86,6 +87,14 @@
                         <th class="px-3 py-2 text-left">Work Date</th>
                         <th class="px-3 py-2 text-left">OT Start</th>
                         <th class="px-3 py-2 text-left">OT End</th>
+                    @elseif ($uploadType === 'disputes')
+                        <th class="px-3 py-2 text-left">Employee No.</th>
+                        <th class="px-3 py-2 text-left">Employee Name</th>
+                        <th class="px-3 py-2 text-left">Work Date</th>
+                        <th class="px-3 py-2 text-left">Dispute Type</th>
+                        <th class="px-3 py-2 text-left">Filed Times</th>
+                        <th class="px-3 py-2 text-left">Payroll Batch</th>
+                        <th class="px-3 py-2 text-right">Expected Pay</th>
                     @elseif ($uploadType === 'leaves')
                         <th class="px-3 py-2 text-left">Employee No.</th>
                         <th class="px-3 py-2 text-left">Employee Name</th>
@@ -122,6 +131,14 @@
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->amount !== null ? number_format((float) $record->amount, 2) : '—' }}</td>
                         @elseif (in_array($uploadType, ['deductions', 'deduction-adjustments'], true))
                             <td class="px-3 py-2 text-gray-600">{{ $record->deductionType?->deduction_type_code ?? '—' }}</td>
+                            <td class="px-3 py-2 text-gray-600">
+                                {{ $record->dt_reference?->format('M j, Y') ?? '—' }}
+                                @if ($record->time_in)
+                                    <span class="block text-xs text-gray-500">In {{ $record->time_in }}</span>
+                                @elseif ($record->time_out)
+                                    <span class="block text-xs text-gray-500">Out {{ $record->time_out }}</span>
+                                @endif
+                            </td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->hours !== null ? number_format((float) $record->hours, 2) : '—' }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->days !== null ? number_format((float) $record->days, 2) : '—' }}</td>
                             <td class="px-3 py-2 text-right text-gray-900">{{ $record->employee_amount !== null ? number_format((float) $record->employee_amount, 2) : '—' }}</td>
@@ -152,6 +169,25 @@
                             <td class="px-3 py-2 text-gray-600">{{ $record->work_date?->format('M j, Y') ?? '—' }}</td>
                             <td class="px-3 py-2 text-gray-600">{{ $record->ot_start?->format('g:i A') ?? '—' }}</td>
                             <td class="px-3 py-2 text-gray-600">{{ $record->ot_end?->format('g:i A') ?? '—' }}</td>
+                        @elseif ($uploadType === 'disputes')
+                            <td class="px-3 py-2 text-gray-600">{{ $record->work_date?->format('M j, Y') ?? '—' }}</td>
+                            <td class="px-3 py-2 text-gray-600">
+                                {{ $record->categoryName() }}
+                                @if ($record->trashed())
+                                    <span class="text-xs text-red-600">(removed)</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2 text-gray-600">
+                                @if ($record->category === \App\Models\PayrollDispute::UNPAID_OVERTIME)
+                                    OT {{ $record->ot_start ?? '—' }} – {{ $record->ot_end ?? '—' }}
+                                @elseif ($record->category === \App\Models\PayrollDispute::OVER_DEDUCTION_LATE)
+                                    In {{ $record->time_in ?? '—' }}
+                                @else
+                                    {{ $record->time_in ?? '—' }} – {{ $record->time_out ?? '—' }}
+                                @endif
+                            </td>
+                            <td class="px-3 py-2 text-gray-600">{{ $record->payrollBatch ? '#'.$record->payrollBatch->formattedBatchNo() : '—' }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ number_format($record->expectedTotal(), 2) }}</td>
                         @elseif ($uploadType === 'leaves')
                             <td class="px-3 py-2 text-gray-600">{{ $record->leaveType?->leave_type_code ?? '—' }}</td>
                             <td class="px-3 py-2 text-gray-600">{{ $record->dt_from?->format('M j, Y') ?? '—' }}</td>
@@ -168,7 +204,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="px-3 py-8 text-center text-gray-500">No detail records in this upload batch.</td>
+                        <td colspan="9" class="px-3 py-8 text-center text-gray-500">No detail records in this upload batch.</td>
                     </tr>
                 @endforelse
             </tbody>

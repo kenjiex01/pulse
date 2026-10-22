@@ -29,6 +29,11 @@ class PayrollMaintenanceSeeder extends Seeder
             ['income_class_id' => 3, 'income_type_code' => 'HOLI', 'description' => 'Holiday Pay', 'is_non_taxable' => false, 'is_in_compensation_limit' => false, 'breakdown_in_ytd_report' => false, 'is_default_basic' => false, 'is_active' => true],
             ['income_class_id' => 2, 'income_type_code' => 'DEMN', 'description' => 'Deminimis Benefit', 'is_non_taxable' => true, 'is_in_compensation_limit' => true, 'breakdown_in_ytd_report' => false, 'is_default_basic' => false, 'is_active' => true],
             ['income_class_id' => 4, 'income_type_code' => 'OTHR', 'description' => 'Other Income', 'is_non_taxable' => true, 'is_in_compensation_limit' => false, 'breakdown_in_ytd_report' => false, 'is_default_basic' => false, 'is_active' => true],
+            ['income_class_id' => 1, 'income_type_code' => 'DUPD', 'description' => 'Dispute - Unpaid Days', 'is_non_taxable' => false, 'is_in_compensation_limit' => false, 'breakdown_in_ytd_report' => false, 'is_default_basic' => false, 'is_active' => true],
+            ['income_class_id' => 3, 'income_type_code' => 'DUPO', 'description' => 'Dispute - Unpaid Days OT', 'is_non_taxable' => false, 'is_in_compensation_limit' => false, 'breakdown_in_ytd_report' => false, 'is_default_basic' => false, 'is_active' => true],
+            ['income_class_id' => 3, 'income_type_code' => 'DUOT', 'description' => 'Dispute - Unpaid Overtime', 'is_non_taxable' => false, 'is_in_compensation_limit' => false, 'breakdown_in_ytd_report' => false, 'is_default_basic' => false, 'is_active' => true],
+            ['income_class_id' => 1, 'income_type_code' => 'DODU', 'description' => 'Dispute - Undertime Refund', 'is_non_taxable' => false, 'is_in_compensation_limit' => false, 'breakdown_in_ytd_report' => false, 'is_default_basic' => false, 'is_active' => true],
+            ['income_class_id' => 1, 'income_type_code' => 'DODL', 'description' => 'Dispute - Late Refund', 'is_non_taxable' => false, 'is_in_compensation_limit' => false, 'breakdown_in_ytd_report' => false, 'is_default_basic' => false, 'is_active' => true],
         ];
 
         foreach ($incomeTypes as $incomeType) {

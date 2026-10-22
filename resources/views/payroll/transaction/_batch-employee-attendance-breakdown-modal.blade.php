@@ -7,12 +7,14 @@
         'OVRT' => 'Overtime Details',
     ];
     $descriptions = [
-        'LTDE' => 'Work dates with late minutes in this pay period (clock-in and break tardiness when applicable).',
-        'UTDE' => 'Work dates with undertime minutes in this pay period.',
+        'LTDE' => 'Work dates with late minutes in this pay period — from biometric logs, manually added, or uploaded Late lines.',
+        'UTDE' => 'Work dates with undertime minutes in this pay period — from biometric logs, manually added, or uploaded Undertime lines.',
         'OVRT' => 'Work dates with approved overtime in this pay period.',
     ];
     $modalId = $modalId ?? 'payroll-batch-attendance-breakdown-'.$type;
     $showOtWindow = $type === 'OVRT';
+    $showSource = collect($rows)->contains(fn ($row) => isset($row['source']));
+    $columnCount = 6 + ($showOtWindow ? 1 : 0) + ($showSource ? 1 : 0);
 @endphp
 
 <div
@@ -46,6 +48,9 @@
                             @if ($showOtWindow)
                                 <th class="px-3 py-2 text-left">OT Window</th>
                             @endif
+                            @if ($showSource)
+                                <th class="px-3 py-2 text-left">Source</th>
+                            @endif
                             <th class="px-3 py-2 text-right">Minutes</th>
                         </tr>
                     </thead>
@@ -74,11 +79,14 @@
                                         @endif
                                     </td>
                                 @endif
+                                @if ($showSource)
+                                    <td class="px-3 py-2 text-gray-600">{{ $row['source'] ?? 'Biometric' }}</td>
+                                @endif
                                 <td class="px-3 py-2 text-right text-gray-900">{{ number_format((int) ($row['minutes'] ?? 0)) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ $showOtWindow ? 7 : 6 }}" class="px-3 py-8 text-center text-gray-500">
+                                <td colspan="{{ $columnCount }}" class="px-3 py-8 text-center text-gray-500">
                                     No day details found for this pay period.
                                 </td>
                             </tr>
@@ -87,7 +95,7 @@
                     @if (count($rows) > 0)
                         <tfoot>
                             <tr class="bg-gray-50 font-semibold">
-                                <td class="px-3 py-2 text-gray-900" colspan="{{ $showOtWindow ? 6 : 5 }}">Total</td>
+                                <td class="px-3 py-2 text-gray-900" colspan="{{ $columnCount - 1 }}">Total</td>
                                 <td class="px-3 py-2 text-right text-gray-900">
                                     {{ number_format(collect($rows)->sum(fn ($row) => (int) ($row['minutes'] ?? 0))) }}
                                 </td>
