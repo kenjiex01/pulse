@@ -190,6 +190,8 @@ class HolidayPayService
                 $session,
                 $policy,
                 $dayShift?->time_in ?? $defaultShift?->time_in,
+                0,
+                $dayShift ?? $defaultShift,
             );
 
             if (! $resolved['is_absent']) {

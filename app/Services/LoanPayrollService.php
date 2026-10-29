@@ -38,9 +38,19 @@ class LoanPayrollService
             ->whereDate('dt_start_payment', '<=', $calendar->dt_to)
             ->get();
 
+        $manualLoanIds = $detail->loanPayments()
+            ->where('is_manual', true)
+            ->pluck('employee_loan_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
         $created = 0;
 
         foreach ($loans as $loan) {
+            if (in_array((int) $loan->employee_loan_id, $manualLoanIds, true)) {
+                continue;
+            }
+
             if (! $this->appliesToCalendar($loan, $calendar)) {
                 continue;
             }

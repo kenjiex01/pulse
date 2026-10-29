@@ -81,6 +81,10 @@ class FacultyLoadPayrollService
             'undertime_minutes' => 0,
             'undertime_deduction' => 0.0,
             'absent_sessions' => 0,
+            'half_day_absences' => 0,
+            'absent_days' => 0.0,
+            'absent_hours' => 0.0,
+            'absent_deduction' => 0.0,
             'computed_hours' => 0.0,
         ];
 
@@ -107,6 +111,8 @@ class FacultyLoadPayrollService
         $lateMinutes = 0;
         $undertimeMinutes = 0;
         $absentSessions = 0;
+        $halfDayAbsences = 0;
+        $absentHours = 0.0;
         $computedHours = 0.0;
 
         foreach ($entries->groupBy(fn (RawEmployeeLoadEntry $entry) => $entry->session_date?->toDateString()) as $date => $dayEntries) {
@@ -181,7 +187,7 @@ class FacultyLoadPayrollService
 
                 $resolvedLate = $isFlexi
                     ? ['is_absent' => false, 'billable_minutes' => 0]
-                    : $this->timeLogsPayroll->resolvedLateForSession($session, $policy, $scheduleStart);
+                    : $this->timeLogsPayroll->resolvedLateForSession($session, $policy, $scheduleStart, 0, $dayShift);
 
                 if ($resolvedLate['is_absent']) {
                     $absentSessions++;
@@ -191,6 +197,11 @@ class FacultyLoadPayrollService
 
                 foreach ($dayEntries as $entry) {
                     $dayHours += $this->employeeLoadPayroll->hoursForEntry($entry);
+                }
+
+                if ($resolvedLate['is_half_day'] ?? false) {
+                    $halfDayAbsences++;
+                    $absentHours += round($dayHours / 2, 4);
                 }
 
                 if (! $isFlexi) {
@@ -225,6 +236,9 @@ class FacultyLoadPayrollService
         $undertimeDeduction = ($undertimeMinutes > 0 && $hourlyRate !== null)
             ? round(($undertimeMinutes / 60) * $hourlyRate, 2)
             : 0.0;
+        $absentDeduction = ($absentHours > 0 && $hourlyRate !== null)
+            ? round($absentHours * $hourlyRate, 2)
+            : 0.0;
 
         return [
             'worked_days' => $workedDays,
@@ -235,6 +249,10 @@ class FacultyLoadPayrollService
             'undertime_minutes' => $undertimeMinutes,
             'undertime_deduction' => $undertimeDeduction,
             'absent_sessions' => $absentSessions,
+            'half_day_absences' => $halfDayAbsences,
+            'absent_days' => round(0.5 * $halfDayAbsences, 4),
+            'absent_hours' => round($absentHours, 4),
+            'absent_deduction' => $absentDeduction,
             'computed_hours' => round($computedHours, 4),
         ];
     }
@@ -308,17 +326,22 @@ class FacultyLoadPayrollService
                 'time_out' => $this->lastTimeOut($punches),
             ];
 
+            $resolvedLate = ['is_absent' => false, 'is_half_day' => false];
+
             if (! $isFlexi) {
-                $resolvedLate = $this->timeLogsPayroll->resolvedLateForSession($session, $policy, $scheduleStart);
+                $resolvedLate = $this->timeLogsPayroll->resolvedLateForSession($session, $policy, $scheduleStart, 0, $dayShift);
 
                 if ($resolvedLate['is_absent']) {
                     continue;
                 }
             }
 
+            $dayHours = 0.0;
             foreach ($dayEntries as $entry) {
-                $totalHours += $this->employeeLoadPayroll->hoursForEntry($entry);
+                $dayHours += $this->employeeLoadPayroll->hoursForEntry($entry);
             }
+
+            $totalHours += $dayHours;
         }
 
         return ['basic_hours' => round($totalHours, 4)];

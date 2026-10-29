@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DeductionType;
 use App\Models\Employee;
 use App\Models\EmployeeSalary;
 use App\Models\IncomeType;
@@ -9,6 +10,7 @@ use App\Models\PayrollAttendanceDay;
 use App\Models\PayrollBatch;
 use App\Models\PayrollBatchDetail;
 use App\Models\PayrollBatchStatus;
+use App\Models\PayrollDeduction;
 use App\Models\PayrollDispute;
 use App\Models\PayrollIncome;
 use App\Models\ShiftCode;
@@ -80,6 +82,14 @@ class PayrollDisputeService
             PayrollDispute::OVER_DEDUCTION_LATE => [
                 'time_in' => $recordedIn,
             ],
+            PayrollDispute::OVER_PAYMENT_DAYS => [
+                'shift_code_id' => $shift?->shift_code_id,
+                'time_in' => $recordedOut !== null ? $recordedIn : null,
+                'time_out' => $recordedIn !== null ? $recordedOut : null,
+            ],
+            PayrollDispute::OVER_PAYMENT_OVERTIME => ($recordedOut !== null && $shiftEnd !== null && $recordedOut > $shiftEnd)
+                ? ['ot_start' => $shiftEnd, 'ot_end' => $recordedOut]
+                : ['ot_start' => null, 'ot_end' => null],
             default => [],
         };
 
@@ -268,13 +278,76 @@ class PayrollDisputeService
                     number_format($result['amount'], 2),
                 );
                 break;
+
+            case PayrollDispute::OVER_PAYMENT_DAYS:
+                if (($timeIn === null) !== ($timeOut === null)) {
+                    $result['message'] = 'Enter both Time In and Time Out, or leave both blank if the employee was absent.';
+
+                    return $result;
+                }
+
+                $actualBasic = $timeIn === null
+                    ? 0.0
+                    : round((float) ($this->attendanceView->metricsForTimes($employeeId, $date, $timeIn, $timeOut, $policy, $shift)['basic'] ?? 0), 2);
+                $hours = max(0.0, round($paid['basic'] - $actualBasic, 2));
+
+                $result['hours'] = $hours;
+                $result['amount'] = round($hours * $hourlyRate, 2);
+                $result['breakdown'] = sprintf(
+                    'Paid basic %s h - actual %s h%s = %s h x rate = %s to deduct',
+                    number_format($paid['basic'], 2),
+                    number_format($actualBasic, 2),
+                    $timeIn === null ? ' (absent)' : '',
+                    number_format($hours, 2),
+                    number_format($result['amount'], 2),
+                );
+                break;
+
+            case PayrollDispute::OVER_PAYMENT_OVERTIME:
+                $otStart = $this->longTime($input['ot_start'] ?? null);
+                $otEnd = $this->longTime($input['ot_end'] ?? null);
+
+                if (($otStart === null) !== ($otEnd === null)) {
+                    $result['message'] = 'Enter both OT Start and OT End, or leave both blank if no overtime was rendered.';
+
+                    return $result;
+                }
+
+                $actualMinutes = 0;
+
+                if ($otStart !== null) {
+                    $startAt = $date->setTimeFromTimeString($otStart);
+                    $endAt = $date->setTimeFromTimeString($otEnd);
+
+                    if ($endAt->lessThanOrEqualTo($startAt)) {
+                        $endAt = $endAt->addDay();
+                    }
+
+                    $actualMinutes = (int) $startAt->diffInMinutes($endAt);
+                }
+
+                $paidMinutes = (int) round($paid['ot'] * 60);
+                $overMinutes = max(0, $paidMinutes - $actualMinutes);
+
+                $result['ot_hours'] = round($overMinutes / 60, 2);
+                $result['ot_amount'] = $this->overtimePayroll->overtimePay($salary, $overMinutes);
+                $result['breakdown'] = sprintf(
+                    'OT paid %d min - actual %d min = %d min x rate = %s to deduct',
+                    $paidMinutes,
+                    $actualMinutes,
+                    $overMinutes,
+                    number_format($result['ot_amount'], 2),
+                );
+                break;
         }
 
         $result['ok'] = true;
         $result['total'] = round($result['amount'] + $result['ot_amount'], 2);
 
         if ($result['total'] <= 0) {
-            $result['warnings'][] = 'No adjustment (0.00): nothing more is owed for this day.';
+            $result['warnings'][] = PayrollDispute::isOverPaymentCategory($category)
+                ? 'No adjustment (0.00): no overpayment found for this day.'
+                : 'No adjustment (0.00): nothing more is owed for this day.';
         }
 
         return $result;
@@ -313,6 +386,7 @@ class PayrollDisputeService
             PayrollDispute::UNPAID_DAYS, PayrollDispute::OVER_DEDUCTION_UNDERTIME => ['time_in' => 'Time In', 'time_out' => 'Time Out'],
             PayrollDispute::UNPAID_OVERTIME => ['ot_start' => 'OT Start', 'ot_end' => 'OT End'],
             PayrollDispute::OVER_DEDUCTION_LATE => ['time_in' => 'Actual Time In'],
+            PayrollDispute::OVER_PAYMENT_DAYS, PayrollDispute::OVER_PAYMENT_OVERTIME => [],
         };
 
         $errors = [];
@@ -323,11 +397,33 @@ class PayrollDisputeService
             }
         }
 
+        $optionalPair = match ($category) {
+            PayrollDispute::OVER_PAYMENT_DAYS => ['time_in' => 'Time In', 'time_out' => 'Time Out'],
+            PayrollDispute::OVER_PAYMENT_OVERTIME => ['ot_start' => 'OT Start', 'ot_end' => 'OT End'],
+            default => [],
+        };
+
+        if ($optionalPair !== []) {
+            [$firstField, $secondField] = array_keys($optionalPair);
+            $first = $this->shortTime($input[$firstField] ?? null);
+            $second = $this->shortTime($input[$secondField] ?? null);
+
+            if (($first === null) !== ($second === null)) {
+                $missing = $first === null ? $firstField : $secondField;
+                $errors[$missing] = $optionalPair[$missing].' is required when '
+                    .$optionalPair[$missing === $firstField ? $secondField : $firstField].' is entered. Leave both blank for none.';
+            }
+        }
+
         if ($errors !== []) {
             throw ValidationException::withMessages($errors);
         }
 
-        $shiftCodeId = in_array($category, [PayrollDispute::UNPAID_DAYS, PayrollDispute::OVER_DEDUCTION_UNDERTIME], true)
+        $usesShift = in_array($category, [PayrollDispute::UNPAID_DAYS, PayrollDispute::OVER_DEDUCTION_UNDERTIME, PayrollDispute::OVER_PAYMENT_DAYS], true);
+        $usesTimeOut = $usesShift;
+        $usesOt = in_array($category, [PayrollDispute::UNPAID_OVERTIME, PayrollDispute::OVER_PAYMENT_OVERTIME], true);
+
+        $shiftCodeId = $usesShift
             ? ((int) ($input['shift_code_id'] ?? 0) ?: $context['shift']?->shift_code_id)
             : null;
 
@@ -335,10 +431,10 @@ class PayrollDisputeService
             'category' => $category,
             'work_date' => $workDate,
             'shift_code_id' => $shiftCodeId,
-            'time_in' => in_array($category, [PayrollDispute::UNPAID_OVERTIME], true) ? null : $this->shortTime($input['time_in'] ?? null),
-            'time_out' => in_array($category, [PayrollDispute::UNPAID_DAYS, PayrollDispute::OVER_DEDUCTION_UNDERTIME], true) ? $this->shortTime($input['time_out'] ?? null) : null,
-            'ot_start' => $category === PayrollDispute::UNPAID_OVERTIME ? $this->shortTime($input['ot_start'] ?? null) : null,
-            'ot_end' => $category === PayrollDispute::UNPAID_OVERTIME ? $this->shortTime($input['ot_end'] ?? null) : null,
+            'time_in' => $usesOt ? null : $this->shortTime($input['time_in'] ?? null),
+            'time_out' => $usesTimeOut ? $this->shortTime($input['time_out'] ?? null) : null,
+            'ot_start' => $usesOt ? $this->shortTime($input['ot_start'] ?? null) : null,
+            'ot_end' => $usesOt ? $this->shortTime($input['ot_end'] ?? null) : null,
             'remarks' => filled($input['remarks'] ?? null) ? mb_substr(trim((string) $input['remarks']), 0, 255) : null,
         ];
 
@@ -394,6 +490,34 @@ class PayrollDisputeService
             $remarks = $dispute->work_date?->format('M j, Y');
             $incomeId = null;
             $otIncomeId = null;
+
+            if ($dispute->isOverPayment()) {
+                $deductionId = $calculation['ok'] && $calculation['total'] > 0
+                    ? $this->createDeduction(
+                        $detail,
+                        PayrollDispute::DEDUCTION_TYPE_CODES[$dispute->category],
+                        $calculation['hours'] + $calculation['ot_hours'],
+                        $calculation['total'],
+                        $dispute->work_date?->toDateString(),
+                    )
+                    : null;
+
+                $dispute->forceFill([
+                    'source_payroll_batch_id' => $calculation['source_payroll_batch_id'] ?? $dispute->source_payroll_batch_id,
+                    'computed_hours' => $calculation['hours'],
+                    'computed_amount' => $calculation['amount'],
+                    'computed_ot_hours' => $calculation['ot_hours'],
+                    'computed_ot_amount' => $calculation['ot_amount'],
+                    'payroll_income_id' => null,
+                    'ot_payroll_income_id' => null,
+                ])->saveQuietly();
+
+                if ($deductionId !== null) {
+                    $applied++;
+                }
+
+                continue;
+            }
 
             if ($calculation['ok'] && $calculation['amount'] > 0) {
                 $incomeId = $this->createIncome(
@@ -466,6 +590,23 @@ class PayrollDisputeService
                     'payroll_dispute_id' => (int) $upd->payroll_dispute_id,
                 ];
             }
+        }
+
+        $opposites = [
+            PayrollDispute::UNPAID_DAYS => PayrollDispute::OVER_PAYMENT_DAYS,
+            PayrollDispute::OVER_PAYMENT_DAYS => PayrollDispute::UNPAID_DAYS,
+            PayrollDispute::UNPAID_OVERTIME => PayrollDispute::OVER_PAYMENT_OVERTIME,
+            PayrollDispute::OVER_PAYMENT_OVERTIME => PayrollDispute::UNPAID_OVERTIME,
+        ];
+        $opposite = isset($opposites[$category]) ? $existing->firstWhere('category', $opposites[$category]) : null;
+
+        if ($opposite !== null) {
+            return [
+                'message' => 'An '.$opposite->categoryName().' dispute for this work date was already filed in Batch #'
+                    .$this->batchNoFor($opposite).', so '.PayrollDispute::categoryLabel($category).' cannot be filed for the same day.',
+                'batch_no' => $this->batchNoFor($opposite),
+                'payroll_dispute_id' => (int) $opposite->payroll_dispute_id,
+            ];
         }
 
         return null;
@@ -701,6 +842,30 @@ class PayrollDisputeService
         ]);
 
         return (int) $income->payroll_income_id;
+    }
+
+    private function createDeduction(PayrollBatchDetail $detail, string $deductionTypeCode, float $hours, float $amount, ?string $workDate): ?int
+    {
+        $deductionTypeId = DeductionType::query()->where('deduction_type_code', $deductionTypeCode)->value('deduction_type_id');
+
+        if ($deductionTypeId === null) {
+            return null;
+        }
+
+        $deduction = PayrollDeduction::query()->create([
+            'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
+            'deduction_type_id' => $deductionTypeId,
+            'hours' => $hours > 0 ? round($hours, 4) : null,
+            'employee_amount' => round($amount, 2),
+            'employer_amount' => 0,
+            'reference_number' => 'Dispute',
+            'dt_reference' => $workDate,
+            'is_manual' => false,
+            'is_editable' => true,
+            'is_deletable' => true,
+        ]);
+
+        return (int) $deduction->payroll_deduction_id;
     }
 
     /**

@@ -162,6 +162,7 @@
                     'deductionTypes' => $deductionTypes,
                     'openEditIncomeId' => $openEditIncomeId ?? null,
                     'openEditDeductionId' => $openEditDeductionId ?? null,
+                    'openEditLoanPaymentId' => $openEditLoanPaymentId ?? null,
                     'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
                 ])
             @endif
@@ -229,6 +230,16 @@
                     'detail' => $viewBatchDetail,
                     'deductionTypes' => $deductionTypes,
                     'open' => $openAddEmployeeDeduction ?? false,
+                    'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
+                ])
+            @endif
+
+            @if ($batchEditable ?? false)
+                @include('payroll.transaction._batch-employee-add-loan-modal', [
+                    'batch' => $viewBatch,
+                    'detail' => $viewBatchDetail,
+                    'availableLoans' => $availableLoans ?? collect(),
+                    'open' => $openAddEmployeeLoan ?? false,
                     'batchEmployeeSearch' => $batchEmployeeSearch ?? '',
                 ])
             @endif

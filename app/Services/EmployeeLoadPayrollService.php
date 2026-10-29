@@ -680,7 +680,7 @@ class EmployeeLoadPayrollService
         return [
             'late_minutes' => $resolved['billable_minutes'],
             'late_raw_minutes' => $resolved['raw_minutes'],
-            'late_is_absent' => $resolved['is_absent'],
+            'late_is_absent' => $resolved['is_absent'] || ($resolved['is_half_day'] ?? false),
             'late_waived' => $lateWaived,
             'late_display' => ($lateWaived && $hadLate)
                 ? 'Waived'
@@ -701,12 +701,12 @@ class EmployeeLoadPayrollService
      */
     public function formatLateDisplay(array $resolved): string
     {
-        if ($resolved['raw_minutes'] <= 0) {
-            return '—';
+        if ($resolved['is_absent'] || ($resolved['is_half_day'] ?? false)) {
+            return 'Absent';
         }
 
-        if ($resolved['is_absent']) {
-            return 'Absent';
+        if ($resolved['raw_minutes'] <= 0) {
+            return '—';
         }
 
         return $this->formatDurationMinutes($resolved['billable_minutes']);
@@ -783,6 +783,14 @@ class EmployeeLoadPayrollService
         return DeductionType::query()
             ->whereIn('deduction_type_code', ['UTDE', 'OTHR'])
             ->orderByRaw("CASE deduction_type_code WHEN 'UTDE' THEN 0 ELSE 1 END")
+            ->value('deduction_type_id');
+    }
+
+    public function absentDeductionTypeId(): ?int
+    {
+        return DeductionType::query()
+            ->whereIn('deduction_type_code', ['ABST', 'OTHR'])
+            ->orderByRaw("CASE deduction_type_code WHEN 'ABST' THEN 0 ELSE 1 END")
             ->value('deduction_type_id');
     }
 }

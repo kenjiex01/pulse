@@ -135,7 +135,7 @@
                                 {{ $day['date_label'] }}
                             </span>
                         </td>
-                        <td class="px-2 py-1.5 whitespace-nowrap">{{ $day['day_type'] }}</td>
+                        <td class="px-2 py-1.5 whitespace-nowrap {{ ! empty($day['is_absent_tag']) ? 'font-medium text-red-600' : '' }}">{{ $day['day_type'] }}</td>
                         <td class="px-2 py-1.5 whitespace-nowrap">{{ $day['shift_label'] }}</td>
                         <td class="px-2 py-1.5 whitespace-nowrap">{{ $day['is_rest_day'] && $day['time_in'] === '—' ? '' : $day['time_in'] }}</td>
                         <td class="px-2 py-1.5 whitespace-nowrap">{{ $day['is_rest_day'] && $day['time_out'] === '—' ? '' : $day['time_out'] }}</td>
@@ -144,7 +144,7 @@
                         <td class="px-2 py-1.5 text-right whitespace-nowrap">{{ $fmt($day['ot']) }}</td>
                         <td class="px-2 py-1.5 text-right whitespace-nowrap">{{ $fmt($day['ndiff']) }}</td>
                         <td class="px-2 py-1.5 text-right whitespace-nowrap">{{ $fmt($day['ndot']) }}</td>
-                        <td class="px-2 py-1.5 text-right whitespace-nowrap">{{ $fmt($day['late']) }}</td>
+                        <td class="px-2 py-1.5 text-right whitespace-nowrap {{ ! empty($day['late_label']) ? 'font-medium text-red-600' : '' }}">{{ $day['late_label'] ?? $fmt($day['late']) }}</td>
                         <td class="px-2 py-1.5 text-right whitespace-nowrap">{{ $fmt($day['undertime']) }}</td>
                         <td class="px-2 py-1.5 text-right whitespace-nowrap">{{ $fmt($day['break_late']) }}</td>
                     </tr>

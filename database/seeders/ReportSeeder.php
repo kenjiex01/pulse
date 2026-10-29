@@ -373,5 +373,24 @@ class ReportSeeder extends Seeder
             $excel->report_file_type_id,
             $pdf->report_file_type_id,
         ]);
+
+        $attendanceReport = Report::query()->updateOrCreate(
+            [
+                'report_classification_id' => $timekeeping->report_classification_id,
+                'title' => 'Attendance Report',
+            ],
+            [
+                'report_group_id' => $attendanceReports->report_group_id,
+                'description' => 'Attendance summary workbook for a date range. One worksheet per employee, named by last name, with a monthly cut-off block.',
+                'options_key' => 'attendance-report',
+                'generator_key' => 'attendance-report',
+                'sort_order' => 2,
+                'is_active' => true,
+            ],
+        );
+
+        $attendanceReport->fileTypes()->sync([
+            $excel->report_file_type_id,
+        ]);
     }
 }

@@ -6,7 +6,9 @@ use App\Models\CompanyDocumentForm;
 use App\Models\CompanyDocumentSendLog;
 use App\Models\DeductionType;
 use App\Models\Employee;
+use App\Models\EmployeeEmploymentInformation;
 use App\Models\IncomeType;
+use App\Models\LuDay;
 use App\Models\PayrollBatch;
 use App\Models\PayrollBatchDetail;
 use App\Models\PayrollBatchStatus;
@@ -14,10 +16,24 @@ use App\Models\PayrollCalendar;
 use App\Models\PayrollDeduction;
 use App\Models\PayrollIncome;
 use App\Models\PayType;
+use App\Models\RawTimekeepingInandout;
+use App\Models\RawTimekeepingTransaction;
 use App\Models\Report;
+use App\Models\ShiftCode;
+use App\Models\TimekeepingEmployeeSetup;
+use App\Models\TimekeepingHoliday;
+use App\Models\TimekeepingHolidayGroup;
+use App\Models\TimekeepingHolidayGroupList;
+use App\Models\TimekeepingHolidayYear;
+use App\Models\TimekeepingYear;
 use App\Models\User;
+use App\Support\BirFormSettings;
+use App\Support\TimekeepingPolicy as TimekeepingPolicySupport;
+use Carbon\CarbonImmutable;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Tests\TestCase;
 
 class PayrollReportsTest extends TestCase
@@ -670,6 +686,243 @@ class PayrollReportsTest extends TestCase
         $this->assertStringContainsString('EMP-AV-RPT', $text);
         $this->assertStringContainsString('08/01/2026', $text);
         $this->assertStringContainsString('08/14/2026', $text);
+    }
+
+    public function test_reports_index_shows_timekeeping_attendance_report(): void
+    {
+        $user = User::query()->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('payroll.reports.index', ['classification' => 'timekeeping']))
+            ->assertOk()
+            ->assertSee('Timekeeping')
+            ->assertSee('Attendance Report');
+    }
+
+    public function test_report_options_partial_loads_for_attendance_report(): void
+    {
+        $user = User::query()->firstOrFail();
+        $report = Report::query()->where('title', 'Attendance Report')->firstOrFail();
+        $employee = Employee::query()->create([
+            'employee_number' => 'EMP-ARO-OPT',
+            'first_name' => 'Option',
+            'last_name' => 'Picker',
+            'email' => 'aro.option@example.com',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('payroll.reports.options', [
+                'report' => $report->report_id,
+                'classification' => 'timekeeping',
+            ]))
+            ->assertOk()
+            ->assertSee('Attendance Report Options')
+            ->assertSee('date_from', false)
+            ->assertSee('date_to', false)
+            ->assertSee('data-employee-multiselect-search', false)
+            ->assertSee('EMP-ARO-OPT')
+            ->assertSee($employee->full_name);
+    }
+
+    public function test_generate_attendance_report_requires_dates_and_employees(): void
+    {
+        $user = User::query()->firstOrFail();
+        $report = Report::query()->where('title', 'Attendance Report')->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('payroll.reports.generate'), [
+                'classification' => 'timekeeping',
+                'report_id' => $report->report_id,
+                'output_format' => 'excel',
+            ])
+            ->assertSessionHasErrors(['date_from', 'date_to', 'employee_ids']);
+    }
+
+    public function test_generate_attendance_report_excel_is_one_sheet_per_employee(): void
+    {
+        $user = User::query()->firstOrFail();
+        $report = Report::query()->where('title', 'Attendance Report')->firstOrFail();
+
+        $shift = ShiftCode::query()->create([
+            'shift_code' => 'ARO-SH',
+            'description' => 'Attendance report shift',
+            'time_in' => '08:00',
+            'time_out' => '17:00',
+            'is_flexi_time' => false,
+        ]);
+
+        $policy = TimekeepingPolicySupport::createPolicyWithDefaults([
+            'policy_code' => 'ARO-P',
+            'policy_name' => 'Attendance Report Policy',
+            'description' => 'Attendance report tests',
+            'is_active' => true,
+            'grace_period' => 0,
+            'buffer_time_in' => 0,
+            'buffer_time_out' => 0,
+            'is_allow_flexi_time' => false,
+        ]);
+
+        $holidayGroup = TimekeepingHolidayGroup::query()->create([
+            'timekeeping_holiday_group_code' => 'ARO-HG',
+            'description' => 'Attendance report holidays',
+        ]);
+
+        $holidayDate = '2026-01-30';
+        $holiday = TimekeepingHoliday::query()->create([
+            'timekeeping_holiday_code' => 'ARO-NY',
+            'description' => "City Foundation Day",
+            'dt_datestamp' => $holidayDate,
+            'is_legal' => true,
+            'recurring' => false,
+        ]);
+
+        TimekeepingHolidayGroupList::query()->create([
+            'timekeeping_holiday_group_id' => $holidayGroup->timekeeping_holiday_group_id,
+            'timekeeping_holiday_id' => $holiday->timekeeping_holiday_id,
+        ]);
+
+        $year = TimekeepingYear::query()->firstOrCreate(['timekeeping_year' => 2026]);
+
+        TimekeepingHolidayYear::query()->create([
+            'timekeeping_year_id' => $year->timekeeping_year_id,
+            'timekeeping_holiday_id' => $holiday->timekeeping_holiday_id,
+            'timekeeping_holiday_code' => $holiday->timekeeping_holiday_code,
+            'dt_datestamp' => $holidayDate,
+            'is_legal' => true,
+            'recurring' => false,
+        ]);
+
+        $sundayId = LuDay::idFromDate(CarbonImmutable::parse('2026-02-01'));
+
+        $santos = $this->attendanceReportEmployee('EMP-ARO-SAN', 'Ana', 'Marie', 'Santos', 'Records Officer', '2020-03-13');
+        $cruz = $this->attendanceReportEmployee('EMP-ARO-CRU', 'Bea', null, 'Cruz', 'Clerk', '2019-01-08');
+        $reyesA = $this->attendanceReportEmployee('EMP-ARO-REY1', 'Carlo', null, 'Reyes', null, null);
+        $reyesB = $this->attendanceReportEmployee('EMP-ARO-REY2', 'Diana', null, 'Reyes', null, null);
+
+        foreach ([$santos, $cruz, $reyesA, $reyesB] as $employee) {
+            TimekeepingEmployeeSetup::query()->create([
+                'employee_id' => $employee->employee_id,
+                'timekeeping_holiday_group_id' => $holidayGroup->timekeeping_holiday_group_id,
+                'shift_code_id' => $shift->shift_code_id,
+                'timekeeping_policy_id' => $policy->timekeeping_policy_id,
+            ]);
+            $employee->timekeepingRestDays()->create([
+                'day_id' => $sundayId,
+                'is_paid' => false,
+            ]);
+        }
+
+        $this->attendanceReportPunch($santos, '2026-02-02 08:15:00', true);
+        $this->attendanceReportPunch($santos, '2026-02-02 17:00:00', false);
+
+        $response = $this->actingAs($user)
+            ->post(route('payroll.reports.generate'), [
+                'classification' => 'timekeeping',
+                'report_id' => $report->report_id,
+                'date_from' => '2026-01-30',
+                'date_to' => '2026-02-02',
+                'employee_ids' => [
+                    $santos->employee_id,
+                    $cruz->employee_id,
+                    $reyesA->employee_id,
+                    $reyesB->employee_id,
+                ],
+                'output_format' => 'excel',
+            ]);
+
+        $response->assertOk();
+        $disposition = (string) $response->headers->get('content-disposition');
+        $this->assertStringContainsString('Attendance_Report_', $disposition);
+        $this->assertStringNotContainsString('ARO.xlsx', $disposition);
+
+        $path = tempnam(sys_get_temp_dir(), 'aro');
+        file_put_contents($path, $response->streamedContent());
+        $workbook = IOFactory::load($path);
+
+        $this->assertSame(['CRUZ', 'REYES', 'REYES 2', 'SANTOS'], $workbook->getSheetNames());
+
+        $sheet = $workbook->getSheetByName('SANTOS');
+        $this->assertInstanceOf(Worksheet::class, $sheet);
+        $this->assertSame('FFFFFF', strtoupper($sheet->getStyle('A4')->getFill()->getStartColor()->getRGB()));
+        $this->assertSame('FFFF99', strtoupper($sheet->getStyle('A9')->getFill()->getStartColor()->getRGB()));
+
+        $values = $sheet->toArray(null, true, true, true);
+        $flat = [];
+        foreach ($values as $row) {
+            foreach ($row as $cell) {
+                if ($cell !== null && $cell !== '') {
+                    $flat[] = (string) $cell;
+                }
+            }
+        }
+        $text = implode("\n", $flat);
+
+        $company = mb_strtoupper((string) BirFormSettings::all()['company_name']);
+        $this->assertStringContainsString('ATTENDANCE SUMMARY', $text);
+        $this->assertStringContainsString('January 30 to February 2, 2026', $text);
+        $this->assertStringContainsString($company, $text);
+        $this->assertStringContainsString('SANTOS, ANA MARIE', $text);
+        $this->assertStringContainsString('RECORDS OFFICER', $text);
+        $this->assertStringContainsString('DATE HIRED: 03/13/2020', $text);
+        $this->assertStringContainsString('JANUARY 30 - 31, 2026', $text);
+        $this->assertStringContainsString('FEBRUARY 01 - 02, 2026', $text);
+        $this->assertStringContainsString('TOTAL TARDINESS PER MONTH: 0', $text);
+        $this->assertStringContainsString('TOTAL TARDINESS PER MONTH: 1', $text);
+        $this->assertStringContainsString('TOTAL ABSENT/ HALFDAY PER MONTH: 1', $text);
+        $this->assertStringContainsString('TOTAL NO OF MINUTES LATE: 15', $text);
+        $this->assertStringContainsString('CITY FOUNDATION DAY', $text);
+        $this->assertStringContainsString('SUNDAY', $text);
+        $this->assertStringContainsString('ABSENT W/O LOA RTW', $text);
+        $this->assertStringContainsString('01/31/2026', $text);
+        $this->assertStringContainsString('02/02/2026', $text);
+        $this->assertStringContainsString('Prepared by:', $text);
+        $this->assertStringContainsString('Noted by:', $text);
+
+        @unlink($path);
+    }
+
+    private function attendanceReportEmployee(
+        string $number,
+        string $firstName,
+        ?string $middleName,
+        string $lastName,
+        ?string $designation,
+        ?string $hireDate,
+    ): Employee {
+        $employee = Employee::query()->create([
+            'employee_number' => $number,
+            'first_name' => $firstName,
+            'middle_name' => $middleName,
+            'last_name' => $lastName,
+            'email' => strtolower($number).'@example.com',
+        ]);
+
+        $employee->employmentInformations()->create([
+            'user_type' => EmployeeEmploymentInformation::TYPE_STAFF,
+            'designation' => $designation,
+            'hire_date' => $hireDate,
+            'sort_order' => 1,
+        ]);
+
+        return $employee;
+    }
+
+    private function attendanceReportPunch(Employee $employee, string $dateTime, bool $isIn): void
+    {
+        $transaction = RawTimekeepingTransaction::query()->create([
+            'timekeeping_transaction_type_id' => RawTimekeepingTransaction::TYPE_TIME_IN_OUT,
+            'dt_from' => $dateTime,
+            'dt_to' => $dateTime,
+            'uploaded_by_id' => 0,
+            'batch_no' => 1,
+        ]);
+
+        RawTimekeepingInandout::query()->create([
+            'timekeeping_transaction_id' => $transaction->timekeeping_transaction_id,
+            'employee_id' => $employee->employee_id,
+            'dt_datetime' => $dateTime,
+            'is_in' => $isIn,
+        ]);
     }
 
     private function extractPdfText(string $binary): string

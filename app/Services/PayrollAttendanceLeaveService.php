@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\EmployeeSalary;
+use App\Models\LeaveType;
 use App\Models\RawEmployeeLoadEntry;
 use App\Models\RawTimekeepingInandout;
 use App\Models\ShiftCode;
@@ -56,7 +57,7 @@ class PayrollAttendanceLeaveService
                     $scheduleEnd,
                     $policy,
                     $salary,
-                    fn () => $this->timeLogsPayroll->resolvedLateForSession($session, $policy, $scheduleStart),
+                    fn () => $this->timeLogsPayroll->resolvedLateForSession($session, $policy, $scheduleStart, 0, $schedule['shift']),
                     fn () => $this->timeLogsPayroll->resolvedUndertimeForSession($session, $policy, $scheduleEnd, $scheduleStart),
                 ),
             );
@@ -211,16 +212,31 @@ class PayrollAttendanceLeaveService
         $records = [];
         $resolvedLate = $resolveLate();
 
-        if (($resolvedLate['is_absent'] ?? false) && filled($policy->awol_leave_type_id)) {
+        $awolLeaveTypeId = $this->awolLeaveTypeId($policy);
+
+        if (($resolvedLate['is_absent'] ?? false) && $awolLeaveTypeId !== null) {
             $shiftHours = $this->shiftHours($salary, $scheduleStart, $scheduleEnd);
             $records[] = $this->makeRecord(
-                (int) $policy->awol_leave_type_id,
+                $awolLeaveTypeId,
                 $this->atTime($sessionDate, $scheduleStart) ?? $sessionDate->startOfDay(),
                 $this->atTime($sessionDate, $scheduleEnd) ?? $sessionDate->endOfDay(),
                 $shiftHours,
             );
 
             return $records;
+        }
+
+        if (($resolvedLate['is_half_day'] ?? false) && $awolLeaveTypeId !== null) {
+            $halfHours = round(((int) ($resolvedLate['half_day_absent_minutes'] ?? 0)) / 60, 2);
+            $records[] = $this->makeRecord(
+                $awolLeaveTypeId,
+                $this->atTime($sessionDate, $scheduleStart) ?? $sessionDate->startOfDay(),
+                $this->atTime($sessionDate, $resolvedLate['half_day_start'] ?? null)
+                    ?? $this->atTime($sessionDate, $timeIn)
+                    ?? $sessionDate->startOfDay(),
+                $halfHours > 0 ? $halfHours : round($this->shiftHours($salary, $scheduleStart, $scheduleEnd) / 2, 2),
+                'Half-day absence (late more than half of the shift)',
+            );
         }
 
         if (
@@ -275,6 +291,19 @@ class PayrollAttendanceLeaveService
             'leave_hours' => max(0, $leaveHours),
             'reason' => $reason,
         ];
+    }
+
+    private function awolLeaveTypeId(TimekeepingPolicy $policy): ?int
+    {
+        if (filled($policy->awol_leave_type_id)) {
+            return (int) $policy->awol_leave_type_id;
+        }
+
+        $id = LeaveType::query()
+            ->where('leave_type_code', 'AWOL')
+            ->value('leave_type_id');
+
+        return $id !== null ? (int) $id : null;
     }
 
     private function atTime(CarbonImmutable $date, ?string $time): ?CarbonImmutable

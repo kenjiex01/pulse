@@ -27,6 +27,7 @@ class PayrollTransactionModule
     public const BATCH_DETAIL_TABS = [
         'incomes' => 'Incomes',
         'deductions' => 'Deductions',
+        'loans' => 'Loans',
         'disputes' => 'Disputes',
         'net-pay' => 'Net Pay',
     ];
@@ -122,6 +123,7 @@ class PayrollTransactionModule
             'payslips.send' => 'payroll.transaction.payslips.send',
             'employees.incomes.store' => 'payroll.transaction.employees.incomes.store',
             'employees.deductions.store' => 'payroll.transaction.employees.deductions.store',
+            'employees.loans.store' => 'payroll.transaction.employees.loans.store',
             'employees.shift-overrides.store' => 'payroll.transaction.employees.shift-overrides.store',
             'employees.shift-overrides.destroy' => 'payroll.transaction.employees.shift-overrides.destroy',
             default => "payroll.transaction.$action",

@@ -6,6 +6,7 @@ use App\Models\EmployeeEmploymentInformation;
 use App\Models\DeductionType;
 use App\Models\Employee;
 use App\Models\EmployeeCategory;
+use App\Models\EmployeeLoan;
 use App\Models\EmployeeSalary;
 use App\Models\PayrollBatch;
 use App\Models\PayrollBatchDetail;
@@ -358,6 +359,143 @@ class PayrollBatchService
         $this->assertManualLine($batch, $detail, (int) $deduction->payroll_batch_detail_id, (bool) $deduction->is_manual, 'deduction');
 
         $deduction->delete();
+    }
+
+    /**
+     * Employee loans that can still be deducted on this batch detail.
+     *
+     * @return Collection<int, EmployeeLoan>
+     */
+    public function loansAvailableForDetail(PayrollBatchDetail $detail): Collection
+    {
+        if ($detail->employee_id === null) {
+            return collect();
+        }
+
+        return EmployeeLoan::query()
+            ->with(['loanType', 'payments'])
+            ->where('employee_id', $detail->employee_id)
+            ->orderByDesc('dt_loan')
+            ->orderByDesc('employee_loan_id')
+            ->get()
+            ->filter(fn (EmployeeLoan $loan) => $loan->loanBalance() + $this->paymentOnDetail($loan, $detail) > 0)
+            ->values();
+    }
+
+    /**
+     * @param  array{employee_loan_id: int, payment: float|string, penalty?: float|string|null}  $validated
+     */
+    public function addLoanPaymentToDetail(PayrollBatch $batch, PayrollBatchDetail $detail, array $validated): PayrollLoanPayment
+    {
+        $this->assertDetailLinesEditable($batch, $detail, 'loan');
+
+        $loan = $this->loanForDetail($detail, (int) $validated['employee_loan_id']);
+
+        $hasManual = $detail->loanPayments()
+            ->where('employee_loan_id', $loan->employee_loan_id)
+            ->where('is_manual', true)
+            ->exists();
+
+        if ($hasManual) {
+            throw ValidationException::withMessages([
+                'employee_loan_id' => 'This loan already has a manual deduction in this batch. Edit that line instead.',
+            ]);
+        }
+
+        $attributes = $this->manualLoanPaymentAttributes($loan, $validated, $this->paymentOnDetail($loan, $detail));
+
+        return DB::transaction(function () use ($detail, $loan, $attributes) {
+            $detail->loanPayments()
+                ->where('employee_loan_id', $loan->employee_loan_id)
+                ->where(fn (Builder $query) => $query->where('is_manual', false)->orWhereNull('is_manual'))
+                ->withTrashed()
+                ->each(fn (PayrollLoanPayment $payment) => $payment->forceDelete());
+
+            return PayrollLoanPayment::query()->create([
+                ...$attributes,
+                'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
+                'employee_loan_id' => $loan->employee_loan_id,
+                'is_manual' => true,
+                'is_editable' => true,
+                'is_deletable' => true,
+            ])->load('employeeLoan.loanType');
+        });
+    }
+
+    /**
+     * @param  array{payment: float|string, penalty?: float|string|null}  $validated
+     */
+    public function updateLoanPaymentOnDetail(PayrollBatch $batch, PayrollBatchDetail $detail, PayrollLoanPayment $payment, array $validated): PayrollLoanPayment
+    {
+        $this->assertManualLine($batch, $detail, (int) $payment->payroll_batch_detail_id, (bool) $payment->is_manual, 'loan');
+
+        $loan = $this->loanForDetail($detail, (int) $payment->employee_loan_id);
+        $payment->update($this->manualLoanPaymentAttributes($loan, $validated, $payment->amount()));
+
+        return $payment->load('employeeLoan.loanType');
+    }
+
+    public function deleteLoanPaymentFromDetail(PayrollBatch $batch, PayrollBatchDetail $detail, PayrollLoanPayment $payment): void
+    {
+        $this->assertManualLine($batch, $detail, (int) $payment->payroll_batch_detail_id, (bool) $payment->is_manual, 'loan');
+
+        $payment->delete();
+    }
+
+    private function loanForDetail(PayrollBatchDetail $detail, int $employeeLoanId): EmployeeLoan
+    {
+        $loan = EmployeeLoan::query()
+            ->with('loanType')
+            ->where('employee_id', $detail->employee_id)
+            ->find($employeeLoanId);
+
+        if ($loan === null) {
+            throw ValidationException::withMessages([
+                'employee_loan_id' => 'Select a loan that belongs to this employee.',
+            ]);
+        }
+
+        return $loan;
+    }
+
+    private function paymentOnDetail(EmployeeLoan $loan, PayrollBatchDetail $detail): float
+    {
+        $payments = $loan->relationLoaded('payments')
+            ? $loan->payments
+            : $loan->payments()->get();
+
+        return round($payments
+            ->where('payroll_batch_detail_id', $detail->payroll_batch_detail_id)
+            ->sum(fn (PayrollLoanPayment $payment) => $payment->amount()), 2);
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array{payment: float, penalty: float}
+     */
+    private function manualLoanPaymentAttributes(EmployeeLoan $loan, array $validated, float $amountReplaced): array
+    {
+        $payment = round((float) ($validated['payment'] ?? 0), 2);
+        $penalty = round((float) ($validated['penalty'] ?? 0), 2);
+
+        if ($payment <= 0) {
+            throw ValidationException::withMessages([
+                'payment' => 'Payment must be greater than zero.',
+            ]);
+        }
+
+        $available = round($loan->loanBalance() + $amountReplaced, 2);
+
+        if ($payment + $penalty > $available) {
+            throw ValidationException::withMessages([
+                'payment' => 'Payment plus penalty cannot exceed the loan balance of '.number_format($available, 2).'.',
+            ]);
+        }
+
+        return [
+            'payment' => $payment,
+            'penalty' => $penalty,
+        ];
     }
 
     private function assertDetailLinesEditable(PayrollBatch $batch, PayrollBatchDetail $detail, string $lineLabel): void
@@ -817,7 +955,7 @@ class PayrollBatchService
                         $hours = $this->incomeHoursFromAmounts([
                             'hours' => (float) ($loadPayroll['computed_hours'] ?? 0),
                         ]);
-                        $days = $this->incomeDaysFromCount((int) ($loadPayroll['worked_days'] ?? 0));
+                        $days = $this->incomeDaysFromCount((float) ($loadPayroll['worked_days'] ?? 0));
                     } elseif ($usesAttendancePayroll && $isBasicIncome) {
                         $taxable = 0.0;
                         $nonTaxable = 0.0;
@@ -894,6 +1032,25 @@ class PayrollBatchService
                             'hours' => round(((int) ($loadPayroll['undertime_minutes'] ?? 0)) / 60, 4),
                             'days' => $this->incomeDaysFromCount((int) ($loadPayroll['undertime_days'] ?? 0)),
                             'employee_amount' => $loadPayroll['undertime_deduction'],
+                            'employer_amount' => 0,
+                            'is_manual' => false,
+                            'is_editable' => true,
+                            'is_deletable' => true,
+                        ]);
+                    }
+                }
+
+                if (! $isFixedRate && $loadPayroll !== null && ($loadPayroll['absent_deduction'] ?? 0) > 0) {
+                    $absentDeductionTypeId = $this->timeLogsPayroll->absentDeductionTypeId()
+                        ?? $this->employeeLoadPayroll->absentDeductionTypeId();
+
+                    if ($absentDeductionTypeId !== null) {
+                        PayrollDeduction::query()->create([
+                            'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
+                            'deduction_type_id' => $absentDeductionTypeId,
+                            'hours' => round((float) ($loadPayroll['absent_hours'] ?? 0), 4) ?: null,
+                            'days' => $this->incomeDaysFromCount((float) ($loadPayroll['absent_days'] ?? 0)),
+                            'employee_amount' => $loadPayroll['absent_deduction'],
                             'employer_amount' => 0,
                             'is_manual' => false,
                             'is_editable' => true,
@@ -1513,7 +1670,7 @@ class PayrollBatchService
         return $days > 0 ? round($days, 4) : null;
     }
 
-    private function incomeDaysFromCount(int $days): ?float
+    private function incomeDaysFromCount(int|float $days): ?float
     {
         return $days > 0 ? round((float) $days, 4) : null;
     }

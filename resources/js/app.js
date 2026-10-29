@@ -3745,6 +3745,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('change', (event) => {
+        const loanSelect = event.target instanceof Element ? event.target.closest('[data-batch-add-loan-select]') : null;
+        const paymentInput = loanSelect?.closest('[data-batch-add-loan-form]')?.querySelector('[data-batch-add-loan-payment]');
+
+        if (!loanSelect || !paymentInput) {
+            return;
+        }
+
+        paymentInput.value = loanSelect.selectedOptions[0]?.dataset.suggestedPayment ?? '';
+    });
+
+    document.addEventListener('change', (event) => {
         if (!(event.target instanceof Element)) {
             return;
         }
@@ -6476,7 +6487,21 @@ tr { page-break-inside: avoid; }
 
         const timeInLabel = form.querySelector('[data-dispute-time-in-label]');
         if (timeInLabel) {
-            timeInLabel.textContent = category === 'ODL' ? 'Actual Time In' : 'Time In';
+            timeInLabel.textContent = ['ODL', 'OPD'].includes(category) ? 'Actual Time In' : 'Time In';
+        }
+
+        const isOverPayment = ['OPD', 'OPO'].includes(category);
+        const expectedLabel = form.querySelector('[data-dispute-expected-label]');
+        const expectedHelp = form.querySelector('[data-dispute-expected-help]');
+
+        if (expectedLabel) {
+            expectedLabel.textContent = isOverPayment ? 'Amount to Deduct' : 'Expected Pay';
+        }
+
+        if (expectedHelp) {
+            expectedHelp.textContent = isOverPayment
+                ? 'Overpaid amount deducted from the employee in this batch. Final amount is computed when the batch is processed.'
+                : 'Amount the employee is expected to receive for this dispute. Final amount is computed when the batch is processed.';
         }
     };
 

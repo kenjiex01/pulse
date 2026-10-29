@@ -1433,7 +1433,7 @@ class PayrollTransactionUploadService
         }
 
         $hasError = true;
-        $errors[] = "Line {$lineNumber}: Invalid {$label} ({$value}). Use UPD, UOT, ODU, or ODL.";
+        $errors[] = "Line {$lineNumber}: Invalid {$label} ({$value}). Use UPD, UOT, ODU, ODL, OPD, or OPO.";
 
         return null;
     }

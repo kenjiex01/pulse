@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\BasicComputation;
+use App\Models\DeductionType;
 use App\Models\Employee;
 use App\Models\EmployeeEmploymentInformation;
 use App\Models\EmployeeSalary;
@@ -12,6 +13,7 @@ use App\Models\PayrollBatch;
 use App\Models\PayrollBatchDetail;
 use App\Models\PayrollBatchStatus;
 use App\Models\PayrollCalendar;
+use App\Models\PayrollDeduction;
 use App\Models\PayrollDispute;
 use App\Models\PayrollIncome;
 use App\Models\PayType;
@@ -23,6 +25,7 @@ use App\Models\TimekeepingHolidayGroup;
 use App\Models\User;
 use App\Services\PayrollBatchService;
 use App\Services\PayrollDisputeService;
+use App\Services\PayrollOvertimeService;
 use App\Services\PayrollTransactionUploadService;
 use App\Support\TimekeepingPolicy as TimekeepingPolicySupport;
 use Database\Seeders\DatabaseSeeder;
@@ -298,6 +301,90 @@ class PayrollDisputeTest extends TestCase
             ->where('income_type_id', IncomeType::query()->where('income_type_code', 'DUPD')->value('income_type_id'))
             ->count());
         $this->assertNull($this->incomeFor('DODL'));
+    }
+
+    #[Test]
+    public function over_payment_days_deducts_overpaid_basic(): void
+    {
+        $rate = $this->rate();
+
+        $absent = $this->fileDispute(['category' => 'OPD', 'work_date' => '2026-06-08']);
+        $partial = $this->fileDispute(['category' => 'OPD', 'work_date' => '2026-06-11', 'time_in' => '08:00', 'time_out' => '12:00']);
+
+        $this->assertEqualsWithDelta(round(8 * $rate, 2), $absent->expectedTotal(), 0.01);
+        $this->assertEqualsWithDelta(-round(8 * $rate, 2), $absent->signedExpectedTotal(), 0.01);
+        $this->assertNull($absent->time_in);
+        $this->assertGreaterThan(0, $partial->expectedTotal());
+        $this->assertLessThan(round(7 * $rate, 2), $partial->expectedTotal());
+
+        app(PayrollBatchService::class)->prepareDetailTransactions($this->detail);
+
+        $lines = PayrollDeduction::query()
+            ->where('payroll_batch_detail_id', $this->detail->payroll_batch_detail_id)
+            ->where('deduction_type_id', DeductionType::query()->where('deduction_type_code', 'DOPD')->value('deduction_type_id'))
+            ->get();
+
+        $this->assertCount(2, $lines);
+        $this->assertEqualsWithDelta($absent->expectedTotal() + $partial->expectedTotal(), (float) $lines->sum('employee_amount'), 0.01);
+        $this->assertFalse($absent->fresh()->changedAfterFiling());
+        $this->assertNull($this->incomeFor('DUPD'));
+
+        $service = app(PayrollBatchService::class);
+        $service->clearDetailTransactions($this->detail, preserveManualLines: true);
+        $service->prepareDetailTransactions($this->detail);
+        $this->assertSame(2, PayrollDeduction::query()
+            ->where('payroll_batch_detail_id', $this->detail->payroll_batch_detail_id)
+            ->where('deduction_type_id', DeductionType::query()->where('deduction_type_code', 'DOPD')->value('deduction_type_id'))
+            ->count());
+    }
+
+    #[Test]
+    public function over_payment_overtime_deducts_overpaid_ot(): void
+    {
+        $this->snapshot('2026-06-12', basic: 8, ot: 2, timeIn: '08:00:00', timeOut: '18:00:00');
+        $otPay = app(PayrollOvertimeService::class);
+        $salary = $this->salary->fresh();
+
+        $partial = $this->fileDispute(['category' => 'OPO', 'work_date' => '2026-06-12', 'ot_start' => '16:00', 'ot_end' => '17:00']);
+        $this->assertEqualsWithDelta($otPay->overtimePay($salary, 60), $partial->expectedTotal(), 0.01);
+
+        $partial->delete();
+        $none = $this->fileDispute(['category' => 'OPO', 'work_date' => '2026-06-12']);
+        $this->assertEqualsWithDelta($otPay->overtimePay($salary, 120), $none->expectedTotal(), 0.01);
+
+        app(PayrollBatchService::class)->prepareDetailTransactions($this->detail);
+
+        $line = PayrollDeduction::query()
+            ->where('payroll_batch_detail_id', $this->detail->payroll_batch_detail_id)
+            ->where('deduction_type_id', DeductionType::query()->where('deduction_type_code', 'DOPO')->value('deduction_type_id'))
+            ->first();
+        $this->assertNotNull($line);
+        $this->assertEqualsWithDelta($none->expectedTotal(), (float) $line->employee_amount, 0.01);
+    }
+
+    #[Test]
+    public function over_payment_conflicts_with_unpaid_on_same_day_and_requires_both_times(): void
+    {
+        $this->fileDispute(['category' => 'UPD', 'work_date' => '2026-06-09', 'time_in' => '08:00', 'time_out' => '16:00']);
+
+        try {
+            $this->fileDispute(['category' => 'OPD', 'work_date' => '2026-06-09']);
+            $this->fail('Expected conflict with Unpaid Days.');
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            $this->assertArrayHasKey('work_date', $exception->errors());
+        }
+
+        try {
+            $this->fileDispute(['category' => 'OPD', 'work_date' => '2026-06-08', 'time_in' => '08:00']);
+            $this->fail('Expected Time Out to be required.');
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            $this->assertArrayHasKey('time_out', $exception->errors());
+        }
+
+        $this->actingAs($this->user);
+        $prefill = $this->getJson($this->batchUrl('/prefill').'?work_date=2026-06-08&category=OPD')->assertOk()->json();
+        $this->assertTrue($prefill['ok']);
+        $this->assertSame(8.0, (float) $prefill['paid']['basic_hours']);
     }
 
     #[Test]

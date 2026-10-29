@@ -115,7 +115,7 @@
                         <dt class="text-xs text-gray-500">Originally Paid In</dt>
                         <dd class="mt-1 text-gray-900">{{ $dispute->sourcePayrollBatch ? 'Batch #'.$dispute->sourcePayrollBatch->formattedBatchNo() : '—' }}</dd>
                     </div>
-                    @if ($dispute->category === PayrollDispute::UNPAID_OVERTIME)
+                    @if (in_array($dispute->category, [PayrollDispute::UNPAID_OVERTIME, PayrollDispute::OVER_PAYMENT_OVERTIME], true))
                         <div>
                             <dt class="text-xs text-gray-500">OT Start</dt>
                             <dd class="mt-1 text-gray-900">{{ $shortTime($dispute->ot_start) }}</dd>
@@ -135,10 +135,10 @@
                         </div>
                     @endif
                     <div>
-                        <dt class="text-xs text-gray-500">Expected Pay</dt>
-                        <dd class="mt-1 font-semibold text-gray-900">
-                            {{ number_format($dispute->expectedTotal(), 2) }}
-                            @if ((float) $dispute->expected_ot_pay > 0)
+                        <dt class="text-xs text-gray-500">{{ $dispute->isOverPayment() ? 'Amount to Deduct' : 'Expected Pay' }}</dt>
+                        <dd class="mt-1 font-semibold {{ $dispute->isOverPayment() ? 'text-red-700' : 'text-gray-900' }}">
+                            {{ number_format($dispute->signedExpectedTotal(), 2) }}
+                            @if ((float) $dispute->expected_ot_pay > 0 && ! $dispute->isOverPayment())
                                 <span class="block text-xs font-normal text-gray-500">
                                     Basic {{ number_format((float) $dispute->expected_pay, 2) }} + OT {{ number_format((float) $dispute->expected_ot_pay, 2) }}
                                 </span>
@@ -146,9 +146,9 @@
                         </dd>
                     </div>
                     <div>
-                        <dt class="text-xs text-gray-500">Paid in this Batch</dt>
+                        <dt class="text-xs text-gray-500">{{ $dispute->isOverPayment() ? 'Deducted in this Batch' : 'Paid in this Batch' }}</dt>
                         <dd class="mt-1 text-gray-900">
-                            {{ $dispute->computedTotal() !== null ? number_format($dispute->computedTotal(), 2) : 'Not processed yet' }}
+                            {{ $dispute->signedComputedTotal() !== null ? number_format($dispute->signedComputedTotal(), 2) : 'Not processed yet' }}
                             @if ($dispute->changedAfterFiling())
                                 <span class="block text-xs text-amber-700">Changed after filing (salary or earlier payroll changed).</span>
                             @endif

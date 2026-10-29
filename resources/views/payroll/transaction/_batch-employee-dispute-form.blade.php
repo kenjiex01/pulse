@@ -88,7 +88,7 @@
     ></div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div class="sm:col-span-2" data-dispute-field="UPD ODU">
+        <div class="sm:col-span-2" data-dispute-field="UPD ODU OPD">
             <label for="{{ $prefix }}-shift" class="form-label">Shift</label>
             <select id="{{ $prefix }}-shift" name="shift_code_id" class="form-input" data-dispute-input="shift_code_id">
                 <option value="">Employee's shift on that day</option>
@@ -102,7 +102,7 @@
                 @endforeach
             </select>
         </div>
-        <div data-dispute-field="UPD ODU ODL">
+        <div data-dispute-field="UPD ODU ODL OPD">
             <label for="{{ $prefix }}-time-in" class="form-label" data-dispute-time-in-label>Time In</label>
             <input type="time" id="{{ $prefix }}-time-in" name="time_in" class="form-input" value="{{ $value('time_in') }}" data-dispute-input="time_in">
             @if ($showErrors)
@@ -111,7 +111,7 @@
                 @enderror
             @endif
         </div>
-        <div data-dispute-field="UPD ODU">
+        <div data-dispute-field="UPD ODU OPD">
             <label for="{{ $prefix }}-time-out" class="form-label">Time Out</label>
             <input type="time" id="{{ $prefix }}-time-out" name="time_out" class="form-input" value="{{ $value('time_out') }}" data-dispute-input="time_out">
             @if ($showErrors)
@@ -120,7 +120,7 @@
                 @enderror
             @endif
         </div>
-        <div data-dispute-field="UOT">
+        <div data-dispute-field="UOT OPO">
             <label for="{{ $prefix }}-ot-start" class="form-label">OT Start</label>
             <input type="time" id="{{ $prefix }}-ot-start" name="ot_start" class="form-input" value="{{ $value('ot_start') }}" data-dispute-input="ot_start">
             @if ($showErrors)
@@ -129,7 +129,7 @@
                 @enderror
             @endif
         </div>
-        <div data-dispute-field="UOT">
+        <div data-dispute-field="UOT OPO">
             <label for="{{ $prefix }}-ot-end" class="form-label">OT End</label>
             <input type="time" id="{{ $prefix }}-ot-end" name="ot_end" class="form-input" value="{{ $value('ot_end') }}" data-dispute-input="ot_end">
             @if ($showErrors)
@@ -138,6 +138,8 @@
                 @enderror
             @endif
         </div>
+        <p class="sm:col-span-2 text-xs text-gray-500" data-dispute-field="OPD">Enter the employee's actual Time In / Time Out for that day. Leave both blank if the employee was absent — the whole paid basic for that day is deducted.</p>
+        <p class="sm:col-span-2 text-xs text-gray-500" data-dispute-field="OPO">Enter the overtime actually rendered. Leave both blank if no overtime was rendered — the whole paid OT for that day is deducted.</p>
     </div>
 
     <div>
@@ -151,7 +153,7 @@
     </div>
 
     <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3">
-        <label for="{{ $prefix }}-expected-pay" class="form-label">Expected Pay</label>
+        <label for="{{ $prefix }}-expected-pay" class="form-label" data-dispute-expected-label>{{ PayrollDispute::isOverPaymentCategory($selectedCategory) ? 'Amount to Deduct' : 'Expected Pay' }}</label>
         <input
             type="text"
             id="{{ $prefix }}-expected-pay"
@@ -164,7 +166,9 @@
         >
         <p class="mt-1 text-xs text-gray-600" data-dispute-breakdown></p>
         <ul class="mt-1 space-y-0.5 text-xs text-amber-700" data-dispute-warnings></ul>
-        <p class="mt-1 text-xs text-gray-500">Amount the employee is expected to receive for this dispute. Final amount is computed when the batch is processed.</p>
+        <p class="mt-1 text-xs text-gray-500" data-dispute-expected-help>{{ PayrollDispute::isOverPaymentCategory($selectedCategory)
+            ? 'Overpaid amount deducted from the employee in this batch. Final amount is computed when the batch is processed.'
+            : 'Amount the employee is expected to receive for this dispute. Final amount is computed when the batch is processed.' }}</p>
     </div>
 
     @include('partials.modal-form-actions', [

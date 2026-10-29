@@ -311,6 +311,7 @@ class PayrollAttendanceDayBreakdownService
                 $policy,
                 $schedule['start'],
                 (int) ($otMinutesByDate[$dateKey] ?? 0),
+                $schedule['shift'],
             );
 
             $offset = (int) ($resolved['ot_offset_minutes'] ?? 0);
@@ -364,9 +365,10 @@ class PayrollAttendanceDayBreakdownService
                 $policy,
                 $schedule['start'],
                 $otForDay,
+                $shift,
             );
 
-            if ($resolvedLate['is_absent']) {
+            if ($resolvedLate['is_absent'] || ($resolvedLate['is_half_day'] ?? false)) {
                 continue;
             }
 
@@ -439,6 +441,7 @@ class PayrollAttendanceDayBreakdownService
                 $policy,
                 $schedule['start'],
                 (int) ($otMinutesByDate[$dateKey] ?? 0),
+                $shift,
             );
 
             if ($resolvedLate['is_absent']) {

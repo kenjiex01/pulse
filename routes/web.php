@@ -412,6 +412,23 @@ Route::middleware('auth')->group(function () {
             ->whereNumber('detail')
             ->name('payroll.transaction.employees.deductions.store');
 
+        Route::put('payroll/transaction/batches/{batch}/employees/{detail}/loans/{loanPayment}', [PayrollTransactionController::class, 'updateEmployeeLoanPayment'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->whereNumber('loanPayment')
+            ->name('payroll.transaction.employees.loans.update');
+
+        Route::delete('payroll/transaction/batches/{batch}/employees/{detail}/loans/{loanPayment}', [PayrollTransactionController::class, 'destroyEmployeeLoanPayment'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->whereNumber('loanPayment')
+            ->name('payroll.transaction.employees.loans.destroy');
+
+        Route::post('payroll/transaction/batches/{batch}/employees/{detail}/loans', [PayrollTransactionController::class, 'storeEmployeeLoanPayment'])
+            ->whereNumber('batch')
+            ->whereNumber('detail')
+            ->name('payroll.transaction.employees.loans.store');
+
         Route::post('payroll/transaction/batches/{batch}/employees', [PayrollTransactionController::class, 'storeEmployees'])
             ->name('payroll.transaction.employees.store');
 

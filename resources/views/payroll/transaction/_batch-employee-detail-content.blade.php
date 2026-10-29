@@ -508,6 +508,103 @@
         @endif
     </div>
 
+    <div class="employee-tab-panel {{ $activeTab === 'loans' ? '' : 'hidden' }}" data-employee-tab-panel="loans">
+        @if ($canAddDeduction)
+            <div class="mb-3 flex justify-end">
+                <button
+                    type="button"
+                    class="btn-primary !px-3 !py-1.5 text-xs"
+                    data-modal-open="payroll-batch-add-loan-modal"
+                >
+                    Add Loan Deduction
+                </button>
+            </div>
+        @elseif (($batchEditable ?? false) && ! $hasPayrollData)
+            <p class="mb-3 text-xs text-gray-500">Process the batch first before adding loan deductions.</p>
+        @endif
+        <p class="mb-2 text-xs text-gray-500">Loan deductions are saved to the employee's loan payment history. Manual lines replace the automatic amortization for the same loan and are kept on Process/Reprocess.</p>
+        <div class="overflow-x-auto rounded-lg border border-gray-200">
+            <table class="table-skolaris min-w-full text-sm">
+                <thead>
+                    <tr>
+                        <th class="px-3 py-2 text-left">Loan Type</th>
+                        <th class="px-3 py-2 text-left">Loan Date</th>
+                        <th class="px-3 py-2 text-right">Amortization</th>
+                        <th class="px-3 py-2 text-right">Balance</th>
+                        <th class="px-3 py-2 text-right">Payment</th>
+                        <th class="px-3 py-2 text-right">Penalty</th>
+                        <th class="px-3 py-2 text-right">Total</th>
+                        <th class="px-3 py-2 text-left">Source</th>
+                        @if ($canEditManualLines)
+                            <th class="px-3 py-2 text-right">Actions</th>
+                        @endif
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($detail->loanPayments->sortBy('payroll_loan_payment_id') as $loanPayment)
+                        @php $loan = $loanPayment->employeeLoan; @endphp
+                        <tr>
+                            <td class="px-3 py-2 font-medium text-gray-900">
+                                {{ $loan?->loanType?->loan_type_code ?? 'LOAN' }}
+                                <span class="block text-xs font-normal text-gray-500">{{ $loan?->loanType?->description }}</span>
+                            </td>
+                            <td class="px-3 py-2 text-gray-600">{{ $loan?->dt_loan?->format('M d, Y') ?? '—' }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ $loan?->amortization_amount !== null ? number_format((float) $loan->amortization_amount, 2) : '—' }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ $loan ? number_format($loan->loanBalance(), 2) : '—' }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ number_format((float) $loanPayment->payment, 2) }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ number_format((float) ($loanPayment->penalty ?? 0), 2) }}</td>
+                            <td class="px-3 py-2 text-right font-medium text-gray-900">{{ number_format($loanPayment->amount(), 2) }}</td>
+                            <td class="px-3 py-2 text-gray-600">{{ $loanPayment->is_manual ? 'Manual' : 'Auto' }}</td>
+                            @if ($canEditManualLines)
+                                <td class="px-3 py-2 text-right whitespace-nowrap">
+                                    @if ($loanPayment->is_manual)
+                                        <button
+                                            type="button"
+                                            class="btn-icon"
+                                            title="Edit"
+                                            data-modal-open="payroll-batch-edit-loan-modal-{{ $loanPayment->payroll_loan_payment_id }}"
+                                        >{!! $editIcon !!}</button>
+                                        <form
+                                            method="POST"
+                                            action="{{ route('payroll.transaction.employees.loans.destroy', [$batch, $detail, $loanPayment]) }}"
+                                            class="inline"
+                                            onsubmit="return confirm('Delete this loan deduction? It will be removed from the employee loan history.');"
+                                        >
+                                            @csrf
+                                            @method('DELETE')
+                                            <input type="hidden" name="batch_employee_search" value="{{ request('batch_employee_search') }}">
+                                            <input type="hidden" name="search" value="{{ request('search') }}">
+                                            <button type="submit" class="btn-icon text-red-600 hover:bg-red-50" title="Delete">{!! $trashIcon !!}</button>
+                                        </form>
+                                    @else
+                                        <span class="text-xs text-gray-400">—</span>
+                                    @endif
+                                </td>
+                            @endif
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="{{ $canEditManualLines ? 9 : 8 }}" class="px-3 py-8 text-center text-gray-500">
+                                No loan deductions for this employee in this batch.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+                @if ($detail->loanPayments->isNotEmpty())
+                    <tfoot>
+                        <tr class="bg-gray-50 font-semibold">
+                            <td class="px-3 py-2 text-gray-900" colspan="4">Total</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ number_format($detail->loanPayments->sum(fn ($p) => (float) $p->payment), 2) }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ number_format($detail->loanPayments->sum(fn ($p) => (float) ($p->penalty ?? 0)), 2) }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ number_format($detail->loanPayments->sum(fn ($p) => $p->amount()), 2) }}</td>
+                            <td colspan="{{ $canEditManualLines ? 2 : 1 }}"></td>
+                        </tr>
+                    </tfoot>
+                @endif
+            </table>
+        </div>
+    </div>
+
     <div class="employee-tab-panel {{ $activeTab === 'disputes' ? '' : 'hidden' }}" data-employee-tab-panel="disputes">
         @include('payroll.transaction._batch-employee-disputes-tab', [
             'batch' => $batch,

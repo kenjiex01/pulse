@@ -194,9 +194,10 @@ class TimekeepingMemoAttendanceService
             $policy,
             $shift?->time_in ?? $defaultShift?->time_in,
             0,
+            $shift ?? $defaultShift,
         );
 
-        return (bool) ($resolved['is_absent'] ?? false);
+        return (bool) ($resolved['is_absent'] ?? false) || (bool) ($resolved['is_half_day'] ?? false);
     }
 
     /**

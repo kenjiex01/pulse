@@ -178,7 +178,7 @@
                                 @endif
                             </td>
                             <td class="px-3 py-2 text-gray-600">
-                                @if ($record->category === \App\Models\PayrollDispute::UNPAID_OVERTIME)
+                                @if (in_array($record->category, [\App\Models\PayrollDispute::UNPAID_OVERTIME, \App\Models\PayrollDispute::OVER_PAYMENT_OVERTIME], true))
                                     OT {{ $record->ot_start ?? '—' }} – {{ $record->ot_end ?? '—' }}
                                 @elseif ($record->category === \App\Models\PayrollDispute::OVER_DEDUCTION_LATE)
                                     In {{ $record->time_in ?? '—' }}
@@ -187,7 +187,7 @@
                                 @endif
                             </td>
                             <td class="px-3 py-2 text-gray-600">{{ $record->payrollBatch ? '#'.$record->payrollBatch->formattedBatchNo() : '—' }}</td>
-                            <td class="px-3 py-2 text-right text-gray-900">{{ number_format($record->expectedTotal(), 2) }}</td>
+                            <td class="px-3 py-2 text-right text-gray-900">{{ number_format($record->signedExpectedTotal(), 2) }}</td>
                         @elseif ($uploadType === 'leaves')
                             <td class="px-3 py-2 text-gray-600">{{ $record->leaveType?->leave_type_code ?? '—' }}</td>
                             <td class="px-3 py-2 text-gray-600">{{ $record->dt_from?->format('M j, Y') ?? '—' }}</td>

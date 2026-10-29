@@ -63,6 +63,25 @@ class PayrollBatchNetPayLinesTest extends TestCase
         $this->assertSame(18.75, $lines[0]['amount']);
     }
 
+    public function test_deduction_rows_show_absence_days(): void
+    {
+        $absentType = DeductionType::query()->where('deduction_type_code', 'ABST')->firstOrFail();
+        $deduction = new PayrollDeduction([
+            'deduction_type_id' => $absentType->deduction_type_id,
+            'hours' => 4,
+            'days' => 0.5,
+            'employee_amount' => 500,
+            'employer_amount' => 0,
+        ]);
+        $deduction->setRelation('deductionType', $absentType);
+
+        $rows = PayrollBatchNetPayLines::deductionRows(collect([$deduction]));
+
+        $this->assertTrue($rows->first()['show_days']);
+        $this->assertSame(0.5, $rows->first()['days']);
+        $this->assertSame('Absences', $rows->first()['description']);
+    }
+
     public function test_deduction_rows_use_philhealth_premium_label(): void
     {
         $phimType = DeductionType::query()->where('deduction_type_code', PhilhealthDeductionTypes::MINIMUM)->firstOrFail();

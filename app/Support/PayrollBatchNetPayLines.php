@@ -38,9 +38,9 @@ class PayrollBatchNetPayLines
                 $code = $first->deductionType?->deduction_type_code;
                 $hoursSum = $group->sum(fn ($deduction) => (float) ($deduction->hours ?? 0));
                 $daysSum = $group->sum(fn ($deduction) => (float) ($deduction->days ?? 0));
-                $hasHours = in_array($code, ['LTDE', 'UTDE'], true)
+                $hasHours = in_array($code, ['LTDE', 'UTDE', 'ABST'], true)
                     && $group->contains(fn ($deduction) => $deduction->hours !== null);
-                $hasDays = in_array($code, ['LTDE', 'UTDE'], true)
+                $hasDays = in_array($code, ['LTDE', 'UTDE', 'ABST'], true)
                     && $group->contains(fn ($deduction) => $deduction->days !== null);
 
                 return [

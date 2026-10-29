@@ -283,11 +283,19 @@ class EmployeeAttendanceViewService
                 $metrics['basic'] = $this->scheduledHours($cursor, $shift?->time_in, $shift?->time_out, $shift);
             }
 
+            if (! $isRestDay) {
+                $lateStatus = $this->lateStatusForDay($cursor, $timeIn, $timeOut, $policy, $shift);
+                $metrics['is_half_day'] = (bool) ($metrics['is_half_day'] ?? false) || $lateStatus['is_half_day'];
+                $metrics['is_absent'] = (bool) ($metrics['is_absent'] ?? false) || $lateStatus['is_absent'];
+            }
+
+            $dayType = $this->attendanceStatusLabel($isRestDay, $metrics);
+
             $days[] = [
                 'date' => $dateKey,
                 'date_label' => $cursor->format('m/d/Y'),
                 'label' => $cursor->format('l, M j, Y'),
-                'day_type' => $saved?->day_type ?? ($isRestDay ? 'Restday' : 'Regular'),
+                'day_type' => $dayType,
                 'is_rest_day' => $isRestDay,
                 'shift_code_id' => $shift?->shift_code_id ?? $saved?->shift_code_id,
                 'shift_label' => $this->formatShiftLabel($shift),
@@ -311,6 +319,15 @@ class EmployeeAttendanceViewService
                 'late' => $metrics['late'],
                 'undertime' => $metrics['undertime'],
                 'break_late' => $metrics['break_late'],
+                'is_half_day' => (bool) ($metrics['is_half_day'] ?? false)
+                    || str_contains(strtolower($dayType), 'half-day'),
+                'is_absent_tag' => (bool) ($metrics['is_absent'] ?? false)
+                    || str_contains(strtolower($dayType), 'absent'),
+                'late_label' => (
+                    (bool) ($metrics['is_half_day'] ?? false)
+                    || (bool) ($metrics['is_absent'] ?? false)
+                    || str_contains(strtolower($dayType), 'absent')
+                ) ? 'Absent' : null,
             ];
 
             $cursor = $cursor->addDay();
@@ -440,7 +457,7 @@ class EmployeeAttendanceViewService
             $this->formatMetric($day['ot'] ?? null),
             $this->formatMetric($day['ndiff'] ?? null),
             $this->formatMetric($day['ndot'] ?? null),
-            $this->formatMetric($day['late'] ?? null),
+            (string) ($day['late_label'] ?? $this->formatMetric($day['late'] ?? null)),
             $this->formatMetric($day['undertime'] ?? null),
             $this->formatMetric($day['break_late'] ?? null),
         ];
@@ -517,6 +534,13 @@ class EmployeeAttendanceViewService
         $lateMinutes = 0;
         $undertimeMinutes = 0;
         $breakLateMinutes = 0;
+        $lateResolved = [
+            'is_half_day' => false,
+            'is_absent' => false,
+            'half_day_absent_minutes' => 0,
+            'billable_minutes' => 0,
+            'ot_offset_minutes' => 0,
+        ];
 
         if (! $isFlexi) {
             $lateResolved = $this->timeLogsPayroll->resolvedLateForSession(
@@ -524,8 +548,8 @@ class EmployeeAttendanceViewService
                 $policy,
                 $scheduleStart,
                 $approvedOtMinutes,
+                $shift,
             );
-
             if (! $lateResolved['is_absent'] && (int) ($lateResolved['ot_offset_minutes'] ?? 0) === 0) {
                 $lateMinutes = (int) $lateResolved['billable_minutes'];
             }
@@ -580,6 +604,8 @@ class EmployeeAttendanceViewService
         $metrics['late'] = $lateMinutes > 0 ? round($lateMinutes / 60, 2) : 0.0;
         $metrics['undertime'] = $undertimeMinutes > 0 ? round($undertimeMinutes / 60, 2) : 0.0;
         $metrics['break_late'] = $breakLateMinutes > 0 ? round($breakLateMinutes / 60, 2) : 0.0;
+        $metrics['is_half_day'] = (bool) ($lateResolved['is_half_day'] ?? false);
+        $metrics['is_absent'] = (bool) ($lateResolved['is_absent'] ?? false);
 
         return $metrics;
     }
@@ -595,7 +621,9 @@ class EmployeeAttendanceViewService
      *     ndsot: float|null,
      *     late: float|null,
      *     undertime: float|null,
-     *     break_late: float|null
+     *     break_late: float|null,
+     *     is_half_day: bool,
+     *     is_absent: bool
      * }
      */
     private function emptyMetrics(): array
@@ -611,7 +639,61 @@ class EmployeeAttendanceViewService
             'late' => null,
             'undertime' => null,
             'break_late' => null,
+            'is_half_day' => false,
+            'is_absent' => false,
         ];
+    }
+
+    /**
+     * @return array{is_half_day: bool, is_absent: bool}
+     */
+    private function lateStatusForDay(
+        CarbonImmutable $date,
+        ?string $timeIn,
+        ?string $timeOut,
+        ?TimekeepingPolicy $policy,
+        ?ShiftCode $shift,
+    ): array {
+        if ($timeIn === null || $timeIn === '' || ($shift !== null && (bool) $shift->is_flexi_time)) {
+            return ['is_half_day' => false, 'is_absent' => false];
+        }
+
+        $resolved = $this->timeLogsPayroll->resolvedLateForSession(
+            [
+                'date' => $date,
+                'time_in' => $timeIn,
+                'time_out' => $timeOut,
+            ],
+            $policy,
+            $shift?->time_in,
+            0,
+            $shift,
+        );
+
+        return [
+            'is_half_day' => (bool) ($resolved['is_half_day'] ?? false),
+            'is_absent' => (bool) ($resolved['is_absent'] ?? false),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $metrics
+     */
+    private function attendanceStatusLabel(bool $isRestDay, array $metrics): string
+    {
+        if ($isRestDay) {
+            return 'Restday';
+        }
+
+        if ($metrics['is_absent'] ?? false) {
+            return 'Absent';
+        }
+
+        if ($metrics['is_half_day'] ?? false) {
+            return 'Half-day Absent';
+        }
+
+        return 'Regular';
     }
 
     private function scheduledHours(

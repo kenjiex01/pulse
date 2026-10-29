@@ -209,7 +209,7 @@ class PayrollAttendanceHoursWorkedService
             'time_out' => $timeOut,
         ];
 
-        $lateResolved = $this->timeLogsPayroll->resolvedLateForSession($session, $policy, $scheduleStart);
+        $lateResolved = $this->timeLogsPayroll->resolvedLateForSession($session, $policy, $scheduleStart, 0, $shiftCode);
 
         if ($lateResolved['is_absent']) {
             return;

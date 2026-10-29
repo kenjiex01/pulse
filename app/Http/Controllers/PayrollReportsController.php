@@ -87,7 +87,7 @@ class PayrollReportsController extends Controller
             'payYears' => $replayValidation && $selectedReport && in_array($selectedReport->options_key, ['bir-2316', 'alphalist'], true)
                 ? $this->batchOptions->postedPayYearsForUser($request->user())
                 : [],
-            'employees' => $replayValidation && $selectedReport && in_array($selectedReport->options_key, ['historical-data', 'employee-credentials', 'attendance-view'], true)
+            'employees' => $replayValidation && $selectedReport && in_array($selectedReport->options_key, ['historical-data', 'employee-credentials', 'attendance-view', 'attendance-report'], true)
                 ? $this->employeesForReportOptions($request->user())
                 : collect(),
             'memoForms' => $replayValidation && $selectedReport && $selectedReport->options_key === 'memo'
@@ -118,7 +118,7 @@ class PayrollReportsController extends Controller
             'groupColumns' => config('payroll_reports.group_columns', []),
         ];
 
-        if (in_array($report->options_key, ['historical-data', 'employee-credentials', 'attendance-view'], true)) {
+        if (in_array($report->options_key, ['historical-data', 'employee-credentials', 'attendance-view', 'attendance-report'], true)) {
             $viewData['employees'] = $this->employeesForReportOptions($request->user());
         }
 

@@ -52,7 +52,10 @@ class PayrollMaintenanceSeeder extends Seeder
             ['deduction_type_code' => 'WHTX', 'description' => 'Withholding Tax', 'employer_amount' => 0, 'is_valid_govt_deduction' => true, 'govt_table_id' => 5, 'is_active' => true],
             ['deduction_type_code' => 'LTDE', 'description' => 'Late', 'employer_amount' => 0, 'is_active' => true],
             ['deduction_type_code' => 'UTDE', 'description' => 'Undertime', 'employer_amount' => 0, 'is_active' => true],
+            ['deduction_type_code' => 'ABST', 'description' => 'Absences', 'employer_amount' => 0, 'is_active' => true],
             ['deduction_type_code' => 'OTHR', 'description' => 'Other Deductions', 'employer_amount' => 0, 'is_active' => true],
+            ['deduction_type_code' => 'DOPD', 'description' => 'Dispute - Over Payment Days', 'employer_amount' => 0, 'is_active' => true],
+            ['deduction_type_code' => 'DOPO', 'description' => 'Dispute - Over Payment Overtime', 'employer_amount' => 0, 'is_active' => true],
         ];
 
         foreach ($deductionTypes as $deductionType) {

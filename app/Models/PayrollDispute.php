@@ -18,12 +18,24 @@ class PayrollDispute extends Model
 
     public const OVER_DEDUCTION_LATE = 'ODL';
 
+    public const OVER_PAYMENT_DAYS = 'OPD';
+
+    public const OVER_PAYMENT_OVERTIME = 'OPO';
+
     /** @var array<string, string> */
     public const CATEGORIES = [
         self::UNPAID_DAYS => 'Unpaid Days',
         self::UNPAID_OVERTIME => 'Unpaid Overtime',
         self::OVER_DEDUCTION_UNDERTIME => 'Over Deduction - Undertime',
         self::OVER_DEDUCTION_LATE => 'Over Deduction - Late',
+        self::OVER_PAYMENT_DAYS => 'Over Payment - Days',
+        self::OVER_PAYMENT_OVERTIME => 'Over Payment - Overtime',
+    ];
+
+    /** Deduction type code for categories that recover an overpayment. */
+    public const DEDUCTION_TYPE_CODES = [
+        self::OVER_PAYMENT_DAYS => 'DOPD',
+        self::OVER_PAYMENT_OVERTIME => 'DOPO',
     ];
 
     /** Income type code used for each category's main line. */
@@ -87,6 +99,33 @@ class PayrollDispute extends Model
     public function categoryName(): string
     {
         return self::categoryLabel($this->category);
+    }
+
+    public static function isOverPaymentCategory(?string $category): bool
+    {
+        return array_key_exists((string) $category, self::DEDUCTION_TYPE_CODES);
+    }
+
+    public function isOverPayment(): bool
+    {
+        return self::isOverPaymentCategory($this->category);
+    }
+
+    /** Expected total with overpayments as negative (deducted from the employee). */
+    public function signedExpectedTotal(): float
+    {
+        return $this->isOverPayment() ? -$this->expectedTotal() : $this->expectedTotal();
+    }
+
+    public function signedComputedTotal(): ?float
+    {
+        $computed = $this->computedTotal();
+
+        if ($computed === null) {
+            return null;
+        }
+
+        return $this->isOverPayment() ? -$computed : $computed;
     }
 
     public function expectedTotal(): float

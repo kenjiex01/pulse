@@ -17,8 +17,8 @@
 @endif
 
 <p class="mb-3 text-xs text-gray-500">
-    Disputes pay back days from a previous (posted) pay period using the times filed here, not the raw logs.
-    Process/Reprocess the batch to apply them as income lines.
+    Disputes correct days from a previous (posted) pay period using the times filed here, not the raw logs.
+    Process/Reprocess the batch to apply them — unpaid / over-deduction disputes become income lines; Over Payment disputes become deduction lines (shown as negative).
 </p>
 
 <div class="overflow-x-auto rounded-lg border border-gray-200">
@@ -37,9 +37,15 @@
         <tbody>
             @forelse ($disputes as $dispute)
                 @php
-                    $computed = $dispute->computedTotal();
+                    $computed = $dispute->signedComputedTotal();
                     $times = match ($dispute->category) {
                         PayrollDispute::UNPAID_OVERTIME => 'OT '.($shortTime($dispute->ot_start) ?? '—').' – '.($shortTime($dispute->ot_end) ?? '—'),
+                        PayrollDispute::OVER_PAYMENT_OVERTIME => $dispute->ot_start
+                            ? 'Actual OT '.$shortTime($dispute->ot_start).' – '.($shortTime($dispute->ot_end) ?? '—')
+                            : 'No OT rendered',
+                        PayrollDispute::OVER_PAYMENT_DAYS => $dispute->time_in
+                            ? ($shortTime($dispute->time_in) ?? '—').' – '.($shortTime($dispute->time_out) ?? '—')
+                            : 'Absent',
                         PayrollDispute::OVER_DEDUCTION_LATE => 'In '.($shortTime($dispute->time_in) ?? '—'),
                         default => ($shortTime($dispute->time_in) ?? '—').' – '.($shortTime($dispute->time_out) ?? '—'),
                     };
@@ -53,9 +59,9 @@
                             <span class="block text-xs text-gray-500">Shift {{ $dispute->shiftCode->shift_code }}</span>
                         @endif
                     </td>
-                    <td class="px-3 py-2 text-right text-gray-900">
-                        {{ number_format($dispute->expectedTotal(), 2) }}
-                        @if ((float) $dispute->expected_ot_pay > 0)
+                    <td class="px-3 py-2 text-right {{ $dispute->isOverPayment() ? 'text-red-700' : 'text-gray-900' }}">
+                        {{ number_format($dispute->signedExpectedTotal(), 2) }}
+                        @if ((float) $dispute->expected_ot_pay > 0 && ! $dispute->isOverPayment())
                             <span class="block text-xs text-gray-500">incl. OT {{ number_format((float) $dispute->expected_ot_pay, 2) }}</span>
                         @endif
                     </td>
@@ -115,8 +121,8 @@
             <tfoot>
                 <tr class="bg-gray-50 font-semibold">
                     <td class="px-3 py-2 text-gray-900" colspan="3">Total</td>
-                    <td class="px-3 py-2 text-right text-gray-900">{{ number_format($disputes->sum(fn ($d) => $d->expectedTotal()), 2) }}</td>
-                    <td class="px-3 py-2 text-right text-gray-900">{{ number_format($disputes->sum(fn ($d) => (float) $d->computedTotal()), 2) }}</td>
+                    <td class="px-3 py-2 text-right text-gray-900">{{ number_format($disputes->sum(fn ($d) => $d->signedExpectedTotal()), 2) }}</td>
+                    <td class="px-3 py-2 text-right text-gray-900">{{ number_format($disputes->sum(fn ($d) => (float) $d->signedComputedTotal()), 2) }}</td>
                     <td colspan="2"></td>
                 </tr>
             </tfoot>

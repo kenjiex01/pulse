@@ -5,7 +5,7 @@
 <div class="space-y-4">
     <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm">
         <div>
-            <span class="font-medium text-gray-900">{{ $day['day_type'] }}</span>
+            <span class="font-medium {{ ! empty($day['is_absent_tag']) ? 'text-red-600' : 'text-gray-900' }}">{{ $day['day_type'] }}</span>
             <span class="text-gray-400">·</span>
             <span class="text-gray-600">{{ $day['shift_label'] }}</span>
         </div>

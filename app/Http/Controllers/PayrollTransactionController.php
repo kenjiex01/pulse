@@ -12,6 +12,7 @@ use App\Models\PayrollBatchStatus;
 use App\Models\PayrollCalendar;
 use App\Models\PayrollDeduction;
 use App\Models\PayrollIncome;
+use App\Models\PayrollLoanPayment;
 use App\Models\RawPayrollTransaction;
 use App\Models\ShiftCode;
 use App\Services\EmployeeOvertimeApprovalService;
@@ -87,6 +88,9 @@ class PayrollTransactionController extends Controller
         $openAddEmployeeOvertime = false;
         $openEditIncomeId = null;
         $openEditDeductionId = null;
+        $availableLoans = collect();
+        $openAddEmployeeLoan = false;
+        $openEditLoanPaymentId = null;
         $disputes = collect();
         $openAddEmployeeDispute = false;
         $openEditDisputeId = null;
@@ -160,6 +164,8 @@ class PayrollTransactionController extends Controller
                             'edit_dispute' => $request->input('edit_dispute'),
                             'edit_income' => $request->input('edit_income'),
                             'edit_deduction' => $request->input('edit_deduction'),
+                            'add_loan' => $request->boolean('add_loan') ? 1 : null,
+                            'edit_loan_payment' => $request->input('edit_loan_payment'),
                         ]));
                     }
 
@@ -297,6 +303,14 @@ class PayrollTransactionController extends Controller
                                 ? (int) old('edit_payroll_deduction_id')
                                 : ($request->filled('edit_deduction') ? (int) $request->input('edit_deduction') : null);
 
+                            $availableLoans = $this->batchService->loansAvailableForDetail($viewBatchDetail);
+                            $openAddEmployeeLoan = $request->boolean('add_loan')
+                                || ($hasErrors && old('form_context') === 'add-batch-employee-loan'
+                                    && (int) old('payroll_batch_detail_id') === (int) $viewBatchDetail->payroll_batch_detail_id);
+                            $openEditLoanPaymentId = old('edit_payroll_loan_payment_id')
+                                ? (int) old('edit_payroll_loan_payment_id')
+                                : ($request->filled('edit_loan_payment') ? (int) $request->input('edit_loan_payment') : null);
+
                             if (! $disputesEditable) {
                                 $openAddEmployeeDispute = false;
                                 $openEditDisputeId = null;
@@ -321,6 +335,8 @@ class PayrollTransactionController extends Controller
                         $openAddEmployeeOvertime = false;
                         $openEditIncomeId = null;
                         $openEditDeductionId = null;
+                        $openAddEmployeeLoan = false;
+                        $openEditLoanPaymentId = null;
                     }
                 }
             }
@@ -441,6 +457,9 @@ class PayrollTransactionController extends Controller
             'openAddEmployeeOvertime' => $openAddEmployeeOvertime,
             'openEditIncomeId' => $openEditIncomeId,
             'openEditDeductionId' => $openEditDeductionId,
+            'availableLoans' => $availableLoans,
+            'openAddEmployeeLoan' => $openAddEmployeeLoan,
+            'openEditLoanPaymentId' => $openEditLoanPaymentId,
             'disputes' => $disputes,
             'openAddEmployeeDispute' => $openAddEmployeeDispute,
             'openEditDisputeId' => $openEditDisputeId,
@@ -1067,6 +1086,136 @@ class PayrollTransactionController extends Controller
 
         return $this->manualLineRedirect($request, $batch, $detail, 'deductions')
             ->with('success', 'Deduction line deleted for '.$detail->employee?->full_name.'.');
+    }
+
+    public function storeEmployeeLoanPayment(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        if ((int) $detail->payroll_batch_id !== (int) $batch->payroll_batch_id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'employee_loan_id' => ['required', 'integer', 'exists:tbl_employee_loans,employee_loan_id'],
+            ...$this->manualLoanPaymentRules(),
+        ]);
+
+        try {
+            $payment = $this->batchService->addLoanPaymentToDetail($batch, $detail, $validated);
+        } catch (ValidationException $exception) {
+            return $this->manualLineRedirect($request, $batch, $detail, 'loans', ['add_loan' => 1])
+                ->withErrors($exception->errors())
+                ->withInput();
+        }
+
+        $detail->loadMissing('employee');
+
+        SysLogService::record(
+            action: 'create',
+            table: 'trn_payroll_loan_payments',
+            recordId: $payment->payroll_loan_payment_id,
+            newValues: $this->manualLoanPaymentLogValues($payment),
+            description: 'Added loan deduction '.$this->loanPaymentLabel($payment).' for employee '
+                .($detail->employee?->employee_number ?? $detail->employee_id)
+                .' in payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return $this->manualLineRedirect($request, $batch, $detail, 'loans')
+            ->with('success', 'Loan deduction added for '.$detail->employee?->full_name.'.');
+    }
+
+    public function updateEmployeeLoanPayment(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail, PayrollLoanPayment $loanPayment): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        $validated = $request->validate($this->manualLoanPaymentRules());
+        $loanPayment->loadMissing('employeeLoan.loanType');
+        $oldValues = $this->manualLoanPaymentLogValues($loanPayment);
+
+        try {
+            $loanPayment = $this->batchService->updateLoanPaymentOnDetail($batch, $detail, $loanPayment, $validated);
+        } catch (ValidationException $exception) {
+            return $this->manualLineRedirect($request, $batch, $detail, 'loans', ['edit_loan_payment' => $loanPayment->payroll_loan_payment_id])
+                ->withErrors($exception->errors(), 'editLoanPayment'.$loanPayment->payroll_loan_payment_id)
+                ->withInput();
+        }
+
+        $detail->loadMissing('employee');
+
+        SysLogService::record(
+            action: 'update',
+            table: 'trn_payroll_loan_payments',
+            recordId: $loanPayment->payroll_loan_payment_id,
+            oldValues: $oldValues,
+            newValues: $this->manualLoanPaymentLogValues($loanPayment),
+            description: 'Updated loan deduction '.$this->loanPaymentLabel($loanPayment).' for employee '
+                .($detail->employee?->employee_number ?? $detail->employee_id)
+                .' in payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return $this->manualLineRedirect($request, $batch, $detail, 'loans')
+            ->with('success', 'Loan deduction updated for '.$detail->employee?->full_name.'.');
+    }
+
+    public function destroyEmployeeLoanPayment(Request $request, PayrollBatch $batch, PayrollBatchDetail $detail, PayrollLoanPayment $loanPayment): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'edit');
+
+        $loanPayment->loadMissing('employeeLoan.loanType');
+        $oldValues = $this->manualLoanPaymentLogValues($loanPayment);
+
+        try {
+            $this->batchService->deleteLoanPaymentFromDetail($batch, $detail, $loanPayment);
+        } catch (ValidationException $exception) {
+            return $this->manualLineRedirect($request, $batch, $detail, 'loans')
+                ->with('error', collect($exception->errors())->flatten()->first());
+        }
+
+        $detail->loadMissing('employee');
+
+        SysLogService::record(
+            action: 'delete',
+            table: 'trn_payroll_loan_payments',
+            recordId: $loanPayment->payroll_loan_payment_id,
+            oldValues: $oldValues,
+            description: 'Deleted loan deduction '.$this->loanPaymentLabel($loanPayment).' for employee '
+                .($detail->employee?->employee_number ?? $detail->employee_id)
+                .' in payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return $this->manualLineRedirect($request, $batch, $detail, 'loans')
+            ->with('success', 'Loan deduction deleted for '.$detail->employee?->full_name.'.');
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    private function manualLoanPaymentRules(): array
+    {
+        return [
+            'payment' => ['required', 'numeric', 'min:0.01'],
+            'penalty' => ['nullable', 'numeric', 'min:0'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function manualLoanPaymentLogValues(PayrollLoanPayment $payment): array
+    {
+        return [
+            'payroll_batch_detail_id' => $payment->payroll_batch_detail_id,
+            'employee_loan_id' => $payment->employee_loan_id,
+            'payment' => (float) $payment->payment,
+            'penalty' => (float) ($payment->penalty ?? 0),
+            'is_manual' => (bool) $payment->is_manual,
+        ];
+    }
+
+    private function loanPaymentLabel(PayrollLoanPayment $payment): string
+    {
+        return $payment->employeeLoan?->loanType?->loan_type_code ?? ('loan #'.$payment->employee_loan_id);
     }
 
     /**
