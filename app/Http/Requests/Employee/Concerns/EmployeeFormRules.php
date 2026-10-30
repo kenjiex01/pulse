@@ -55,6 +55,7 @@ trait EmployeeFormRules
             'employee_salaries.*.use_basic_income_as_hourly_rate' => ['nullable', 'boolean'],
             'employee_salaries.*.is_above_minimum_wage_earner' => ['nullable', 'boolean'],
             'employee_salaries.*.is_fixed_rate' => ['nullable', 'boolean'],
+            'employee_salaries.*.use_payroll_calendar_days' => ['nullable', 'boolean'],
             'employee_salaries.*.incomes' => ['nullable', 'array'],
             'employee_salaries.*.incomes.*.income_type_id' => ['required_with:employee_salaries.*.incomes.*', Rule::exists('tbl_income_types', 'income_type_id')],
             'employee_salaries.*.incomes.*.taxable' => ['nullable', 'numeric', 'min:0'],
@@ -399,6 +400,7 @@ trait EmployeeFormRules
             $record['use_basic_income_as_hourly_rate'] = ! empty($record['use_basic_income_as_hourly_rate']);
             $record['is_above_minimum_wage_earner'] = ! empty($record['is_above_minimum_wage_earner']);
             $record['is_fixed_rate'] = ! empty($record['is_fixed_rate']);
+            $record['use_payroll_calendar_days'] = ! empty($record['use_payroll_calendar_days']);
 
             foreach (['incomes', 'deductions'] as $collection) {
                 if (! isset($record[$collection]) || ! is_array($record[$collection])) {

@@ -37,13 +37,21 @@
         "employee_salaries.$salaryIndex.is_fixed_rate",
         $salary['is_fixed_rate'] ?? false,
     );
+    $usePayrollCalendarDays = (bool) old(
+        "employee_salaries.$salaryIndex.use_payroll_calendar_days",
+        $salary['use_payroll_calendar_days'] ?? false,
+    );
+    $displayDaysPerPeriod = $daysPerPeriod;
+    if ($usePayrollCalendarDays && ! $useBasicIncomeAsHourlyRate && $displayDaysPerPeriod !== '' && (float) $displayDaysPerPeriod > 0) {
+        $displayDaysPerPeriod = (float) $displayDaysPerPeriod / 2;
+    }
     $payrollBasis = $payrollBasis ?? \App\Models\EmployeeCategory::BASIS_LOGS;
     $lockPayrollBasis = $lockPayrollBasis ?? false;
     $initialHourlyRate = $useBasicIncomeAsHourlyRate
         ? ($basicIncomeAmount > 0 ? round($basicIncomeAmount, 2) : null)
         : \App\Models\EmployeeSalary::computeHourlyRate(
             $basicIncomeAmount,
-            $daysPerPeriod,
+            $displayDaysPerPeriod,
             old("employee_salaries.$salaryIndex.hours_per_day", $salary['hours_per_day'] ?? '8.00'),
         );
 @endphp
@@ -263,6 +271,20 @@
                 <span class="mt-0.5 block text-xs font-normal text-gray-500">Pays the full Basic Income. Late, undertime, and absent are not deducted. Government deductions still apply when this payroll batch includes them.</span>
             </span>
         </label>
+        <label class="mb-3 flex items-start gap-2 text-sm text-gray-700">
+            <input
+                type="checkbox"
+                name="employee_salaries[{{ $salaryIndex }}][use_payroll_calendar_days]"
+                value="1"
+                class="mt-0.5"
+                data-salary-use-payroll-calendar-days
+                @checked($usePayrollCalendarDays)
+            >
+            <span>
+                Use Payroll Calendar Days
+                <span class="mt-0.5 block text-xs font-normal text-gray-500">Basic Income is paid in full. Absences, late, and undertime are deductions, using the working days in that payroll calendar. Rest days from the employee's timekeeping setup are not absences.</span>
+            </span>
+        </label>
         <label class="form-label">Hourly Rate</label>
         <input
             type="text"
@@ -275,7 +297,9 @@
         <p class="mt-1 text-xs text-gray-500" data-salary-hourly-rate-hint>
             {{ $useBasicIncomeAsHourlyRate
                 ? 'Uses Basic Income amount directly.'
-                : 'Auto-computed from Basic Income, Days Per Period, and Hours Per Day.' }}
+                : ($usePayrollCalendarDays
+                    ? 'Auto-computed from Basic Income, half of Days Per Period, and Hours Per Day. Each payroll cutoff uses that cutoff\'s working days.'
+                    : 'Auto-computed from Basic Income, Days Per Period, and Hours Per Day.') }}
         </p>
     </div>
 

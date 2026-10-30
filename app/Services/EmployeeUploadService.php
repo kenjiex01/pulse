@@ -495,6 +495,7 @@ class EmployeeUploadService
             $prefix.'use_basic_income_as_hourly_rate' => $this->exportYesNo($salary->use_basic_income_as_hourly_rate),
             $prefix.'is_above_minimum_wage_earner' => $this->exportYesNo($salary->is_above_minimum_wage_earner),
             $prefix.'is_fixed_rate' => $this->exportYesNo($salary->is_fixed_rate),
+            $prefix.'use_payroll_calendar_days' => $this->exportYesNo($salary->use_payroll_calendar_days),
             $prefix.'basic_taxable' => $basicTaxable,
             $prefix.'basic_non_taxable' => $basicNonTaxable,
             $prefix.'incomes' => $incomes,

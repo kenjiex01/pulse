@@ -1106,6 +1106,8 @@ class PayrollTransactionUploadService
             Carbon::parse((string) $parsed['dt_reference'])->toDateString(),
             (string) $parsed[$timeField],
             $hours,
+            $calendar?->dt_from,
+            $calendar?->dt_to,
         );
 
         if (($preview['hours'] ?? null) === null || $preview['hours'] <= 0) {

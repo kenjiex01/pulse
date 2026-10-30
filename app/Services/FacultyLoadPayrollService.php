@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Employee;
+use App\Support\PayrollCalendarWorkingDays;
 use App\Models\EmployeeSalary;
 use App\Models\RawEmployeeLoadEntry;
 use App\Models\ShiftCode;
@@ -225,7 +226,9 @@ class FacultyLoadPayrollService
             $undertimeMinutes += $dayUndertime;
         }
 
-        $hourlyRate = $salary->hourlyRate();
+        $hourlyRate = $salary->hourlyRate(
+            PayrollCalendarWorkingDays::forEmployeeSalary($salary, (int) $employee->employee_id, $from, $to),
+        );
         $basicTaxable = ($hourlyRate !== null && $computedHours > 0)
             ? round($computedHours * $hourlyRate, 2)
             : 0.0;

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\BasicComputation;
+use App\Support\PayrollCalendarWorkingDays;
 use App\Models\DeductionType;
 use App\Models\EmployeeSalary;
 use App\Models\PayType;
@@ -46,6 +47,7 @@ class EmployeeLoadPayrollService
             'absent_sessions' => 0,
             'late_days' => 0,
             'undertime_days' => 0,
+            'worked_dates' => [],
         ];
 
         if ((int) $salary->basic_computation_id !== BasicComputation::TIME_IN_OUT) {
@@ -59,7 +61,8 @@ class EmployeeLoadPayrollService
         }
 
         $workedDays = $this->countWorkedDays($entries, $policy);
-        $dailyRate = $this->dailyRate($salary);
+        $rateDays = PayrollCalendarWorkingDays::forEmployeeSalary($salary, $employeeId, $from, $to);
+        $dailyRate = $this->dailyRate($salary, $rateDays);
         $basicTaxable = $dailyRate !== null
             ? round($dailyRate * $workedDays, 2)
             : 0.0;
@@ -69,7 +72,7 @@ class EmployeeLoadPayrollService
         $lateDays = $this->countLateDays($entries, $policy);
         $undertimeDays = $this->countUndertimeDays($entries, $policy);
         $absentSessions = $this->countAbsentSessions($entries, $policy);
-        $hourlyRate = $salary->hourlyRate();
+        $hourlyRate = $salary->hourlyRate($rateDays);
         $lateDeduction = ($lateMinutes > 0 && $hourlyRate !== null)
             ? round(($lateMinutes / 60) * $hourlyRate, 2)
             : 0.0;
@@ -79,6 +82,7 @@ class EmployeeLoadPayrollService
 
         return [
             'worked_days' => $workedDays,
+            'worked_dates' => $this->workedDates($entries, $policy),
             'basic_taxable' => $basicTaxable,
             'basic_non_taxable' => 0.0,
             'late_minutes' => $lateMinutes,
@@ -136,6 +140,7 @@ class EmployeeLoadPayrollService
         }
 
         $workedDays = 0;
+        $workedDates = [];
         $basicTaxable = 0.0;
         $lateMinutes = 0;
         $lateDeduction = 0.0;
@@ -190,16 +195,19 @@ class EmployeeLoadPayrollService
                 $undertimeDays++;
             }
 
+            $rateDays = PayrollCalendarWorkingDays::forEmployeeSalary($salary, $employeeId, $from, $to);
+
             if ($workedThisDay) {
-                $dailyRate = $this->dailyRate($salary);
+                $dailyRate = $this->dailyRate($salary, $rateDays);
 
                 if ($dailyRate !== null) {
                     $basicTaxable += $dailyRate;
                     $workedDays++;
+                    $workedDates[] = (string) $date;
                 }
             }
 
-            $hourlyRate = $salary->hourlyRate();
+            $hourlyRate = $salary->hourlyRate($rateDays);
 
             if ($hourlyRate === null) {
                 continue;
@@ -218,6 +226,7 @@ class EmployeeLoadPayrollService
 
         return [
             'worked_days' => $workedDays,
+            'worked_dates' => $workedDates,
             'basic_taxable' => round($basicTaxable, 2),
             'basic_non_taxable' => 0.0,
             'late_minutes' => $lateMinutes,
@@ -413,6 +422,34 @@ class EmployeeLoadPayrollService
 
     /**
      * @param  Collection<int, RawEmployeeLoadEntry>  $entries
+     * @return list<string>
+     */
+    public function workedDates(Collection $entries, ?TimekeepingPolicy $policy = null): array
+    {
+        return $entries
+            ->groupBy(fn (RawEmployeeLoadEntry $entry) => $entry->session_date?->toDateString())
+            ->filter(fn ($group, $date) => $date !== null && $date !== '')
+            ->filter(function (Collection $dayEntries) use ($policy) {
+                foreach ($dayEntries as $entry) {
+                    if ($entry->time_in === null || $entry->time_in === '') {
+                        continue;
+                    }
+
+                    if (! $this->resolvedLateForEntry($entry, $policy)['is_absent']) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
+            ->keys()
+            ->map(fn ($date) => (string) $date)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  Collection<int, RawEmployeeLoadEntry>  $entries
      */
     public function countAbsentSessions(Collection $entries, ?TimekeepingPolicy $policy = null): int
     {
@@ -427,10 +464,10 @@ class EmployeeLoadPayrollService
         return $count;
     }
 
-    public function dailyRate(EmployeeSalary $salary): ?float
+    public function dailyRate(EmployeeSalary $salary, ?float $rateDays = null): ?float
     {
         $basicIncome = $salary->basicIncomeAmount();
-        $daysPerPeriod = $salary->days_per_period;
+        $daysPerPeriod = ($rateDays !== null && $rateDays > 0) ? $rateDays : $salary->days_per_period;
 
         if ($daysPerPeriod === null || (float) $daysPerPeriod <= 0) {
             $daysPerPeriod = PayType::autoDaysPerPeriod((int) $salary->pay_type_id);

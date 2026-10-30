@@ -12,6 +12,7 @@ use App\Models\TimekeepingHoliday;
 use App\Models\TimekeepingHolidayYear;
 use App\Models\TimekeepingPolicy;
 use App\Support\EmployeePayrollPeriod;
+use App\Support\PayrollCalendarWorkingDays;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -253,7 +254,15 @@ class HolidayPayService
             return null;
         }
 
-        $dailyRate = $this->employeeLoadPayroll->dailyRate($salary);
+        $dailyRate = $this->employeeLoadPayroll->dailyRate(
+            $salary,
+            PayrollCalendarWorkingDays::forEmployeeSalary(
+                $salary,
+                (int) $employee->employee_id,
+                $calendar->dt_from,
+                $calendar->dt_to,
+            ),
+        );
 
         if ($dailyRate === null || $dailyRate <= 0) {
             return null;

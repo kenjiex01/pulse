@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\EmployeeSalary;
+use App\Support\PayrollCalendarWorkingDays;
 use App\Models\NdRateGroup;
 use App\Models\NdRateGroupDayType;
 use App\Models\PayrollBatchDetail;
@@ -73,9 +74,20 @@ class PayrollHoursWorkedPayrollService
     {
         $rows = $this->mergedRowsForDetail($detail, $salary);
 
+        $detail->loadMissing('payrollBatch.payrollCalendar');
+        $calendar = $detail->payrollBatch?->payrollCalendar;
+        $rateDays = ($calendar?->dt_from !== null && $calendar?->dt_to !== null)
+            ? PayrollCalendarWorkingDays::forEmployeeSalary(
+                $salary,
+                (int) $detail->employee_id,
+                $calendar->dt_from,
+                $calendar->dt_to,
+            )
+            : null;
+
         $totals = $rows->isEmpty()
             ? ['by_income_type' => [], 'has_overtime' => false]
-            : $this->computeIncomeTotals($salary, $rows);
+            : $this->computeIncomeTotals($salary, $rows, $rateDays);
 
         $absentHoliday = $this->holidayPay->absentHolidayIncomeForDetail($detail, $salary);
 
@@ -114,11 +126,11 @@ class PayrollHoursWorkedPayrollService
      *     has_overtime: bool
      * }
      */
-    public function computeIncomeTotals(EmployeeSalary $salary, Collection $rows): array
+    public function computeIncomeTotals(EmployeeSalary $salary, Collection $rows, ?float $rateDays = null): array
     {
         $byIncomeType = [];
         $hasOvertime = false;
-        $hourlyRate = $salary->hourlyRate();
+        $hourlyRate = $salary->hourlyRate($rateDays);
 
         foreach ($rows as $row) {
             $line = $this->computeLineAmount($salary, $row, $hourlyRate);

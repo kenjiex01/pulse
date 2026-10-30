@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\BasicComputation;
+use App\Support\PayrollCalendarWorkingDays;
 use App\Models\EmployeeSalary;
 use App\Models\RawTimekeepingInandout;
 use App\Models\ShiftCode;
@@ -100,6 +101,7 @@ class TimeLogsPayrollService
             'late_days' => 0,
             'undertime_days' => 0,
             'ot_offset_minutes' => 0,
+            'worked_dates' => [],
         ];
 
         if (! $this->usesTimeLogs($salary)) {
@@ -115,6 +117,7 @@ class TimeLogsPayrollService
         $this->shiftResolver->loadOverridesForRange($employeeId, $from, $to);
 
         $workedDays = 0;
+        $workedDates = [];
         $computedHours = 0.0;
         $lateMinutes = 0;
         $undertimeMinutes = 0;
@@ -132,26 +135,33 @@ class TimeLogsPayrollService
 
             $schedule = $this->scheduleForSession($employeeId, $session, $shiftCode);
 
+            $dateKey = $session['date']->toDateString();
+            $onRestDay = (bool) $salary->use_payroll_calendar_days
+                && PayrollCalendarWorkingDays::isRestDay($employeeId, $session['date']);
+
             if ($schedule['shift'] !== null && (bool) $schedule['shift']->is_flexi_time) {
                 $workedDays++;
+                $workedDates[] = $dateKey;
 
                 continue;
             }
 
-            $dateKey = $session['date']->toDateString();
             $otForDay = (int) ($otMinutesByDate[$dateKey] ?? 0);
             $resolvedLate = $this->resolvedLateForSession($session, $policy, $schedule['start'], $otForDay, $schedule['shift']);
 
             if ($resolvedLate['is_absent']) {
-                $absentSessions++;
+                if (! $onRestDay) {
+                    $absentSessions++;
+                }
 
                 continue;
             }
 
             $workedDays++;
+            $workedDates[] = $dateKey;
             $otOffsetMinutes += (int) ($resolvedLate['ot_offset_minutes'] ?? 0);
 
-            if ($resolvedLate['is_half_day']) {
+            if ($resolvedLate['is_half_day'] && ! $onRestDay) {
                 $halfDayAbsences++;
                 $halfDayAbsentMinutes += (int) ($resolvedLate['half_day_absent_minutes'] ?? 0);
             }
@@ -196,21 +206,22 @@ class TimeLogsPayrollService
         }
 
         $computedHours = round($computedHours, 4);
+        $rateDays = PayrollCalendarWorkingDays::forEmployeeSalary($salary, $employeeId, $from, $to);
 
         if ($salary->use_basic_income_as_hourly_rate) {
-            $hourlyRate = $salary->hourlyRate();
+            $hourlyRate = $salary->hourlyRate($rateDays);
             $basicTaxable = ($hourlyRate !== null && $computedHours > 0)
                 ? round($computedHours * $hourlyRate, 2)
                 : 0.0;
         } else {
-            $dailyRate = $this->employeeLoadPayroll->dailyRate($salary);
+            $dailyRate = $this->employeeLoadPayroll->dailyRate($salary, $rateDays);
             $basicTaxable = $dailyRate !== null
                 ? round($dailyRate * $workedDays, 2)
                 : 0.0;
             $computedHours = 0.0;
         }
 
-        $hourlyRate = $salary->hourlyRate();
+        $hourlyRate = $salary->hourlyRate($rateDays);
         $lateDeduction = ($lateMinutes > 0 && $hourlyRate !== null)
             ? round(($lateMinutes / 60) * $hourlyRate, 2)
             : 0.0;
@@ -222,6 +233,7 @@ class TimeLogsPayrollService
 
         return [
             'worked_days' => $workedDays,
+            'worked_dates' => $workedDates,
             'basic_taxable' => $basicTaxable,
             'basic_non_taxable' => 0.0,
             'late_minutes' => $lateMinutes,
@@ -232,7 +244,7 @@ class TimeLogsPayrollService
             'half_day_absences' => $halfDayAbsences,
             'absent_days' => $absentDays,
             'absent_hours' => $absentHours,
-            'absent_deduction' => $this->halfDayAbsentPay($salary, $halfDayAbsences, $halfDayAbsentMinutes),
+            'absent_deduction' => $this->halfDayAbsentPay($salary, $halfDayAbsences, $halfDayAbsentMinutes, $rateDays),
             'computed_hours' => round($computedHours, 4),
             'late_days' => $lateDays,
             'undertime_days' => $undertimeDays,
@@ -321,6 +333,7 @@ class TimeLogsPayrollService
         $this->shiftResolver->loadOverridesForRange($employeeId, $from, $to);
 
         $workedDays = 0;
+        $workedDates = [];
         $basicTaxable = 0.0;
         $computedHours = 0.0;
         $lateMinutes = 0;
@@ -347,14 +360,17 @@ class TimeLogsPayrollService
             }
 
             $schedule = $this->scheduleForSession($employeeId, $session, $shiftCode);
+            $dateKey = $session['date']->toDateString();
+            $onRestDay = (bool) $salary->use_payroll_calendar_days
+                && PayrollCalendarWorkingDays::isRestDay($employeeId, $session['date']);
 
             if ($schedule['shift'] !== null && (bool) $schedule['shift']->is_flexi_time) {
                 $workedDays++;
+                $workedDates[] = $dateKey;
 
                 continue;
             }
 
-            $dateKey = $session['date']->toDateString();
             $otForDay = (int) ($otMinutesByDate[$dateKey] ?? 0);
             $resolvedLate = $this->resolvedLateForSession($session, $policy, $schedule['start'], $otForDay, $schedule['shift']);
             $resolvedUndertime = $this->resolvedUndertimeForSession(
@@ -364,17 +380,21 @@ class TimeLogsPayrollService
                 $schedule['start'],
             );
 
+            $rateDays = PayrollCalendarWorkingDays::forEmployeeSalary($salary, $employeeId, $from, $to);
+
             if (! $resolvedLate['is_absent']) {
                 $workedDays++;
+                $workedDates[] = $dateKey;
                 $otOffsetMinutes += (int) ($resolvedLate['ot_offset_minutes'] ?? 0);
 
-                if ($resolvedLate['is_half_day']) {
+                if ($resolvedLate['is_half_day'] && ! $onRestDay) {
                     $halfDayAbsences++;
                     $halfDayAbsentMinutes += (int) ($resolvedLate['half_day_absent_minutes'] ?? 0);
                     $absentDeduction += $this->halfDayAbsentPay(
                         $salary,
                         1,
                         (int) ($resolvedLate['half_day_absent_minutes'] ?? 0),
+                        $rateDays,
                     );
                 }
 
@@ -391,14 +411,14 @@ class TimeLogsPayrollService
                             ? $this->regularHoursForSession($session, $schedule['start'], $schedule['end'], $schedule['shift'])
                             : $this->punchHoursForSession($session);
                     }
-                    $hourlyRate = $salary->hourlyRate();
+                    $hourlyRate = $salary->hourlyRate($rateDays);
 
                     if ($sessionHours !== null && $hourlyRate !== null) {
                         $basicTaxable += $sessionHours * $hourlyRate;
                         $computedHours += $sessionHours;
                     }
                 } else {
-                    $dailyRate = $this->employeeLoadPayroll->dailyRate($salary);
+                    $dailyRate = $this->employeeLoadPayroll->dailyRate($salary, $rateDays);
 
                     if ($dailyRate !== null) {
                         $basicTaxable += $dailyRate;
@@ -411,7 +431,9 @@ class TimeLogsPayrollService
                     $lateDays++;
                 }
             } else {
-                $absentSessions++;
+                if (! $onRestDay) {
+                    $absentSessions++;
+                }
             }
 
             $undertimeMinutes += $resolvedUndertime['billable_minutes'];
@@ -420,7 +442,7 @@ class TimeLogsPayrollService
                 $undertimeDays++;
             }
 
-            $hourlyRate = $salary->hourlyRate();
+            $hourlyRate = $salary->hourlyRate($rateDays);
 
             if ($hourlyRate !== null) {
                 if ($resolvedLate['billable_minutes'] > 0 && ! $resolvedLate['is_absent']) {
@@ -435,6 +457,7 @@ class TimeLogsPayrollService
 
         return [
             'worked_days' => $workedDays,
+            'worked_dates' => $workedDates,
             'basic_taxable' => round($basicTaxable, 2),
             'basic_non_taxable' => 0.0,
             'late_minutes' => $lateMinutes,
@@ -963,21 +986,21 @@ class TimeLogsPayrollService
     /**
      * Half-day absence keeps full basic income; the first half is deducted as Absences (0.5 day).
      */
-    private function halfDayAbsentPay(EmployeeSalary $salary, int $halfDayAbsences, int $halfDayAbsentMinutes): float
+    private function halfDayAbsentPay(EmployeeSalary $salary, int $halfDayAbsences, int $halfDayAbsentMinutes, ?float $rateDays = null): float
     {
         if ($halfDayAbsences <= 0) {
             return 0.0;
         }
 
         if ($salary->use_basic_income_as_hourly_rate) {
-            $hourlyRate = $salary->hourlyRate();
+            $hourlyRate = $salary->hourlyRate($rateDays);
 
             return ($hourlyRate !== null && $halfDayAbsentMinutes > 0)
                 ? round(($halfDayAbsentMinutes / 60) * $hourlyRate, 2)
                 : 0.0;
         }
 
-        $dailyRate = $this->employeeLoadPayroll->dailyRate($salary);
+        $dailyRate = $this->employeeLoadPayroll->dailyRate($salary, $rateDays);
 
         return $dailyRate !== null
             ? round($dailyRate * 0.5 * $halfDayAbsences, 2)

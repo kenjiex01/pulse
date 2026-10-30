@@ -35,6 +35,7 @@
                     'use_basic_income_as_hourly_rate' => $salary->use_basic_income_as_hourly_rate,
                     'is_above_minimum_wage_earner' => $salary->is_above_minimum_wage_earner,
                     'is_fixed_rate' => $salary->is_fixed_rate,
+                    'use_payroll_calendar_days' => $salary->use_payroll_calendar_days,
                     'incomes' => $salary->incomes->map(fn ($income) => [
                         'income_type_id' => $income->income_type_id,
                         'taxable' => $income->taxable !== null ? (string) (float) $income->taxable : '',

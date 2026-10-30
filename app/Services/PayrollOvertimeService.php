@@ -102,13 +102,13 @@ class PayrollOvertimeService
         );
     }
 
-    public function overtimePay(EmployeeSalary $salary, int $billableMinutes): float
+    public function overtimePay(EmployeeSalary $salary, int $billableMinutes, ?float $rateDays = null): float
     {
         if ($billableMinutes <= 0) {
             return 0.0;
         }
 
-        $hourlyRate = $salary->hourlyRate();
+        $hourlyRate = $salary->hourlyRate($rateDays);
 
         if ($hourlyRate === null) {
             return 0.0;

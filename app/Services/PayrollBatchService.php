@@ -927,6 +927,7 @@ class PayrollBatchService
                 }
 
                 $isFixedRate = (bool) $salary->is_fixed_rate;
+                $usesCalendarDays = (bool) $salary->use_payroll_calendar_days;
 
                 foreach ($this->proratedIncomeLines($salaries, $calendar->dt_from, $calendar->dt_to) as $incomeLine) {
                     $taxable = (float) $incomeLine['taxable'];
@@ -935,7 +936,7 @@ class PayrollBatchService
                         || ($incomeLine['incomeType']?->income_type_code ?? null) === 'BASC';
                     $days = null;
 
-                    if ($isFixedRate && $isBasicIncome) {
+                    if (($isFixedRate || $usesCalendarDays) && $isBasicIncome) {
                         $hours = null;
                         $days = null;
                     } elseif ($hoursWorkedIncomes !== null && $isBasicIncome && ! $hoursWorkedApplied) {
@@ -1040,7 +1041,40 @@ class PayrollBatchService
                     }
                 }
 
-                if (! $isFixedRate && $loadPayroll !== null && ($loadPayroll['absent_deduction'] ?? 0) > 0) {
+                $attendance = is_array($loadPayroll) ? $loadPayroll : [];
+                $absentAmount = (float) ($attendance['absent_deduction'] ?? 0);
+                $absentDays = (float) ($attendance['absent_days'] ?? 0);
+                $absentHours = (float) ($attendance['absent_hours'] ?? 0);
+
+                if ($usesCalendarDays && ! $useFacultyPath) {
+                    $employeeId = (int) $detail->employee_id;
+                    $rateDays = \App\Support\PayrollCalendarWorkingDays::forEmployeeSalary(
+                        $salary,
+                        $employeeId,
+                        $calendar->dt_from,
+                        $calendar->dt_to,
+                    );
+                    $unworked = \App\Support\PayrollCalendarWorkingDays::unworkedAbsence(
+                        $salary,
+                        $rateDays,
+                        (float) ($attendance['worked_days'] ?? 0),
+                        $calendar->dt_from,
+                        $calendar->dt_to,
+                        \App\Support\PayrollCalendarWorkingDays::restDayIdsForEmployee($employeeId),
+                        array_values(array_filter(
+                            (array) ($attendance['worked_dates'] ?? []),
+                            fn ($date) => is_string($date) && $date !== '',
+                        )),
+                    );
+                    $absentAmount = round($absentAmount + $unworked['amount'], 2);
+                    $absentDays += $unworked['days'];
+                    $hoursPerDay = (float) ($salary->hours_per_day ?? 0);
+                    if ($hoursPerDay > 0) {
+                        $absentHours += $unworked['days'] * $hoursPerDay;
+                    }
+                }
+
+                if (! $isFixedRate && $absentAmount > 0) {
                     $absentDeductionTypeId = $this->timeLogsPayroll->absentDeductionTypeId()
                         ?? $this->employeeLoadPayroll->absentDeductionTypeId();
 
@@ -1048,9 +1082,9 @@ class PayrollBatchService
                         PayrollDeduction::query()->create([
                             'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
                             'deduction_type_id' => $absentDeductionTypeId,
-                            'hours' => round((float) ($loadPayroll['absent_hours'] ?? 0), 4) ?: null,
-                            'days' => $this->incomeDaysFromCount((float) ($loadPayroll['absent_days'] ?? 0)),
-                            'employee_amount' => $loadPayroll['absent_deduction'],
+                            'hours' => round($absentHours, 4) ?: null,
+                            'days' => $this->incomeDaysFromCount($absentDays),
+                            'employee_amount' => $absentAmount,
                             'employer_amount' => 0,
                             'is_manual' => false,
                             'is_editable' => true,
@@ -1640,9 +1674,10 @@ class PayrollBatchService
         }
 
         $result['overtime_minutes'] = $overtimeMinutes;
-        $result['overtime_pay'] = $this->overtimePayroll->overtimePay($salary, $overtimeMinutes);
+        $rateDays = \App\Support\PayrollCalendarWorkingDays::forEmployeeSalary($salary, $employeeId, $from, $to);
+        $result['overtime_pay'] = $this->overtimePayroll->overtimePay($salary, $overtimeMinutes, $rateDays);
         $result['break_late_minutes'] = $breakLateMinutes;
-        $hourlyRate = $salary->hourlyRate();
+        $hourlyRate = $salary->hourlyRate($rateDays);
         $result['break_late_deduction'] = ($breakLateMinutes > 0 && $hourlyRate !== null)
             ? round(($breakLateMinutes / 60) * $hourlyRate, 2)
             : 0.0;

@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Models\PayrollBatchDetail;
+use App\Support\PayrollCalendarWorkingDays;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 
 /**
  * Hours and amount for manually added Late (LTDE) / Undertime (UTDE) deduction lines.
@@ -43,20 +45,33 @@ class ManualAttendanceDeductionService
     {
         $detail->loadMissing(['payrollBatch.payrollCalendar', 'employee']);
 
+        $calendar = $detail->payrollBatch?->payrollCalendar;
+
         return $this->previewFor(
             $detail->employee,
-            (int) ($detail->payrollBatch?->payrollCalendar?->pay_type_id ?? 0),
+            (int) ($calendar?->pay_type_id ?? 0),
             $code,
             $referenceDate,
             $time,
             $hours,
+            $calendar?->dt_from,
+            $calendar?->dt_to,
         );
     }
 
     /**
      * @return array<string, mixed>
      */
-    public function previewFor(?Employee $employee, int $payTypeId, string $code, ?string $referenceDate, ?string $time, ?float $hours = null): array
+    public function previewFor(
+        ?Employee $employee,
+        int $payTypeId,
+        string $code,
+        ?string $referenceDate,
+        ?string $time,
+        ?float $hours = null,
+        ?CarbonInterface $periodFrom = null,
+        ?CarbonInterface $periodTo = null,
+    ): array
     {
         $result = [
             'ok' => false,
@@ -122,7 +137,10 @@ class ManualAttendanceDeductionService
         $salary = $salaries->isNotEmpty()
             ? ($this->salaryResolver->salaryEffectiveOnDate($salaries, $date) ?? $salaries->last())
             : null;
-        $rate = $salary?->hourlyRate();
+        $rateDays = ($salary !== null && $employee !== null && $periodFrom !== null && $periodTo !== null)
+            ? PayrollCalendarWorkingDays::forEmployeeSalary($salary, (int) $employee->employee_id, $periodFrom, $periodTo)
+            : null;
+        $rate = $salary?->hourlyRate($rateDays);
 
         if ($rate === null || $rate <= 0) {
             $result['message'] = 'The employee has no salary rate on this date, so the amount cannot be computed.';

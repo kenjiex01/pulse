@@ -26,6 +26,7 @@ class EmployeeSalary extends Model
         'use_basic_income_as_hourly_rate',
         'is_above_minimum_wage_earner',
         'is_fixed_rate',
+        'use_payroll_calendar_days',
         'cola_rate_per_hour',
         'rate_group_id',
         'nd_rate_group_id',
@@ -41,6 +42,7 @@ class EmployeeSalary extends Model
             'use_basic_income_as_hourly_rate' => 'boolean',
             'is_above_minimum_wage_earner' => 'boolean',
             'is_fixed_rate' => 'boolean',
+            'use_payroll_calendar_days' => 'boolean',
             'cola_rate_per_hour' => 'decimal:2',
         ];
     }
@@ -129,7 +131,12 @@ class EmployeeSalary extends Model
         return (float) $basicIncome->taxable + (float) $basicIncome->non_taxable;
     }
 
-    public function hourlyRate(): ?float
+    /**
+     * Salary-setup display uses half of Days Per Period when Use Payroll Calendar Days is on,
+     * because Basic Income is the semi-monthly amount and Days Per Period is the full month (usually 26).
+     * Payroll passes the cutoff working-day count as $rateDays so that batch uses its own hourly rate.
+     */
+    public function hourlyRate(?float $rateDays = null): ?float
     {
         if ($this->use_basic_income_as_hourly_rate) {
             $basicIncomeAmount = $this->basicIncomeAmount();
@@ -137,7 +144,11 @@ class EmployeeSalary extends Model
             return $basicIncomeAmount > 0 ? round($basicIncomeAmount, 2) : null;
         }
 
-        $daysPerPeriod = $this->days_per_period;
+        $daysPerPeriod = ($rateDays !== null && $rateDays > 0) ? $rateDays : $this->days_per_period;
+
+        if ($rateDays === null && $this->use_payroll_calendar_days && $daysPerPeriod !== null && (float) $daysPerPeriod > 0) {
+            $daysPerPeriod = (float) $daysPerPeriod / 2;
+        }
 
         if ($daysPerPeriod === null || (float) $daysPerPeriod <= 0) {
             $daysPerPeriod = PayType::autoDaysPerPeriod((int) $this->pay_type_id);

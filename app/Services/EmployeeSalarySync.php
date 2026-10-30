@@ -167,6 +167,7 @@ class EmployeeSalarySync
             'use_basic_income_as_hourly_rate' => ! empty($salaryData['use_basic_income_as_hourly_rate']),
             'is_above_minimum_wage_earner' => ! empty($salaryData['is_above_minimum_wage_earner']),
             'is_fixed_rate' => ! empty($salaryData['is_fixed_rate']),
+            'use_payroll_calendar_days' => ! empty($salaryData['use_payroll_calendar_days']),
             'rate_group_id' => $salaryData['rate_group_id'] ?? null,
             'nd_rate_group_id' => $salaryData['nd_rate_group_id'] ?? null,
         ];
@@ -243,13 +244,14 @@ class EmployeeSalarySync
             'use_basic_income_as_hourly_rate',
             'is_above_minimum_wage_earner',
             'is_fixed_rate',
+            'use_payroll_calendar_days',
             'rate_group_id',
             'nd_rate_group_id',
         ] as $field) {
             $currentValue = $current->{$field};
             $nextValue = $headerPayload[$field] ?? null;
 
-            if (in_array($field, ['use_basic_income_as_hourly_rate', 'is_above_minimum_wage_earner', 'is_fixed_rate'], true)) {
+            if (in_array($field, ['use_basic_income_as_hourly_rate', 'is_above_minimum_wage_earner', 'is_fixed_rate', 'use_payroll_calendar_days'], true)) {
                 if ((bool) $currentValue !== (bool) $nextValue) {
                     return true;
                 }

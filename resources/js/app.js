@@ -1905,6 +1905,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const hoursInput = panel.querySelector('[name*="[hours_per_day]"]');
         const useBasicIncomeCheckbox = panel.querySelector('[data-salary-use-basic-income-as-hourly-rate]');
         const useBasicIncomeAsHourlyRate = useBasicIncomeCheckbox?.checked ?? false;
+        const usePayrollCalendarDays = panel.querySelector('[data-salary-use-payroll-calendar-days]')?.checked ?? false;
 
         if (!output || !basicIncomeTypeId) {
             return;
@@ -1929,7 +1930,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (useBasicIncomeAsHourlyRate) {
             hourlyRate = basicIncomeAmount > 0 ? basicIncomeAmount : null;
         } else {
-            const daysPerPeriod = parseFloat(daysInput?.value || '0') || 0;
+            let daysPerPeriod = parseFloat(daysInput?.value || '0') || 0;
+            if (usePayrollCalendarDays && daysPerPeriod > 0) {
+                daysPerPeriod /= 2;
+            }
             const hoursPerDay = parseFloat(hoursInput?.value || '0') || 0;
             hourlyRate = daysPerPeriod > 0 && hoursPerDay > 0 && basicIncomeAmount > 0
                 ? basicIncomeAmount / daysPerPeriod / hoursPerDay
@@ -1941,7 +1945,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hint) {
             hint.textContent = useBasicIncomeAsHourlyRate
                 ? 'Uses Basic Income amount directly.'
-                : 'Auto-computed from Basic Income, Days Per Period, and Hours Per Day.';
+                : (usePayrollCalendarDays
+                    ? 'Auto-computed from Basic Income, half of Days Per Period, and Hours Per Day. Each payroll cutoff uses that cutoff\'s working days.'
+                    : 'Auto-computed from Basic Income, Days Per Period, and Hours Per Day.');
         }
     };
 
@@ -2298,7 +2304,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 syncEmployeeSalaryHourlyRate(panel);
             }
 
-            if (event.target.matches('[data-salary-use-basic-income-as-hourly-rate]')) {
+            if (event.target.matches('[data-salary-use-basic-income-as-hourly-rate], [data-salary-use-payroll-calendar-days]')) {
                 syncEmployeeSalaryHourlyRate(panel);
             }
         });

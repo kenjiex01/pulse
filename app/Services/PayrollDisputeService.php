@@ -156,7 +156,17 @@ class PayrollDisputeService
         $result['source_payroll_batch_id'] = $context['source_batch']?->payroll_batch_id;
 
         $salary = $context['salary'];
-        $hourlyRate = $salary?->hourlyRate();
+        $sourceCalendar = $context['source_batch']?->payrollCalendar
+            ?? $context['source_batch']?->loadMissing('payrollCalendar')->payrollCalendar;
+        $rateDays = ($salary !== null && $sourceCalendar?->dt_from !== null && $sourceCalendar?->dt_to !== null)
+            ? \App\Support\PayrollCalendarWorkingDays::forEmployeeSalary(
+                $salary,
+                (int) $detail->employee_id,
+                $sourceCalendar->dt_from,
+                $sourceCalendar->dt_to,
+            )
+            : null;
+        $hourlyRate = $salary?->hourlyRate($rateDays);
 
         if ($salary === null || $hourlyRate === null) {
             $result['ok'] = true;
@@ -189,13 +199,13 @@ class PayrollDisputeService
                 $result['hours'] = $hours;
                 $result['amount'] = round($hours * $hourlyRate, 2);
                 $result['ot_hours'] = round($otMinutes / 60, 2);
-                $result['ot_amount'] = $this->overtimePayroll->overtimePay($salary, $otMinutes);
+                $result['ot_amount'] = $this->overtimePayroll->overtimePay($salary, $otMinutes, $rateDays);
                 $result['breakdown'] = sprintf(
                     'Basic %s h = %s, OT %s h = %s, less already paid basic %s h / OT %s h',
                     number_format((float) ($metrics['basic'] ?? 0), 2),
                     number_format(round((float) ($metrics['basic'] ?? 0) * $hourlyRate, 2), 2),
                     number_format(($otMinutes + (int) round($paid['ot'] * 60)) / 60, 2),
-                    number_format($this->overtimePayroll->overtimePay($salary, $otMinutes + (int) round($paid['ot'] * 60)), 2),
+                    number_format($this->overtimePayroll->overtimePay($salary, $otMinutes + (int) round($paid['ot'] * 60), $rateDays), 2),
                     number_format($paid['basic'], 2),
                     number_format($paid['ot'], 2),
                 );
@@ -222,7 +232,7 @@ class PayrollDisputeService
                 $otMinutes = max(0, $filedMinutes - (int) round($paid['ot'] * 60));
 
                 $result['ot_hours'] = round($otMinutes / 60, 2);
-                $result['ot_amount'] = $this->overtimePayroll->overtimePay($salary, $otMinutes);
+                $result['ot_amount'] = $this->overtimePayroll->overtimePay($salary, $otMinutes, $rateDays);
                 $result['breakdown'] = sprintf(
                     'OT %d min filed - %d min already paid = %d min x rate = %s',
                     $filedMinutes,
@@ -330,7 +340,7 @@ class PayrollDisputeService
                 $overMinutes = max(0, $paidMinutes - $actualMinutes);
 
                 $result['ot_hours'] = round($overMinutes / 60, 2);
-                $result['ot_amount'] = $this->overtimePayroll->overtimePay($salary, $overMinutes);
+                $result['ot_amount'] = $this->overtimePayroll->overtimePay($salary, $overMinutes, $rateDays);
                 $result['breakdown'] = sprintf(
                     'OT paid %d min - actual %d min = %d min x rate = %s to deduct',
                     $paidMinutes,

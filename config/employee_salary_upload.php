@@ -16,6 +16,7 @@ return [
         ['alias' => 'use_basic_income_as_hourly_rate', 'label' => 'Use Basic Income as Hourly Rate (yes/no)'],
         ['alias' => 'is_above_minimum_wage_earner', 'label' => 'Is Above Minimum Wage Earner (yes/no)'],
         ['alias' => 'is_fixed_rate', 'label' => 'Is Fixed Rate (yes/no)'],
+        ['alias' => 'use_payroll_calendar_days', 'label' => 'Use Payroll Calendar Days (yes/no)'],
         ['alias' => 'basic_taxable', 'label' => 'Basic Income Taxable'],
         ['alias' => 'basic_non_taxable', 'label' => 'Basic Income Non-Taxable'],
         ['alias' => 'incomes', 'label' => 'Other Incomes (CODE|taxable|non_taxable;...)'],
