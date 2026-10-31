@@ -2,13 +2,64 @@
 
 namespace Tests\Unit;
 
+use App\Models\Employee;
 use App\Models\EmployeeLoan;
 use App\Models\PayrollCalendar;
+use App\Models\PayrollLoanPayment;
 use App\Services\LoanPayrollService;
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\ViewErrorBag;
 use Tests\TestCase;
 
 class LoanPayrollServiceTest extends TestCase
 {
+    public function test_displayed_balance_subtracts_payroll_payments(): void
+    {
+        $this->assertSame(
+            '1338.20',
+            number_format(EmployeeLoan::computeDisplayedBalance(32116.80, 29440.40, 0, 1338.20), 2, '.', ''),
+        );
+        $this->assertSame(
+            '2676.40',
+            number_format(EmployeeLoan::computeDisplayedBalance(32116.80, 29440.40, 0, 0), 2, '.', ''),
+        );
+    }
+
+    public function test_edit_loan_form_balance_matches_list_after_payroll_payment(): void
+    {
+        $employee = new Employee;
+        $employee->employee_id = 1;
+
+        $loan = new EmployeeLoan([
+            'loan_amount' => 29000,
+            'loan_interest' => 3116.80,
+            'paid_from_previous' => 29440.40,
+            'deducted_from_new_loan' => 0,
+            'amortization_amount' => 1338.20,
+            'number_of_payments' => 24,
+        ]);
+        $loan->employee_loan_id = 5;
+        $loan->setRelation('payments', collect([
+            new PayrollLoanPayment(['payment' => 1338.20, 'penalty' => 0]),
+        ]));
+
+        View::share('errors', new ViewErrorBag);
+
+        $html = view('employees.partials._loan-form', [
+            'employee' => $employee,
+            'loan' => $loan,
+            'loanTypes' => collect(),
+            'paymentSchemes' => collect(),
+        ])->render();
+
+        $this->assertSame('1338.20', number_format($loan->loanBalance(), 2, '.', ''));
+        $this->assertStringContainsString('data-loan-payroll-payments="1338.20"', $html);
+        $this->assertMatchesRegularExpression(
+            '/id="edit-loan-5-balance"[^>]*value="1338\.20"/',
+            $html,
+        );
+    }
+
     public function test_principal_is_amortization_times_number_of_payments(): void
     {
         $principal = EmployeeLoan::computePrincipalAmount(12000, 99999, 553.74, 24);

@@ -204,9 +204,11 @@ class EmployeeLoanController extends Controller
             $loanInterest = EmployeeLoan::computeLoanInterest($principalLoanAmount, $loanAmount);
         }
 
-        $balance = round(
-            $principalLoanAmount - $paidFromPrevious - $deductedFromNewLoan,
-            2
+        $balance = EmployeeLoan::computeDisplayedBalance(
+            $principalLoanAmount,
+            $paidFromPrevious,
+            $deductedFromNewLoan,
+            $isEdit ? $loan->payrollPaymentsTotal() : 0,
         );
 
         if ($balance < 0) {

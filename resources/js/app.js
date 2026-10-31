@@ -2544,7 +2544,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (balance) {
-            balance.value = formatLoanMoney(principalAmount - paid - deducted);
+            const payrollPaid = parseLoanNumber(form.dataset.loanPayrollPayments);
+            balance.value = formatLoanMoney(principalAmount - paid - deducted - payrollPaid);
         }
     };
 

@@ -104,6 +104,19 @@ class EmployeeLoan extends Model
         return round($this->outstandingBeforePayroll() - $this->payrollPaymentsTotal(), 2);
     }
 
+    /**
+     * Balance shown on the loan form and the loans list.
+     * Principal minus opening credits minus amounts already deducted in payroll.
+     */
+    public static function computeDisplayedBalance(
+        float $principal,
+        float $paidFromPrevious,
+        float $deductedFromNewLoan,
+        float $payrollPayments = 0,
+    ): float {
+        return round($principal - $paidFromPrevious - $deductedFromNewLoan - $payrollPayments, 2);
+    }
+
     public static function computePrincipal(float $loanAmount, ?float $loanInterest): float
     {
         return round($loanAmount + (float) ($loanInterest ?? 0), 2);

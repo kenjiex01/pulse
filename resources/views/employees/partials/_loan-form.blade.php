@@ -28,11 +28,12 @@
     if ($interestFromPayments) {
         $loanInterest = \App\Models\EmployeeLoan::computeLoanInterest($principal, (float) ($loanAmount ?? 0));
     }
-    $balance = round(
-        $principal
-        - (float) ($paidFromPrevious ?: 0)
-        - (float) ($deductedFromNewLoan ?: 0),
-        2
+    $payrollPayments = $loan?->payrollPaymentsTotal() ?? 0.0;
+    $balance = \App\Models\EmployeeLoan::computeDisplayedBalance(
+        $principal,
+        (float) ($paidFromPrevious ?: 0),
+        (float) ($deductedFromNewLoan ?: 0),
+        $payrollPayments,
     );
 @endphp
 
@@ -43,6 +44,7 @@
         : route('employees.loans.store', $employee) }}"
     class="space-y-4"
     data-employee-loan-form
+    data-loan-payroll-payments="{{ number_format($payrollPayments, 2, '.', '') }}"
 >
     @csrf
     @if ($isEditLoan)
@@ -257,6 +259,7 @@
                 tabindex="-1"
                 data-loan-balance
             >
+            <p class="mt-1 text-xs text-gray-500">Includes amounts already deducted in payroll.</p>
         </div>
 
         <div class="sm:col-span-2 space-y-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
