@@ -28,6 +28,7 @@ use App\Policies\TimekeepingMemoPolicy;
 use App\Policies\TimekeepingMemoSetupPolicy;
 use App\Policies\TimekeepingPolicyPolicy;
 use App\Policies\TimeLogsPolicy;
+use App\Support\DesktopStartupProbe;
 use App\Support\EncryptedEnv;
 use App\Support\HrLookup;
 use Illuminate\Pagination\Paginator;
@@ -182,6 +183,10 @@ class AppServiceProvider extends ServiceProvider
                 'biometricS3AutoPullIntervalMinutes' => max(1, (int) config('biometric_logs.auto_pull.interval_minutes', 5)),
             ]);
         });
+
+        if (DesktopStartupProbe::isRunning()) {
+            return;
+        }
 
         if ($this->app->runningInConsole() && ! $this->isNativeDesktop()) {
             return;

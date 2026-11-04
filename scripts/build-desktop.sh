@@ -138,6 +138,11 @@ if [[ -f "$SILENT_UPDATER_PATCH" ]]; then
   python3 "$SILENT_UPDATER_PATCH" "$ROOT"
   echo "    Applied silent auto-download + auto-install updater patch"
 fi
+STARTUP_SPEED_PATCH="$ROOT/scripts/patches/patch-startup-speed.py"
+if [[ -f "$STARTUP_SPEED_PATCH" ]]; then
+  python3 "$STARTUP_SPEED_PATCH" "$ROOT"
+  echo "    Applied startup speed patch"
+fi
 ELECTRON_MAIN="$ROOT/vendor/nativephp/electron/resources/js/src/main/index.js"
 ELECTRON_MAIN_PATCH="$ROOT/scripts/patches/electron-main-index.js"
 KEEP_PULSE_USERDATA_PATCH="$ROOT/scripts/patches/keep-pulse-userdata.js"
@@ -322,6 +327,12 @@ case "$TARGET" in
     fi
     if [[ -f "$NOTARIZE_PATCH" && -f "$NOTARIZE_JS" ]]; then
       cp "$NOTARIZE_PATCH" "$NOTARIZE_JS"
+    fi
+    if [[ -f "$SILENT_UPDATER_PATCH" ]]; then
+      python3 "$SILENT_UPDATER_PATCH" "$ROOT"
+    fi
+    if [[ -f "$STARTUP_SPEED_PATCH" ]]; then
+      python3 "$STARTUP_SPEED_PATCH" "$ROOT"
     fi
     if [[ -d "$ELECTRON_JS/node_modules" ]]; then
       while IFS= read -r vscode_dir; do
