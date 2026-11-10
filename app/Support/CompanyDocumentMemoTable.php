@@ -49,8 +49,9 @@ class CompanyDocumentMemoTable
 
     /**
      * @param  list<list<string>>  $rows  Cell values are already safe HTML.
+     * @param  array<string, mixed>  $options  table_header (bool), column_widths (list<string>)
      */
-    public static function html(array $rows): string
+    public static function html(array $rows, bool $useHeaderRow = true, array $options = []): string
     {
         if ($rows === []) {
             return '';
@@ -58,7 +59,9 @@ class CompanyDocumentMemoTable
 
         $cell = 'border:1px solid #111;padding:6px 8px;vertical-align:top;text-align:left;white-space:normal;overflow-wrap:anywhere;word-wrap:break-word;';
         $header = $cell.'font-weight:700;background:#f3f4f6;';
-        $useHeader = count($rows) > 1;
+        $useHeader = $useHeaderRow && count($rows) > 1;
+        /** @var list<string> $columnWidths */
+        $columnWidths = is_array($options['column_widths'] ?? null) ? $options['column_widths'] : [];
         $body = '';
 
         foreach (array_values($rows) as $rowIndex => $row) {
@@ -70,9 +73,11 @@ class CompanyDocumentMemoTable
             $style = $tag === 'th' ? $header : $cell;
             $cells = '';
 
-            foreach ($row as $value) {
+            foreach (array_values($row) as $columnIndex => $value) {
+                $width = trim((string) ($columnWidths[$columnIndex] ?? ''));
+                $widthStyle = $width !== '' ? 'width:'.$width.';' : '';
                 $content = trim((string) $value);
-                $cells .= '<'.$tag.' style="'.$style.'">'.($content !== '' ? $content : '&nbsp;').'</'.$tag.'>';
+                $cells .= '<'.$tag.' style="'.$style.$widthStyle.'">'.($content !== '' ? $content : '&nbsp;').'</'.$tag.'>';
             }
 
             $body .= '<tr>'.$cells.'</tr>';

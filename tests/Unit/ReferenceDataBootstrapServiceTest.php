@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\CompanyDocumentForm;
+use App\Models\CompanyDocumentSubmission;
 use App\Models\LuIcctOffense;
 use App\Services\ReferenceDataBootstrapService;
 use Database\Seeders\CompanyDocumentHrLetterTemplatesSeeder;
@@ -63,7 +64,8 @@ class ReferenceDataBootstrapServiceTest extends TestCase
 
             return (string) $element->label;
         })->implode("\n");
-        $this->assertStringContainsString('{{nature_of_offense}}', $stored);
+        $this->assertStringContainsString('Section 8', $stored);
+        $this->assertStringContainsString('Section 23', $stored);
 
         $this->assertSame(
             (string) CompanyDocumentHrLetterTemplatesSeeder::REVISION,
@@ -96,7 +98,7 @@ class ReferenceDataBootstrapServiceTest extends TestCase
 
         app(ReferenceDataBootstrapService::class)->ensureCriticalLookups();
 
-        $this->assertSoftDeleted('tbl_company_document_forms', [
+        $this->assertDatabaseMissing('tbl_company_document_forms', [
             'code' => 'campus_custom_memo',
         ]);
 
@@ -111,7 +113,7 @@ class ReferenceDataBootstrapServiceTest extends TestCase
 
             return (string) $element->label;
         })->implode("\n");
-        $this->assertStringContainsString('{{nature_of_offense}}', $stored);
+        $this->assertStringContainsString('Section 8', $stored);
         $this->assertStringNotContainsString('Old installed body', $stored);
 
         $expected = CompanyDocumentHrLetterTemplatesSeeder::TEMPLATE_CODES;
@@ -119,6 +121,41 @@ class ReferenceDataBootstrapServiceTest extends TestCase
         $this->assertSame(
             $expected,
             CompanyDocumentForm::query()->orderBy('code')->pluck('code')->all(),
+        );
+    }
+
+    public function test_revision_bump_hides_a_sent_document_without_deleting_its_history(): void
+    {
+        $this->seed(CompanyDocumentHrLetterTemplatesSeeder::class);
+
+        $custom = CompanyDocumentForm::query()->create([
+            'code' => 'campus_sent_memo',
+            'name' => 'Campus Sent Memo',
+            'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'is_active' => true,
+        ]);
+
+        $submission = CompanyDocumentSubmission::query()->create([
+            'company_document_form_id' => $custom->company_document_form_id,
+            'status' => CompanyDocumentSubmission::STATUS_COMPLETED,
+            'submitted_at' => now(),
+        ]);
+
+        file_put_contents(
+            storage_path(CompanyDocumentHrLetterTemplatesSeeder::REVISION_MARKER),
+            (string) (CompanyDocumentHrLetterTemplatesSeeder::REVISION - 1),
+        );
+
+        app(ReferenceDataBootstrapService::class)->ensureCriticalLookups();
+
+        $this->assertSoftDeleted('tbl_company_document_forms', [
+            'company_document_form_id' => $custom->company_document_form_id,
+        ]);
+        $this->assertDatabaseHas('tbl_company_document_submissions', [
+            'submission_id' => $submission->submission_id,
+        ]);
+        $this->assertFalse(
+            CompanyDocumentForm::query()->where('code', 'campus_sent_memo')->exists(),
         );
     }
 }

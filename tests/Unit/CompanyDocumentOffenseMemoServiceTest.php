@@ -114,10 +114,10 @@ class CompanyDocumentOffenseMemoServiceTest extends TestCase
             })
             ->implode("\n");
 
-        $this->assertStringNotContainsString('Section 8', $body);
-        $this->assertStringNotContainsString('Section 23', $body);
-        $this->assertStringContainsString('{{nature_of_offense}}', $body);
-        $this->assertStringContainsString('{{disciplinary_action}}', $body);
+        $this->assertStringContainsString('Section 8', $body);
+        $this->assertStringContainsString('Section 23', $body);
+        $this->assertStringContainsString('accrual basis', $body);
+        $this->assertStringContainsString('please see Appendix A', $body);
         $this->assertStringContainsString('{{attendance_period}}', $body);
     }
 

@@ -55,6 +55,8 @@ class CompanyDocumentMemoDocxExporterTest extends TestCase
         $xml = $this->documentXml($service->renderDocx($service->buildSamplePreviewData($form)));
 
         $this->assertStringContainsString('We have noted your continued absences', $xml);
+        $this->assertStringContainsString('Section 8', $xml);
+        $this->assertStringContainsString('Section 23', $xml);
     }
 
     public function test_render_docx_includes_resolved_paragraph_text(): void

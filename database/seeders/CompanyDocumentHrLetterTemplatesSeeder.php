@@ -8,17 +8,22 @@ use App\Models\CompanyDocumentForm;
 use App\Models\TimekeepingMemoSetup;
 use App\Support\CompanyDocumentMemoPdfLayout;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 /**
  * ICCT letter and memo templates, laid out like Internal Memo — Absences & Tardiness.
- * Idempotent by form code; retires any other template.
+ *
+ * On desktop update this removes every other company document, then writes these
+ * nine templates back. Sent memos and NTE cases stay linked to a template that
+ * was actually used.
  */
 class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
 {
     /** Bump when installed databases must drop existing company documents and load these templates. */
-    public const REVISION = 7;
+    public const REVISION = 9;
 
     public const REVISION_MARKER = 'app/hr-letter-templates.revision';
 
@@ -51,7 +56,7 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
 
     public function run(): void
     {
-        $this->retireLegacyTemplates();
+        $this->removeOtherCompanyDocuments();
 
         $sort = 10;
         foreach ($this->templateDefinitions() as $definition) {
@@ -63,9 +68,9 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
         File::put(storage_path(self::REVISION_MARKER), (string) self::REVISION);
     }
 
-    private function retireLegacyTemplates(): void
+    private function removeOtherCompanyDocuments(): void
     {
-        CompanyDocumentForm::query()
+        CompanyDocumentForm::withTrashed()
             ->where(function ($query): void {
                 $query->whereNull('code')
                     ->orWhereNotIn('code', self::TEMPLATE_CODES);
@@ -76,10 +81,40 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
                     ->where('company_document_form_id', $form->company_document_form_id)
                     ->update(['company_document_form_id' => null]);
                 $this->forceDeleteElements($form);
-                if (! $form->trashed()) {
-                    $form->delete();
+
+                if ($this->formHasSentHistory($form)) {
+                    if (! $form->trashed()) {
+                        $form->delete();
+                    }
+
+                    return;
                 }
+
+                $form->forceDelete();
             });
+    }
+
+    private function formHasSentHistory(CompanyDocumentForm $form): bool
+    {
+        $formId = $form->company_document_form_id;
+        $tables = [
+            'tbl_company_document_send_logs',
+            'tbl_company_document_submissions',
+            'tbl_company_document_nte_cases',
+            'tbl_timekeeping_memo_send_logs',
+        ];
+
+        foreach ($tables as $table) {
+            if (! Schema::hasTable($table)) {
+                continue;
+            }
+
+            if (DB::table($table)->where('company_document_form_id', $formId)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -301,21 +336,51 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
             'elements' => array_merge(
                 $this->memoLetterheadElements(),
                 [
-                    $this->paragraph("Control No.\t{{control_no}}"),
-                    $this->paragraph('<i>Confidential</i>'),
+                    $this->paragraph('<b><u>Control No. {{control_no}}</u></b>', ['text_align' => 'right', 'font_size' => 12]),
+                    $this->paragraph('<b><u><i>Confidential</i></u></b>', ['font_size' => 12]),
                     $this->paragraph("From:\t{{memo_from}}"),
                     $this->paragraph("To:\t{{employee_full_name}}\t-\t{{employee_designation}}"),
                     $this->paragraph("Date:\t{{memo_date}}"),
-                    $this->paragraph("Subject:\t{{attendance_period}} Attendances"),
+                    $this->paragraph("Subject:\t<b>{{attendance_period}} Attendances</b>"),
                     $this->paragraph("Cc:\t{{memo_cc}}"),
-                    $this->paragraph($intro),
-                    $this->table([
-                        ['Nature of offense', 'Disciplinary action'],
-                        ['{{nature_of_offense}}', '{{disciplinary_action}}'],
-                    ]),
-                    $this->paragraph($closing),
+                    $this->paragraph($intro, ['text_align' => 'justify']),
+                    $this->absencesTardinessOffenseTable(),
+                    $this->paragraph($closing, ['text_align' => 'justify']),
                 ],
             ),
+        ];
+    }
+
+    /**
+     * ICCT Code of Offenses table (Section 8 AWOL and Section 23 habitual tardiness).
+     *
+     * @return array<string, mixed>
+     */
+    private function absencesTardinessOffenseTable(): array
+    {
+        return [
+            'type' => CompanyDocumentElement::TYPE_TABLE,
+            'label' => 'Table',
+            'options_json' => [
+                'rows' => [
+                    [
+                        '<b><i>Section 8</i></b>',
+                        '<b><u>Whole day</u></b> absence without official leave (AWOL).<br><br>(Each day of absence without notice will be on an accrual basis)',
+                        '<b><i>B (Written Warning)</i></b>',
+                    ],
+                    [
+                        '<b><i>Section 23</i></b>',
+                        'Habitual tardiness, committing five (5) times late in a month. For faculty, <i>please see Appendix A</i>',
+                        '<b><i>A (</i></b><i>Verbal Reprimand - but recorded for reference)</i>',
+                    ],
+                ],
+            ],
+            'settings_json' => [
+                'label_align' => 'top',
+                'pos_x' => self::MARGIN_X,
+                'table_header' => false,
+                'column_widths' => ['18%', '52%', '30%'],
+            ],
         ];
     }
 
@@ -614,8 +679,12 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
     {
         return [
             $this->letterheadHeading('ICCT COLLEGES FOUNDATION, INC.'),
-            $this->letterheadParagraph('V.V Soliven Avenue II, Cainta, Rizal'),
-            $this->letterheadHeading('M E M O R A N D U M'),
+            $this->letterheadParagraph('<b>V.V Soliven Avenue II, Cainta, Rizal</b>'),
+            $this->paragraph('<b><u>M E M O R A N D U M</u></b>', [
+                'text_align' => 'center',
+                'pos_x' => 0,
+                'font_size' => 15,
+            ]),
         ];
     }
 
@@ -665,12 +734,16 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
         ];
     }
 
-    private function paragraph(string $label): array
+    /**
+     * @param  array<string, mixed>  $settings
+     * @return array<string, mixed>
+     */
+    private function paragraph(string $label, array $settings = []): array
     {
         return [
             'type' => CompanyDocumentElement::TYPE_PARAGRAPH,
             'label' => $label,
-            'settings_json' => ['label_align' => 'top', 'pos_x' => self::MARGIN_X],
+            'settings_json' => array_merge(['label_align' => 'top', 'pos_x' => self::MARGIN_X], $settings),
         ];
     }
 

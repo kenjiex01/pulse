@@ -10,6 +10,7 @@ use App\Support\CompanyDocumentMemoTable;
 use App\Support\CompanyDocumentOffensePairTable;
 use App\Support\CompanyDocumentMemoDocxExporter;
 use App\Support\CompanyDocumentMemoDompdfPreparer;
+use App\Support\CompanyDocumentMemoFonts;
 use App\Support\CompanyDocumentMemoPdfLayout;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
@@ -57,6 +58,7 @@ class CompanyDocumentMemoRenderService
             'form' => $form,
             'elements' => $elements,
             'preview_values' => $previewValues,
+            'memo_fields' => $this->fixedLayoutFields($form, null, $memoContext),
         ];
     }
 
@@ -85,6 +87,7 @@ class CompanyDocumentMemoRenderService
             'form' => $form,
             'elements' => $elements,
             'preview_values' => $previewValues,
+            'memo_fields' => $this->fixedLayoutFields($form, $employee, $memoContext),
         ];
     }
 
@@ -134,6 +137,14 @@ class CompanyDocumentMemoRenderService
      */
     public function renderDocumentHtml(array $preview, bool $browserPreview = false): string
     {
+        $fixed = $this->fixedLayout($preview);
+        if ($fixed !== null) {
+            return View::make($fixed['view'], [
+                'fields' => $fixed['fields'],
+                'browserPreview' => $browserPreview,
+            ])->render();
+        }
+
         $elements = collect($preview['elements'])->sortBy('sort_order')->values()->all();
         $layout = CompanyDocumentMemoPdfLayout::buildForPdf($elements);
 
@@ -158,15 +169,26 @@ class CompanyDocumentMemoRenderService
         $materialized = $preparer->materializePreviewImages($preview);
 
         try {
-            $elements = collect($materialized['preview']['elements'])->sortBy('sort_order')->values()->all();
-            $layout = CompanyDocumentMemoPdfLayout::buildForPdf($elements);
+            $fixed = $this->fixedLayout($materialized['preview']);
+            if ($fixed !== null) {
+                $html = View::make($fixed['view'], [
+                    'fields' => $fixed['fields'],
+                    'browserPreview' => false,
+                    'fontFiles' => CompanyDocumentMemoFonts::copyInto($materialized['chroot']),
+                ])->render();
+                $paper = $fixed['paper'];
+            } else {
+                $elements = collect($materialized['preview']['elements'])->sortBy('sort_order')->values()->all();
+                $layout = CompanyDocumentMemoPdfLayout::buildForPdf($elements);
 
-            $html = View::make('pdf.company-document-memo-document', [
-                'form' => $materialized['preview']['form'],
-                'layout' => $layout,
-                'previewValues' => $materialized['preview']['preview_values'],
-                'browserPreview' => false,
-            ])->render();
+                $html = View::make('pdf.company-document-memo-document', [
+                    'form' => $materialized['preview']['form'],
+                    'layout' => $layout,
+                    'previewValues' => $materialized['preview']['preview_values'],
+                    'browserPreview' => false,
+                ])->render();
+                $paper = 'legal';
+            }
 
             $options = new \Dompdf\Options();
             $options->set('isRemoteEnabled', false);
@@ -179,7 +201,7 @@ class CompanyDocumentMemoRenderService
             $dompdf = new \Dompdf\Dompdf($options);
             $dompdf->setBasePath($materialized['chroot'].\DIRECTORY_SEPARATOR);
             $dompdf->loadHtml($html);
-            $dompdf->setPaper('legal', 'portrait');
+            $dompdf->setPaper($paper, 'portrait');
             $dompdf->render();
 
             return $dompdf->output();
@@ -218,6 +240,129 @@ class CompanyDocumentMemoRenderService
     /**
      * @return array{date_from: string, date_to: string, violation_type: string, violation_count: int, selected_dates: list<string>}
      */
+    /**
+     * @param  array<string, mixed>  $preview
+     */
+    /**
+     * @param  array<string, mixed>  $preview
+     * @return array{view: string, paper: string|array<int, float>, fields: array<string, mixed>}|null
+     */
+    private function fixedLayout(array $preview): ?array
+    {
+        $fields = $preview['memo_fields'] ?? null;
+        if (! is_array($fields) || ! isset($fields['layout_view'])) {
+            return null;
+        }
+
+        return [
+            'view' => (string) $fields['layout_view'],
+            'paper' => $fields['layout_paper'] ?? 'letter',
+            'fields' => $fields,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $memoContext
+     * @return array<string, mixed>|null
+     */
+    private function fixedLayoutFields(CompanyDocumentForm $form, ?Employee $employee, array $memoContext): ?array
+    {
+        $letters = [
+            'hr_notice_to_explain' => ['Via LBC', true, [0.0, 0.0, 612.0, 936.0], 'Vice- President, Administration', 'full'],
+            'hr_letter_nte_followup_2' => ['Via Registered Mail', false, 'letter', 'Vice- President, Administration', 'full'],
+            'hr_letter_nte_followup_3' => ['Via Registered Mail', false, 'letter', 'Vice- President, Administration', 'full'],
+            'hr_letter_admin_investigation' => ['Via Registered Mail', false, 'letter', 'Vice- President, Administration', 'full'],
+            'hr_letter_dismissal_notice' => ['Via Registered Mail', false, 'letter', 'Vice-President, Administration', 'short'],
+        ];
+
+        if (isset($letters[$form->code])) {
+            [$delivery, $deliveryFirst, $paper, $signTitle, $ccStyle] = $letters[$form->code];
+            $address = trim((string) ($employee?->address_line ?? ''));
+
+            return [
+                'layout_view' => 'pdf.company-document-hr-letter',
+                'layout_paper' => $paper,
+                'variant' => $form->code,
+                'tall' => is_array($paper),
+                'delivery' => $delivery,
+                'delivery_first' => $deliveryFirst,
+                'logo' => $this->memoLogoDataUri(),
+                'control_no' => $this->mergeTagService->resolve('control_no', $employee, $memoContext),
+                'memo_date' => $this->mergeTagService->resolve('memo_date', $employee, $memoContext),
+                'to_name' => $this->mergeTagService->resolve('employee_full_name', $employee, $memoContext),
+                'address' => $address !== '' ? $address : 'Residential Address',
+                'sign_name' => 'Au G. Esma',
+                'sign_title' => $signTitle,
+                'cc_style' => $ccStyle,
+            ];
+        }
+
+        $memos = [
+            'hr_memo_absences_tardiness' => ['pdf.company-document-absences-tardiness-memo', 'letter', null],
+            'hr_memo_company_property' => ['pdf.company-document-company-property-memo', 'letter', 'Release of Company Property'],
+            'hr_internal_memo' => ['pdf.company-document-attendance-memo', [0.0, 0.0, 612.0, 936.0], 'Attendances'],
+            'hr_memo_philhealth_compliance' => ['pdf.company-document-philhealth-memo', 'letter', 'Philhealth Number'],
+        ];
+
+        if (! isset($memos[$form->code])) {
+            return null;
+        }
+
+        [$view, $paper, $subject] = $memos[$form->code];
+        $from = $this->splitNameAndTitle($this->mergeTagService->resolve('memo_from', $employee, $memoContext));
+        $ccLines = [];
+        foreach (preg_split("/\r\n|\n|\r/", $this->mergeTagService->resolve('memo_cc', $employee, $memoContext)) ?: [] as $line) {
+            $line = trim((string) $line);
+            if ($line === '') {
+                continue;
+            }
+            $ccLines[] = $this->splitNameAndTitle($line);
+        }
+
+        return [
+            'layout_view' => $view,
+            'layout_paper' => $paper,
+            'logo' => $this->memoLogoDataUri(),
+            'control_no' => $this->mergeTagService->resolve('control_no', $employee, $memoContext),
+            'from_name' => $from[0],
+            'from_title' => $from[1],
+            'to_name' => $this->mergeTagService->resolve('employee_full_name', $employee, $memoContext),
+            'to_title' => $this->mergeTagService->resolve('employee_designation', $employee, $memoContext),
+            'memo_date' => $this->mergeTagService->resolve('memo_date', $employee, $memoContext),
+            'period' => $this->mergeTagService->resolve('attendance_period', $employee, $memoContext),
+            'hire_date' => $this->mergeTagService->resolve('hire_date', $employee, $memoContext),
+            'subject' => $subject,
+            'cc_lines' => $ccLines,
+        ];
+    }
+
+    private function memoLogoDataUri(): string
+    {
+        $logoPath = resource_path('seeders/assets/icct-colleges-logo.jpg');
+        if (! is_file($logoPath)) {
+            return '';
+        }
+
+        return 'data:image/jpeg;base64,'.base64_encode((string) file_get_contents($logoPath));
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function splitNameAndTitle(string $value): array
+    {
+        $value = trim($value);
+        foreach ([' — ', ' – ', ' - '] as $separator) {
+            if (str_contains($value, $separator)) {
+                [$name, $title] = explode($separator, $value, 2);
+
+                return [trim($name), trim($title)];
+            }
+        }
+
+        return [$value, ''];
+    }
+
     private function sampleMemoContext(): array
     {
         $today = now();

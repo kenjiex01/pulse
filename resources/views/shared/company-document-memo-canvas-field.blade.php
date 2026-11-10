@@ -39,7 +39,12 @@
         @break
 
     @case(CompanyDocumentElement::TYPE_TABLE)
-        {!! \App\Support\CompanyDocumentMemoTable::html(is_array($element['options']['rows'] ?? null) ? $element['options']['rows'] : []) !!}
+        @php
+            $tableRows = is_array($element['options']['rows'] ?? null) ? $element['options']['rows'] : [];
+            $tableSettings = is_array($element['settings'] ?? null) ? $element['settings'] : [];
+            $tableUseHeader = ($tableSettings['table_header'] ?? true) !== false;
+        @endphp
+        {!! \App\Support\CompanyDocumentMemoTable::html($tableRows, $tableUseHeader, $tableSettings) !!}
         @break
 
     @case('image')

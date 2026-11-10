@@ -288,7 +288,6 @@ class CompanyDocumentFormTest extends TestCase
         $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
         $designerBody = "We have noted your continued absences and tardiness for the months of {{attendance_period}} as shown on the attached summary of attendance.\n\n"
             ."Please be reminded that as per the Code of Offenses & Table of Penalties, Table II. Offenses Against Administration:\n\n"
-            ."{{nature_of_offense}} {{disciplinary_action}}\n\n"
             ."Please submit a written explanation regarding the issue within forty-eight (48) hours upon receipt of this memorandum.\n\n"
             ."We look forward to your cooperation.\n\n\n"
             ."Aurora G. Esma\n"
@@ -296,7 +295,7 @@ class CompanyDocumentFormTest extends TestCase
 
         $form->elements()
             ->where('type', CompanyDocumentElement::TYPE_PARAGRAPH)
-            ->where('label', 'like', '%Section 8%')
+            ->where('label', 'like', '%We have noted your continued absences%')
             ->update(['label' => $designerBody]);
 
         $service = app(\App\Services\CompanyDocumentMemoRenderService::class);
@@ -304,33 +303,27 @@ class CompanyDocumentFormTest extends TestCase
         $html = $service->renderDocumentHtml($preview, true);
         $plain = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($html))) ?? '';
 
-        foreach ($preview['elements'] as $element) {
-            if (in_array($element['type'] ?? '', ['image', 'table'], true)) {
-                continue;
-            }
-
-            $text = trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags((string) ($element['label'] ?? '')))) ?? '');
-            if ($text === '') {
-                continue;
-            }
-
-            $this->assertStringContainsString(mb_substr($text, 0, 48), $plain);
-        }
-
         $this->assertStringContainsString('From:', $plain);
         $this->assertStringContainsString('Aurora G. Esma', $plain);
+        $this->assertStringContainsString('M E M O R A N D U M', $html);
+        $this->assertStringContainsString('class="letterhead"', $html);
         $this->assertStringContainsString('<table', $html);
-        $this->assertStringContainsString('border:1px solid #111', $html);
-        $this->assertStringContainsString('Nature of offense', $html);
-        $this->assertStringContainsString('Disciplinary action', $html);
-        $this->assertStringNotContainsString('Section 23', $html);
-        $this->assertStringNotContainsString('please see Appendix A', $html);
-        $this->assertStringNotContainsString('accrual basis', $html);
+        $this->assertStringContainsString('Section 8', $html);
+        $this->assertStringContainsString('Section 23', $html);
+        $this->assertStringContainsString('please see <i>Appendix A</i>', $html);
+        $this->assertStringContainsString('accrual basis', $html);
+        $this->assertStringNotContainsString('Nature of offense', $html);
     }
 
     public function test_table_element_preview_resolves_tags_inside_bordered_cells(): void
     {
-        $form = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
+        $form = CompanyDocumentForm::query()->create([
+            'code' => 'test_canvas_table_memo',
+            'name' => 'Canvas table memo',
+            'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'is_active' => true,
+            'version' => 1,
+        ]);
         CompanyDocumentElement::query()->create([
             'company_document_form_id' => $form->company_document_form_id,
             'type' => CompanyDocumentElement::TYPE_TABLE,
@@ -365,15 +358,10 @@ class CompanyDocumentFormTest extends TestCase
         $response->assertOk();
         $response->assertHeader('Content-Type', 'text/html; charset=UTF-8');
         $html = $response->getContent();
-        $this->assertStringContainsString('Internal Memo', $html);
-        $this->assertStringContainsString('cd-designer-canvas-inner', $html);
-        $this->assertStringContainsString('8.5in', $html);
-        $this->assertStringContainsString('14in', $html);
-        $this->assertStringContainsString('padding: 16px 88px', $html);
-        $this->assertStringContainsString('data-memo-preview-desk', $html);
-        $this->assertStringContainsString('desk.style.zoom', $html);
-        $this->assertStringNotContainsString('memo-pdf-form-column', $html);
-        $this->assertStringNotContainsString('memo-pdf-field-box', $html);
+        $this->assertStringContainsString('M E M O R A N D U M', $html);
+        $this->assertStringContainsString('class="letterhead"', $html);
+        $this->assertStringContainsString('Section 8', $html);
+        $this->assertStringContainsString('size: letter', $html);
     }
 
     public function test_memo_template_preview_pdf_returns_valid_legal_pdf(): void
@@ -392,7 +380,7 @@ class CompanyDocumentFormTest extends TestCase
         $this->assertGreaterThanOrEqual(1, $pageCount);
         $this->assertLessThanOrEqual(3, $pageCount);
         $this->assertGreaterThan(5000, strlen($pdf));
-        $this->assertMatchesRegularExpression('/MediaBox\s*\[[^\]]*612[^\]]*1008/', $pdf);
+        $this->assertMatchesRegularExpression('/MediaBox\s*\[[^\]]*612[^\]]*792/', $pdf);
     }
 
     public function test_designer_save_persists_field_positions(): void

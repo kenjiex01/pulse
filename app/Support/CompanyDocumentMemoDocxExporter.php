@@ -131,7 +131,10 @@ class CompanyDocumentMemoDocxExporter
             return;
         }
 
-        Html::addHtml($section, CompanyDocumentMemoTable::html($rows), false, false);
+        $settings = is_array($element['settings'] ?? null) ? $element['settings'] : [];
+        $useHeader = ($settings['table_header'] ?? true) !== false;
+
+        Html::addHtml($section, CompanyDocumentMemoTable::html($rows, $useHeader, $settings), false, false);
     }
 
     /**

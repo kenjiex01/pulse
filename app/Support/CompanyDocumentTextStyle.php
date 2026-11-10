@@ -126,7 +126,7 @@ class CompanyDocumentTextStyle
     {
         $align = strtolower(trim((string) ($settings['text_align'] ?? 'left')));
 
-        return in_array($align, ['left', 'center', 'right'], true) ? $align : 'left';
+        return in_array($align, ['left', 'center', 'right', 'justify'], true) ? $align : 'left';
     }
 
     /**
