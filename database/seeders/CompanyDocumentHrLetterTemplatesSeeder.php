@@ -8,22 +8,19 @@ use App\Models\CompanyDocumentForm;
 use App\Models\TimekeepingMemoSetup;
 use App\Support\CompanyDocumentMemoPdfLayout;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 /**
  * ICCT letter and memo templates, laid out like Internal Memo — Absences & Tardiness.
  *
- * On desktop update this removes every other company document, then writes these
- * nine templates back. Sent memos and NTE cases stay linked to a template that
- * was actually used.
+ * On desktop update this deletes every company document, then writes these
+ * nine templates back.
  */
 class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
 {
     /** Bump when installed databases must drop existing company documents and load these templates. */
-    public const REVISION = 9;
+    public const REVISION = 10;
 
     public const REVISION_MARKER = 'app/hr-letter-templates.revision';
 
@@ -56,7 +53,7 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
 
     public function run(): void
     {
-        $this->removeOtherCompanyDocuments();
+        $this->deleteAllCompanyDocuments();
 
         $sort = 10;
         foreach ($this->templateDefinitions() as $definition) {
@@ -68,53 +65,18 @@ class CompanyDocumentHrLetterTemplatesSeeder extends Seeder
         File::put(storage_path(self::REVISION_MARKER), (string) self::REVISION);
     }
 
-    private function removeOtherCompanyDocuments(): void
+    private function deleteAllCompanyDocuments(): void
     {
         CompanyDocumentForm::withTrashed()
-            ->where(function ($query): void {
-                $query->whereNull('code')
-                    ->orWhereNotIn('code', self::TEMPLATE_CODES);
-            })
+            ->orderBy('company_document_form_id')
             ->each(function (CompanyDocumentForm $form): void {
                 $this->clearApprovals($form);
-                TimekeepingMemoSetup::query()
+                TimekeepingMemoSetup::withTrashed()
                     ->where('company_document_form_id', $form->company_document_form_id)
                     ->update(['company_document_form_id' => null]);
                 $this->forceDeleteElements($form);
-
-                if ($this->formHasSentHistory($form)) {
-                    if (! $form->trashed()) {
-                        $form->delete();
-                    }
-
-                    return;
-                }
-
                 $form->forceDelete();
             });
-    }
-
-    private function formHasSentHistory(CompanyDocumentForm $form): bool
-    {
-        $formId = $form->company_document_form_id;
-        $tables = [
-            'tbl_company_document_send_logs',
-            'tbl_company_document_submissions',
-            'tbl_company_document_nte_cases',
-            'tbl_timekeeping_memo_send_logs',
-        ];
-
-        foreach ($tables as $table) {
-            if (! Schema::hasTable($table)) {
-                continue;
-            }
-
-            if (DB::table($table)->where('company_document_form_id', $formId)->exists()) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**

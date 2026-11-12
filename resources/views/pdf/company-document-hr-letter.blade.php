@@ -5,7 +5,6 @@
     $textLeading = $browserPreview ? '13.8pt' : '11pt';
     $variant = (string) ($fields['variant'] ?? '');
     $tall = (bool) ($fields['tall'] ?? false);
-    $deliveryFirst = (bool) ($fields['delivery_first'] ?? false);
 @endphp
 <!DOCTYPE html>
 <html>
@@ -42,9 +41,9 @@
             white-space: nowrap;
         }
         .topline { width: 432pt; margin: 24pt 0 0; }
-        .topline td { vertical-align: top; padding: 0; }
-        .via { font-weight: 700; font-size: 10pt; line-height: 12pt; text-decoration: underline; }
-        .control { text-align: right; font-weight: 700; font-size: 9pt; line-height: 11pt; text-decoration: underline; }
+        .topline td { vertical-align: baseline; padding: 0; }
+        .via { font-weight: 700; font-size: 11pt; line-height: 13pt; text-decoration: underline; }
+        .control { text-align: right; font-weight: 700; font-size: 11pt; line-height: 13pt; text-decoration: underline; }
         .date { margin: 22pt 0 0; font-style: italic; }
         .who { margin: 40pt 0 0; }
         .who .addr { font-style: italic; }
@@ -78,8 +77,8 @@
 
     <table class="topline">
         <tr>
-            <td class="via" @if (! $deliveryFirst) style="padding-top:10pt;" @endif>{{ $fields['delivery'] ?? '' }}</td>
-            <td class="control" @if ($deliveryFirst) style="padding-top:11pt;" @endif>Control No. {{ $fields['control_no'] ?? '' }}</td>
+            <td class="via">{{ $fields['delivery'] ?? '' }}</td>
+            <td class="control">Control No. {{ $fields['control_no'] ?? '' }}</td>
         </tr>
     </table>
 

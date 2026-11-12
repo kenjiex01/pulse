@@ -55,16 +55,20 @@
             line-height: 16pt;
             text-decoration: underline;
         }
+        .flagline { width: 100%; margin: 2pt 0 0; }
+        .flagline td { padding: 0; vertical-align: baseline; }
         .confidential {
-            margin: 2pt 0 0;
-            font-size: 12pt;
+            margin: 0;
+            font-weight: 700;
+            font-size: 11pt;
             line-height: 14pt;
         }
         .control {
             margin: 0;
             text-align: right;
-            font-size: 9pt;
-            line-height: 11pt;
+            font-weight: 700;
+            font-size: 11pt;
+            line-height: 14pt;
             text-decoration: underline;
         }
         .meta { width: 100%; margin: 14pt 0 0; }
@@ -97,8 +101,12 @@
         </tr>
     </table>
     <div class="memorandum">M E M O R A N D U M</div>
-    <div class="confidential">Confidential</div>
-    <div class="control">Control No: {{ $fields['control_no'] ?? '' }}</div>
+    <table class="flagline">
+        <tr>
+            <td class="confidential">Confidential</td>
+            <td class="control">Control No: {{ $fields['control_no'] ?? '' }}</td>
+        </tr>
+    </table>
     <table class="meta">
         <tr>
             <td class="label">From:</td>

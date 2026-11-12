@@ -57,7 +57,8 @@ class ReferenceDataBootstrapServiceTest extends TestCase
 
         app(ReferenceDataBootstrapService::class)->ensureCriticalLookups();
 
-        $stored = $form->fresh()->elements()->get()->map(function ($element): string {
+        $fresh = CompanyDocumentForm::query()->where('code', 'hr_memo_absences_tardiness')->firstOrFail();
+        $stored = $fresh->elements()->get()->map(function ($element): string {
             if ($element->type === 'table') {
                 return json_encode($element->options_json);
             }
@@ -124,7 +125,7 @@ class ReferenceDataBootstrapServiceTest extends TestCase
         );
     }
 
-    public function test_revision_bump_hides_a_sent_document_without_deleting_its_history(): void
+    public function test_revision_bump_removes_every_company_document_then_loads_the_templates(): void
     {
         $this->seed(CompanyDocumentHrLetterTemplatesSeeder::class);
 
@@ -135,7 +136,7 @@ class ReferenceDataBootstrapServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        $submission = CompanyDocumentSubmission::query()->create([
+        CompanyDocumentSubmission::query()->create([
             'company_document_form_id' => $custom->company_document_form_id,
             'status' => CompanyDocumentSubmission::STATUS_COMPLETED,
             'submitted_at' => now(),
@@ -148,14 +149,18 @@ class ReferenceDataBootstrapServiceTest extends TestCase
 
         app(ReferenceDataBootstrapService::class)->ensureCriticalLookups();
 
-        $this->assertSoftDeleted('tbl_company_document_forms', [
+        $this->assertDatabaseMissing('tbl_company_document_forms', [
+            'code' => 'campus_sent_memo',
+        ]);
+        $this->assertDatabaseMissing('tbl_company_document_submissions', [
             'company_document_form_id' => $custom->company_document_form_id,
         ]);
-        $this->assertDatabaseHas('tbl_company_document_submissions', [
-            'submission_id' => $submission->submission_id,
-        ]);
-        $this->assertFalse(
-            CompanyDocumentForm::query()->where('code', 'campus_sent_memo')->exists(),
+
+        $expected = CompanyDocumentHrLetterTemplatesSeeder::TEMPLATE_CODES;
+        sort($expected);
+        $this->assertSame(
+            $expected,
+            CompanyDocumentForm::withTrashed()->orderBy('code')->pluck('code')->all(),
         );
     }
 }

@@ -36,8 +36,8 @@
     margin: 0;
     text-align: right;
     font-weight: 700;
-    font-size: 9pt;
-    line-height: 11pt;
+    font-size: 11pt;
+    line-height: 13pt;
     text-decoration: underline;
 }
 .confidential {
