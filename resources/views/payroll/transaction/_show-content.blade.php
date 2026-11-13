@@ -123,8 +123,16 @@
                 >
                     Remove Selected
                 </button>
-                <span class="text-xs text-gray-500" data-payroll-batch-selected-count>0 selected</span>
             @endif
+            <button
+                type="button"
+                class="btn-secondary !px-3 !py-1.5 text-xs"
+                disabled
+                data-payroll-batch-download-btn
+            >
+                Download
+            </button>
+            <span class="text-xs text-gray-500" data-payroll-batch-selected-count>0 selected</span>
         </div>
 
         <form
@@ -150,6 +158,19 @@
         </form>
     </div>
 
+    <form
+        id="payroll-batch-download-employees-form"
+        method="POST"
+        action="{{ route(\App\Support\PayrollTransactionModule::routeName('employees.download'), $batch) }}"
+        class="hidden"
+        data-payroll-batch-download-form
+        data-no-loader
+    >
+        @csrf
+        <input type="hidden" name="batch_employee_search" value="{{ $batchEmployeeSearch }}">
+        <input type="hidden" name="search" value="{{ request('search') }}">
+    </form>
+
     @if ($batchEditable)
         <form
             id="payroll-batch-remove-employees-form"
@@ -167,11 +188,9 @@
         <table class="table-skolaris min-w-full text-sm">
             <thead>
                 <tr>
-                    @if ($batchEditable)
-                        <th class="w-10 px-3 py-2">
-                            <input type="checkbox" data-payroll-batch-select-all aria-label="Select all employees">
-                        </th>
-                    @endif
+                    <th class="w-10 px-3 py-2">
+                        <input type="checkbox" data-payroll-batch-select-all aria-label="Select all employees">
+                    </th>
                     <th class="px-3 py-2 text-left">Employee No.</th>
                     <th class="px-3 py-2 text-left">Employee Name</th>
                     <th class="w-16 px-3 py-2 text-right">Actions</th>
@@ -181,18 +200,16 @@
                 @forelse ($batchEmployees as $detail)
                     @php($belowHalfPeriod = \App\Support\PayrollBatchEmployeeAttendance::isBelowHalfPayrollPeriod($detail))
                     <tr>
-                        @if ($batchEditable)
-                            <td class="px-3 py-2">
-                                <input
-                                    type="checkbox"
-                                    name="detail_ids[]"
-                                    value="{{ $detail->payroll_batch_detail_id }}"
-                                    form="payroll-batch-remove-employees-form"
-                                    data-payroll-batch-row-select
-                                    aria-label="Select {{ $detail->employee?->full_name ?? 'employee' }}"
-                                >
-                            </td>
-                        @endif
+                        <td class="px-3 py-2">
+                            <input
+                                type="checkbox"
+                                name="detail_ids[]"
+                                value="{{ $detail->payroll_batch_detail_id }}"
+                                @if ($batchEditable) form="payroll-batch-remove-employees-form" @endif
+                                data-payroll-batch-row-select
+                                aria-label="Select {{ $detail->employee?->full_name ?? 'employee' }}"
+                            >
+                        </td>
                         <td class="px-3 py-2 font-medium text-gray-900">{{ $detail->employee?->employee_number ?? '—' }}</td>
                         <td @class([
                             'px-3 py-2',
@@ -212,7 +229,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ $batchEditable ? 4 : 3 }}" class="px-3 py-8 text-center text-gray-500">
+                        <td colspan="4" class="px-3 py-8 text-center text-gray-500">
                             No employees in this batch yet.
                             @if ($batchEditable)
                                 Click <strong>Add Employees</strong> to assign employees.

@@ -226,6 +226,37 @@ class PayrollBatchService
         ], true);
     }
 
+    /**
+     * Soft-delete payroll batches that are not posted or in posting workflow (Pending, Locked, or Processed only).
+     *
+     * @param  list<int>  $ids
+     */
+    public function purgeBatches(array $ids): int
+    {
+        if ($ids === []) {
+            return 0;
+        }
+
+        $deletableStatuses = [
+            PayrollBatchStatus::PENDING,
+            PayrollBatchStatus::LOCKED,
+            PayrollBatchStatus::PROCESSED,
+        ];
+
+        return DB::transaction(function () use ($ids, $deletableStatuses) {
+            $batches = PayrollBatch::query()
+                ->whereIn('payroll_batch_id', $ids)
+                ->whereIn('payroll_batch_status_id', $deletableStatuses)
+                ->get();
+
+            foreach ($batches as $batch) {
+                $batch->delete();
+            }
+
+            return $batches->count();
+        });
+    }
+
     public function canProcessBatch(PayrollBatch $batch): bool
     {
         return (int) $batch->payroll_batch_status_id === PayrollBatchStatus::PENDING

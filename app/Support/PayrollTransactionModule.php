@@ -120,6 +120,8 @@ class PayrollTransactionModule
             'upload.commit' => 'payroll.transaction.upload.commit',
             'upload.discard' => 'payroll.transaction.upload.discard',
             'upload.destroy' => 'payroll.transaction.upload.destroy',
+            'batches.destroy' => 'payroll.transaction.batches.destroy',
+            'employees.download' => 'payroll.transaction.employees.download',
             'payslips.send' => 'payroll.transaction.payslips.send',
             'employees.incomes.store' => 'payroll.transaction.employees.incomes.store',
             'employees.deductions.store' => 'payroll.transaction.employees.deductions.store',

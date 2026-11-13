@@ -697,7 +697,7 @@ class TimeLogsPayrollService
      *
      * @param  array{date: CarbonImmutable, time_in: string|null, time_out: string|null}  $session
      */
-    private function sessionHasNoTimeOut(array $session): bool
+    public function sessionHasNoTimeOut(array $session): bool
     {
         $timeIn = $session['time_in'] ?? null;
         $timeOut = $session['time_out'] ?? null;

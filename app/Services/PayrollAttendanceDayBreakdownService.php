@@ -7,6 +7,8 @@ use App\Models\PayrollBatchDetail;
 use App\Models\ShiftCode;
 use App\Models\TimekeepingPolicy;
 use App\Support\EmployeePayrollPeriod;
+use App\Support\PayrollCalendarWorkingDays;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
 /**
@@ -19,13 +21,15 @@ class PayrollAttendanceDayBreakdownService
         private readonly EmployeeShiftResolver $shiftResolver,
         private readonly PayrollBreakService $breakPayroll,
         private readonly EmployeeOvertimeApprovalService $overtimeApprovals,
+        private readonly EmployeeSalaryResolverService $salaryResolver,
     ) {}
 
     /**
      * @return array{
      *     LTDE: list<array<string, mixed>>,
      *     UTDE: list<array<string, mixed>>,
-     *     OVRT: list<array<string, mixed>>
+     *     OVRT: list<array<string, mixed>>,
+     *     ABST: list<array<string, mixed>>
      * }
      */
     public function forDetail(PayrollBatchDetail $detail): array
@@ -108,24 +112,33 @@ class PayrollAttendanceDayBreakdownService
             'attendanceDays.shiftCode',
         ]);
 
-        $savedDays = $detail->attendanceDays;
-
-        if ($savedDays->isNotEmpty()) {
-            return $this->fromSavedDays($savedDays);
-        }
-
         $calendar = $detail->payrollBatch?->payrollCalendar;
         $from = $calendar?->dt_from;
         $to = $calendar?->dt_to;
 
         if ($from === null || $to === null || $detail->employee === null) {
-            return ['LTDE' => [], 'UTDE' => [], 'OVRT' => []];
+            return ['LTDE' => [], 'UTDE' => [], 'OVRT' => [], 'ABST' => []];
         }
 
         $to = EmployeePayrollPeriod::effectiveEnd($detail->employee, $from, $to);
 
         if ($to === null) {
-            return ['LTDE' => [], 'UTDE' => [], 'OVRT' => []];
+            return ['LTDE' => [], 'UTDE' => [], 'OVRT' => [], 'ABST' => []];
+        }
+
+        $savedDays = $detail->attendanceDays;
+
+        if ($savedDays->isNotEmpty()) {
+            $breakdown = $this->fromSavedDays($savedDays);
+            $breakdown['ABST'] = $this->appendCalendarUnworkedAbsenceRows(
+                $detail,
+                $from,
+                $to,
+                $breakdown['ABST'],
+                $savedDays,
+            );
+
+            return $breakdown;
         }
 
         $employeeId = (int) $detail->employee_id;
@@ -134,10 +147,13 @@ class PayrollAttendanceDayBreakdownService
         $defaultShift = $employee?->timekeepingSetup?->shiftCode;
 
         if (! $this->timeLogsPayroll->hasPunchesInPeriod($employeeId, $from, $to)) {
+            $absent = $this->appendCalendarUnworkedAbsenceRows($detail, $from, $to, [], collect());
+
             return [
                 'LTDE' => [],
                 'UTDE' => [],
                 'OVRT' => $this->overtimeApprovals->dayBreakdownForPeriod($employeeId, $from, $to, $defaultShift),
+                'ABST' => $absent,
             ];
         }
 
@@ -155,10 +171,14 @@ class PayrollAttendanceDayBreakdownService
             $otMinutesByDate,
         );
 
+        $absentRows = $this->absenceDays($employeeId, $from, $to, $policy, $defaultShift);
+        $absentRows = $this->appendCalendarUnworkedAbsenceRows($detail, $from, $to, $absentRows, collect());
+
         return [
             'LTDE' => $this->lateDays($employeeId, $from, $to, $policy, $defaultShift),
             'UTDE' => $this->undertimeDays($employeeId, $from, $to, $policy, $defaultShift),
             'OVRT' => $otRows,
+            'ABST' => $absentRows,
         ];
     }
 
@@ -167,7 +187,8 @@ class PayrollAttendanceDayBreakdownService
      * @return array{
      *     LTDE: list<array<string, mixed>>,
      *     UTDE: list<array<string, mixed>>,
-     *     OVRT: list<array<string, mixed>>
+     *     OVRT: list<array<string, mixed>>,
+     *     ABST: list<array<string, mixed>>
      * }
      */
     private function fromSavedDays($savedDays): array
@@ -175,6 +196,7 @@ class PayrollAttendanceDayBreakdownService
         $late = [];
         $undertime = [];
         $overtime = [];
+        $absent = [];
 
         foreach ($savedDays->sortBy('work_date') as $day) {
             $workDate = $day->work_date?->toDateString();
@@ -191,6 +213,22 @@ class PayrollAttendanceDayBreakdownService
                 'time_in' => $this->formatClock($day->time_in),
                 'time_out' => $this->formatClock($day->time_out),
             ];
+
+            $dayType = (string) ($day->day_type ?? '');
+
+            if (strcasecmp($dayType, 'Absent') === 0) {
+                $absent[] = $base + [
+                    'absence_type' => 'Full day',
+                    'days' => 1.0,
+                    'minutes' => 0,
+                ];
+            } elseif (strcasecmp($dayType, 'Half-day Absent') === 0) {
+                $absent[] = $base + [
+                    'absence_type' => 'Half-day',
+                    'days' => 0.5,
+                    'minutes' => 0,
+                ];
+            }
 
             $lateHours = (float) ($day->late ?? 0);
             $breakLateHours = (float) ($day->break_late ?? 0);
@@ -222,6 +260,7 @@ class PayrollAttendanceDayBreakdownService
             'LTDE' => $late,
             'UTDE' => $undertime,
             'OVRT' => $overtime,
+            'ABST' => $absent,
         ];
     }
 
@@ -466,6 +505,244 @@ class PayrollAttendanceDayBreakdownService
         }
 
         return $rows;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function absenceDays(
+        int $employeeId,
+        CarbonInterface $from,
+        CarbonInterface $to,
+        ?TimekeepingPolicy $policy,
+        ?ShiftCode $defaultShift,
+    ): array {
+        $this->shiftResolver->loadOverridesForRange($employeeId, $from, $to);
+        $sessions = $this->timeLogsPayroll->daySessionsForPeriod($employeeId, $from, $to);
+        $otMinutesByDate = $this->overtimeApprovals->billableMinutesByDate($employeeId, $from, $to, $defaultShift);
+        $rows = [];
+
+        foreach ($sessions as $session) {
+            $schedule = $this->scheduleForAbsenceRow($employeeId, $session, $defaultShift);
+            $shift = $schedule['shift'];
+            $onRestDay = PayrollCalendarWorkingDays::isRestDay($employeeId, $session['date']);
+
+            if ($onRestDay) {
+                continue;
+            }
+
+            $dateKey = $session['date']->toDateString();
+            $base = [
+                'work_date' => $dateKey,
+                'shift_code' => $shift?->shift_code,
+                'schedule_start' => $this->formatClock($schedule['start'] ?? null),
+                'schedule_end' => $this->formatClock($schedule['end'] ?? null),
+                'time_in' => $this->formatClock($session['time_in'] ?? null),
+                'time_out' => $this->formatClock($session['time_out'] ?? null),
+            ];
+
+            if ($shift !== null && (bool) $shift->is_flexi_time) {
+                continue;
+            }
+
+            if (($session['time_in'] ?? null) === null || $session['time_in'] === '') {
+                continue;
+            }
+
+            if ($this->timeLogsPayroll->sessionHasNoTimeOut($session)) {
+                $rows[] = $base + [
+                    'absence_type' => 'Full day',
+                    'days' => 1.0,
+                    'minutes' => 0,
+                ];
+
+                continue;
+            }
+
+            $resolvedLate = $this->timeLogsPayroll->resolvedLateForSession(
+                $session,
+                $policy,
+                $schedule['start'],
+                (int) ($otMinutesByDate[$dateKey] ?? 0),
+                $shift,
+            );
+
+            if ($resolvedLate['is_absent']) {
+                $rows[] = $base + [
+                    'absence_type' => 'Full day',
+                    'days' => 1.0,
+                    'minutes' => 0,
+                ];
+
+                continue;
+            }
+
+            $resolvedUndertime = $this->timeLogsPayroll->resolvedUndertimeForSession(
+                $session,
+                $policy,
+                $schedule['end'],
+                $schedule['start'],
+                $shift,
+                (bool) ($resolvedLate['is_half_day'] ?? false),
+            );
+
+            $isHalfDay = ($resolvedLate['is_half_day'] ?? false) || ($resolvedUndertime['is_half_day'] ?? false);
+
+            if (! $isHalfDay) {
+                continue;
+            }
+
+            $rows[] = $base + [
+                'absence_type' => 'Half-day',
+                'days' => 0.5,
+                'minutes' => 0,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Full-day absences from payroll calendar days with no punch / not counted as worked.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @param  \Illuminate\Support\Collection<int, PayrollAttendanceDay>  $savedDays
+     * @return list<array<string, mixed>>
+     */
+    private function appendCalendarUnworkedAbsenceRows(
+        PayrollBatchDetail $detail,
+        CarbonInterface $from,
+        CarbonInterface $to,
+        array $rows,
+        $savedDays,
+    ): array {
+        $employee = $detail->employee;
+
+        if ($employee === null) {
+            return $rows;
+        }
+
+        $employeeId = (int) $detail->employee_id;
+        $payTypeId = (int) ($detail->payrollBatch?->payrollCalendar?->pay_type_id ?? 0);
+
+        if ($payTypeId <= 0) {
+            return $rows;
+        }
+
+        $salaries = $this->salaryResolver->salariesForPeriod($employeeId, $payTypeId, $from, $to);
+        $salary = $salaries->last();
+
+        if ($salary === null || ! $salary->use_payroll_calendar_days) {
+            return $rows;
+        }
+
+        $defaultShift = $employee->timekeepingSetup?->shiftCode;
+        $restDayIds = PayrollCalendarWorkingDays::restDayIdsForEmployee($employeeId);
+        $existingDates = array_fill_keys(array_column($rows, 'work_date'), true);
+
+        $workedDates = [];
+
+        if ($savedDays->isNotEmpty()) {
+            foreach ($savedDays as $day) {
+                $workDate = $day->work_date?->toDateString();
+
+                if ($workDate === null) {
+                    continue;
+                }
+
+                $dayType = (string) ($day->day_type ?? '');
+                $isHalfDay = strcasecmp($dayType, 'Half-day Absent') === 0;
+
+                // Match payroll unworked-absence: rest days, full absences, and days
+                // with no real work session are not worked. A saved "Regular" row
+                // with no punches is still an absence day.
+                if (strcasecmp($dayType, 'Restday') === 0 || strcasecmp($dayType, 'Absent') === 0) {
+                    continue;
+                }
+
+                if (! filled($day->time_in) || (! $isHalfDay && ! filled($day->time_out))) {
+                    continue;
+                }
+
+                $workedDates[] = $workDate;
+            }
+        } else {
+            $this->shiftResolver->loadOverridesForRange($employeeId, $from, $to);
+            $sessions = $this->timeLogsPayroll->daySessionsForPeriod($employeeId, $from, $to);
+            $policy = $employee->timekeepingSetup?->policy;
+            $otMinutesByDate = $this->overtimeApprovals->billableMinutesByDate($employeeId, $from, $to, $defaultShift);
+
+            foreach ($sessions as $session) {
+                if (($session['time_in'] ?? null) === null || $session['time_in'] === '') {
+                    continue;
+                }
+
+                if (PayrollCalendarWorkingDays::isRestDay($employeeId, $session['date'])) {
+                    continue;
+                }
+
+                $schedule = $this->scheduleForAbsenceRow($employeeId, $session, $defaultShift);
+                $shift = $schedule['shift'];
+
+                if ($shift !== null && (bool) $shift->is_flexi_time) {
+                    $workedDates[] = $session['date']->toDateString();
+
+                    continue;
+                }
+
+                if ($this->timeLogsPayroll->sessionHasNoTimeOut($session)) {
+                    continue;
+                }
+
+                $resolvedLate = $this->timeLogsPayroll->resolvedLateForSession(
+                    $session,
+                    $policy,
+                    $schedule['start'],
+                    (int) ($otMinutesByDate[$session['date']->toDateString()] ?? 0),
+                    $shift,
+                );
+
+                if (! $resolvedLate['is_absent']) {
+                    $workedDates[] = $session['date']->toDateString();
+                }
+            }
+        }
+
+        foreach (PayrollCalendarWorkingDays::absenceDates($from, $to, $restDayIds, $workedDates) as $dateKey) {
+            if (isset($existingDates[$dateKey])) {
+                continue;
+            }
+
+            $date = CarbonImmutable::parse($dateKey);
+            $shift = $this->shiftResolver->forDate($employeeId, $date, $defaultShift);
+
+            $rows[] = [
+                'work_date' => $dateKey,
+                'shift_code' => $shift?->shift_code,
+                'schedule_start' => $this->formatClock($shift?->time_in),
+                'schedule_end' => $this->formatClock($shift?->time_out),
+                'time_in' => null,
+                'time_out' => null,
+                'absence_type' => 'Full day',
+                'days' => 1.0,
+                'minutes' => 0,
+                'source' => 'Calendar',
+            ];
+            $existingDates[$dateKey] = true;
+        }
+
+        usort($rows, fn (array $a, array $b) => strcmp((string) $a['work_date'], (string) $b['work_date']));
+
+        return array_values($rows);
+    }
+
+    /**
+     * @param  array{date: CarbonImmutable, time_in: string|null, time_out: string|null}  $session
+     * @return array{shift: ?ShiftCode, start: ?string, end: ?string}
+     */
+    private function scheduleForAbsenceRow(int $employeeId, array $session, ?ShiftCode $defaultShift): array
+    {
+        return $this->timeLogsPayroll->scheduleForSession($employeeId, $session, $defaultShift);
     }
 
     /**

@@ -5334,12 +5334,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
     syncPayrollUploadPurgeSelection();
 
+    const syncPayrollBatchListPurgeSelection = () => {
+        const purgeBtn = document.querySelector('[data-payroll-batch-list-purge-btn]');
+        const countLabel = document.querySelector('[data-payroll-batch-list-selected-count]');
+
+        if (!purgeBtn) {
+            return;
+        }
+
+        const update = () => {
+            const checked = document.querySelectorAll('[data-payroll-batch-list-row-select]:checked').length;
+            purgeBtn.disabled = checked === 0;
+
+            if (countLabel) {
+                countLabel.textContent = `${checked} selected`;
+            }
+        };
+
+        document.addEventListener('change', (event) => {
+            if (event.target.matches('[data-payroll-batch-list-select-all]')) {
+                document.querySelectorAll('[data-payroll-batch-list-row-select]').forEach((checkbox) => {
+                    checkbox.checked = event.target.checked;
+                });
+                update();
+            }
+
+            if (event.target.matches('[data-payroll-batch-list-row-select]')) {
+                update();
+            }
+        });
+
+        update();
+    };
+
+    syncPayrollBatchListPurgeSelection();
+
     const syncPayrollBatchRemoveSelection = (root = document) => {
         const removeBtn = root.querySelector('[data-payroll-batch-remove-btn]');
+        const downloadBtn = root.querySelector('[data-payroll-batch-download-btn]');
+        const downloadForm = root.querySelector('[data-payroll-batch-download-form]');
         const countLabel = root.querySelector('[data-payroll-batch-selected-count]');
         const selectAll = root.querySelector('[data-payroll-batch-select-all]');
 
-        if (!removeBtn) {
+        if (!removeBtn && !downloadBtn) {
             return;
         }
 
@@ -5347,7 +5384,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const update = () => {
             const checked = root.querySelectorAll('[data-payroll-batch-row-select]:checked').length;
-            removeBtn.disabled = checked === 0;
+
+            if (removeBtn) {
+                removeBtn.disabled = checked === 0;
+            }
+
+            if (downloadBtn) {
+                downloadBtn.disabled = checked === 0;
+            }
 
             if (countLabel) {
                 countLabel.textContent = `${checked} selected`;
@@ -5360,16 +5404,50 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        selectAll?.addEventListener('change', () => {
-            rowChecks().forEach((checkbox) => {
-                checkbox.checked = selectAll.checked;
+        if (selectAll && selectAll.dataset.bound !== '1') {
+            selectAll.dataset.bound = '1';
+            selectAll.addEventListener('change', () => {
+                rowChecks().forEach((checkbox) => {
+                    checkbox.checked = selectAll.checked;
+                });
+                update();
             });
-            update();
-        });
+        }
 
         rowChecks().forEach((checkbox) => {
+            if (checkbox.dataset.bound === '1') {
+                return;
+            }
+
+            checkbox.dataset.bound = '1';
             checkbox.addEventListener('change', update);
         });
+
+        if (downloadBtn && downloadBtn.dataset.bound !== '1') {
+            downloadBtn.dataset.bound = '1';
+            downloadBtn.addEventListener('click', () => {
+                if (!downloadForm || downloadBtn.disabled) {
+                    return;
+                }
+
+                downloadForm.querySelectorAll('[data-payroll-batch-download-id]').forEach((input) => input.remove());
+
+                rowChecks().forEach((checkbox) => {
+                    if (!checkbox.checked) {
+                        return;
+                    }
+
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'detail_ids[]';
+                    input.value = checkbox.value;
+                    input.dataset.payrollBatchDownloadId = '1';
+                    downloadForm.appendChild(input);
+                });
+
+                downloadForm.submit();
+            });
+        }
 
         update();
     };

@@ -8,6 +8,11 @@
         <table class="table-skolaris min-w-full">
             <thead>
                 <tr>
+                    @can('payroll-transaction.delete')
+                        <th class="w-10 px-3 py-2">
+                            <input type="checkbox" data-payroll-batch-list-select-all aria-label="Select all batches">
+                        </th>
+                    @endcan
                     <th>Batch No.</th>
                     <th>Pay Type</th>
                     <th>Pay Period</th>
@@ -23,6 +28,18 @@
             <tbody>
                 @forelse ($batches as $batch)
                     <tr>
+                        @can('payroll-transaction.delete')
+                            <td class="px-3 py-2">
+                                <input
+                                    type="checkbox"
+                                    name="selected_ids[]"
+                                    value="{{ $batch->payroll_batch_id }}"
+                                    form="payroll-batch-list-purge-form"
+                                    data-payroll-batch-list-row-select
+                                    aria-label="Select batch {{ $batch->formattedBatchNo() }}"
+                                >
+                            </td>
+                        @endcan
                         <td class="font-medium text-gray-900">{{ $batch->formattedBatchNo() }}</td>
                         <td class="text-gray-600">{{ $batch->payrollCalendar?->payType?->pay_type ?? '—' }}</td>
                         <td class="whitespace-nowrap text-gray-600">
@@ -52,7 +69,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10" class="py-16 text-center text-sm text-gray-500">
+                        <td colspan="{{ auth()->user()?->can('payroll-transaction.delete') ? 11 : 10 }}" class="py-16 text-center text-sm text-gray-500">
                             No payroll batches found.
                         </td>
                     </tr>

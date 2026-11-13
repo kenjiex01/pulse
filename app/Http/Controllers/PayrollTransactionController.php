@@ -17,6 +17,7 @@ use App\Models\RawPayrollTransaction;
 use App\Models\ShiftCode;
 use App\Services\EmployeeOvertimeApprovalService;
 use App\Services\PayrollAttendanceDayBreakdownService;
+use App\Services\PayrollBatchEmployeeDetailsExport;
 use App\Services\PayrollBatchService;
 use App\Services\ManualAttendanceDeductionService;
 use App\Services\PayrollDisputeService;
@@ -42,6 +43,7 @@ class PayrollTransactionController extends Controller
 {
     public function __construct(
         private readonly PayrollBatchService $batchService,
+        private readonly PayrollBatchEmployeeDetailsExport $employeeDetailsExport,
         private readonly PayrollTransactionUploadService $uploadService,
         private readonly EmployeeOvertimeApprovalService $overtimeApprovalService,
         private readonly PayrollAttendanceDayBreakdownService $attendanceDayBreakdown,
@@ -81,7 +83,7 @@ class PayrollTransactionController extends Controller
         $shiftCodes = collect();
         $shiftOverrides = collect();
         $overtimeApprovals = collect();
-        $attendanceDayBreakdown = ['LTDE' => [], 'UTDE' => [], 'OVRT' => []];
+        $attendanceDayBreakdown = ['LTDE' => [], 'UTDE' => [], 'OVRT' => [], 'ABST' => []];
         $openAddEmployeeIncome = false;
         $openAddEmployeeDeduction = false;
         $openAddEmployeeShiftCode = false;
@@ -1367,6 +1369,43 @@ class PayrollTransactionController extends Controller
             ->with('success', $added.' employee'.($added === 1 ? '' : 's').' added to batch '.$batch->formattedBatchNo().'.');
     }
 
+    public function downloadEmployeeDetails(Request $request, PayrollBatch $batch): StreamedResponse|RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'view');
+
+        $validated = $request->validate([
+            'detail_ids' => ['required', 'array', 'min:1'],
+            'detail_ids.*' => ['integer'],
+        ]);
+
+        $detailIds = PayrollBatchDetail::query()
+            ->where('payroll_batch_id', $batch->payroll_batch_id)
+            ->whereIn('payroll_batch_detail_id', $validated['detail_ids'])
+            ->pluck('payroll_batch_detail_id')
+            ->all();
+
+        if ($detailIds === []) {
+            return redirect()
+                ->route(PayrollTransactionModule::routeName('tab'), [
+                    'tab' => $this->batchTabFor($batch),
+                    'view_payroll_batch' => $batch->payroll_batch_id,
+                    'batch_employee_search' => $request->input('batch_employee_search'),
+                    'search' => $request->input('search'),
+                ])
+                ->with('error', 'Select at least one employee in this batch to download payroll details.');
+        }
+
+        SysLogService::record(
+            action: 'read',
+            table: 'trn_payroll_batches',
+            recordId: $batch->payroll_batch_id,
+            description: 'Downloaded payroll details for '.count($detailIds).' employee'.(count($detailIds) === 1 ? '' : 's')
+                .' from payroll batch no. '.$batch->formattedBatchNo(),
+        );
+
+        return $this->employeeDetailsExport->stream($batch, $detailIds);
+    }
+
     public function destroyEmployees(Request $request, PayrollBatch $batch): RedirectResponse
     {
         PayrollTransactionModule::authorize($request->user(), 'edit');
@@ -1734,6 +1773,40 @@ class PayrollTransactionController extends Controller
                 'open_upload' => 1,
             ])
             ->with('success', 'Upload cancelled.');
+    }
+
+    public function destroyPayrollBatches(Request $request): RedirectResponse
+    {
+        PayrollTransactionModule::authorize($request->user(), 'delete');
+
+        $validated = $request->validate([
+            'selected_ids' => ['required', 'array', 'min:1'],
+            'selected_ids.*' => ['integer', 'exists:trn_payroll_batches,payroll_batch_id'],
+        ]);
+
+        $deleted = $this->batchService->purgeBatches($validated['selected_ids']);
+
+        if ($deleted === 0) {
+            return redirect()
+                ->route(PayrollTransactionModule::routeName('tab'), [
+                    'tab' => 'batches',
+                    'search' => $request->input('search'),
+                ])
+                ->with('error', 'No batches were deleted. Posted or in-progress batches cannot be purged.');
+        }
+
+        SysLogService::record(
+            action: 'delete',
+            table: 'trn_payroll_batches',
+            description: 'Purged '.$deleted.' payroll batch'.($deleted === 1 ? '' : 'es').'.',
+        );
+
+        return redirect()
+            ->route(PayrollTransactionModule::routeName('tab'), [
+                'tab' => 'batches',
+                'search' => $request->input('search'),
+            ])
+            ->with('success', $deleted.' payroll batch'.($deleted === 1 ? '' : 'es').' purged.');
     }
 
     public function destroyUploadBatches(Request $request): RedirectResponse

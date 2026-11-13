@@ -29,10 +29,11 @@
         : null;
     $grossIncomeTotal = $taxableTotal + $nonTaxableTotal;
     $netPayTotal = $grossIncomeTotal - $employeeShareTotal;
-    $attendanceDayBreakdown = $attendanceDayBreakdown ?? ['LTDE' => [], 'UTDE' => [], 'OVRT' => []];
+    $attendanceDayBreakdown = $attendanceDayBreakdown ?? ['LTDE' => [], 'UTDE' => [], 'OVRT' => [], 'ABST' => []];
     $lateBreakdown = $attendanceDayBreakdown['LTDE'] ?? [];
     $undertimeBreakdown = $attendanceDayBreakdown['UTDE'] ?? [];
     $overtimeBreakdown = $attendanceDayBreakdown['OVRT'] ?? [];
+    $absenceBreakdown = $attendanceDayBreakdown['ABST'] ?? [];
     $canAddIncome = ($batchEditable ?? false) && $hasPayrollData;
     $canAddDeduction = ($batchEditable ?? false) && $hasPayrollData;
     $canAddShiftCode = (bool) ($batchEditable ?? false) && ($shiftCodes ?? collect())->isNotEmpty();
@@ -362,6 +363,7 @@
                             $breakdownModalId = match ($deductionCode) {
                                 'LTDE' => count($lateBreakdown) > 0 ? 'payroll-batch-late-breakdown-modal' : null,
                                 'UTDE' => count($undertimeBreakdown) > 0 ? 'payroll-batch-undertime-breakdown-modal' : null,
+                                'ABST' => count($absenceBreakdown) > 0 ? 'payroll-batch-absence-breakdown-modal' : null,
                                 default => null,
                             };
                         @endphp

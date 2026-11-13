@@ -34,6 +34,24 @@
         ])
     @endif
 
+    @if ($moduleTab === 'batches')
+        @can('payroll-transaction.delete')
+            <form
+                id="payroll-batch-list-purge-form"
+                method="POST"
+                action="{{ route(\App\Support\PayrollTransactionModule::routeName('batches.destroy')) }}"
+                class="mb-3 flex flex-wrap items-center gap-2"
+                data-payroll-batch-list-purge-form
+                onsubmit="return confirm('Purge selected payroll batches? This cannot be undone.');"
+            >
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn-secondary !px-3 !py-1.5 text-xs" disabled data-payroll-batch-list-purge-btn>Purge Selected</button>
+                <span class="text-xs text-gray-500" data-payroll-batch-list-selected-count>0 selected</span>
+            </form>
+        @endcan
+    @endif
+
     @if (in_array($moduleTab, ['batches', 'unpost-batches'], true))
         @include('partials.live-data-table', [
             'url' => route(\App\Support\PayrollTransactionModule::routeName('tab'), ['tab' => $moduleTab]),
@@ -148,7 +166,7 @@
                     'shiftOverrides' => $shiftOverrides ?? collect(),
                     'overtimeApprovals' => $overtimeApprovals ?? collect(),
                     'shiftCodes' => $shiftCodes ?? collect(),
-                    'attendanceDayBreakdown' => $attendanceDayBreakdown ?? ['LTDE' => [], 'UTDE' => [], 'OVRT' => []],
+                    'attendanceDayBreakdown' => $attendanceDayBreakdown ?? ['LTDE' => [], 'UTDE' => [], 'OVRT' => [], 'ABST' => []],
                     'disputes' => $disputes ?? collect(),
                     'disputesEditable' => $disputesEditable ?? false,
                 ])->render(),
@@ -193,6 +211,11 @@
                 'type' => 'OVRT',
                 'modalId' => 'payroll-batch-overtime-breakdown-modal',
                 'rows' => $attendanceDayBreakdown['OVRT'] ?? [],
+            ])
+            @include('payroll.transaction._batch-employee-attendance-breakdown-modal', [
+                'type' => 'ABST',
+                'modalId' => 'payroll-batch-absence-breakdown-modal',
+                'rows' => $attendanceDayBreakdown['ABST'] ?? [],
             ])
 
             @if (($batchEditable ?? false) && $incomeTypes->isNotEmpty())

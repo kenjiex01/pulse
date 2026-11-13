@@ -435,6 +435,9 @@ Route::middleware('auth')->group(function () {
         Route::delete('payroll/transaction/batches/{batch}/employees', [PayrollTransactionController::class, 'destroyEmployees'])
             ->name('payroll.transaction.employees.destroy');
 
+        Route::post('payroll/transaction/batches/{batch}/employees/download', [PayrollTransactionController::class, 'downloadEmployeeDetails'])
+            ->name('payroll.transaction.employees.download');
+
         Route::post('payroll/transaction/batches/{batch}/process', [PayrollTransactionController::class, 'processBatch'])
             ->name('payroll.transaction.process');
 
@@ -461,6 +464,9 @@ Route::middleware('auth')->group(function () {
 
         Route::delete('payroll/transaction/upload/purge', [PayrollTransactionController::class, 'destroyUploadBatches'])
             ->name('payroll.transaction.upload.destroy');
+
+        Route::delete('payroll/transaction/batches/purge', [PayrollTransactionController::class, 'destroyPayrollBatches'])
+            ->name('payroll.transaction.batches.destroy');
 
         Route::post('payroll/transaction/payslips/send', [PayrollTransactionController::class, 'sendPayslipEmail'])
             ->name('payroll.transaction.payslips.send');

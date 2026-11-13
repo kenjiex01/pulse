@@ -5,16 +5,19 @@
         'LTDE' => 'Late Details',
         'UTDE' => 'Undertime Details',
         'OVRT' => 'Overtime Details',
+        'ABST' => 'Absence Details',
     ];
     $descriptions = [
         'LTDE' => 'Work dates with late minutes in this pay period — from biometric logs, manually added, or uploaded Late lines.',
         'UTDE' => 'Work dates with undertime minutes in this pay period — from biometric logs, manually added, or uploaded Undertime lines.',
         'OVRT' => 'Work dates with approved overtime in this pay period.',
+        'ABST' => 'Work dates counted as absences (full day or half-day) in this pay period — from biometric rules or payroll calendar unworked days.',
     ];
     $modalId = $modalId ?? 'payroll-batch-attendance-breakdown-'.$type;
     $showOtWindow = $type === 'OVRT';
+    $showAbsenceColumns = $type === 'ABST';
     $showSource = collect($rows)->contains(fn ($row) => isset($row['source']));
-    $columnCount = 6 + ($showOtWindow ? 1 : 0) + ($showSource ? 1 : 0);
+    $columnCount = 5 + ($showOtWindow ? 1 : 0) + ($showAbsenceColumns ? 2 : 1) + ($showSource ? 1 : 0);
 @endphp
 
 <div
@@ -51,7 +54,12 @@
                             @if ($showSource)
                                 <th class="px-3 py-2 text-left">Source</th>
                             @endif
-                            <th class="px-3 py-2 text-right">Minutes</th>
+                            @if ($showAbsenceColumns)
+                                <th class="px-3 py-2 text-left">Absence</th>
+                                <th class="px-3 py-2 text-right">Days</th>
+                            @else
+                                <th class="px-3 py-2 text-right">Minutes</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
@@ -82,7 +90,12 @@
                                 @if ($showSource)
                                     <td class="px-3 py-2 text-gray-600">{{ $row['source'] ?? 'Biometric' }}</td>
                                 @endif
-                                <td class="px-3 py-2 text-right text-gray-900">{{ number_format((int) ($row['minutes'] ?? 0)) }}</td>
+                                @if ($showAbsenceColumns)
+                                    <td class="px-3 py-2 text-gray-600">{{ $row['absence_type'] ?? '—' }}</td>
+                                    <td class="px-3 py-2 text-right text-gray-900">{{ number_format((float) ($row['days'] ?? 0), 2) }}</td>
+                                @else
+                                    <td class="px-3 py-2 text-right text-gray-900">{{ number_format((int) ($row['minutes'] ?? 0)) }}</td>
+                                @endif
                             </tr>
                         @empty
                             <tr>
@@ -97,7 +110,11 @@
                             <tr class="bg-gray-50 font-semibold">
                                 <td class="px-3 py-2 text-gray-900" colspan="{{ $columnCount - 1 }}">Total</td>
                                 <td class="px-3 py-2 text-right text-gray-900">
-                                    {{ number_format(collect($rows)->sum(fn ($row) => (int) ($row['minutes'] ?? 0))) }}
+                                    @if ($showAbsenceColumns)
+                                        {{ number_format(collect($rows)->sum(fn ($row) => (float) ($row['days'] ?? 0)), 2) }}
+                                    @else
+                                        {{ number_format(collect($rows)->sum(fn ($row) => (int) ($row['minutes'] ?? 0))) }}
+                                    @endif
                                 </td>
                             </tr>
                         </tfoot>
