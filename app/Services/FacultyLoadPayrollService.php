@@ -186,6 +186,12 @@ class FacultyLoadPayrollService
                     'time_out' => $this->lastTimeOut($punches),
                 ];
 
+                if (($session['time_out'] ?? null) === null || $session['time_out'] === '') {
+                    $absentSessions++;
+
+                    continue;
+                }
+
                 $resolvedLate = $isFlexi
                     ? ['is_absent' => false, 'billable_minutes' => 0]
                     : $this->timeLogsPayroll->resolvedLateForSession($session, $policy, $scheduleStart, 0, $dayShift);
@@ -200,19 +206,28 @@ class FacultyLoadPayrollService
                     $dayHours += $this->employeeLoadPayroll->hoursForEntry($entry);
                 }
 
-                if ($resolvedLate['is_half_day'] ?? false) {
-                    $halfDayAbsences++;
-                    $absentHours += round($dayHours / 2, 4);
-                }
-
-                if (! $isFlexi) {
-                    $dayLate += (int) ($resolvedLate['billable_minutes'] ?? 0);
-                    $dayUndertime += $this->timeLogsPayroll->resolvedUndertimeForSession(
+                $resolvedUndertime = $isFlexi
+                    ? ['billable_minutes' => 0, 'is_half_day' => false, 'half_day_absent_minutes' => 0]
+                    : $this->timeLogsPayroll->resolvedUndertimeForSession(
                         $session,
                         $policy,
                         $scheduleEnd,
                         $scheduleStart,
-                    )['billable_minutes'];
+                        $dayShift,
+                        (bool) ($resolvedLate['is_half_day'] ?? false),
+                    );
+
+                if ($resolvedLate['is_half_day'] ?? false) {
+                    $halfDayAbsences++;
+                    $absentHours += round($dayHours / 2, 4);
+                } elseif ($resolvedUndertime['is_half_day'] ?? false) {
+                    $halfDayAbsences++;
+                    $absentHours += round(((int) ($resolvedUndertime['half_day_absent_minutes'] ?? 0)) / 60, 4);
+                }
+
+                if (! $isFlexi) {
+                    $dayLate += (int) ($resolvedLate['billable_minutes'] ?? 0);
+                    $dayUndertime += (int) ($resolvedUndertime['billable_minutes'] ?? 0);
                 }
             }
 

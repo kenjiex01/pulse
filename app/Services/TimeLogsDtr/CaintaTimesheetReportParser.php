@@ -14,15 +14,6 @@ class CaintaTimesheetReportParser
 
     private const DATE_COLUMN = 0;
 
-    /** @var array<int, array{in: int, out: int|null}> */
-    private const PUNCH_COLUMNS = [
-        ['in' => 2, 'out' => 3],
-        ['in' => 4, 'out' => 5],
-        ['in' => 6, 'out' => 7],
-        ['in' => 8, 'out' => 9],
-        ['in' => 10, 'out' => null],
-    ];
-
     /**
      * @return array{
      *     rows: array<int, array{biometric_id: string, employee_name: string, actual_date: string, punch_time: string, is_in: bool}>,
@@ -50,6 +41,15 @@ class CaintaTimesheetReportParser
 
             if ($headerIndex === null) {
                 $errors[] = 'Employee block for '.$employeeName.' ('.$biometricId.') is missing Date/In/Out headers.';
+
+                continue;
+            }
+
+            $headerCells = $this->normalizeRow($matrix[$headerIndex]);
+            $punchColumns = $this->punchColumnsFromHeader($headerCells);
+
+            if ($punchColumns === []) {
+                $errors[] = 'Employee block for '.$employeeName.' ('.$biometricId.') is missing In/Out column headers.';
 
                 continue;
             }
@@ -82,9 +82,13 @@ class CaintaTimesheetReportParser
                     continue;
                 }
 
-                foreach (self::PUNCH_COLUMNS as $pair) {
-                    $rawIn = trim((string) ($punchCells[$pair['in']] ?? ''));
-                    $rawOut = $pair['out'] === null ? '' : trim((string) ($punchCells[$pair['out']] ?? ''));
+                foreach ($punchColumns as $pair) {
+                    $rawIn = $pair['in'] === null
+                        ? ''
+                        : trim((string) ($punchCells[$pair['in']] ?? ''));
+                    $rawOut = $pair['out'] === null
+                        ? ''
+                        : trim((string) ($punchCells[$pair['out']] ?? ''));
 
                     if ($rawIn !== '') {
                         $parsedIn = $this->normalizeTime($rawIn);
@@ -147,14 +151,61 @@ class CaintaTimesheetReportParser
         for ($index = $startIndex; $index < count($matrix); $index++) {
             $cells = $this->normalizeRow($matrix[$index]);
             $date = strtolower(trim((string) ($cells[self::DATE_COLUMN] ?? '')));
-            $inOne = strtolower(trim((string) ($cells[2] ?? '')));
 
-            if ($date === 'date' && str_starts_with($inOne, 'in')) {
+            if ($date === 'date' && $this->hasInOneHeader($cells)) {
                 return $index;
             }
 
             if ($this->isEmployeeRow($cells)) {
                 return null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int, string>  $cells
+     */
+    private function hasInOneHeader(array $cells): bool
+    {
+        return $this->columnIndexForHeader($cells, '/^in\s*1$/i') !== null;
+    }
+
+    /**
+     * Some exports leave column B blank (In 1 at C); others pack Date at A and In 1 at B.
+     *
+     * @param  array<int, string>  $cells
+     * @return array<int, array{in: int, out: int|null}>
+     */
+    private function punchColumnsFromHeader(array $cells): array
+    {
+        $pairs = [];
+
+        for ($n = 1; $n <= 6; $n++) {
+            $inIndex = $this->columnIndexForHeader($cells, '/^in\s*'.$n.'$/i');
+            $outIndex = $this->columnIndexForHeader($cells, '/^out\s*'.$n.'$/i');
+
+            if ($inIndex === null && $outIndex === null) {
+                break;
+            }
+
+            $pairs[] = ['in' => $inIndex, 'out' => $outIndex];
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * @param  array<int, string>  $cells
+     */
+    private function columnIndexForHeader(array $cells, string $pattern): ?int
+    {
+        foreach ($cells as $index => $value) {
+            $label = strtolower(trim((string) $value));
+
+            if ($label !== '' && preg_match($pattern, $label) === 1) {
+                return (int) $index;
             }
         }
 
@@ -170,7 +221,13 @@ class CaintaTimesheetReportParser
 
         return str_starts_with($first, 'total:')
             || str_starts_with($first, 'days present:')
-            || str_starts_with($first, 'days absent:');
+            || str_starts_with($first, 'days absent:')
+            || str_starts_with($first, 'total employees')
+            || str_starts_with($first, 'total working days')
+            || str_starts_with($first, 'total holidays')
+            || str_starts_with($first, 'total hours required')
+            || str_contains($first, 'mustard seed systems')
+            || str_contains($first, 'bio-office time and attendance');
     }
 
     /**

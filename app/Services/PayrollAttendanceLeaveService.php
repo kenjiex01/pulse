@@ -58,7 +58,14 @@ class PayrollAttendanceLeaveService
                     $policy,
                     $salary,
                     fn () => $this->timeLogsPayroll->resolvedLateForSession($session, $policy, $scheduleStart, 0, $schedule['shift']),
-                    fn () => $this->timeLogsPayroll->resolvedUndertimeForSession($session, $policy, $scheduleEnd, $scheduleStart),
+                    fn (bool $halfDayFromLate = false) => $this->timeLogsPayroll->resolvedUndertimeForSession(
+                        $session,
+                        $policy,
+                        $scheduleEnd,
+                        $scheduleStart,
+                        $schedule['shift'],
+                        $halfDayFromLate,
+                    ),
                 ),
             );
         }
@@ -106,7 +113,7 @@ class PayrollAttendanceLeaveService
                     $policy,
                     $salary,
                     fn () => $this->employeeLoadPayroll->resolvedLateForEntry($entry, $policy),
-                    fn () => $this->employeeLoadPayroll->resolvedUndertimeForEntry($entry, $policy),
+                    fn (bool $halfDayFromLate = false) => $this->employeeLoadPayroll->resolvedUndertimeForEntry($entry, $policy),
                 ),
             );
         }
@@ -185,10 +192,13 @@ class PayrollAttendanceLeaveService
      *     is_absent?: bool,
      *     billable_minutes: int
      * }  $resolveLate
-     * @param  callable(): array{
+     * @param  callable(bool): array{
      *     raw_minutes: int,
      *     equivalent_minutes: int|null,
-     *     billable_minutes: int
+     *     billable_minutes: int,
+     *     is_half_day?: bool,
+     *     half_day_absent_minutes?: int,
+     *     half_day_start?: string|null
      * }  $resolveUndertime
      * @return list<array{
      *     leave_type_id: int,
@@ -251,7 +261,23 @@ class PayrollAttendanceLeaveService
             );
         }
 
-        $resolvedUndertime = $resolveUndertime();
+        $resolvedUndertime = $resolveUndertime((bool) ($resolvedLate['is_half_day'] ?? false));
+
+        if (
+            ($resolvedUndertime['is_half_day'] ?? false)
+            && ! ($resolvedLate['is_half_day'] ?? false)
+            && $awolLeaveTypeId !== null
+        ) {
+            $halfHours = round(((int) ($resolvedUndertime['half_day_absent_minutes'] ?? 0)) / 60, 2);
+            $records[] = $this->makeRecord(
+                $awolLeaveTypeId,
+                $this->atTime($sessionDate, $resolvedUndertime['half_day_start'] ?? $timeOut)
+                    ?? $sessionDate->startOfDay(),
+                $this->atTime($sessionDate, $scheduleEnd) ?? $sessionDate->endOfDay(),
+                $halfHours > 0 ? $halfHours : round($this->shiftHours($salary, $scheduleStart, $scheduleEnd) / 2, 2),
+                'Half-day absence (left before half the shift plus the 1-hour buffer)',
+            );
+        }
 
         if (
             filled($policy->undertime_leave_type_id)

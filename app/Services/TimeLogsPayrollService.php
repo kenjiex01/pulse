@@ -139,6 +139,14 @@ class TimeLogsPayrollService
             $onRestDay = (bool) $salary->use_payroll_calendar_days
                 && PayrollCalendarWorkingDays::isRestDay($employeeId, $session['date']);
 
+            if ($this->sessionHasNoTimeOut($session)) {
+                if (! $onRestDay) {
+                    $absentSessions++;
+                }
+
+                continue;
+            }
+
             if ($schedule['shift'] !== null && (bool) $schedule['shift']->is_flexi_time) {
                 $workedDays++;
                 $workedDates[] = $dateKey;
@@ -157,16 +165,28 @@ class TimeLogsPayrollService
                 continue;
             }
 
+            $resolvedUndertime = $this->resolvedUndertimeForSession(
+                $session,
+                $policy,
+                $schedule['end'],
+                $schedule['start'],
+                $schedule['shift'],
+                (bool) $resolvedLate['is_half_day'],
+            );
+            $isHalfDay = $resolvedLate['is_half_day'] || ($resolvedUndertime['is_half_day'] ?? false);
+
             $workedDays++;
             $workedDates[] = $dateKey;
             $otOffsetMinutes += (int) ($resolvedLate['ot_offset_minutes'] ?? 0);
 
-            if ($resolvedLate['is_half_day'] && ! $onRestDay) {
+            if ($isHalfDay && ! $onRestDay) {
                 $halfDayAbsences++;
-                $halfDayAbsentMinutes += (int) ($resolvedLate['half_day_absent_minutes'] ?? 0);
+                $halfDayAbsentMinutes += $resolvedLate['is_half_day']
+                    ? (int) ($resolvedLate['half_day_absent_minutes'] ?? 0)
+                    : (int) ($resolvedUndertime['half_day_absent_minutes'] ?? 0);
             }
 
-            if (($resolvedLate['use_full_schedule_hours'] ?? false) || $resolvedLate['is_half_day']) {
+            if (($resolvedLate['use_full_schedule_hours'] ?? false) || $isHalfDay) {
                 $hours = $this->scheduledDutyHoursForSession(
                     $session,
                     $schedule['start'],
@@ -193,12 +213,6 @@ class TimeLogsPayrollService
                 $lateDays++;
             }
 
-            $resolvedUndertime = $this->resolvedUndertimeForSession(
-                $session,
-                $policy,
-                $schedule['end'],
-                $schedule['start'],
-            );
             if ($resolvedUndertime['billable_minutes'] > 0) {
                 $undertimeMinutes += $resolvedUndertime['billable_minutes'];
                 $undertimeDays++;
@@ -364,6 +378,14 @@ class TimeLogsPayrollService
             $onRestDay = (bool) $salary->use_payroll_calendar_days
                 && PayrollCalendarWorkingDays::isRestDay($employeeId, $session['date']);
 
+            if ($this->sessionHasNoTimeOut($session)) {
+                if (! $onRestDay) {
+                    $absentSessions++;
+                }
+
+                continue;
+            }
+
             if ($schedule['shift'] !== null && (bool) $schedule['shift']->is_flexi_time) {
                 $workedDays++;
                 $workedDates[] = $dateKey;
@@ -378,7 +400,11 @@ class TimeLogsPayrollService
                 $policy,
                 $schedule['end'],
                 $schedule['start'],
+                $schedule['shift'],
+                (bool) $resolvedLate['is_half_day'],
             );
+            $earlyOutHalfDay = ! $resolvedLate['is_half_day'] && ($resolvedUndertime['is_half_day'] ?? false);
+            $isHalfDay = $resolvedLate['is_half_day'] || $earlyOutHalfDay;
 
             $rateDays = PayrollCalendarWorkingDays::forEmployeeSalary($salary, $employeeId, $from, $to);
 
@@ -387,19 +413,22 @@ class TimeLogsPayrollService
                 $workedDates[] = $dateKey;
                 $otOffsetMinutes += (int) ($resolvedLate['ot_offset_minutes'] ?? 0);
 
-                if ($resolvedLate['is_half_day'] && ! $onRestDay) {
+                if ($isHalfDay && ! $onRestDay) {
+                    $halfMinutes = $resolvedLate['is_half_day']
+                        ? (int) ($resolvedLate['half_day_absent_minutes'] ?? 0)
+                        : (int) ($resolvedUndertime['half_day_absent_minutes'] ?? 0);
                     $halfDayAbsences++;
-                    $halfDayAbsentMinutes += (int) ($resolvedLate['half_day_absent_minutes'] ?? 0);
+                    $halfDayAbsentMinutes += $halfMinutes;
                     $absentDeduction += $this->halfDayAbsentPay(
                         $salary,
                         1,
-                        (int) ($resolvedLate['half_day_absent_minutes'] ?? 0),
+                        $halfMinutes,
                         $rateDays,
                     );
                 }
 
                 if ($salary->use_basic_income_as_hourly_rate) {
-                    if (($resolvedLate['use_full_schedule_hours'] ?? false) || $resolvedLate['is_half_day']) {
+                    if (($resolvedLate['use_full_schedule_hours'] ?? false) || $isHalfDay) {
                         $sessionHours = $this->scheduledDutyHoursForSession(
                             $session,
                             $schedule['start'],
@@ -621,6 +650,18 @@ class TimeLogsPayrollService
         int $otMinutesForDay = 0,
         ?ShiftCode $shift = null,
     ): array {
+        if ($this->sessionHasNoTimeOut($session) && ($shift === null || ! (bool) $shift->is_flexi_time)) {
+            return [
+                'raw_minutes' => 0,
+                'equivalent_minutes' => null,
+                'is_absent' => true,
+                'billable_minutes' => 0,
+                'ot_offset_minutes' => 0,
+                'use_full_schedule_hours' => false,
+                ...$this->notHalfDay(),
+            ];
+        }
+
         $halfDay = $shift !== null ? $this->halfDayLateWindow($session, $policy, $scheduleStart, $shift) : null;
 
         if ($halfDay !== null) {
@@ -649,6 +690,19 @@ class TimeLogsPayrollService
     private function notHalfDay(): array
     {
         return ['is_half_day' => false, 'half_day_absent_minutes' => 0, 'half_day_start' => null];
+    }
+
+    /**
+     * Time in with no real time out is an incomplete log, not a worked day.
+     *
+     * @param  array{date: CarbonImmutable, time_in: string|null, time_out: string|null}  $session
+     */
+    private function sessionHasNoTimeOut(array $session): bool
+    {
+        $timeIn = $session['time_in'] ?? null;
+        $timeOut = $session['time_out'] ?? null;
+
+        return filled($timeIn) && ($timeOut === null || $timeOut === '');
     }
 
     /**
@@ -847,11 +901,19 @@ class TimeLogsPayrollService
     }
 
     /**
+     * Leaving before half the shift plus a 1-hour buffer is a half-day absence.
+     * Hours short of that half are undertime (3 hours worked on an 8-hour shift
+     * → half-day absent and 1 hour undertime). At least half + 1 hour worked
+     * stays ordinary undertime for the rest of the shift.
+     *
      * @param  array{date: CarbonImmutable, time_in: string|null, time_out: string|null}  $session
      * @return array{
      *     raw_minutes: int,
      *     equivalent_minutes: int|null,
-     *     billable_minutes: int
+     *     billable_minutes: int,
+     *     is_half_day: bool,
+     *     half_day_absent_minutes: int,
+     *     half_day_start: string|null
      * }
      */
     public function resolvedUndertimeForSession(
@@ -859,10 +921,77 @@ class TimeLogsPayrollService
         ?TimekeepingPolicy $policy,
         ?string $scheduleEnd,
         ?string $scheduleStart = null,
+        ?ShiftCode $shift = null,
+        bool $halfDayFromLate = false,
     ): array {
+        $emptyHalf = $this->notHalfDay();
+
+        if (! $halfDayFromLate && $shift !== null) {
+            $earlyOut = $this->halfDayEarlyOutWindow($session, $scheduleStart, $scheduleEnd, $shift);
+
+            if ($earlyOut !== null) {
+                $resolved = TimekeepingPolicySupport::resolveUndertimeEquivalent(
+                    $policy?->timekeeping_policy_id,
+                    $earlyOut['undertime_minutes'],
+                );
+
+                return [
+                    ...$resolved,
+                    'is_half_day' => true,
+                    'half_day_absent_minutes' => $earlyOut['absent_minutes'],
+                    'half_day_start' => $earlyOut['second_half_start'],
+                ];
+            }
+        }
+
         $raw = $this->undertimeRawMinutesForSession($session, $scheduleEnd, $scheduleStart);
 
-        return TimekeepingPolicySupport::resolveUndertimeEquivalent($policy?->timekeeping_policy_id, $raw);
+        return [
+            ...TimekeepingPolicySupport::resolveUndertimeEquivalent($policy?->timekeeping_policy_id, $raw),
+            ...$emptyHalf,
+        ];
+    }
+
+    /**
+     * Worked time under half the scheduled shift, plus a 1-hour buffer, is a half-day absence.
+     *
+     * @param  array{date: CarbonImmutable, time_in: string|null, time_out: string|null}  $session
+     * @return array{second_half_start: string, absent_minutes: int, undertime_minutes: int}|null
+     */
+    public function halfDayEarlyOutWindow(
+        array $session,
+        ?string $scheduleStart,
+        ?string $scheduleEnd,
+        ?ShiftCode $shift,
+    ): ?array {
+        if ($shift === null || (bool) $shift->is_flexi_time || $this->sessionHasNoTimeOut($session)) {
+            return null;
+        }
+
+        if (! filled($scheduleStart) || ! filled($scheduleEnd)) {
+            return null;
+        }
+
+        $scheduled = $this->scheduledWorkMinutes($session, $scheduleStart, $scheduleEnd, $shift);
+        $worked = $this->presenceWorkMinutes($session, $scheduleStart, $scheduleEnd, $shift);
+
+        if ($scheduled === null || $worked === null) {
+            return null;
+        }
+
+        $half = intdiv($scheduled, 2);
+
+        if ($half <= 0 || $worked >= $half + 60) {
+            return null;
+        }
+
+        $secondHalfStart = $this->secondHalfStart($session, $scheduleStart, $scheduleEnd, $shift, $half);
+
+        return [
+            'second_half_start' => $secondHalfStart?->format('H:i:s') ?? $scheduleEnd,
+            'absent_minutes' => $half,
+            'undertime_minutes' => max(0, $half - $worked),
+        ];
     }
 
     /**
@@ -919,6 +1048,185 @@ class TimeLogsPayrollService
         }
 
         return max(0, $lateMinutes);
+    }
+
+    /**
+     * @param  array{date: CarbonImmutable, time_in: string|null, time_out: string|null}  $session
+     */
+    private function scheduledWorkMinutes(
+        array $session,
+        string $scheduleStart,
+        string $scheduleEnd,
+        ?ShiftCode $shift,
+    ): ?int {
+        $bounds = $this->scheduleBounds($session, $scheduleStart, $scheduleEnd);
+
+        if ($bounds === null) {
+            return null;
+        }
+
+        [$startAt, $endAt] = $bounds;
+
+        return max(0, (int) $startAt->diffInMinutes($endAt) - $this->breakPayroll->scheduledBreakMinutes($shift));
+    }
+
+    /**
+     * Minutes actually worked inside the shift. Breaks count only where they overlap the punches.
+     *
+     * @param  array{date: CarbonImmutable, time_in: string|null, time_out: string|null}  $session
+     */
+    private function presenceWorkMinutes(
+        array $session,
+        string $scheduleStart,
+        string $scheduleEnd,
+        ?ShiftCode $shift,
+    ): ?int {
+        $bounds = $this->scheduleBounds($session, $scheduleStart, $scheduleEnd);
+
+        if ($bounds === null || ! filled($session['time_in'] ?? null) || ! filled($session['time_out'] ?? null)) {
+            return null;
+        }
+
+        try {
+            [$startAt, $endAt] = $bounds;
+            $inAt = $session['date']->setTimeFromTimeString((string) $session['time_in']);
+            $outAt = $session['date']->setTimeFromTimeString((string) $session['time_out']);
+
+            if ($outAt->lessThanOrEqualTo($inAt)) {
+                $outAt = $outAt->addDay();
+            }
+
+            $from = $inAt->greaterThan($startAt) ? $inAt : $startAt;
+            $to = $outAt->lessThan($endAt) ? $outAt : $endAt;
+
+            if ($to->lessThanOrEqualTo($from)) {
+                return 0;
+            }
+
+            $minutes = (int) $from->diffInMinutes($to);
+            $shift?->loadMissing('breaks');
+            $locatedBreak = false;
+
+            foreach ($shift?->breaks ?? [] as $break) {
+                if (! filled($break->break_out) || ! filled($break->break_in)) {
+                    continue;
+                }
+
+                $breakOut = $session['date']->setTimeFromTimeString($break->break_out);
+                $breakIn = $session['date']->setTimeFromTimeString($break->break_in);
+
+                if ($breakOut->lessThan($startAt)) {
+                    $breakOut = $breakOut->addDay();
+                }
+
+                if ($breakIn->lessThanOrEqualTo($breakOut)) {
+                    $breakIn = $breakIn->addDay();
+                }
+
+                $overlapStart = $breakOut->greaterThan($from) ? $breakOut : $from;
+                $overlapEnd = $breakIn->lessThan($to) ? $breakIn : $to;
+
+                if ($overlapEnd->greaterThan($overlapStart)) {
+                    $locatedBreak = true;
+                    $minutes -= (int) $overlapStart->diffInMinutes($overlapEnd);
+                }
+            }
+
+            if (! $locatedBreak) {
+                $half = intdiv($this->scheduledWorkMinutes($session, $scheduleStart, $scheduleEnd, $shift) ?? 0, 2);
+                $unlocated = $this->breakPayroll->scheduledBreakMinutes($shift);
+
+                if ($unlocated > 0 && $minutes > $half) {
+                    $minutes -= min($unlocated, $minutes - $half);
+                }
+            }
+
+            return max(0, $minutes);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * @param  array{date: CarbonImmutable, time_in: string|null, time_out: string|null}  $session
+     */
+    private function secondHalfStart(
+        array $session,
+        string $scheduleStart,
+        string $scheduleEnd,
+        ?ShiftCode $shift,
+        int $halfMinutes,
+    ): ?CarbonImmutable {
+        $bounds = $this->scheduleBounds($session, $scheduleStart, $scheduleEnd);
+
+        if ($bounds === null) {
+            return null;
+        }
+
+        [$startAt, $endAt] = $bounds;
+        $cursor = $startAt;
+        $remaining = $halfMinutes;
+        $shift?->loadMissing('breaks');
+        $hadTimedBreak = false;
+
+        foreach ($shift?->breaks ?? [] as $break) {
+            if (! filled($break->break_out) || ! filled($break->break_in)) {
+                continue;
+            }
+
+            try {
+                $breakOut = $session['date']->setTimeFromTimeString($break->break_out);
+                $breakIn = $session['date']->setTimeFromTimeString($break->break_in);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            if ($breakOut->lessThan($startAt)) {
+                $breakOut = $breakOut->addDay();
+            }
+
+            if ($breakIn->lessThanOrEqualTo($breakOut)) {
+                $breakIn = $breakIn->addDay();
+            }
+
+            $hadTimedBreak = true;
+            $available = $breakOut->greaterThan($cursor) ? (int) $cursor->diffInMinutes($breakOut) : 0;
+
+            if ($available >= $remaining) {
+                break;
+            }
+
+            $remaining -= $available;
+            $cursor = $breakIn->greaterThan($cursor) ? $breakIn : $cursor;
+        }
+
+        $start = $cursor->addMinutes($remaining);
+
+        if (! $hadTimedBreak) {
+            $start = $start->addMinutes($this->breakPayroll->scheduledBreakMinutes($shift));
+        }
+
+        return $start->greaterThan($endAt) ? $endAt : $start;
+    }
+
+    /**
+     * @param  array{date: CarbonImmutable, time_in: string|null, time_out: string|null}  $session
+     * @return array{0: CarbonImmutable, 1: CarbonImmutable}|null
+     */
+    private function scheduleBounds(array $session, string $scheduleStart, string $scheduleEnd): ?array
+    {
+        try {
+            $startAt = $session['date']->setTimeFromTimeString($scheduleStart);
+            $endAt = $session['date']->setTimeFromTimeString($scheduleEnd);
+
+            if ($endAt->lessThanOrEqualTo($startAt)) {
+                $endAt = $endAt->addDay();
+            }
+
+            return [$startAt, $endAt];
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
@@ -1219,9 +1527,9 @@ class TimeLogsPayrollService
     }
 
     /**
-     * First IN through the shift's real OUT. A same-day IN with no later OUT is still
-     * the end of the session. An IN on the next calendar day does not replace an OUT
-     * that already crossed midnight.
+     * First IN through the last real OUT. Another IN is not a time out.
+     * An OUT only a few minutes after IN is a duplicate tap and is ignored.
+     * An IN on the next calendar day does not replace an OUT that already crossed midnight.
      *
      * @param  Collection<int, RawTimekeepingInandout>  $punches
      * @return array{
@@ -1242,11 +1550,7 @@ class TimeLogsPayrollService
         $lastOut = null;
 
         foreach ($ordered as $punch) {
-            if ((bool) $punch->is_in) {
-                continue;
-            }
-
-            if ($firstIn?->dt_datetime !== null && $punch->dt_datetime !== null && $punch->dt_datetime->lt($firstIn->dt_datetime)) {
+            if ($firstIn === null || ! $this->breakPayroll->outIsDistinctFromIn($firstIn, $punch)) {
                 continue;
             }
 
@@ -1254,18 +1558,6 @@ class TimeLogsPayrollService
         }
 
         $endPunch = $lastOut;
-        $last = $ordered->last();
-
-        if (
-            $last instanceof RawTimekeepingInandout
-            && $firstIn instanceof RawTimekeepingInandout
-            && (bool) $last->is_in
-            && (int) $last->timekeeping_inandout_id !== (int) $firstIn->timekeeping_inandout_id
-            && $last->dt_datetime?->toDateString() === $workDate->toDateString()
-            && ($lastOut === null || ($last->dt_datetime !== null && $lastOut->dt_datetime !== null && $last->dt_datetime->gt($lastOut->dt_datetime)))
-        ) {
-            $endPunch = $last;
-        }
 
         $timeOut = null;
 

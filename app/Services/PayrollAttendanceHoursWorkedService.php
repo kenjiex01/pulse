@@ -217,9 +217,21 @@ class PayrollAttendanceHoursWorkedService
 
         $dayTypeId = $this->holidayPay->resolveDayTypeId($employeeId, $sessionDate);
         $scheduledHours = $this->scheduledHours($sessionDate, $scheduleStart, $scheduleEnd, $shiftCode);
+        $undertimeResolved = $this->timeLogsPayroll->resolvedUndertimeForSession(
+            $session,
+            $policy,
+            $scheduleEnd,
+            $scheduleStart,
+            $shiftCode,
+            (bool) ($lateResolved['is_half_day'] ?? false),
+        );
+        $halfDayMinutes = ($undertimeResolved['is_half_day'] ?? false)
+            ? (int) ($undertimeResolved['half_day_absent_minutes'] ?? 0)
+            : 0;
         $deductionHours = (
             $lateResolved['billable_minutes']
-            + $this->timeLogsPayroll->resolvedUndertimeForSession($session, $policy, $scheduleEnd, $scheduleStart)['billable_minutes']
+            + $undertimeResolved['billable_minutes']
+            + $halfDayMinutes
             + $breakLateMinutes
         ) / 60;
 

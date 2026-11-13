@@ -93,6 +93,7 @@
                         <th class="px-2 py-2 text-right whitespace-nowrap">Late</th>
                         <th class="px-2 py-2 text-right whitespace-nowrap">Undertime</th>
                         <th class="px-2 py-2 text-right whitespace-nowrap">Break Late</th>
+                        <th class="px-2 py-2 text-left whitespace-nowrap">Absent</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white">
@@ -147,10 +148,11 @@
                         <td class="px-2 py-1.5 text-right whitespace-nowrap {{ ! empty($day['late_label']) ? 'font-medium text-red-600' : '' }}">{{ $day['late_label'] ?? $fmt($day['late']) }}</td>
                         <td class="px-2 py-1.5 text-right whitespace-nowrap">{{ $fmt($day['undertime']) }}</td>
                         <td class="px-2 py-1.5 text-right whitespace-nowrap">{{ $fmt($day['break_late']) }}</td>
+                        <td class="px-2 py-1.5 whitespace-nowrap {{ ! empty($day['absent_label']) ? 'font-medium text-red-600' : '' }}">{{ $day['absent_label'] ?? '' }}</td>
                     </tr>
                     @empty
                         <tr>
-                            <td colspan="14" class="px-3 py-8 text-center text-gray-500">No days in the selected date range.</td>
+                            <td colspan="15" class="px-3 py-8 text-center text-gray-500">No days in the selected date range.</td>
                         </tr>
                     @endforelse
                 </tbody>

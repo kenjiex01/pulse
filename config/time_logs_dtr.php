@@ -7,8 +7,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | Each campus that supports Timelogs DTR upload has a fixed parser.
-    | San Mateo (SA) uses Card Report (.xls). Sumulong (SU) uses DTR Report (.xlsx).
-    | Cainta (CA) and all other campuses use Cainta Timesheet Report (.xls).
+    | San Mateo (SA) and Washington (WR) use Card Report / Att.log (.xls).
+    | Sumulong (SU) uses DTR Report (.xlsx).
+    | Cainta (CA), 108 (O8), and most other campuses use Timesheet Report (.xls).
     |
     */
 
@@ -68,7 +69,19 @@ return [
         ],
         'WR' => [
             'file_extension' => 'xls',
-            'parser' => 'cainta_timesheet_report',
+            'parser' => 'san_mateo_card_report',
+            'parse_sheet_marker' => 'Card Report',
+            'skip_sheet_titles' => [
+                'Schedule Information Report',
+                'Statistical Report of Attendance',
+                'Exception Statistic Report',
+            ],
+            'skip_sheet_names' => [
+                'Schedule Infor',
+                'Att Stat',
+                'Att.log report_orig',
+                'Exception Stat',
+            ],
         ],
         'O8' => [
             'file_extension' => 'xls',

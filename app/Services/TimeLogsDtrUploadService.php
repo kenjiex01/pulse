@@ -456,7 +456,7 @@ class TimeLogsDtrUploadService
 
             if (! $employee) {
                 $hasError = true;
-                $errors[] = "Line {$lineNumber}: Invalid Biometric ID ({$biometricId}) for {$campus->campus_name}.";
+                $errors[] = $this->missingBiometricIdMessage($lineNumber, $biometricId, $campus->campus_name);
             } else {
                 $parsed['employee_id'] = $employee->employee_id;
                 $parsed['employee_number'] = $employee->employee_number;
@@ -761,7 +761,7 @@ class TimeLogsDtrUploadService
 
             if (! $employee) {
                 $hasError = true;
-                $errors[] = "Line {$lineNumber}: Invalid Biometric ID ({$biometricId}) for {$campus->campus_name}.";
+                $errors[] = $this->missingBiometricIdMessage($lineNumber, $biometricId, $campus->campus_name);
             } else {
                 $parsed['employee_id'] = $employee->employee_id;
                 $parsed['employee_number'] = $employee->employee_number;
@@ -983,6 +983,12 @@ class TimeLogsDtrUploadService
         return preg_match(self::DATE_PATTERN, $value) === 1
             || preg_match(self::DATE_PATTERN_US, $value) === 1
             || preg_match(self::DATE_PATTERN_DMY, $value) === 1;
+    }
+
+    private function missingBiometricIdMessage(int $lineNumber, string $biometricId, string $campusName): string
+    {
+        return "Line {$lineNumber}: No employee on {$campusName} with Biometric ID {$biometricId}. "
+            .'Set that employee’s Biometric ID on this campus (campus assignment) to match the device user ID in the DTR file.';
     }
 
     private function stagingCacheKey(int $userId, string $token): string

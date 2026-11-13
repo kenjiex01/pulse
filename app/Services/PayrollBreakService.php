@@ -12,6 +12,9 @@ use Illuminate\Support\Collection;
 
 class PayrollBreakService
 {
+    /** Out punches closer than this to time in are duplicate taps, not a real time out. */
+    public const MIN_IN_OUT_GAP_MINUTES = 5;
+
     public function deductsBreakTardiness(?TimekeepingPolicy $policy): bool
     {
         return $policy !== null && (bool) $policy->break_deduct_tardiness;
@@ -83,12 +86,26 @@ class PayrollBreakService
     }
 
     /**
-     * Payroll work window per day: chronologically first IN and last punch as OUT.
+     * A real time out is an Out punch at least {@see self::MIN_IN_OUT_GAP_MINUTES} after time in.
+     * Another In is not a time out. An Out a few minutes after In is a duplicate tap.
+     */
+    public function outIsDistinctFromIn(?RawTimekeepingInandout $timeIn, RawTimekeepingInandout $timeOut): bool
+    {
+        if ((bool) $timeOut->is_in || $timeIn?->dt_datetime === null || $timeOut->dt_datetime === null) {
+            return false;
+        }
+
+        $gapMinutes = intdiv($timeOut->dt_datetime->getTimestamp() - $timeIn->dt_datetime->getTimestamp(), 60);
+
+        return $gapMinutes >= self::MIN_IN_OUT_GAP_MINUTES;
+    }
+
+    /**
+     * Payroll work window per day: first In and the last real Out.
      *
-     * Employees often punch multiple times (duplicate Ins, mid-day Out/In for break).
-     * Session start = first In. Session end = last punch of the day — even when that
-     * last punch was mistakenly tagged as In (missing Out). Punches between them
-     * (OUT → IN pairs) are break logs — see breakSegmentsFromPunches().
+     * Another In is not a time out. An Out only a few minutes after In is ignored.
+     * With no real Out, time out stays empty and the day is absent.
+     * Punches between In and Out (OUT → IN pairs) are break logs.
      *
      * @param  Collection<int, RawTimekeepingInandout>  $dayPunches
      * @return array{time_in: string|null, time_out: string|null}
@@ -96,24 +113,15 @@ class PayrollBreakService
     public function payrollSessionFromPunches(Collection $dayPunches): array
     {
         $ordered = $this->orderedPunches($dayPunches);
-
         $timeInPunch = $ordered->first(fn (RawTimekeepingInandout $punch) => (bool) $punch->is_in);
-        $lastPunch = $ordered->last();
-
         $timeOutPunch = null;
 
-        if ($lastPunch !== null) {
-            // Prefer a true Out when it is the last punch; otherwise treat the day's
-            // last log as Time Out (covers dangling In at end of day).
-            if (! (bool) $lastPunch->is_in) {
-                $timeOutPunch = $lastPunch;
-            } elseif ($timeInPunch !== null
-                && (int) $lastPunch->timekeeping_inandout_id !== (int) $timeInPunch->timekeeping_inandout_id) {
-                $timeOutPunch = $lastPunch;
-            } else {
-                // Only one In and no Out — no complete session end.
-                $timeOutPunch = $ordered->last(fn (RawTimekeepingInandout $punch) => ! (bool) $punch->is_in);
+        foreach ($ordered as $punch) {
+            if ($timeInPunch === null || ! $this->outIsDistinctFromIn($timeInPunch, $punch)) {
+                continue;
             }
+
+            $timeOutPunch = $punch;
         }
 
         return [

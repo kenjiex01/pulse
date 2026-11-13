@@ -80,6 +80,12 @@
                         <h2 class="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">Sign in</h2>
                         <p class="mb-6 text-sm text-gray-500">Enter your credentials to access {{ config('app.name') }}.</p>
 
+                        @if (session('error'))
+                            <div class="mb-4 rounded-xl border border-amber-100 bg-amber-50 p-3">
+                                <p class="text-xs text-amber-900 sm:text-sm">{{ session('error') }}</p>
+                            </div>
+                        @endif
+
                         @if ($errors->any())
                             <div class="mb-4 rounded-xl border border-red-100 bg-red-50 p-3">
                                 <p class="text-xs text-red-700 sm:text-sm">{{ $errors->first() }}</p>

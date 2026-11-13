@@ -33,7 +33,7 @@ class PayrollBreakServiceTest extends TestCase
     }
 
     #[Test]
-    public function payroll_session_treats_last_punch_as_out_when_tagged_in(): void
+    public function in_punches_and_a_close_out_are_not_a_time_out(): void
     {
         $service = new PayrollBreakService;
         $punches = $this->punchesForDay('2026-07-30', [
@@ -45,7 +45,7 @@ class PayrollBreakServiceTest extends TestCase
         $session = $service->payrollSessionFromPunches($punches);
 
         $this->assertSame('05:48:00', $session['time_in']);
-        $this->assertSame('18:18:00', $session['time_out']);
+        $this->assertNull($session['time_out']);
         $this->assertSame([], $service->breakSegmentsFromPunches($punches));
     }
 

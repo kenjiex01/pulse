@@ -75,6 +75,37 @@ return Application::configure(basePath: dirname(__DIR__))
 
             $status = $exception->getStatusCode();
 
+            if ($status === 419) {
+                if ($request->is('logout')) {
+                    Auth::guard('web')->logout();
+                    $request->session()->invalidate();
+                    $request->session()->regenerateToken();
+
+                    return redirect()->route('login');
+                }
+
+                $message = 'Your session expired. Refresh the page and try again.';
+
+                if ($request->is('timekeeping/time-logs/upload/*')) {
+                    $tab = \App\Support\TimeLogs::resolveTab($request->input('tab'));
+
+                    return redirect()
+                        ->route('timekeeping.time-logs.tab', ['tab' => $tab, 'upload' => 1])
+                        ->with('error', $message);
+                }
+
+                if (! $request->user() || $request->is('login')) {
+                    return redirect()
+                        ->route('login')
+                        ->withErrors(['email' => $message]);
+                }
+
+                return redirect()
+                    ->back()
+                    ->withInput($request->except('upload_file', '_token', 'password', 'password_confirmation'))
+                    ->with('error', $message);
+            }
+
             if ($request->user() && in_array($status, [403, 404], true)) {
                 $message = $exception->getMessage() ?: ($status === 404
                     ? 'That page was not found.'
