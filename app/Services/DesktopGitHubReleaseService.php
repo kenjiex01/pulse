@@ -122,15 +122,16 @@ class DesktopGitHubReleaseService
                 '--repo', $repository,
                 '--title', $title,
                 '--notes', $this->releaseNotes($version),
-                ...$assets,
-            ]);
-        } else {
+            ], 120);
+        }
+
+        foreach ($assets as $asset) {
             $this->runGh([
                 'release', 'upload', $tag,
                 '--repo', $repository,
                 '--clobber',
-                ...$assets,
-            ]);
+                $asset,
+            ], 3600);
         }
 
         return [
@@ -179,9 +180,9 @@ class DesktopGitHubReleaseService
     /**
      * @param  list<string>  $arguments
      */
-    private function runGh(array $arguments): void
+    private function runGh(array $arguments, int $timeoutSeconds = 3600): void
     {
-        $result = Process::timeout(600)->run(['gh', ...$arguments]);
+        $result = Process::timeout($timeoutSeconds)->run(['gh', ...$arguments]);
 
         if ($result->failed()) {
             throw new \RuntimeException(
