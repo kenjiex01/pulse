@@ -39,6 +39,7 @@
                     <th>To</th>
                     <th>Month</th>
                     <th>Regular</th>
+                    <th>Allowance</th>
                     <th class="text-right">Actions</th>
                 </tr>
             </thead>
@@ -62,6 +63,7 @@
                         <td class="whitespace-nowrap text-gray-600">{{ $period->dt_to->format('M j, Y') }}</td>
                         <td class="text-gray-600">{{ PayrollCalendarModule::shortMonthLabel((int) $period->calendar_month) }}</td>
                         <td class="text-gray-600">{{ $period->is_regular_period ? 'Yes' : '—' }}</td>
+                        <td class="text-gray-600">{{ $period->computesAllowance() ? 'Yes' : '—' }}</td>
                         <td>
                             <div class="flex items-center justify-end gap-1.5">
                                 <button
@@ -91,7 +93,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ auth()->user()->can('payroll-calendar.delete') ? 7 : 6 }}" class="py-16 text-center text-sm text-gray-500">
+                        <td colspan="{{ auth()->user()->can('payroll-calendar.delete') ? 8 : 7 }}" class="py-16 text-center text-sm text-gray-500">
                             No pay periods found for {{ $year }}.
                         </td>
                     </tr>

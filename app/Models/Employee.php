@@ -248,6 +248,14 @@ class Employee extends Model
         return $this->hasMany(TimekeepingEmployeeWeeklyShift::class, 'employee_id', 'employee_id');
     }
 
+    public function consultationHours(): HasMany
+    {
+        return $this->hasMany(TimekeepingEmployeeConsultationHour::class, 'employee_id', 'employee_id')
+            ->orderBy('day_id')
+            ->orderBy('sort_order')
+            ->orderBy('time_start');
+    }
+
     public function teachingLoadSyncStatus(): HasOne
     {
         return $this->hasOne(TeachingLoadSyncStatus::class, 'employee_id', 'employee_id');

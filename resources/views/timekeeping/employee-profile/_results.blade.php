@@ -88,7 +88,10 @@
                 'title' => $employee->hasTimekeepingSetup() ? 'Edit Timekeeping Settings' : 'Timekeeping Setup',
                 'description' => $employee->full_name.' ('.$employee->employee_number.')',
                 'open' => (string) ($openSetupEmployeeId ?? '') === (string) $employee->employee_id
-                    || (old('form_context') === 'setup-employee-'.$employee->employee_id && $errors->any()),
+                    || (in_array(old('form_context'), [
+                        'setup-employee-'.$employee->employee_id,
+                        'consultation-employee-'.$employee->employee_id,
+                    ], true) && $errors->any()),
                 'panelClass' => 'max-w-[96vw]',
                 'body' => view('timekeeping.employee-profile._setup-form', [
                     'employee' => $employee,

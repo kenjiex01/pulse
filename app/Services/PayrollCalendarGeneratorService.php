@@ -40,6 +40,7 @@ class PayrollCalendarGeneratorService
         $payYear = (int) $input['pay_year'];
         $dateFrom = Carbon::parse($input['date_from'])->startOfDay();
         $isRegular = (bool) ($input['is_regular_period'] ?? false);
+        $isAllowance = (bool) ($input['is_allowance_period'] ?? false);
         $occurrences = isset($input['occurrences']) && $input['occurrences'] !== '' ? (int) $input['occurrences'] : null;
         $dateTo = filled($input['date_to'] ?? null) ? Carbon::parse($input['date_to'])->startOfDay() : null;
 
@@ -81,7 +82,8 @@ class PayrollCalendarGeneratorService
                     $lastPayPeriod,
                     $currentFrom,
                     $currentTo,
-                    $isRegular
+                    $isRegular,
+                    $isAllowance
                 );
                 $created->push($period);
                 $currentFrom = $currentTo->copy()->addDay();
@@ -103,7 +105,8 @@ class PayrollCalendarGeneratorService
                 $lastPayPeriod,
                 $currentFrom,
                 $currentTo,
-                $isRegular
+                $isRegular,
+                $isAllowance
             );
             $created->push($period);
             $currentFrom = $currentTo->copy()->addDay();
@@ -122,6 +125,7 @@ class PayrollCalendarGeneratorService
         $dateFrom = Carbon::parse($input['date_from'])->startOfDay();
         $weekDay = (int) $input['week_day'];
         $isRegular = (bool) ($input['is_regular_period'] ?? false);
+        $isAllowance = (bool) ($input['is_allowance_period'] ?? false);
         $mode = $input['range_mode'] ?? 'date_to';
         $dateTo = filled($input['date_to'] ?? null) ? Carbon::parse($input['date_to'])->startOfDay() : null;
         $occurrences = isset($input['occurrences']) && $input['occurrences'] !== '' ? (int) $input['occurrences'] : null;
@@ -148,7 +152,8 @@ class PayrollCalendarGeneratorService
                     $lastPayPeriod,
                     $currentFrom,
                     $currentTo,
-                    $isRegular
+                    $isRegular,
+                    $isAllowance
                 );
                 $created->push($period);
                 $currentFrom = $currentTo->copy()->addDay();
@@ -209,6 +214,7 @@ class PayrollCalendarGeneratorService
         $payYear = (int) $input['pay_year'];
         $dateFrom = Carbon::parse($input['date_from'])->startOfDay();
         $isRegular = (bool) ($input['is_regular_period'] ?? false);
+        $isAllowance = (bool) ($input['is_allowance_period'] ?? false);
         $mode = $input['range_mode'] ?? 'date_to';
         $dateTo = filled($input['date_to'] ?? null) ? Carbon::parse($input['date_to'])->startOfDay() : null;
         $occurrences = isset($input['occurrences']) && $input['occurrences'] !== '' ? (int) $input['occurrences'] : null;
@@ -251,7 +257,8 @@ class PayrollCalendarGeneratorService
                         $lastPayPeriod,
                         $currentFrom,
                         $currentTo,
-                        $isRegular
+                        $isRegular,
+                        $isAllowance
                     );
                     $created->push($period);
                     $saved++;
@@ -271,9 +278,10 @@ class PayrollCalendarGeneratorService
         int $payPeriod,
         Carbon $dateFrom,
         Carbon $dateTo,
-        bool $isRegular
+        bool $isRegular,
+        bool $isAllowance,
     ): PayrollCalendar {
-        return DB::transaction(function () use ($payTypeId, $payYear, $payPeriod, $dateFrom, $dateTo, $isRegular): PayrollCalendar {
+        return DB::transaction(function () use ($payTypeId, $payYear, $payPeriod, $dateFrom, $dateTo, $isRegular, $isAllowance): PayrollCalendar {
             $period = PayrollCalendar::query()->create([
                 'pay_type_id' => $payTypeId,
                 'pay_year' => $payYear,
@@ -282,6 +290,7 @@ class PayrollCalendarGeneratorService
                 'dt_to' => $dateTo,
                 'calendar_month' => (int) $dateFrom->format('n'),
                 'is_regular_period' => $isRegular ? true : null,
+                'is_allowance_period' => $isAllowance ? true : null,
             ]);
 
             $this->scheduleService->attachDefaultSchedule($period);

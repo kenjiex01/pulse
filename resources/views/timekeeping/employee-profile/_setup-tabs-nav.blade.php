@@ -1,11 +1,11 @@
 @php
     use App\Support\TimekeepingEmployeeProfile;
 
-    $activeTab = TimekeepingEmployeeProfile::normalizeSetupTab($activeTab ?? 'timekeeping');
+    $activeTab = TimekeepingEmployeeProfile::normalizeSetupTab($activeTab ?? 'timekeeping', $employee ?? null);
 @endphp
 
 <nav class="employee-tabs-shell mb-4" role="tablist">
-    @foreach (TimekeepingEmployeeProfile::setupTabs() as $tabKey => $tabLabel)
+    @foreach (TimekeepingEmployeeProfile::setupTabs($employee ?? null) as $tabKey => $tabLabel)
         <button
             type="button"
             role="tab"

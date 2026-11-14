@@ -1374,15 +1374,30 @@ class PayrollTransactionController extends Controller
         PayrollTransactionModule::authorize($request->user(), 'view');
 
         $validated = $request->validate([
-            'detail_ids' => ['required', 'array', 'min:1'],
+            'detail_ids' => ['nullable', 'array'],
             'detail_ids.*' => ['integer'],
         ]);
 
-        $detailIds = PayrollBatchDetail::query()
-            ->where('payroll_batch_id', $batch->payroll_batch_id)
-            ->whereIn('payroll_batch_detail_id', $validated['detail_ids'])
-            ->pluck('payroll_batch_detail_id')
+        $requestedIds = collect($validated['detail_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
             ->all();
+
+        if ($requestedIds === []) {
+            $detailIds = PayrollBatchDetail::query()
+                ->where('payroll_batch_id', $batch->payroll_batch_id)
+                ->orderBy('payroll_batch_detail_id')
+                ->pluck('payroll_batch_detail_id')
+                ->all();
+        } else {
+            $detailIds = PayrollBatchDetail::query()
+                ->where('payroll_batch_id', $batch->payroll_batch_id)
+                ->whereIn('payroll_batch_detail_id', $requestedIds)
+                ->pluck('payroll_batch_detail_id')
+                ->all();
+        }
 
         if ($detailIds === []) {
             return redirect()
@@ -1392,7 +1407,7 @@ class PayrollTransactionController extends Controller
                     'batch_employee_search' => $request->input('batch_employee_search'),
                     'search' => $request->input('search'),
                 ])
-                ->with('error', 'Select at least one employee in this batch to download payroll details.');
+                ->with('error', 'This batch has no employees to download.');
         }
 
         SysLogService::record(

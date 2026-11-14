@@ -2470,6 +2470,51 @@ document.addEventListener('DOMContentLoaded', () => {
     initEmployeeProfileFormTabs();
     initEmployeeProfileSetupRoots();
 
+    document.addEventListener('change', (event) => {
+        const select = event.target.closest('[data-upload-type-select]');
+
+        if (!select) {
+            return;
+        }
+
+        select.closest('[data-upload-type-root]')?.querySelectorAll('[data-upload-type-panel]').forEach((panel) => {
+            panel.classList.toggle('hidden', panel.dataset.uploadTypePanel !== select.value);
+        });
+    });
+
+    document.addEventListener('click', (event) => {
+        const addButton = event.target.closest('[data-consultation-add]');
+
+        if (addButton) {
+            const day = addButton.closest('[data-consultation-day]');
+            const list = day?.querySelector('[data-consultation-slots]');
+            const template = day?.querySelector('template');
+
+            if (!day || !list || !template) {
+                return;
+            }
+
+            const html = template.innerHTML.replaceAll('__INDEX__', String(Date.now()));
+            list.insertAdjacentHTML('beforeend', html);
+            day.querySelector('[data-consultation-empty]')?.classList.add('hidden');
+
+            return;
+        }
+
+        const removeButton = event.target.closest('[data-consultation-remove]');
+
+        if (!removeButton) {
+            return;
+        }
+
+        const day = removeButton.closest('[data-consultation-day]');
+        removeButton.closest('[data-consultation-slot]')?.remove();
+
+        if (day && day.querySelector('[data-consultation-slot]') === null) {
+            day.querySelector('[data-consultation-empty]')?.classList.remove('hidden');
+        }
+    });
+
     const SCHEME_USER_AMORTIZATION = '1';
     const SCHEME_BASED_ON_PAYMENTS = '2';
 
@@ -5390,7 +5435,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (downloadBtn) {
-                downloadBtn.disabled = checked === 0;
+                downloadBtn.disabled = rowChecks().length === 0;
             }
 
             if (countLabel) {

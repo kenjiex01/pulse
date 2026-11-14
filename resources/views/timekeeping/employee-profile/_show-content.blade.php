@@ -5,7 +5,7 @@
     $restDayMap = $employee->timekeepingRestDays->keyBy('day_id');
     $weeklyShiftMap = $employee->timekeepingWeeklyShifts->keyBy('day_id');
     $isComplete = TimekeepingEmployeeProfile::isSetupComplete($employee);
-    $activeTab = TimekeepingEmployeeProfile::normalizeSetupTab(request('view_tab', 'timekeeping'));
+    $activeTab = TimekeepingEmployeeProfile::normalizeSetupTab(request('view_tab', 'timekeeping'), $employee);
 @endphp
 
 <div class="space-y-4" data-employee-form-tabs>
@@ -19,7 +19,7 @@
         @endif
     </div>
 
-    @include('timekeeping.employee-profile._setup-tabs-nav', ['activeTab' => $activeTab])
+    @include('timekeeping.employee-profile._setup-tabs-nav', ['activeTab' => $activeTab, 'employee' => $employee])
 
     <div class="employee-tab-panel {{ $activeTab === 'timekeeping' ? '' : 'hidden' }}" data-employee-tab-panel="timekeeping">
         @if (! $isComplete)
@@ -75,6 +75,15 @@
             </dl>
         </div>
     </div>
+
+    @if ($employee->isFaculty())
+        <div class="employee-tab-panel {{ $activeTab === 'consultation' ? '' : 'hidden' }}" data-employee-tab-panel="consultation">
+            @include('timekeeping.employee-profile._tab-consultation-hours', [
+                'employee' => $employee,
+                'editable' => false,
+            ])
+        </div>
+    @endif
 
     @if (TimekeepingEmployeeProfile::showApprovalMatrix())
         <div class="employee-tab-panel {{ $activeTab === 'approval' ? '' : 'hidden' }}" data-employee-tab-panel="approval">

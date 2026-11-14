@@ -26,6 +26,7 @@ use App\Models\RawPayrollTransaction;
 use App\Models\User;
 use App\Models\WithholdingTaxComputation;
 use App\Support\EmployeePayrollPeriod;
+use App\Support\PayrollPeriodComputation;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -49,6 +50,8 @@ class PayrollBatchService
         private readonly LoanPayrollService $loanPayroll,
         private readonly PayrollDisputeService $disputePayroll,
         private readonly ManualAttendanceDeductionService $manualAttendanceDeductions,
+        private readonly FacultyConsultationAllowancePayrollService $facultyConsultationAllowance,
+        private readonly StaffAllowancePayrollService $staffAllowancePayroll,
     ) {}
     /**
      * @return array{
@@ -887,8 +890,11 @@ class PayrollBatchService
             return;
         }
 
+        $computesBasic = $calendar->computesBasic();
         $hoursWorkedIncomes = $this->hoursWorkedPayroll->computeIncomeTotalsForDetail($detail, $primarySalary);
-        $attendanceTo = EmployeePayrollPeriod::effectiveEnd($employee, $calendar->dt_from, $calendar->dt_to);
+        $attendanceTo = $computesBasic
+            ? EmployeePayrollPeriod::effectiveEnd($employee, $calendar->dt_from, $calendar->dt_to)
+            : null;
 
         DB::transaction(function () use (
             $detail,
@@ -896,6 +902,7 @@ class PayrollBatchService
             $batch,
             $hoursWorkedIncomes,
             $calendar,
+            $computesBasic,
             $employee,
             $policy,
             $shiftCode,
@@ -922,7 +929,7 @@ class PayrollBatchService
                 }
 
                 $useFacultyPath = $slice['use_faculty_path'];
-                $usesAttendancePayroll = $useFacultyPath || $this->employeeLoadPayroll->usesEmployeeLoad($salary);
+                $usesAttendancePayroll = $computesBasic && ($useFacultyPath || $this->employeeLoadPayroll->usesEmployeeLoad($salary));
                 $loadPayroll = ($usesAttendancePayroll && $attendanceTo !== null)
                     ? $this->resolveAttendancePayroll(
                         $salaries,
@@ -940,7 +947,7 @@ class PayrollBatchService
                     )
                     : null;
 
-                if ($policy && $attendanceTo !== null && $this->employeeLoadPayroll->usesEmployeeLoad($salary)) {
+                if ($computesBasic && $policy && $attendanceTo !== null && $this->employeeLoadPayroll->usesEmployeeLoad($salary)) {
                     $leaveRecords = array_merge(
                         $leaveRecords,
                         $this->resolveAttendanceLeaveRecords(
@@ -961,16 +968,27 @@ class PayrollBatchService
                 $usesCalendarDays = (bool) $salary->use_payroll_calendar_days;
 
                 foreach ($this->proratedIncomeLines($salaries, $calendar->dt_from, $calendar->dt_to) as $incomeLine) {
+                    if (! PayrollPeriodComputation::includesIncomeType($incomeLine['incomeType'], $calendar)) {
+                        continue;
+                    }
+
+                    if ($this->facultyConsultationAllowance->shouldSkipAllowanceIncome(
+                        $employee,
+                        $useFacultyPath,
+                        $incomeLine['incomeType'],
+                    )) {
+                        continue;
+                    }
+
                     $taxable = (float) $incomeLine['taxable'];
                     $nonTaxable = (float) $incomeLine['non_taxable'];
-                    $isBasicIncome = ($incomeLine['incomeType']?->is_default_basic ?? false)
-                        || ($incomeLine['incomeType']?->income_type_code ?? null) === 'BASC';
+                    $isBasicIncome = PayrollPeriodComputation::isBasicIncomeType($incomeLine['incomeType']);
                     $days = null;
 
                     if (($isFixedRate || $usesCalendarDays) && $isBasicIncome) {
                         $hours = null;
                         $days = null;
-                    } elseif ($hoursWorkedIncomes !== null && $isBasicIncome && ! $hoursWorkedApplied) {
+                    } elseif ($computesBasic && $hoursWorkedIncomes !== null && $isBasicIncome && ! $hoursWorkedApplied) {
                         $amounts = $hoursWorkedIncomes['by_income_type'][$incomeLine['income_type_id']] ?? [
                             'taxable' => 0.0,
                             'non_taxable' => 0.0,
@@ -981,14 +999,14 @@ class PayrollBatchService
                         $hours = $this->incomeHoursFromAmounts($amounts);
                         $days = $this->incomeDaysFromAmounts($amounts);
                         $hoursWorkedApplied = true;
-                    } elseif ($loadPayroll !== null && $isBasicIncome) {
+                    } elseif ($computesBasic && $loadPayroll !== null && $isBasicIncome) {
                         $taxable = $loadPayroll['basic_taxable'];
                         $nonTaxable = $loadPayroll['basic_non_taxable'];
                         $hours = $this->incomeHoursFromAmounts([
                             'hours' => (float) ($loadPayroll['computed_hours'] ?? 0),
                         ]);
                         $days = $this->incomeDaysFromCount((float) ($loadPayroll['worked_days'] ?? 0));
-                    } elseif ($usesAttendancePayroll && $isBasicIncome) {
+                    } elseif ($computesBasic && $usesAttendancePayroll && $isBasicIncome) {
                         $taxable = 0.0;
                         $nonTaxable = 0.0;
                         $hours = null;
@@ -1029,7 +1047,7 @@ class PayrollBatchService
                     ]);
                 }
 
-                if (! $isFixedRate && $loadPayroll !== null) {
+                if ($computesBasic && ! $isFixedRate && $loadPayroll !== null) {
                     $lateMinutes = (int) ($loadPayroll['late_minutes'] ?? 0) + (int) ($loadPayroll['break_late_minutes'] ?? 0);
                     $lateDeduction = round((float) ($loadPayroll['late_deduction'] ?? 0) + (float) ($loadPayroll['break_late_deduction'] ?? 0), 2);
 
@@ -1053,7 +1071,7 @@ class PayrollBatchService
                     }
                 }
 
-                if (! $isFixedRate && $loadPayroll !== null && ($loadPayroll['undertime_deduction'] ?? 0) > 0) {
+                if ($computesBasic && ! $isFixedRate && $loadPayroll !== null && ($loadPayroll['undertime_deduction'] ?? 0) > 0) {
                     $undertimeDeductionTypeId = $this->timeLogsPayroll->undertimeDeductionTypeId()
                         ?? $this->employeeLoadPayroll->undertimeDeductionTypeId();
 
@@ -1077,7 +1095,7 @@ class PayrollBatchService
                 $absentDays = (float) ($attendance['absent_days'] ?? 0);
                 $absentHours = (float) ($attendance['absent_hours'] ?? 0);
 
-                if ($usesCalendarDays && ! $useFacultyPath) {
+                if ($computesBasic && $usesCalendarDays && ! $useFacultyPath) {
                     $employeeId = (int) $detail->employee_id;
                     $rateDays = \App\Support\PayrollCalendarWorkingDays::forEmployeeSalary(
                         $salary,
@@ -1105,7 +1123,7 @@ class PayrollBatchService
                     }
                 }
 
-                if (! $isFixedRate && $absentAmount > 0) {
+                if ($computesBasic && ! $isFixedRate && $absentAmount > 0) {
                     $absentDeductionTypeId = $this->timeLogsPayroll->absentDeductionTypeId()
                         ?? $this->employeeLoadPayroll->absentDeductionTypeId();
 
@@ -1124,7 +1142,7 @@ class PayrollBatchService
                     }
                 }
 
-                if ($loadPayroll !== null && ($loadPayroll['overtime_pay'] ?? 0) > 0 && ! ($hoursWorkedIncomes['has_overtime'] ?? false)) {
+                if ($computesBasic && $loadPayroll !== null && ($loadPayroll['overtime_pay'] ?? 0) > 0 && ! ($hoursWorkedIncomes['has_overtime'] ?? false)) {
                     $this->persistOvertimeIncome(
                         $detail,
                         (float) $loadPayroll['overtime_pay'],
@@ -1133,13 +1151,47 @@ class PayrollBatchService
                 }
             }
 
+            $this->facultyConsultationAllowance->applyForDetail($detail, $calendar, $employee, $slices);
+            $this->staffAllowancePayroll->applyForDetail(
+                $detail,
+                $calendar,
+                $employee,
+                $slices,
+                $policy,
+                $shiftCode,
+                $autoComputeExcessAsOt,
+            );
+
+            $useFacultyPathInBatch = collect($slices)->contains(
+                fn (array $slice) => (bool) ($slice['use_faculty_path'] ?? false),
+            );
+
             if ($hoursWorkedIncomes !== null) {
+                $extraIncomeTypes = IncomeType::query()
+                    ->whereIn('income_type_id', array_keys($hoursWorkedIncomes['by_income_type']))
+                    ->get()
+                    ->keyBy('income_type_id');
+
                 foreach ($hoursWorkedIncomes['by_income_type'] as $incomeTypeId => $amounts) {
                     if (in_array($incomeTypeId, $allSalaryIncomeTypeIds, true)) {
                         continue;
                     }
 
                     if (($amounts['taxable'] ?? 0) <= 0 && ($amounts['non_taxable'] ?? 0) <= 0) {
+                        continue;
+                    }
+
+                    $incomeType = $extraIncomeTypes->get((int) $incomeTypeId);
+
+                    if (! PayrollPeriodComputation::includesIncomeType($incomeType, $calendar)) {
+                        continue;
+                    }
+
+                    if ($this->facultyConsultationAllowance->shouldSkipAllowanceIncome(
+                        $employee,
+                        $useFacultyPathInBatch,
+                        $incomeType,
+                    )) {
                         continue;
                     }
 

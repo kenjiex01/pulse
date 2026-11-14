@@ -138,7 +138,7 @@ class PayrollBatchEmployeeDetailsDownloadTest extends TestCase
     }
 
     #[Test]
-    public function download_requires_a_selected_employee(): void
+    public function download_with_no_selection_exports_entire_batch(): void
     {
         $this->seed(DatabaseSeeder::class);
         $user = User::query()->firstOrFail();
@@ -161,10 +161,45 @@ class PayrollBatchEmployeeDetailsDownloadTest extends TestCase
             'payroll_batch_status_id' => PayrollBatchStatus::PROCESSED,
         ]);
 
-        $this->actingAs($user)
-            ->from(route('payroll.transaction.tab', ['tab' => 'batches', 'view_payroll_batch' => $batch->payroll_batch_id]))
-            ->post(route('payroll.transaction.employees.download', $batch), [])
-            ->assertRedirect()
-            ->assertSessionHasErrors('detail_ids');
+        $employees = collect(['EMP-ALL-1', 'EMP-ALL-2'])->map(function (string $number) {
+            return Employee::query()->create([
+                'employee_number' => $number,
+                'first_name' => $number,
+                'last_name' => 'Batch',
+            ]);
+        });
+
+        foreach ($employees as $employee) {
+            PayrollBatchDetail::query()->create([
+                'payroll_batch_id' => $batch->payroll_batch_id,
+                'employee_id' => $employee->employee_id,
+            ]);
+        }
+
+        $response = $this->actingAs($user)->post(
+            route('payroll.transaction.employees.download', $batch),
+            [],
+        );
+
+        $response->assertOk();
+
+        $path = tempnam(sys_get_temp_dir(), 'batch_all_');
+        file_put_contents($path, $response->streamedContent());
+        $workbook = IOFactory::load($path);
+        $detailsSheet = $workbook->getSheetByName('Payroll Details');
+        $found = [];
+
+        for ($row = 1; $row <= 80; $row++) {
+            $value = (string) $detailsSheet->getCell('B'.$row)->getValue();
+
+            if (in_array($value, ['EMP-ALL-1', 'EMP-ALL-2'], true)) {
+                $found[] = $value;
+            }
+        }
+
+        sort($found);
+        $this->assertSame(['EMP-ALL-1', 'EMP-ALL-2'], $found);
+
+        @unlink($path);
     }
 }

@@ -35,23 +35,35 @@
         @include('partials.modal', [
             'id' => 'employee-profile-upload-modal',
             'title' => 'Upload Employee Setup',
-                'description' => 'Download the pre-filled template, update holiday group, policy, default and weekly shift codes, rest days, and flags, then upload.',
+            'description' => 'Choose what to upload, download its pre-filled template, update it, then upload.',
             'open' => $openUpload ?? false,
             'panelClass' => 'max-w-2xl',
-            'body' => view('timekeeping.employee-profile._upload-form')->render(),
+            'body' => view('timekeeping.employee-profile._upload-form', [
+                'uploadType' => $uploadType ?? null,
+            ])->render(),
         ])
 
         @if ($openPreview ?? false)
+            @php
+                $isConsultationUpload = ($uploadType ?? null) === \App\Support\TimekeepingEmployeeProfile::UPLOAD_TYPE_CONSULTATION;
+            @endphp
             @include('partials.modal', [
                 'id' => 'employee-profile-upload-preview-modal',
-                'title' => 'Upload Preview',
-                'description' => 'Review valid rows and errors before updating employee timekeeping setup.',
+                'title' => $isConsultationUpload ? 'Consultation Hours Upload Preview' : 'Upload Preview',
+                'description' => $isConsultationUpload
+                    ? 'Review consultation hours and errors before replacing each faculty schedule.'
+                    : 'Review valid rows and errors before updating employee timekeeping setup.',
                 'open' => true,
                 'panelClass' => 'max-w-5xl',
-                'body' => view('timekeeping.employee-profile._upload-preview', [
-                    'staging' => $staging ?? null,
-                    'stagingToken' => $stagingToken ?? null,
-                ])->render(),
+                'body' => view(
+                    $isConsultationUpload
+                        ? 'timekeeping.employee-profile._upload-preview-consultation'
+                        : 'timekeeping.employee-profile._upload-preview',
+                    [
+                        'staging' => $staging ?? null,
+                        'stagingToken' => $stagingToken ?? null,
+                    ],
+                )->render(),
             ])
         @endif
     @endcan

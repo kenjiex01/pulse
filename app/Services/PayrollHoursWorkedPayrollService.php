@@ -3,7 +3,10 @@
 namespace App\Services;
 
 use App\Models\EmployeeSalary;
+use App\Models\IncomeType;
+use App\Models\PayrollCalendar;
 use App\Support\PayrollCalendarWorkingDays;
+use App\Support\PayrollPeriodComputation;
 use App\Models\NdRateGroup;
 use App\Models\NdRateGroupDayType;
 use App\Models\PayrollBatchDetail;
@@ -89,7 +92,13 @@ class PayrollHoursWorkedPayrollService
             ? ['by_income_type' => [], 'has_overtime' => false]
             : $this->computeIncomeTotals($salary, $rows, $rateDays);
 
-        $absentHoliday = $this->holidayPay->absentHolidayIncomeForDetail($detail, $salary);
+        if ($calendar !== null) {
+            $totals = $this->filterIncomeTotalsByCalendar($totals, $calendar);
+        }
+
+        $absentHoliday = $calendar !== null && $calendar->computesBasic()
+            ? $this->holidayPay->absentHolidayIncomeForDetail($detail, $salary)
+            : null;
 
         if ($absentHoliday !== null) {
             $incomeTypeId = (int) $absentHoliday['income_type_id'];
@@ -108,6 +117,38 @@ class PayrollHoursWorkedPayrollService
 
         if ($totals['by_income_type'] === []) {
             return null;
+        }
+
+        return $totals;
+    }
+
+    /**
+     * @param  array{
+     *     by_income_type: array<int, array{taxable: float, non_taxable: float, hours?: float, days?: float}>,
+     *     has_overtime: bool
+     * }  $totals
+     * @return array{
+     *     by_income_type: array<int, array{taxable: float, non_taxable: float, hours?: float, days?: float}>,
+     *     has_overtime: bool
+     * }
+     */
+    private function filterIncomeTotalsByCalendar(array $totals, PayrollCalendar $calendar): array
+    {
+        $typeIds = array_map('intval', array_keys($totals['by_income_type']));
+
+        if ($typeIds === []) {
+            return $totals;
+        }
+
+        $incomeTypes = IncomeType::query()
+            ->whereIn('income_type_id', $typeIds)
+            ->get()
+            ->keyBy('income_type_id');
+
+        foreach ($typeIds as $typeId) {
+            if (! PayrollPeriodComputation::includesIncomeType($incomeTypes->get($typeId), $calendar)) {
+                unset($totals['by_income_type'][$typeId]);
+            }
         }
 
         return $totals;

@@ -752,6 +752,10 @@ Route::middleware('auth')->group(function () {
             ->whereNumber('employee')
             ->name('timekeeping.employee-profile.store');
 
+        Route::post('timekeeping/employee-profile/{employee}/consultation-hours', [TimekeepingEmployeeProfileController::class, 'storeConsultationHours'])
+            ->whereNumber('employee')
+            ->name('timekeeping.employee-profile.consultation.store');
+
         Route::get('timekeeping/employee-profile/{employee}/approval-settings', [TimekeepingEmployeeProfileController::class, 'approvalSettings'])
             ->whereNumber('employee')
             ->name('timekeeping.employee-profile.approval');

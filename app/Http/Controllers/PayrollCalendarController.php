@@ -105,6 +105,7 @@ class PayrollCalendarController extends Controller
                 'dt_to' => Carbon::parse($validated['date_to'])->startOfDay(),
                 'calendar_month' => $validated['calendar_month'] ?? (int) Carbon::parse($validated['date_from'])->format('n'),
                 'is_regular_period' => ($validated['is_regular_period'] ?? false) ? true : null,
+                'is_allowance_period' => ($validated['is_allowance_period'] ?? false) ? true : null,
             ]);
 
             $this->scheduleService->attachDefaultSchedule($period);
@@ -150,6 +151,7 @@ class PayrollCalendarController extends Controller
             'dt_to' => Carbon::parse($validated['date_to'])->startOfDay(),
             'calendar_month' => $validated['calendar_month'] ?? (int) Carbon::parse($validated['date_from'])->format('n'),
             'is_regular_period' => ($validated['is_regular_period'] ?? false) ? true : null,
+            'is_allowance_period' => ($validated['is_allowance_period'] ?? false) ? true : null,
         ]);
 
         $this->scopeService->sync(
@@ -379,6 +381,7 @@ class PayrollCalendarController extends Controller
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
             'calendar_month' => ['nullable', 'integer', 'min:1', 'max:12'],
             'is_regular_period' => ['nullable', 'boolean'],
+            'is_allowance_period' => ['nullable', 'boolean'],
             'college_codes' => ['nullable', 'array'],
             'college_codes.*' => [
                 'string',
@@ -401,6 +404,8 @@ class PayrollCalendarController extends Controller
                 'college_codes' => 'Please select at least one college.',
             ]);
         }
+
+        $this->assertPeriodComputationFlags($request);
 
         return $validated;
     }
@@ -436,6 +441,7 @@ class PayrollCalendarController extends Controller
             'pay_year' => ['required', 'integer', 'min:1000', 'max:9999'],
             'date_from' => ['required', 'date'],
             'is_regular_period' => ['nullable', 'boolean'],
+            'is_allowance_period' => ['nullable', 'boolean'],
             'range_mode' => ['nullable', Rule::in(['date_to', 'occurrences'])],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'occurrences' => ['nullable', 'integer', 'min:1'],
@@ -490,6 +496,17 @@ class PayrollCalendarController extends Controller
             }
         }
 
+        $this->assertPeriodComputationFlags($request);
+
         return $validated;
+    }
+
+    private function assertPeriodComputationFlags(Request $request): void
+    {
+        if (! $request->boolean('is_regular_period') && ! $request->boolean('is_allowance_period')) {
+            throw ValidationException::withMessages([
+                'is_regular_period' => 'Select Regular Period and/or For computation of Allowance.',
+            ]);
+        }
     }
 }

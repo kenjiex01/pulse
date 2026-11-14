@@ -6,10 +6,13 @@ use App\Models\Employee;
 use App\Models\RawTimekeepingInandout;
 use App\Models\LuDay;
 use App\Models\TimekeepingEmployeeRestDay;
+use App\Models\TimekeepingEmployeeConsultationHour;
 use App\Models\TimekeepingEmployeeSetup;
 use App\Models\TimekeepingEmployeeWeeklyShift;
 use App\Services\EmployeeAttendanceLogService;
 use App\Services\EmployeeAttendanceViewService;
+use App\Services\FacultyConsultationConflictService;
+use App\Services\FacultyConsultationHoursUploadService;
 use App\Services\SysLogService;
 use App\Services\EmployeeLoadAttendanceMatcher;
 use App\Services\TimekeepingEmployeeProfileUploadService;
@@ -71,11 +74,17 @@ class TimekeepingEmployeeProfileController extends Controller
 
         if (! $request->ajax()) {
             $stagingToken = (string) session('employee_profile_upload_staging_token', '');
+            $uploadType = TimekeepingEmployeeProfile::normalizeUploadType(
+                old('upload_type', session('employee_profile_upload_type', $request->input('upload_type')))
+            );
             $openPreview = $request->boolean('preview') && $stagingToken !== '';
             $viewData['openUpload'] = $request->boolean('upload');
             $viewData['openPreview'] = $openPreview;
             $viewData['stagingToken'] = $stagingToken;
-            $viewData['staging'] = $openPreview ? $this->uploadService->getStaging($request->user(), $stagingToken) : null;
+            $viewData['uploadType'] = $uploadType;
+            $viewData['staging'] = $openPreview
+                ? $this->uploadServiceFor($uploadType)->getStaging($request->user(), $stagingToken)
+                : null;
         }
 
         if ($request->ajax()) {
@@ -229,12 +238,126 @@ class TimekeepingEmployeeProfileController extends Controller
             ->with('success', 'Employee profile settings saved successfully.');
     }
 
+    public function storeConsultationHours(
+        Request $request,
+        Employee $employee,
+        FacultyConsultationConflictService $conflictService,
+    ): RedirectResponse {
+        TimekeepingEmployeeProfile::authorize($request->user(), 'update');
+
+        if (! $employee->isFaculty()) {
+            abort(403, 'Consultation hours are only available for faculty employees.');
+        }
+
+        $validated = $request->validate([
+            'consultation_hours' => ['nullable', 'array'],
+            'consultation_hours.*.day_id' => ['required', 'integer', 'exists:lu_days,day_id'],
+            'consultation_hours.*.time_start' => ['required', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
+            'consultation_hours.*.time_end' => ['required', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
+        ]);
+
+        $slots = [];
+        $errors = [];
+
+        foreach ($validated['consultation_hours'] ?? [] as $key => $slot) {
+            $start = substr((string) $slot['time_start'], 0, 5);
+            $end = substr((string) $slot['time_end'], 0, 5);
+            $dayId = (int) $slot['day_id'];
+
+            if ($end <= $start) {
+                $errors["consultation_hours.{$key}.time_end"] = 'End time must be after the start time.';
+            }
+
+            $slots[] = [
+                'key' => $key,
+                'day_id' => $dayId,
+                'time_start' => $start,
+                'time_end' => $end,
+            ];
+        }
+
+        $byDay = collect($slots)->groupBy('day_id');
+
+        foreach ($byDay as $daySlots) {
+            $previousEnd = null;
+
+            foreach ($daySlots->sortBy('time_start')->values() as $slot) {
+                if ($previousEnd !== null && $slot['time_start'] < $previousEnd) {
+                    $errors["consultation_hours.{$slot['key']}.time_start"] = 'This range overlaps another consultation hour on the same day.';
+                }
+
+                $previousEnd = $slot['time_end'];
+            }
+        }
+
+        if ($errors !== []) {
+            throw \Illuminate\Validation\ValidationException::withMessages($errors);
+        }
+
+        $hadHours = $employee->consultationHours()->exists();
+
+        DB::transaction(function () use ($employee, $byDay): void {
+            TimekeepingEmployeeConsultationHour::query()
+                ->where('employee_id', $employee->employee_id)
+                ->get()
+                ->each(fn (TimekeepingEmployeeConsultationHour $hour) => $hour->forceDelete());
+
+            $now = now();
+            $rows = [];
+
+            foreach ($byDay as $dayId => $daySlots) {
+                foreach ($daySlots->sortBy('time_start')->values() as $index => $slot) {
+                    $rows[] = [
+                        'employee_id' => $employee->employee_id,
+                        'day_id' => (int) $dayId,
+                        'time_start' => $slot['time_start'].':00',
+                        'time_end' => $slot['time_end'].':00',
+                        'sort_order' => $index,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+            }
+
+            if ($rows !== []) {
+                TimekeepingEmployeeConsultationHour::query()->insert($rows);
+            }
+        });
+
+        SysLogService::record(
+            action: $hadHours ? 'edit' : 'add',
+            table: 'tbl_timekeeping_employee_consultation_hours',
+            description: ($hadHours ? 'Updated' : 'Added').' consultation hours for '.$employee->full_name.' ('.$employee->employee_number.')',
+            recordId: $employee->employee_id,
+        );
+
+        $conflictCheck = $conflictService->check($employee, $slots);
+
+        return redirect()
+            ->route(TimekeepingEmployeeProfile::routeName('index'), [
+                'search' => $request->input('search'),
+                'employment_category' => $request->input('employment_category'),
+                'page' => $request->input('page'),
+                'setup_employee' => $employee->employee_id,
+                'view_tab' => 'consultation',
+            ])
+            ->with('success', 'Consultation hours saved successfully.')
+            ->with('consultation_check', [
+                'employee_id' => $employee->employee_id,
+                'source' => $conflictCheck['source'],
+                'conflicts' => $conflictCheck['conflicts'],
+            ]);
+    }
+
     public function downloadUploadTemplate(Request $request): StreamedResponse
     {
         TimekeepingEmployeeProfile::authorize($request->user(), 'update');
 
-        $content = $this->uploadService->buildTemplateContent();
-        $filename = 'employee_profile_setup_template.csv';
+        $uploadType = TimekeepingEmployeeProfile::normalizeUploadType($request->input('type'));
+        $content = $this->uploadServiceFor($uploadType)->buildTemplateContent();
+        $filename = $uploadType === TimekeepingEmployeeProfile::UPLOAD_TYPE_CONSULTATION
+            ? 'consultation_hours_upload_template.csv'
+            : 'employee_profile_setup_template.csv';
 
         return response()->streamDownload(
             fn () => print($content),
@@ -248,12 +371,16 @@ class TimekeepingEmployeeProfileController extends Controller
         TimekeepingEmployeeProfile::authorize($request->user(), 'update');
 
         $validated = $request->validate([
+            'upload_type' => ['nullable', 'string'],
             'upload_file' => ['required', 'file', 'max:'.config('uploads.max_file_kb', 15360)],
         ]);
 
+        $uploadType = TimekeepingEmployeeProfile::normalizeUploadType($validated['upload_type'] ?? null);
+        $service = $this->uploadServiceFor($uploadType);
+
         try {
-            $result = $this->uploadService->parseUploadedFile($request->file('upload_file'));
-            $token = $this->uploadService->createStagingToken($request->user(), $result);
+            $result = $service->parseUploadedFile($request->file('upload_file'));
+            $token = $service->createStagingToken($request->user(), $result);
         } catch (RuntimeException $exception) {
             return redirect()
                 ->route(TimekeepingEmployeeProfile::routeName('index'), ['upload' => 1])
@@ -261,7 +388,10 @@ class TimekeepingEmployeeProfileController extends Controller
                 ->with('error', $exception->getMessage());
         }
 
-        session(['employee_profile_upload_staging_token' => $token]);
+        session([
+            'employee_profile_upload_staging_token' => $token,
+            'employee_profile_upload_type' => $uploadType,
+        ]);
 
         return redirect()
             ->route(TimekeepingEmployeeProfile::routeName('index'), ['preview' => 1])
@@ -276,19 +406,32 @@ class TimekeepingEmployeeProfileController extends Controller
             'staging_token' => ['required', 'string'],
         ]);
 
+        $uploadType = TimekeepingEmployeeProfile::normalizeUploadType(session('employee_profile_upload_type'));
+
         try {
-            $result = $this->uploadService->commit($request->user(), $validated['staging_token']);
+            $result = $this->uploadServiceFor($uploadType)->commit($request->user(), $validated['staging_token']);
         } catch (RuntimeException $exception) {
             return redirect()
                 ->route(TimekeepingEmployeeProfile::routeName('index'), ['preview' => 1])
                 ->with('error', $exception->getMessage());
         }
 
-        session()->forget('employee_profile_upload_staging_token');
+        session()->forget(['employee_profile_upload_staging_token', 'employee_profile_upload_type']);
+
+        $message = $uploadType === TimekeepingEmployeeProfile::UPLOAD_TYPE_CONSULTATION
+            ? 'Consultation hours updated for '.$result['applied'].' faculty ('.$result['ranges'].' time range(s)).'
+            : 'Timekeeping setup updated for '.$result['applied'].' employee(s).';
 
         return redirect()
             ->route(TimekeepingEmployeeProfile::routeName('index'))
-            ->with('success', 'Timekeeping setup updated for '.$result['applied'].' employee(s).');
+            ->with('success', $message);
+    }
+
+    private function uploadServiceFor(string $uploadType): TimekeepingEmployeeProfileUploadService|FacultyConsultationHoursUploadService
+    {
+        return $uploadType === TimekeepingEmployeeProfile::UPLOAD_TYPE_CONSULTATION
+            ? app(FacultyConsultationHoursUploadService::class)
+            : $this->uploadService;
     }
 
     public function discardUpload(Request $request): RedirectResponse
@@ -297,14 +440,16 @@ class TimekeepingEmployeeProfileController extends Controller
 
         $token = (string) $request->input('staging_token', session('employee_profile_upload_staging_token'));
 
+        $uploadType = TimekeepingEmployeeProfile::normalizeUploadType(session('employee_profile_upload_type'));
+
         if ($token !== '') {
-            $this->uploadService->discardStaging($request->user(), $token);
+            $this->uploadServiceFor($uploadType)->discardStaging($request->user(), $token);
         }
 
-        session()->forget('employee_profile_upload_staging_token');
+        session()->forget(['employee_profile_upload_staging_token', 'employee_profile_upload_type']);
 
         return redirect()
-            ->route(TimekeepingEmployeeProfile::routeName('index'), ['upload' => 1])
+            ->route(TimekeepingEmployeeProfile::routeName('index'), ['upload' => 1, 'upload_type' => $uploadType])
             ->with('success', 'Upload cancelled.');
     }
 

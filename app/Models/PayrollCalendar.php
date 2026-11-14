@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\PayrollPeriodComputation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -20,6 +21,7 @@ class PayrollCalendar extends Model
         'dt_to',
         'calendar_month',
         'is_regular_period',
+        'is_allowance_period',
     ];
 
     protected function casts(): array
@@ -31,7 +33,18 @@ class PayrollCalendar extends Model
             'dt_from' => 'datetime',
             'dt_to' => 'datetime',
             'is_regular_period' => 'boolean',
+            'is_allowance_period' => 'boolean',
         ];
+    }
+
+    public function computesBasic(): bool
+    {
+        return PayrollPeriodComputation::computesBasic($this);
+    }
+
+    public function computesAllowance(): bool
+    {
+        return PayrollPeriodComputation::computesAllowance($this);
     }
 
     public function payType(): BelongsTo

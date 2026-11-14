@@ -12,10 +12,31 @@ use App\Models\TimekeepingHolidayGroup;
 use App\Models\TimekeepingPolicy;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 class TimekeepingEmployeeProfile
 {
     public const SUB_MODULE_ROUTE = 'timekeeping.employee-profile.index';
+
+    public const UPLOAD_TYPE_SETUP = 'setup';
+
+    public const UPLOAD_TYPE_CONSULTATION = 'consultation';
+
+    /**
+     * @return array<string, string>
+     */
+    public static function uploadTypes(): array
+    {
+        return [
+            self::UPLOAD_TYPE_SETUP => 'Employee Timekeeping Setup',
+            self::UPLOAD_TYPE_CONSULTATION => 'Consultation Hours (Faculty)',
+        ];
+    }
+
+    public static function normalizeUploadType(?string $type): string
+    {
+        return array_key_exists((string) $type, self::uploadTypes()) ? (string) $type : self::UPLOAD_TYPE_SETUP;
+    }
 
     public static function showApprovalMatrix(): bool
     {
@@ -25,11 +46,15 @@ class TimekeepingEmployeeProfile
     /**
      * @return array<string, string>
      */
-    public static function setupTabs(): array
+    public static function setupTabs(?Employee $employee = null): array
     {
         $tabs = [
             'timekeeping' => 'Timekeeping Settings',
         ];
+
+        if ($employee?->isFaculty()) {
+            $tabs['consultation'] = 'Consultation Hours';
+        }
 
         if (self::showApprovalMatrix()) {
             $tabs['approval'] = 'Approval Settings';
@@ -42,15 +67,30 @@ class TimekeepingEmployeeProfile
         return $tabs;
     }
 
-    public static function normalizeSetupTab(?string $tab): string
+    public static function normalizeSetupTab(?string $tab, ?Employee $employee = null): string
     {
         $tab = $tab ?: 'timekeeping';
 
-        if (! array_key_exists($tab, self::setupTabs())) {
+        if (! array_key_exists($tab, self::setupTabs($employee))) {
             return 'timekeeping';
         }
 
         return $tab;
+    }
+
+    /**
+     * Monday through Sunday, matching lu_days (1 = Sunday).
+     *
+     * @return Collection<int, LuDay>
+     */
+    public static function consultationWeekDays(): Collection
+    {
+        $days = LuDay::query()->orderBy('day_id')->get()->keyBy('day_id');
+
+        return collect([2, 3, 4, 5, 6, 7, 1])
+            ->map(fn (int $dayId) => $days->get($dayId))
+            ->filter()
+            ->values();
     }
 
     public static function routeName(string $action = 'index'): string
@@ -59,6 +99,7 @@ class TimekeepingEmployeeProfile
             'index' => 'timekeeping.employee-profile.index',
             'show' => 'timekeeping.employee-profile.show',
             'store' => 'timekeeping.employee-profile.store',
+            'consultation.store' => 'timekeeping.employee-profile.consultation.store',
             'approval' => 'timekeeping.employee-profile.approval',
             'approval-routes' => 'timekeeping.employee-profile.approval-routes',
             'attendance' => 'timekeeping.employee-profile.attendance',
@@ -126,6 +167,8 @@ class TimekeepingEmployeeProfile
                 'timekeepingSetup.teamSetting',
                 'timekeepingRestDays',
                 'timekeepingWeeklyShifts.shiftCode',
+                'employmentInformations',
+                'consultationHours',
             ])
             ->orderBy('employee_number')
             ->orderBy('last_name')

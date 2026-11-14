@@ -104,10 +104,17 @@
         </div>
     @endif
 
-    <label class="flex items-center gap-2 text-sm text-gray-700">
-        <input type="checkbox" name="is_regular_period" value="1" @checked(old('is_regular_period', true))>
-        <span>Regular Period</span>
-    </label>
+    <div class="flex flex-wrap items-center gap-6">
+        <label class="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" name="is_regular_period" value="1" @checked(old('is_regular_period', true))>
+            <span>Regular Period</span>
+        </label>
+        <label class="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" name="is_allowance_period" value="1" @checked(old('is_allowance_period', false))>
+            <span>For computation of Allowance</span>
+        </label>
+    </div>
+    @error('is_regular_period')<p class="form-error">{{ $message }}</p>@enderror
 
     @include('partials.modal-form-actions', ['submitLabel' => 'Generate'])
 </form>

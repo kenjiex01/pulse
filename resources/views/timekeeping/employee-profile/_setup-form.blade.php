@@ -2,11 +2,11 @@
     use App\Support\TimekeepingEmployeeProfile;
 
     $formContext = 'setup-employee-'.$employee->employee_id;
-    $activeTab = TimekeepingEmployeeProfile::normalizeSetupTab(old('active_tab', request('view_tab', 'timekeeping')));
+    $activeTab = TimekeepingEmployeeProfile::normalizeSetupTab(old('active_tab', request('view_tab', 'timekeeping')), $employee);
 @endphp
 
 <div class="space-y-4" data-employee-form-tabs>
-    @include('timekeeping.employee-profile._setup-tabs-nav', ['activeTab' => $activeTab])
+    @include('timekeeping.employee-profile._setup-tabs-nav', ['activeTab' => $activeTab, 'employee' => $employee])
 
     <form
         method="POST"
@@ -32,6 +32,18 @@
             ])
         </div>
     </form>
+
+    @if ($employee->isFaculty())
+        <div
+            class="employee-tab-panel {{ $activeTab === 'consultation' ? '' : 'hidden' }}"
+            data-employee-tab-panel="consultation"
+        >
+            @include('timekeeping.employee-profile._tab-consultation-hours', [
+                'employee' => $employee,
+                'editable' => true,
+            ])
+        </div>
+    @endif
 
     @if (TimekeepingEmployeeProfile::showApprovalMatrix())
         <div

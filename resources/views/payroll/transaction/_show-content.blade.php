@@ -127,8 +127,9 @@
             <button
                 type="button"
                 class="btn-secondary !px-3 !py-1.5 text-xs"
-                disabled
+                @disabled($batchEmployees->total() === 0)
                 data-payroll-batch-download-btn
+                @if ($batchEmployees->total() > 0) title="Download selected employees, or all when none are selected" @endif
             >
                 Download
             </button>
