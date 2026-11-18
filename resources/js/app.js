@@ -2666,13 +2666,49 @@ document.addEventListener('DOMContentLoaded', () => {
         root.querySelectorAll('[data-employee-loan-form]').forEach(initEmployeeLoanForm);
     };
 
+    const syncEmployeeDeductionForm = (form) => {
+        const amount = form.querySelector('[data-deduction-amount]');
+        const interest = form.querySelector('[data-deduction-interest]');
+        const balance = form.querySelector('[data-deduction-balance]');
+
+        if (!amount || !balance) {
+            return;
+        }
+
+        const payrollTaken = parseLoanNumber(form.dataset.deductionPayrollPayments);
+        balance.value = formatLoanMoney(parseLoanNumber(amount.value) + parseLoanNumber(interest?.value) - payrollTaken);
+    };
+
+    const initEmployeeDeductionForm = (form) => {
+        if (!form || form.dataset.deductionFormInitialized === 'true') {
+            return;
+        }
+
+        form.dataset.deductionFormInitialized = 'true';
+
+        const refresh = () => syncEmployeeDeductionForm(form);
+
+        form.querySelectorAll('[data-deduction-amount], [data-deduction-interest]').forEach((field) => {
+            field.addEventListener('input', refresh);
+            field.addEventListener('change', refresh);
+        });
+
+        refresh();
+    };
+
+    const initEmployeeDeductionForms = (root = document) => {
+        root.querySelectorAll('[data-employee-deduction-form]').forEach(initEmployeeDeductionForm);
+    };
+
     initEmployeeLoanForms();
+    initEmployeeDeductionForms();
 
     document.querySelectorAll('[data-modal-auto-open]').forEach((modal) => {
         openModal(modal);
         initEmployeeProfileFormTabs(modal);
         initEmployeeProfileSetupRoots(modal);
         initEmployeeLoanForms(modal);
+        initEmployeeDeductionForms(modal);
     });
 
     const initRoleMembersRoot = (root) => {
@@ -3463,6 +3499,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initEmployeeProfileFormTabs(container);
         initEmployeeProfileSetupRoots(container);
         initEmployeeLoanForms(container);
+        initEmployeeDeductionForms(container);
         reinitTimekeepingMemoTable(container);
     };
 
@@ -3854,6 +3891,7 @@ document.addEventListener('DOMContentLoaded', () => {
             initEmployeeProfileFormTabs(modal ?? document);
             initEmployeeProfileSetupRoots(modal ?? document);
             initEmployeeLoanForms(modal ?? document);
+            initEmployeeDeductionForms(modal ?? document);
         }, 0);
     });
 

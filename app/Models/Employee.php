@@ -233,6 +233,13 @@ class Employee extends Model
             ->orderByDesc('employee_loan_id');
     }
 
+    public function employeeDeductions(): HasMany
+    {
+        return $this->hasMany(EmployeeDeduction::class, 'employee_id', 'employee_id')
+            ->orderByDesc('dt_deduction')
+            ->orderByDesc('employee_deduction_id');
+    }
+
     public function timekeepingSetup(): HasOne
     {
         return $this->hasOne(TimekeepingEmployeeSetup::class, 'employee_id', 'employee_id');

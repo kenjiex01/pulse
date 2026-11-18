@@ -9,6 +9,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeCredentialController;
+use App\Http\Controllers\EmployeeDeductionController;
 use App\Http\Controllers\EmployeeLoanController;
 use App\Http\Controllers\EmployeeLookupController;
 use App\Http\Controllers\EmployeeSkolarisSyncController;
@@ -118,6 +119,12 @@ Route::middleware('auth')->group(function () {
             ->name('employees.loans.update');
         Route::delete('employees/{employee}/loans/{loan}', [EmployeeLoanController::class, 'destroy'])
             ->name('employees.loans.destroy');
+        Route::post('employees/{employee}/deductions', [EmployeeDeductionController::class, 'store'])
+            ->name('employees.deductions.store');
+        Route::put('employees/{employee}/deductions/{employeeDeduction}', [EmployeeDeductionController::class, 'update'])
+            ->name('employees.deductions.update');
+        Route::delete('employees/{employee}/deductions/{employeeDeduction}', [EmployeeDeductionController::class, 'destroy'])
+            ->name('employees.deductions.destroy');
         Route::resource('employees', EmployeeController::class)->only([
             'index', 'create', 'store', 'show', 'edit', 'update', 'destroy',
         ]);

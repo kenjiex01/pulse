@@ -48,6 +48,7 @@ class PayrollBatchService
         private readonly EmployeeSalaryResolverService $salaryResolver,
         private readonly PayrollAttendanceDayPersistenceService $attendanceDayPersistence,
         private readonly LoanPayrollService $loanPayroll,
+        private readonly EmployeeDeductionPayrollService $employeeDeductionPayroll,
         private readonly PayrollDisputeService $disputePayroll,
         private readonly ManualAttendanceDeductionService $manualAttendanceDeductions,
         private readonly FacultyConsultationAllowancePayrollService $facultyConsultationAllowance,
@@ -876,6 +877,7 @@ class PayrollBatchService
 
         if ($slices === []) {
             $this->loanPayroll->syncForDetail($detail);
+            $this->employeeDeductionPayroll->syncForDetail($detail);
 
             return;
         }
@@ -1225,6 +1227,7 @@ class PayrollBatchService
             $this->applyUploadedIncomesToDetail($detail);
             $this->applyUploadedLeavesToDetail($detail);
             $this->loanPayroll->syncForDetail($detail);
+            $this->employeeDeductionPayroll->syncForDetail($detail);
             $this->attendanceDayPersistence->replaceForDetail($detail);
         });
 

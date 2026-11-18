@@ -17,6 +17,7 @@ class PayrollDeduction extends Model
     protected $fillable = [
         'payroll_batch_detail_id',
         'deduction_type_id',
+        'employee_deduction_id',
         'hours',
         'days',
         'employee_amount',
@@ -52,5 +53,10 @@ class PayrollDeduction extends Model
     public function deductionType(): BelongsTo
     {
         return $this->belongsTo(DeductionType::class, 'deduction_type_id', 'deduction_type_id');
+    }
+
+    public function employeeDeduction(): BelongsTo
+    {
+        return $this->belongsTo(EmployeeDeduction::class, 'employee_deduction_id', 'employee_deduction_id');
     }
 }

@@ -452,6 +452,13 @@
             'activeTab' => $activeTab,
             'wizardMode' => false,
         ])
+
+        @include('employees.partials._deductions-tab', [
+            'employee' => $employee,
+            'isEdit' => $isEdit,
+            'activeTab' => $activeTab,
+            'wizardMode' => false,
+        ])
     @endunless
 
     @if ($isEdit)
@@ -492,4 +499,5 @@
 @if ($isEdit && ! $wizardMode)
     @include('employees.partials._credentials-modals', ['employee' => $employee])
     @include('employees.partials._loans-modals', ['employee' => $employee])
+    @include('employees.partials._deductions-modals', ['employee' => $employee])
 @endif
