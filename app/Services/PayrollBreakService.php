@@ -199,7 +199,7 @@ class PayrollBreakService
             $segments[] = [
                 'break_out' => $breakOut,
                 'break_in' => $breakIn,
-                'minutes' => (int) $breakOut->diffInMinutes($breakIn),
+                'minutes' => $this->displayedClockMinutes($breakOut, $breakIn),
             ];
         }
 
@@ -370,6 +370,22 @@ class PayrollBreakService
         }
 
         return max($lateDepart, $lateReturn);
+    }
+
+    /**
+     * Break length from the hours and minutes shown on screen. Seconds are dropped
+     * so 12:05:47 to 12:53:15 counts as 12:05 to 12:53 (48 minutes).
+     */
+    private function displayedClockMinutes(CarbonImmutable $start, CarbonImmutable $end): int
+    {
+        $startMinute = $start->startOfMinute();
+        $endMinute = $end->startOfMinute();
+
+        if ($endMinute->lessThanOrEqualTo($startMinute)) {
+            return 0;
+        }
+
+        return (int) $startMinute->diffInMinutes($endMinute);
     }
 
     private function clockOnDate(CarbonImmutable $sessionDate, string $time): CarbonImmutable

@@ -8,7 +8,7 @@
         'ABST' => 'Absence Details',
     ];
     $descriptions = [
-        'LTDE' => 'Work dates with late minutes in this pay period — from biometric logs, manually added, or uploaded Late lines.',
+        'LTDE' => 'Work dates with late minutes in this pay period. Time-in late is arrival after the schedule. Break late is time beyond the shift break, with the Out and In logs listed under the row.',
         'UTDE' => 'Work dates with undertime minutes in this pay period — from biometric logs, manually added, or uploaded Undertime lines.',
         'OVRT' => 'Work dates with approved overtime in this pay period.',
         'ABST' => 'Work dates counted as absences (full day or half-day) in this pay period — from biometric rules or payroll calendar unworked days.',
@@ -67,6 +67,13 @@
                             <tr>
                                 <td class="px-3 py-2 font-medium text-gray-900">
                                     {{ \Illuminate\Support\Carbon::parse($row['work_date'])->format('M j, Y') }}
+                                    @if ($type === 'LTDE' && ($row['late_kind'] ?? null) === 'break')
+                                        <span class="mt-0.5 block text-xs font-semibold text-amber-800">Break late</span>
+                                    @elseif ($type === 'LTDE' && ($row['late_kind'] ?? null) === 'clock')
+                                        <span class="mt-0.5 block text-xs font-semibold text-gray-500">Time in late</span>
+                                    @elseif ($type === 'LTDE' && ($row['late_kind'] ?? null) === 'both')
+                                        <span class="mt-0.5 block text-xs font-semibold text-amber-800">Time in late and break late</span>
+                                    @endif
                                 </td>
                                 <td class="px-3 py-2 text-gray-600">{{ $row['shift_code'] ?? '—' }}</td>
                                 <td class="px-3 py-2 text-gray-600">
@@ -94,9 +101,35 @@
                                     <td class="px-3 py-2 text-gray-600">{{ $row['absence_type'] ?? '—' }}</td>
                                     <td class="px-3 py-2 text-right text-gray-900">{{ number_format((float) ($row['days'] ?? 0), 2) }}</td>
                                 @else
-                                    <td class="px-3 py-2 text-right text-gray-900">{{ number_format((int) ($row['minutes'] ?? 0)) }}</td>
+                                    <td class="px-3 py-2 text-right text-gray-900">
+                                        {{ number_format((int) ($row['minutes'] ?? 0)) }}
+                                        @if ($type === 'LTDE' && (int) ($row['clock_late_minutes'] ?? 0) > 0 && (int) ($row['break_late_minutes'] ?? 0) > 0)
+                                            <span class="mt-0.5 block text-xs font-normal text-gray-500">
+                                                Time in {{ number_format((int) $row['clock_late_minutes']) }}
+                                                · Break {{ number_format((int) $row['break_late_minutes']) }}
+                                            </span>
+                                        @endif
+                                    </td>
                                 @endif
                             </tr>
+                            @if ($type === 'LTDE' && ($row['break_logs'] ?? []) !== [])
+                                <tr class="bg-amber-50">
+                                    <td colspan="{{ $columnCount }}" class="px-3 py-2 text-xs text-gray-700">
+                                        <p class="font-semibold text-amber-900">
+                                            Break late
+                                            @if (($row['break_allowed_minutes'] ?? null) !== null)
+                                                — allowed {{ number_format((int) $row['break_allowed_minutes']) }} min,
+                                                actual breaks {{ number_format((int) ($row['break_consumed_minutes'] ?? 0)) }} min
+                                            @endif
+                                        </p>
+                                        <ul class="mt-1 space-y-0.5">
+                                            @foreach ($row['break_logs'] as $log)
+                                                <li>{{ $log['out'] }} Out → {{ $log['in'] }} In ({{ number_format((int) $log['minutes']) }} min)</li>
+                                            @endforeach
+                                        </ul>
+                                    </td>
+                                </tr>
+                            @endif
                         @empty
                             <tr>
                                 <td colspan="{{ $columnCount }}" class="px-3 py-8 text-center text-gray-500">

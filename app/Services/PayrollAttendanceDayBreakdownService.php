@@ -130,6 +130,12 @@ class PayrollAttendanceDayBreakdownService
 
         if ($savedDays->isNotEmpty()) {
             $breakdown = $this->fromSavedDays($savedDays);
+            $breakdown['LTDE'] = $this->withBreakLateLogs(
+                (int) $detail->employee_id,
+                $breakdown['LTDE'],
+                $detail->employee?->timekeepingSetup?->policy,
+                $detail->employee?->timekeepingSetup?->shiftCode,
+            );
             $breakdown['ABST'] = $this->appendCalendarUnworkedAbsenceRows(
                 $detail,
                 $from,
@@ -175,7 +181,12 @@ class PayrollAttendanceDayBreakdownService
         $absentRows = $this->appendCalendarUnworkedAbsenceRows($detail, $from, $to, $absentRows, collect());
 
         return [
-            'LTDE' => $this->lateDays($employeeId, $from, $to, $policy, $defaultShift),
+            'LTDE' => $this->withBreakLateLogs(
+                $employeeId,
+                $this->lateDays($employeeId, $from, $to, $policy, $defaultShift),
+                $policy,
+                $defaultShift,
+            ),
             'UTDE' => $this->undertimeDays($employeeId, $from, $to, $policy, $defaultShift),
             'OVRT' => $otRows,
             'ABST' => $absentRows,
@@ -234,10 +245,13 @@ class PayrollAttendanceDayBreakdownService
             $breakLateHours = (float) ($day->break_late ?? 0);
             $lateMinutes = (int) round(($lateHours + $breakLateHours) * 60);
             if ($lateMinutes > 0) {
+                $clockLateMinutes = (int) round($lateHours * 60);
+                $breakLateMinutes = (int) round($breakLateHours * 60);
                 $late[] = $base + [
                     'minutes' => $lateMinutes,
-                    'clock_late_minutes' => (int) round($lateHours * 60),
-                    'break_late_minutes' => (int) round($breakLateHours * 60),
+                    'clock_late_minutes' => $clockLateMinutes,
+                    'break_late_minutes' => $breakLateMinutes,
+                    'late_kind' => $this->lateKind($clockLateMinutes, $breakLateMinutes),
                 ];
             }
 
@@ -441,6 +455,7 @@ class PayrollAttendanceDayBreakdownService
             $rows[] = $this->baseDayRow($session, $schedule, $minutes) + [
                 'clock_late_minutes' => $clockLate,
                 'break_late_minutes' => $breakLate,
+                'late_kind' => $this->lateKind($clockLate, $breakLate),
             ];
         }
 
@@ -771,6 +786,90 @@ class PayrollAttendanceDayBreakdownService
             'time_out' => $this->formatClock($session['time_out'] ?? null),
             'minutes' => $minutes,
         ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    private function withBreakLateLogs(
+        int $employeeId,
+        array $rows,
+        ?TimekeepingPolicy $policy,
+        ?ShiftCode $defaultShift,
+    ): array {
+        $dates = [];
+
+        foreach ($rows as $row) {
+            if ((int) ($row['break_late_minutes'] ?? 0) > 0 && filled($row['work_date'] ?? null)) {
+                $dates[] = (string) $row['work_date'];
+            }
+        }
+
+        $punchesByDate = collect();
+
+        if ($dates !== []) {
+            $from = CarbonImmutable::parse(min($dates));
+            $to = CarbonImmutable::parse(max($dates));
+            $this->shiftResolver->loadOverridesForRange($employeeId, $from, $to);
+            $punchesByDate = $this->timeLogsPayroll->dayPunchesForPeriod($employeeId, $from, $to);
+        }
+
+        foreach ($rows as $index => $row) {
+            $clockLate = (int) ($row['clock_late_minutes'] ?? 0);
+            $breakLate = (int) ($row['break_late_minutes'] ?? 0);
+            $rows[$index]['late_kind'] = $row['late_kind'] ?? $this->lateKind($clockLate, $breakLate);
+            $rows[$index]['break_logs'] = [];
+            $rows[$index]['break_allowed_minutes'] = null;
+            $rows[$index]['break_consumed_minutes'] = null;
+
+            if ($breakLate <= 0 || ! filled($row['work_date'] ?? null)) {
+                continue;
+            }
+
+            $date = CarbonImmutable::parse((string) $row['work_date']);
+            $dayPunches = $punchesByDate->get($date->toDateString(), collect());
+            $shift = $this->shiftResolver->forDate($employeeId, $date, $defaultShift);
+            $segments = $this->breakPayroll->breakSegmentsFromPunches($dayPunches);
+            $consumed = 0;
+            $logs = [];
+
+            foreach ($segments as $segment) {
+                $minutes = (int) $segment['minutes'];
+                $consumed += $minutes;
+                $logs[] = [
+                    'out' => $segment['break_out']->format('H:i'),
+                    'in' => $segment['break_in']->format('H:i'),
+                    'minutes' => $minutes,
+                ];
+            }
+
+            $rows[$index]['break_logs'] = $logs;
+            $rows[$index]['break_consumed_minutes'] = $consumed;
+            $rows[$index]['break_allowed_minutes'] = $this->breakPayroll->allowedBreakMinutes(
+                $policy,
+                $this->breakPayroll->scheduledBreakMinutes($shift),
+            );
+        }
+
+        return $rows;
+    }
+
+    private function lateKind(int $clockLateMinutes, int $breakLateMinutes): string
+    {
+        if ($clockLateMinutes > 0 && $breakLateMinutes > 0) {
+            return 'both';
+        }
+
+        if ($breakLateMinutes > 0) {
+            return 'break';
+        }
+
+        if ($clockLateMinutes > 0) {
+            return 'clock';
+        }
+
+        return 'late';
     }
 
     private function formatClock(?string $time): ?string

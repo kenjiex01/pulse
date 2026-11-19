@@ -110,6 +110,22 @@ class PayrollBreakServiceTest extends TestCase
     }
 
     #[Test]
+    public function break_length_uses_the_displayed_hour_and_minute_not_seconds(): void
+    {
+        $service = new PayrollBreakService;
+        $punches = $this->punchesForDay('2026-11-06', [
+            ['10:38:23', true],
+            ['12:05:47', false],
+            ['12:53:15', true],
+            ['21:31:37', false],
+        ]);
+
+        $segments = $service->breakSegmentsFromPunches($punches);
+
+        $this->assertSame(48, $segments[0]['minutes']);
+    }
+
+    #[Test]
     public function break_late_billable_minutes_stay_in_minutes_not_whole_hours(): void
     {
         $service = new PayrollBreakService;
