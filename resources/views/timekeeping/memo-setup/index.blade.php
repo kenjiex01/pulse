@@ -15,6 +15,36 @@
             @csrf
             @method('PUT')
 
+            <section class="rounded-lg border border-gray-200 p-4 sm:p-5">
+                <h2 class="mb-4 text-base font-semibold text-gray-900">Control number</h2>
+                <div>
+                    <label for="control_number" class="form-label">Next control number <span class="text-red-600">*</span></label>
+                    <input
+                        type="number"
+                        id="control_number"
+                        name="control_number"
+                        value="{{ old('control_number', $controlNumber['next_number']) }}"
+                        class="form-input w-full max-w-xs"
+                        min="1"
+                        max="999999"
+                        step="1"
+                        required
+                    >
+                    <p class="mt-1 text-xs text-gray-500">
+                        The next send uses <span class="font-medium text-gray-700">{{ $controlNumber['next_control_no'] }}</span>.
+                        This number moves forward after each send. A company document send uses one control number for every selected employee. A memo send uses the next number for each employee.
+                        @if ($controlNumber['last_control_no'])
+                            The last sent control number is <span class="font-medium text-gray-700">{{ $controlNumber['last_control_no'] }}</span>. A number that was already sent cannot be saved.
+                        @else
+                            No memo has been sent yet. You can set the next number, including a lower one.
+                        @endif
+                    </p>
+                    @error('control_number')
+                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+            </section>
+
             @foreach (\App\Models\TimekeepingMemoSetup::TYPES as $type)
                 @php
                     $setup = $setups->get($type);

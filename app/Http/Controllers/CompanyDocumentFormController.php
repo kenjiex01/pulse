@@ -9,7 +9,6 @@ use App\Models\CompanyDocumentNteCase;
 use App\Models\CompanyDocumentSendLog;
 use App\Models\Employee;
 use App\Models\LuIcctOffense;
-use App\Models\User;
 use App\Services\CompanyDocumentFileService;
 use App\Services\CompanyDocumentMemoRenderService;
 use App\Services\CompanyDocumentNteCaseService;
@@ -307,7 +306,7 @@ class CompanyDocumentFormController extends Controller
 
         $additionalEmails = EmailAddressList::parseValidated($validated['additional_emails'] ?? null);
 
-        $result = $this->sendToEmployees($companyDocumentForm, $validated['employee_ids'], $request->user());
+        $result = $this->sendService->sendToMany($companyDocumentForm, $validated['employee_ids'], $request->user());
 
         if ($result['sent'] > 0 && $additionalEmails !== []) {
             try {
@@ -361,6 +360,7 @@ class CompanyDocumentFormController extends Controller
 
         $validated = $request->validate([
             'employee_id' => ['required', 'integer', 'exists:tbl_employees,employee_id'],
+            'batch_key' => ['nullable', 'uuid'],
         ]);
 
         $employee = Employee::query()->find($validated['employee_id']);
@@ -372,7 +372,14 @@ class CompanyDocumentFormController extends Controller
         }
 
         try {
-            $result = $this->sendService->sendToEmployee($companyDocumentForm, $employee, $request->user());
+            $controlNo = filled($validated['batch_key'] ?? null)
+                ? $this->sendService->controlNumberForBatch(
+                    (int) $request->user()->id,
+                    (int) $companyDocumentForm->company_document_form_id,
+                    (string) $validated['batch_key'],
+                )
+                : null;
+            $result = $this->sendService->sendToEmployee($companyDocumentForm, $employee, $request->user(), $controlNo);
         } catch (ValidationException $exception) {
             return response()->json([
                 'success' => false,
@@ -445,35 +452,6 @@ class CompanyDocumentFormController extends Controller
             'additional_sent' => $additionalSent,
             'additional_error' => $additionalError,
         ]);
-    }
-
-    /**
-     * @param  list<int|string>  $employeeIds
-     * @return array{sent: int, errors: list<string>}
-     */
-    private function sendToEmployees(CompanyDocumentForm $form, array $employeeIds, User $sender): array
-    {
-        $sent = 0;
-        $errors = [];
-
-        foreach ($employeeIds as $employeeId) {
-            $employee = Employee::query()->find($employeeId);
-            if ($employee === null) {
-                continue;
-            }
-
-            try {
-                $this->sendService->sendToEmployee($form, $employee, $sender);
-                $sent++;
-            } catch (\RuntimeException $exception) {
-                $errors[] = trim($employee->full_name).': '.$exception->getMessage();
-            }
-        }
-
-        return [
-            'sent' => $sent,
-            'errors' => $errors,
-        ];
     }
 
     public function duplicate(CompanyDocumentForm $companyDocumentForm): RedirectResponse

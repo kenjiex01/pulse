@@ -51,15 +51,18 @@ class TimekeepingMemoAttendanceService
         string $dateFrom,
         string $dateTo,
         string $violationType,
+        bool $trackSent = true,
     ): array {
         $violationType = $this->normalizeViolationType($violationType);
-        $sentDates = $this->sentDatesForEmployee($employee->employee_id, $violationType, $dateFrom, $dateTo);
+        $sentDates = $trackSent
+            ? $this->sentDatesForEmployee($employee->employee_id, $violationType, $dateFrom, $dateTo)
+            : collect();
 
         if ($employee->usesTeachingLoadPayroll()) {
             return $this->facultyViolationDays($employee, $dateFrom, $dateTo, $violationType, $sentDates);
         }
 
-        $days = $this->attendanceView->computeDaysForPersistence($employee, $dateFrom, $dateTo);
+        $days = $this->attendanceView->computeAttendanceFlags($employee, $dateFrom, $dateTo);
         $rows = [];
 
         foreach ($days as $day) {
@@ -85,13 +88,47 @@ class TimekeepingMemoAttendanceService
         return $rows;
     }
 
+    /**
+     * @param  Collection<int, Employee>  $employees
+     * @return array<int, int>
+     */
+    public function violationCountMap(
+        Collection $employees,
+        string $dateFrom,
+        string $dateTo,
+        string $violationType,
+    ): array {
+        $violationType = $this->normalizeViolationType($violationType);
+        $faculty = $employees->filter(fn (Employee $employee) => $employee->usesTeachingLoadPayroll())->values();
+        $staff = $employees->reject(fn (Employee $employee) => $employee->usesTeachingLoadPayroll())->values();
+
+        $this->facultySchedule->prefetch(
+            $faculty->map(fn (Employee $employee) => (int) $employee->employee_id)->all(),
+            $dateFrom,
+            $dateTo,
+        );
+
+        $counts = $this->attendanceView->countStaffViolations($staff, $dateFrom, $dateTo, $violationType);
+
+        foreach ($faculty as $employee) {
+            $counts[(int) $employee->employee_id] = $this->violationCountForEmployee(
+                $employee,
+                $dateFrom,
+                $dateTo,
+                $violationType,
+            );
+        }
+
+        return $counts;
+    }
+
     public function violationCountForEmployee(
         Employee $employee,
         string $dateFrom,
         string $dateTo,
         string $violationType,
     ): int {
-        return count($this->violationDaysForEmployee($employee, $dateFrom, $dateTo, $violationType));
+        return count($this->violationDaysForEmployee($employee, $dateFrom, $dateTo, $violationType, trackSent: false));
     }
 
     /**
@@ -164,6 +201,14 @@ class TimekeepingMemoAttendanceService
             return filled($day['shift_label'] ?? null) || filled($day['shift_code_id'] ?? null);
         }
 
+        if ((bool) ($day['is_absent_tag'] ?? false) || (bool) ($day['is_half_day'] ?? false)) {
+            return true;
+        }
+
+        if (filled($day['time_in_raw'] ?? null)) {
+            return false;
+        }
+
         if ($employee === null) {
             return false;
         }
@@ -227,12 +272,7 @@ class TimekeepingMemoAttendanceService
         /** @var TimekeepingPolicy|null $policy */
         $policy = $employee->timekeepingSetup?->policy;
 
-        $loadEntries = RawEmployeeLoadEntry::query()
-            ->where('employee_id', (int) $employee->employee_id)
-            ->whereDate('session_date', '>=', $dateFrom)
-            ->whereDate('session_date', '<=', $dateTo)
-            ->get()
-            ->groupBy(fn (RawEmployeeLoadEntry $entry) => $entry->session_date?->toDateString() ?? '');
+        $loadEntries = $this->facultySchedule->loadEntriesByDate((int) $employee->employee_id, $dateFrom, $dateTo);
 
         $rows = [];
 

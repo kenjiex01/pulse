@@ -113,7 +113,9 @@ class CompanyDocumentMergeTagService
             'current_date' => now()->format('F j, Y'),
             'current_time' => now()->format('g:i A'),
             'current_datetime' => now()->format('F j, Y g:i A'),
-            'memo_date' => now()->format('F j, Y'),
+            'memo_date' => filled($memoContext['memo_date'] ?? null)
+                ? (string) $memoContext['memo_date']
+                : now()->format('F j, Y'),
             'attendance_period' => $this->formatAttendancePeriod($memoContext) ?: $this->previewSample($tagKey),
             'memo_from', 'memo_cc' => $this->previewSample($tagKey),
             'nature_of_offense', 'disciplinary_action', 'offense_frequency' => $this->previewSample($tagKey),

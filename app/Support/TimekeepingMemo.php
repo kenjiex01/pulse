@@ -21,6 +21,8 @@ class TimekeepingMemo
             'preview' => 'timekeeping.memo.preview',
             'preview-html' => 'timekeeping.memo.preview-html',
             'preview-pdf' => 'timekeeping.memo.preview-pdf',
+            'sent-preview' => 'timekeeping.memo.sent-preview',
+            'sent-preview-html' => 'timekeeping.memo.sent-preview-html',
             default => "timekeeping.memo.$action",
         };
     }

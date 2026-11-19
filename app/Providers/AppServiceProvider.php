@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Policies\HrLookupPolicy;
 use App\Policies\HrSetupPolicy;
 use App\Services\DatabaseBackupService;
+use App\Services\EmployeeShiftResolver;
 use App\Services\BiometricS3PullSettings;
 use App\Services\DesktopBootstrapService;
 use App\Services\DesktopCloudBackupService;
@@ -52,6 +53,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(DesktopUpdaterService::class);
+        $this->app->singleton(EmployeeShiftResolver::class);
     }
 
     public function boot(): void

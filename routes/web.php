@@ -847,6 +847,10 @@ Route::middleware('auth')->group(function () {
     Route::middleware('module:timekeeping.memo.index')->group(function () {
         Route::get('timekeeping/memo', [TimekeepingMemoController::class, 'index'])
             ->name('timekeeping.memo.index');
+        Route::get('timekeeping/memo/sent/{submission}/preview', [TimekeepingMemoController::class, 'sentPreview'])
+            ->name('timekeeping.memo.sent-preview');
+        Route::get('timekeeping/memo/sent/{submission}/preview-html', [TimekeepingMemoController::class, 'sentPreviewHtml'])
+            ->name('timekeeping.memo.sent-preview-html');
         Route::get('timekeeping/memo/{employee}/details', [TimekeepingMemoController::class, 'details'])
             ->name('timekeeping.memo.details');
         Route::get('timekeeping/memo/{employee}/preview', [TimekeepingMemoController::class, 'preview'])

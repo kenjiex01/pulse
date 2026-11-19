@@ -27,6 +27,11 @@ class EmployeeShiftResolver
      */
     private array $weeklyCache = [];
 
+    /**
+     * @var array<int, true>
+     */
+    private array $overrideRangeLoaded = [];
+
     public function forDate(Employee|int $employee, CarbonInterface $date, ?ShiftCode $defaultShift = null): ?ShiftCode
     {
         $employeeId = $employee instanceof Employee ? (int) $employee->employee_id : (int) $employee;
@@ -67,12 +72,82 @@ class EmployeeShiftResolver
     }
 
     /**
-     * Prefetch overrides for an employee across a date range to avoid N+1.
-     *
-     * @return Collection<string, ShiftCode> keyed by Y-m-d (only days with overrides)
+     * @param  iterable<Employee>  $employees
      */
+    public function preloadEmployees(iterable $employees, CarbonInterface $from, CarbonInterface $to): void
+    {
+        $ids = [];
+
+        foreach ($employees as $employee) {
+            if (! $employee instanceof Employee) {
+                continue;
+            }
+
+            $employeeId = (int) $employee->employee_id;
+            $ids[] = $employeeId;
+            $employee->loadMissing('timekeepingSetup.shiftCode');
+            $this->defaultCache[$employeeId] = $employee->timekeepingSetup?->shiftCode;
+            $this->overrideRangeLoaded[$employeeId] = true;
+            $this->overrideCache[$employeeId] = $this->overrideCache[$employeeId] ?? [];
+            $this->weeklyCache[$employeeId] = [];
+        }
+
+        if ($ids === []) {
+            return;
+        }
+
+        $rangeStart = $from->copy()->startOfDay();
+        $rangeEnd = $to->copy()->startOfDay();
+
+        foreach ($ids as $employeeId) {
+            $cursor = $rangeStart->copy();
+
+            while ($cursor->lte($rangeEnd)) {
+                $key = $cursor->toDateString();
+
+                if (! array_key_exists($key, $this->overrideCache[$employeeId])) {
+                    $this->overrideCache[$employeeId][$key] = null;
+                }
+
+                $cursor = $cursor->addDay();
+            }
+        }
+
+        $weeklyRows = TimekeepingEmployeeWeeklyShift::query()
+            ->with(['shiftCode.breaks'])
+            ->whereIn('employee_id', $ids)
+            ->get();
+
+        foreach ($weeklyRows as $row) {
+            $this->weeklyCache[(int) $row->employee_id][(int) $row->day_id] = $row->shiftCode;
+        }
+
+        $overrides = EmployeeShiftOverride::query()
+            ->with(['shiftCode.breaks'])
+            ->whereIn('employee_id', $ids)
+            ->whereDate('work_date', '>=', $rangeStart->toDateString())
+            ->whereDate('work_date', '<=', $rangeEnd->toDateString())
+            ->get();
+
+        foreach ($overrides as $row) {
+            $key = $row->work_date?->toDateString();
+
+            if ($key === null) {
+                continue;
+            }
+
+            $this->overrideCache[(int) $row->employee_id][$key] = $row->shiftCode;
+        }
+    }
+
     public function loadOverridesForRange(int $employeeId, CarbonInterface $from, CarbonInterface $to): Collection
     {
+        if (! empty($this->overrideRangeLoaded[$employeeId])) {
+            $this->ensureWeeklyShiftsLoaded($employeeId);
+
+            return $this->overrideMapFromCache($employeeId, $from, $to);
+        }
+
         $this->ensureWeeklyShiftsLoaded($employeeId);
 
         $rows = EmployeeShiftOverride::query()
@@ -116,6 +191,27 @@ class EmployeeShiftResolver
         $this->overrideCache = [];
         $this->defaultCache = [];
         $this->weeklyCache = [];
+        $this->overrideRangeLoaded = [];
+    }
+
+    private function overrideMapFromCache(int $employeeId, CarbonInterface $from, CarbonInterface $to): Collection
+    {
+        $map = collect();
+        $cursor = $from->copy()->startOfDay();
+        $end = $to->copy()->startOfDay();
+
+        while ($cursor->lte($end)) {
+            $key = $cursor->toDateString();
+            $shift = $this->overrideCache[$employeeId][$key] ?? null;
+
+            if ($shift !== null) {
+                $map->put($key, $shift);
+            }
+
+            $cursor = $cursor->addDay();
+        }
+
+        return $map;
     }
 
     private function weeklyShiftFor(int $employeeId, int $dayId): ?ShiftCode

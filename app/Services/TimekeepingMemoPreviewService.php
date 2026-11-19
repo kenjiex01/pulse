@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CompanyDocumentForm;
+use App\Models\CompanyDocumentSubmission;
 use App\Models\Employee;
 use App\Models\TimekeepingMemoSetup;
 use RuntimeException;
@@ -13,6 +14,7 @@ class TimekeepingMemoPreviewService
         private readonly CompanyDocumentMemoRenderService $renderService,
         private readonly TimekeepingMemoAttendanceService $attendanceService,
         private readonly TimekeepingMemoSendService $sendService,
+        private readonly TimekeepingMemoSentService $sentMemos,
     ) {}
 
     /**
@@ -21,6 +23,7 @@ class TimekeepingMemoPreviewService
      *     form: CompanyDocumentForm,
      *     elements: list<array<string, mixed>>,
      *     preview_values: array<string, string>,
+     *     memo_fields: array<string, mixed>|null,
      *     selected_dates: list<string>,
      *     memo_context: array{date_from: string, date_to: string, violation_type: string, violation_count: int, selected_dates: list<string>}
      * }
@@ -48,6 +51,19 @@ class TimekeepingMemoPreviewService
         return $this->renderService->renderPdf($this->previewPayloadForPdf($employee, $dateFrom, $dateTo, $violationType, $workDates));
     }
 
+    public function renderHtmlForSubmission(CompanyDocumentSubmission $submission): string
+    {
+        $sent = $this->sentMemos->previewContext($submission);
+        $preview = $this->renderService->buildPreviewData($sent['form'], $sent['employee'], $sent['memo_context']);
+
+        return $this->renderService->renderDocumentHtml([
+            'form' => $preview['form'],
+            'elements' => $preview['elements'],
+            'preview_values' => $preview['preview_values'],
+            'memo_fields' => $preview['memo_fields'] ?? null,
+        ], true);
+    }
+
     public function renderHtmlForEmployee(
         Employee $employee,
         string $dateFrom,
@@ -63,7 +79,8 @@ class TimekeepingMemoPreviewService
      * @return array{
      *     form: CompanyDocumentForm,
      *     elements: list<array<string, mixed>>,
-     *     preview_values: array<string, mixed>
+     *     preview_values: array<string, mixed>,
+     *     memo_fields: array<string, mixed>|null
      * }
      */
     private function previewPayloadForPdf(
@@ -79,6 +96,7 @@ class TimekeepingMemoPreviewService
             'form' => $preview['form'],
             'elements' => $preview['elements'],
             'preview_values' => $preview['preview_values'],
+            'memo_fields' => $preview['memo_fields'] ?? null,
         ];
     }
 
@@ -88,6 +106,7 @@ class TimekeepingMemoPreviewService
      *     form: CompanyDocumentForm,
      *     elements: list<array<string, mixed>>,
      *     preview_values: array<string, string>,
+     *     memo_fields: array<string, mixed>|null,
      *     selected_dates: list<string>,
      *     memo_context: array{date_from: string, date_to: string, violation_type: string, violation_count: int, selected_dates: list<string>}
      * }
@@ -125,6 +144,7 @@ class TimekeepingMemoPreviewService
             'form' => $form,
             'elements' => $mapped['elements'],
             'preview_values' => $mapped['preview_values'],
+            'memo_fields' => $mapped['memo_fields'] ?? null,
             'selected_dates' => $selectedDates,
             'memo_context' => $memoContext,
         ];

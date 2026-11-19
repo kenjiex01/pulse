@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\BasicComputation;
 use App\Support\PayrollCalendarWorkingDays;
 use App\Models\EmployeeSalary;
+use App\Models\Employee;
 use App\Models\RawTimekeepingInandout;
 use App\Models\ShiftCode;
 use App\Models\TimekeepingEmployeeSetup;
@@ -22,6 +23,15 @@ class TimeLogsPayrollService
         private readonly EmployeeShiftResolver $shiftResolver,
     ) {}
 
+    /** @var array<int, array{in_minutes: int, out_minutes: int, shift: ?ShiftCode}> */
+    private array $bufferCache = [];
+
+    private ?Collection $prefetchedPunches = null;
+
+    private ?CarbonInterface $prefetchFrom = null;
+
+    private ?CarbonInterface $prefetchTo = null;
+
     public function usesTimeLogs(EmployeeSalary $salary): bool
     {
         return (int) $salary->basic_computation_id === BasicComputation::TIME_IN_OUT;
@@ -35,12 +45,98 @@ class TimeLogsPayrollService
         CarbonInterface $from,
         CarbonInterface $to,
     ): Collection {
+        return $this->punchesBetween(
+            $employeeId,
+            $from->copy()->startOfDay(),
+            $to->copy()->endOfDay(),
+        );
+    }
+
+    /**
+     * @param  list<int>  $employeeIds
+     */
+    public function prefetchPunches(array $employeeIds, CarbonInterface $from, CarbonInterface $to, int $padMinutes): void
+    {
+        $this->prefetchFrom = $from->copy()->startOfDay()->subMinutes($padMinutes);
+        $this->prefetchTo = $to->copy()->endOfDay()->addMinutes($padMinutes);
+        $this->prefetchedPunches = collect();
+
+        if ($employeeIds === []) {
+            return;
+        }
+
+        $this->prefetchedPunches = RawTimekeepingInandout::query()
+            ->whereIn('employee_id', $employeeIds)
+            ->whereBetween('dt_datetime', [$this->prefetchFrom, $this->prefetchTo])
+            ->orderBy('dt_datetime')
+            ->orderBy('timekeeping_inandout_id')
+            ->get()
+            ->groupBy(fn (RawTimekeepingInandout $punch) => (int) $punch->employee_id);
+    }
+
+    public function clearPunchPrefetch(): void
+    {
+        $this->prefetchedPunches = null;
+        $this->prefetchFrom = null;
+        $this->prefetchTo = null;
+        $this->bufferCache = [];
+    }
+
+    /**
+     * @return array{in_minutes: int, out_minutes: int, shift: ?ShiftCode}
+     */
+    public function rememberEmployeeBuffers(Employee $employee): array
+    {
+        $setup = $employee->timekeepingSetup;
+        $buffers = [
+            'in_minutes' => max(0, (int) round(((float) ($setup?->policy?->buffer_time_in ?? 0)) * 60)),
+            'out_minutes' => max(0, (int) round(((float) ($setup?->policy?->buffer_time_out ?? 0)) * 60)),
+            'shift' => $setup?->shiftCode,
+        ];
+        $this->bufferCache[(int) $employee->employee_id] = $buffers;
+
+        return $buffers;
+    }
+
+    /**
+     * @param  Collection<int, RawTimekeepingInandout>  $punches
+     * @return array{time_in: string|null, time_out: string|null}
+     */
+    public function sessionTimes(Collection $punches, CarbonImmutable $workDate): array
+    {
+        $session = $this->workSessionFromPunches($punches, $workDate);
+
+        return [
+            'time_in' => $session['time_in'],
+            'time_out' => $session['time_out'],
+        ];
+    }
+
+    /**
+     * @return Collection<int, RawTimekeepingInandout>
+     */
+    private function punchesBetween(int $employeeId, CarbonInterface $from, CarbonInterface $to): Collection
+    {
+        if (
+            $this->prefetchedPunches !== null
+            && $this->prefetchFrom !== null
+            && $this->prefetchTo !== null
+            && $from->greaterThanOrEqualTo($this->prefetchFrom)
+            && $to->lessThanOrEqualTo($this->prefetchTo)
+        ) {
+            /** @var Collection<int, RawTimekeepingInandout> $rows */
+            $rows = $this->prefetchedPunches->get($employeeId, collect());
+
+            return $rows->filter(function (RawTimekeepingInandout $punch) use ($from, $to) {
+                $at = $punch->dt_datetime;
+
+                return $at !== null && $at->greaterThanOrEqualTo($from) && $at->lessThanOrEqualTo($to);
+            })->values();
+        }
+
         return RawTimekeepingInandout::query()
             ->where('employee_id', $employeeId)
-            ->whereBetween('dt_datetime', [
-                $from->copy()->startOfDay(),
-                $to->copy()->endOfDay(),
-            ])
+            ->whereBetween('dt_datetime', [$from, $to])
             ->orderBy('dt_datetime')
             ->orderBy('timekeeping_inandout_id')
             ->get();
@@ -1333,13 +1429,7 @@ class TimeLogsPayrollService
 
         $fetchFrom = $from->copy()->startOfDay()->subMinutes($buffers['in_minutes']);
         $fetchTo = $to->copy()->endOfDay()->addMinutes($buffers['out_minutes']);
-
-        $punches = RawTimekeepingInandout::query()
-            ->where('employee_id', $employeeId)
-            ->whereBetween('dt_datetime', [$fetchFrom, $fetchTo])
-            ->orderBy('dt_datetime')
-            ->orderBy('timekeeping_inandout_id')
-            ->get();
+        $punches = $this->punchesBetween($employeeId, $fetchFrom, $fetchTo);
 
         $rangeStart = CarbonImmutable::parse($from->toDateString());
         $rangeEnd = CarbonImmutable::parse($to->toDateString());
@@ -1463,6 +1553,10 @@ class TimeLogsPayrollService
      */
     private function logBuffersForEmployee(int $employeeId): array
     {
+        if (isset($this->bufferCache[$employeeId])) {
+            return $this->bufferCache[$employeeId];
+        }
+
         $setup = TimekeepingEmployeeSetup::query()
             ->with(['policy', 'shiftCode'])
             ->where('employee_id', $employeeId)

@@ -129,7 +129,7 @@ const wireBatchForm = (root) => {
 
     root.querySelector('[data-memo-select-all]')?.addEventListener('change', (event) => {
         const checked = event.target.checked;
-        root.querySelectorAll('[data-memo-row-checkbox]').forEach((checkbox) => {
+        root.querySelectorAll('[data-memo-row-checkbox]:not(:disabled)').forEach((checkbox) => {
             checkbox.checked = checked;
         });
         updateBatchButtonState(root);
@@ -218,9 +218,166 @@ const openPreviewModal = async (url, host) => {
     openMemoModal(document.getElementById('memo-preview-modal'));
 };
 
+const initMemoClientTable = (root) => {
+    const tableRoot = root.querySelector('[data-client-table]');
+    const results = tableRoot?.querySelector('[data-live-table-results]');
+
+    if (!tableRoot || !results || tableRoot.dataset.memoClientBound === 'true') {
+        return;
+    }
+
+    tableRoot.dataset.memoClientBound = 'true';
+
+    const searchInput = tableRoot.querySelector('[data-client-table-search]');
+    const perPageSelect = tableRoot.querySelector('[data-client-table-per-page]');
+    const typeFilter = tableRoot.querySelector('[data-sent-memo-type]');
+    const controlFilter = tableRoot.querySelector('[data-sent-control-number]');
+    const totalDisplay = tableRoot.querySelector('[data-live-table-total]');
+    const totalLabel = totalDisplay?.dataset.totalLabel || 'employees';
+    const emptyState = results.querySelector('[data-memo-client-empty]');
+    const pager = results.querySelector('[data-memo-client-pager]');
+    const tableWrap = results.querySelector('table')?.closest('.overflow-hidden');
+    let page = 1;
+
+    const allRows = () => Array.from(results.querySelectorAll('[data-memo-row]'));
+
+    const rowMatches = (row) => {
+        const term = (searchInput?.value || '').trim().toLowerCase();
+        const type = typeFilter?.value || '';
+        const control = (controlFilter?.value || '').trim().toLowerCase();
+        const haystack = (row.dataset.memoSearch || '').toLowerCase();
+        const typeOk = type === '' || row.dataset.memoFormId === type;
+        const controlOk = control === '' || (row.dataset.memoControl || '').includes(control);
+
+        return typeOk && controlOk && (term === '' || haystack.includes(term));
+    };
+
+    const renderPager = (matchedCount, perPage) => {
+        if (!pager) {
+            return;
+        }
+
+        if (matchedCount === 0) {
+            pager.innerHTML = '';
+
+            return;
+        }
+
+        const pageCount = Math.max(1, Math.ceil(matchedCount / perPage));
+        const from = (page - 1) * perPage + 1;
+        const to = Math.min(matchedCount, page * perPage);
+        const button = (action, label, disabled) => `
+            <button type="button" class="pagination-skolaris-btn${disabled ? ' opacity-40' : ''}" data-memo-page="${action}" ${disabled ? 'disabled' : ''}>${label}</button>
+        `;
+
+        pager.innerHTML = `
+            <div class="pagination-skolaris">
+                <div class="pagination-skolaris-info">Showing ${from}–${to} of ${matchedCount.toLocaleString()} results</div>
+                <div class="pagination-skolaris-nav">
+                    ${button('first', 'First', page <= 1)}
+                    ${button('prev', 'Previous', page <= 1)}
+                    <span class="pagination-skolaris-page">Page ${page} of ${pageCount}</span>
+                    ${button('next', 'Next', page >= pageCount)}
+                    ${button('last', 'Last', page >= pageCount)}
+                </div>
+            </div>
+        `;
+    };
+
+    const applyClientPage = () => {
+        const perPage = Math.max(1, Number(perPageSelect?.value || 10));
+        const matched = allRows().filter(rowMatches);
+        const pageCount = Math.max(1, Math.ceil(matched.length / perPage) || 1);
+
+        if (page > pageCount) {
+            page = pageCount;
+        }
+
+        const start = (page - 1) * perPage;
+        const visible = new Set(matched.slice(start, start + perPage));
+
+        allRows().forEach((row) => {
+            const show = visible.has(row);
+            row.classList.toggle('hidden', !show);
+            row.querySelectorAll('[data-memo-row-checkbox]').forEach((checkbox) => {
+                checkbox.disabled = !show;
+
+                if (!show) {
+                    checkbox.checked = false;
+                }
+            });
+        });
+
+        tableWrap?.classList.toggle('hidden', matched.length === 0 && allRows().length > 0);
+        emptyState?.classList.toggle('hidden', matched.length !== 0 || allRows().length === 0);
+
+        if (totalDisplay) {
+            totalDisplay.textContent = `Total: ${matched.length.toLocaleString()} ${totalLabel}`;
+        }
+
+        const selectAll = root.querySelector('[data-memo-select-all]');
+
+        if (selectAll) {
+            selectAll.checked = false;
+        }
+
+        renderPager(matched.length, perPage);
+        updateBatchButtonState(root);
+    };
+
+    searchInput?.addEventListener('input', () => {
+        page = 1;
+        applyClientPage();
+    });
+
+    typeFilter?.addEventListener('change', () => {
+        page = 1;
+        applyClientPage();
+    });
+
+    controlFilter?.addEventListener('input', () => {
+        page = 1;
+        applyClientPage();
+    });
+
+    perPageSelect?.addEventListener('change', () => {
+        page = 1;
+        applyClientPage();
+    });
+
+    pager?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-memo-page]');
+
+        if (!(button instanceof HTMLButtonElement) || button.disabled) {
+            return;
+        }
+
+        const perPage = Math.max(1, Number(perPageSelect?.value || 10));
+        const matchedCount = allRows().filter(rowMatches).length;
+        const pageCount = Math.max(1, Math.ceil(matchedCount / perPage) || 1);
+
+        if (button.dataset.memoPage === 'first') {
+            page = 1;
+        } else if (button.dataset.memoPage === 'prev') {
+            page = Math.max(1, page - 1);
+        } else if (button.dataset.memoPage === 'next') {
+            page = Math.min(pageCount, page + 1);
+        } else if (button.dataset.memoPage === 'last') {
+            page = pageCount;
+        }
+
+        applyClientPage();
+    });
+
+    applyClientPage();
+};
+
 export const reinitTimekeepingMemoTable = (container) => {
     const root = container?.closest('[data-memo-root]') ?? document.querySelector('[data-memo-root]');
     wireBatchForm(root);
+    if (root) {
+        initMemoClientTable(root);
+    }
 };
 
 export const initTimekeepingMemo = () => {
@@ -230,6 +387,7 @@ export const initTimekeepingMemo = () => {
     }
 
     wireBatchForm(root);
+    initMemoClientTable(root);
     wireSendConfirm(root);
 
     if (root.dataset.memoDelegated !== 'true') {

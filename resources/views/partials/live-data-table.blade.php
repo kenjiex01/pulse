@@ -1,13 +1,18 @@
 @php
     $searchId = $searchId ?? 'live-table-search-'.md5($url);
     $currentPerPage = $paginator?->perPage() ?? 10;
+    $live = $live ?? true;
 @endphp
 
 <div
     class="datatable-skolaris"
-    data-live-table
-    data-live-table-url="{{ $url }}"
-    data-live-table-debounce="{{ $debounce ?? 300 }}"
+    @if ($live)
+        data-live-table
+        data-live-table-url="{{ $url }}"
+        data-live-table-debounce="{{ $debounce ?? 300 }}"
+    @else
+        data-client-table
+    @endif
 >
     <div @class([
         'mb-4 flex flex-col gap-3',
@@ -36,7 +41,7 @@
                                 value="{{ $search ?? '' }}"
                                 placeholder="{{ $searchPlaceholder ?? 'Search...' }}"
                                 class="form-input w-full"
-                                data-live-table-search
+                                @if ($live) data-live-table-search @else data-client-table-search @endif
                                 autocomplete="off"
                             >
                         </div>
@@ -52,7 +57,7 @@
                     value="{{ $search ?? '' }}"
                     placeholder="{{ $searchPlaceholder ?? 'Search...' }}"
                     class="form-input w-full max-w-xs"
-                    data-live-table-search
+                    @if ($live) data-live-table-search @else data-client-table-search @endif
                     autocomplete="off"
                 >
             </div>
@@ -69,7 +74,7 @@
                 <select
                     id="{{ $searchId }}-per-page"
                     class="datatable-skolaris-per-page"
-                    data-live-table-per-page
+                    @if ($live) data-live-table-per-page @else data-client-table-per-page @endif
                 >
                     @foreach (\App\Support\LiveTable::PER_PAGE_OPTIONS as $size)
                         <option value="{{ $size }}" @selected($currentPerPage === $size)>{{ $size }} per page</option>

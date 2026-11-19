@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CompanyDocumentForm;
+use App\Models\CompanyDocumentSubmission;
 use App\Models\Employee;
 use App\Models\TimekeepingMemoSetup;
 use App\Services\SysLogService;
 use App\Services\TimekeepingMemoAttendanceService;
 use App\Services\TimekeepingMemoPreviewService;
 use App\Services\TimekeepingMemoSendService;
+use App\Services\TimekeepingMemoSentService;
 use App\Support\LiveTable;
 use App\Support\TimekeepingMemo as TimekeepingMemoSupport;
 use Carbon\CarbonImmutable;
@@ -23,11 +26,16 @@ class TimekeepingMemoController extends Controller
         private readonly TimekeepingMemoAttendanceService $attendanceService,
         private readonly TimekeepingMemoSendService $sendService,
         private readonly TimekeepingMemoPreviewService $previewService,
+        private readonly TimekeepingMemoSentService $sentMemos,
     ) {}
 
     public function index(Request $request): View
     {
         TimekeepingMemoSupport::authorize($request->user(), 'view');
+
+        if ($request->string('tab')->toString() === 'sent') {
+            return $this->sentIndex($request);
+        }
 
         $filters = $this->filtersFromRequest($request);
         $search = $request->string('search')->trim()->toString();
@@ -35,17 +43,14 @@ class TimekeepingMemoController extends Controller
         $paginator = null;
 
         if ($filters['applied']) {
-            $rows = $this->buildRows($filters, $search);
-            $page = max(1, (int) $request->input('page', 1));
+            $rows = $this->buildRows($filters);
             $perPage = LiveTable::perPage($request);
-            $total = $rows->count();
-            $items = $rows->slice(($page - 1) * $perPage, $perPage)->values();
             $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
-                $items,
-                $total,
+                $rows,
+                $rows->count(),
                 $perPage,
-                $page,
-                ['path' => $request->url(), 'query' => $request->query()],
+                1,
+                ['path' => $request->url(), 'query' => $request->except('search', 'page')],
             );
         }
 
@@ -60,10 +65,11 @@ class TimekeepingMemoController extends Controller
         $viewData = [
             'memoFilters' => $filters,
             'search' => $search,
-            'rows' => $paginator?->items() ?? [],
+            'rows' => $rows,
             'paginator' => $paginator,
             'violationTypeOptions' => TimekeepingMemoSupport::violationTypeOptions(),
             'openViewEmployeeId' => $request->input('view_employee'),
+            'memoTab' => 'violations',
         ];
 
         if ($request->ajax()) {
@@ -71,6 +77,42 @@ class TimekeepingMemoController extends Controller
         }
 
         return view('timekeeping.memo.index', $viewData);
+    }
+
+    public function sentPreview(CompanyDocumentSubmission $submission): View
+    {
+        TimekeepingMemoSupport::authorize(auth()->user(), 'view');
+
+        try {
+            $sent = $this->sentMemos->previewContext($submission);
+        } catch (RuntimeException $exception) {
+            abort(422, $exception->getMessage());
+        }
+
+        SysLogService::record(
+            action: 'read',
+            table: 'tbl_company_document_submissions',
+            recordId: $submission->submission_id,
+            description: 'Previewed sent memo '.$sent['control_no'].' for employee #'.$sent['employee']->employee_id,
+        );
+
+        return view('timekeeping.memo._sent-preview-modal', $sent);
+    }
+
+    public function sentPreviewHtml(CompanyDocumentSubmission $submission): \Symfony\Component\HttpFoundation\Response
+    {
+        TimekeepingMemoSupport::authorize(auth()->user(), 'view');
+
+        try {
+            $html = $this->previewService->renderHtmlForSubmission($submission);
+        } catch (RuntimeException $exception) {
+            abort(422, $exception->getMessage());
+        }
+
+        return response($html, 200, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+        ]);
     }
 
     public function details(Request $request, Employee $employee): View
@@ -319,6 +361,40 @@ class TimekeepingMemoController extends Controller
      *     min_count: int
      * }
      */
+    private function sentIndex(Request $request): View
+    {
+        $rows = $this->sentMemos->rows();
+        $perPage = LiveTable::perPage($request);
+        $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
+            $rows,
+            $rows->count(),
+            $perPage,
+            1,
+            ['path' => $request->url(), 'query' => ['tab' => 'sent']],
+        );
+
+        SysLogService::record(
+            action: 'read',
+            table: 'tbl_timekeeping_memo_send_logs',
+            description: 'Opened sent memos',
+        );
+
+        return view('timekeeping.memo.index', [
+            'memoTab' => 'sent',
+            'sentRows' => $rows,
+            'memoForms' => CompanyDocumentForm::query()
+                ->withTrashed()
+                ->where('document_type', CompanyDocumentForm::TYPE_MEMO)
+                ->orderBy('name')
+                ->get(['company_document_form_id', 'name']),
+            'search' => '',
+            'paginator' => $paginator,
+            'memoFilters' => ['applied' => false],
+            'rows' => collect(),
+            'violationTypeOptions' => TimekeepingMemoSupport::violationTypeOptions(),
+        ]);
+    }
+
     private function filtersFromRequest(Request $request): array
     {
         $dateFrom = $request->string('date_from')->trim()->toString();
@@ -353,32 +429,22 @@ class TimekeepingMemoController extends Controller
      * @param  array{applied: bool, date_from: string, date_to: string, violation_type: string, min_count: int}  $filters
      * @return \Illuminate\Support\Collection<int, array{employee: Employee, campus: string, count: int}>
      */
-    private function buildRows(array $filters, string $search)
+    private function buildRows(array $filters)
     {
-        $query = TimekeepingMemoSupport::employeeQuery();
+        $employees = TimekeepingMemoSupport::employeeQuery()->get();
+        $counts = $this->attendanceService->violationCountMap(
+            $employees,
+            $filters['date_from'],
+            $filters['date_to'],
+            $filters['violation_type'],
+        );
 
-        if ($search !== '') {
-            $query->where(function ($builder) use ($search) {
-                $builder->where('employee_number', 'like', '%'.$search.'%')
-                    ->orWhere('first_name', 'like', '%'.$search.'%')
-                    ->orWhere('last_name', 'like', '%'.$search.'%')
-                    ->orWhereRaw("TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) LIKE ?", ['%'.$search.'%']);
-            });
-        }
-
-        return $query->get()
-            ->map(function (Employee $employee) use ($filters) {
-                $count = $this->attendanceService->violationCountForEmployee(
-                    $employee,
-                    $filters['date_from'],
-                    $filters['date_to'],
-                    $filters['violation_type'],
-                );
-
+        return $employees
+            ->map(function (Employee $employee) use ($counts) {
                 return [
                     'employee' => $employee,
                     'campus' => $this->attendanceService->campusLabel($employee),
-                    'count' => $count,
+                    'count' => (int) ($counts[(int) $employee->employee_id] ?? 0),
                 ];
             })
             ->filter(fn (array $row) => $row['count'] >= $filters['min_count'])

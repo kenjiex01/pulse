@@ -25,6 +25,14 @@ class TimekeepingPolicy
 {
     public const SUB_MODULE_ROUTE = 'timekeeping.policy.index';
 
+    /** @var array<string, \Illuminate\Support\Collection<int, Model>> */
+    private static array $equivalentRows = [];
+
+    public static function flushEquivalentCache(): void
+    {
+        self::$equivalentRows = [];
+    }
+
     public const EXCESS_HOUR_DISREGARD = 1;
 
     public const EXCESS_HOUR_CONSIDER_OT = 2;
@@ -467,12 +475,7 @@ class TimekeepingPolicy
             return $result;
         }
 
-        $record = TimekeepingPolicyTardiness::query()
-            ->where('timekeeping_policy_id', $policyId)
-            ->where('time_from', '<=', $rawMinutes)
-            ->where('time_to', '>=', $rawMinutes)
-            ->orderBy('time_from')
-            ->first();
+        $record = self::matchingEquivalentBand(TimekeepingPolicyTardiness::class, $policyId, $rawMinutes);
 
         if ($record === null) {
             $result['billable_minutes'] = $rawMinutes;
@@ -517,12 +520,7 @@ class TimekeepingPolicy
             return $result;
         }
 
-        $record = TimekeepingPolicyUndertime::query()
-            ->where('timekeeping_policy_id', $policyId)
-            ->where('time_from', '<=', $rawMinutes)
-            ->where('time_to', '>=', $rawMinutes)
-            ->orderBy('time_from')
-            ->first();
+        $record = self::matchingEquivalentBand(TimekeepingPolicyUndertime::class, $policyId, $rawMinutes);
 
         if ($record === null) {
             $result['billable_minutes'] = $rawMinutes;
@@ -558,12 +556,7 @@ class TimekeepingPolicy
             return $result;
         }
 
-        $record = TimekeepingPolicyBreak::query()
-            ->where('timekeeping_policy_id', $policyId)
-            ->where('time_from', '<=', $rawMinutes)
-            ->where('time_to', '>=', $rawMinutes)
-            ->orderBy('time_from')
-            ->first();
+        $record = self::matchingEquivalentBand(TimekeepingPolicyBreak::class, $policyId, $rawMinutes);
 
         if ($record === null) {
             $result['billable_minutes'] = $rawMinutes;
@@ -592,12 +585,7 @@ class TimekeepingPolicy
             return $result;
         }
 
-        $record = TimekeepingPolicyOvertime::query()
-            ->where('timekeeping_policy_id', $policyId)
-            ->where('time_from', '<=', $rawMinutes)
-            ->where('time_to', '>=', $rawMinutes)
-            ->orderBy('time_from')
-            ->first();
+        $record = self::matchingEquivalentBand(TimekeepingPolicyOvertime::class, $policyId, $rawMinutes);
 
         if ($record === null) {
             $result['billable_minutes'] = $rawMinutes;
@@ -1092,5 +1080,28 @@ class TimekeepingPolicy
         }
 
         return (string) $value;
+    }
+
+    /**
+     * @param  class-string<Model>  $modelClass
+     */
+    private static function matchingEquivalentBand(string $modelClass, int $policyId, int $rawMinutes): ?Model
+    {
+        $key = $modelClass.'|'.$policyId;
+
+        if (! isset(self::$equivalentRows[$key])) {
+            self::$equivalentRows[$key] = $modelClass::query()
+                ->where('timekeeping_policy_id', $policyId)
+                ->orderBy('time_from')
+                ->get();
+        }
+
+        foreach (self::$equivalentRows[$key] as $row) {
+            if ((float) $row->time_from <= $rawMinutes && (float) $row->time_to >= $rawMinutes) {
+                return $row;
+            }
+        }
+
+        return null;
     }
 }

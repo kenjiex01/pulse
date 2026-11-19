@@ -11,6 +11,7 @@ use App\Models\CompanyDocumentSendLog;
 use App\Models\CompanyDocumentSubmission;
 use App\Models\Employee;
 use App\Models\User;
+use App\Services\CompanyDocumentMemoControlNumberService;
 use App\Services\CompanyDocumentMemoRenderService;
 use App\Services\CompanyDocumentSendService;
 use Database\Seeders\DatabaseSeeder;
@@ -219,5 +220,68 @@ class CompanyDocumentSendServiceTest extends TestCase
         $service->sendCopiesToAdditionalEmails($form, [$first->employee_id], ['hr.copy@example.com'], $sender);
 
         $this->assertSame(2, (int) CompanyDocumentMemoSequence::query()->where('year', $year)->value('last_number'));
+    }
+
+    public function test_one_company_document_send_shares_a_control_number_and_the_setup_moves_forward(): void
+    {
+        Mail::fake();
+
+        $sender = User::query()->firstOrFail();
+        $numbers = app(CompanyDocumentMemoControlNumberService::class);
+        $numbers->assignNext(106);
+        $year = now('Asia/Manila')->year;
+        $form = CompanyDocumentForm::query()->create([
+            'code' => 'shared_control_memo',
+            'name' => 'Shared Control Memo',
+            'document_type' => CompanyDocumentForm::TYPE_MEMO,
+            'is_active' => true,
+            'version' => 1,
+        ]);
+        $employees = collect([
+            ['DOC-SHARE-001', 'Ana', 'Cruz', 'ana.cruz@example.com'],
+            ['DOC-SHARE-002', 'Ben', 'Diaz', 'ben.diaz@example.com'],
+            ['DOC-SHARE-003', 'Cora', 'Flores', 'cora.flores@example.com'],
+        ])->map(fn (array $row) => Employee::query()->create([
+            'employee_number' => $row[0],
+            'first_name' => $row[1],
+            'last_name' => $row[2],
+            'email' => $row[3],
+        ]));
+
+        $service = app(CompanyDocumentSendService::class);
+        $batchKey = '11111111-1111-4111-8111-111111111111';
+        $shared = $year.'-INV/MM-106';
+
+        foreach ($employees as $employee) {
+            $service->sendToEmployee(
+                $form,
+                $employee,
+                $sender,
+                $service->controlNumberForBatch((int) $sender->id, (int) $form->company_document_form_id, $batchKey),
+            );
+        }
+
+        foreach ($employees as $employee) {
+            $this->assertDatabaseHas('tbl_company_document_send_logs', [
+                'employee_id' => $employee->employee_id,
+                'control_no' => $shared,
+            ]);
+        }
+
+        $this->assertSame(107, $numbers->status()['next_number']);
+
+        foreach (['DOC-MEMO-001', 'DOC-MEMO-002', 'DOC-MEMO-003'] as $index => $number) {
+            $employee = Employee::query()->create([
+                'employee_number' => $number,
+                'first_name' => 'Memo',
+                'last_name' => 'Employee '.$index,
+                'email' => 'memo'.$index.'@example.com',
+            ]);
+            $service->sendToEmployee($form, $employee, $sender);
+        }
+
+        $this->assertSame(110, $numbers->status()['next_number']);
+        $this->assertSame($year.'-INV/MM-107', CompanyDocumentSendLog::query()->where('employee_id', Employee::query()->where('employee_number', 'DOC-MEMO-001')->value('employee_id'))->value('control_no'));
+        $this->assertSame($year.'-INV/MM-109', CompanyDocumentSendLog::query()->where('employee_id', Employee::query()->where('employee_number', 'DOC-MEMO-003')->value('employee_id'))->value('control_no'));
     }
 }

@@ -11,6 +11,7 @@ use App\Models\Employee;
 use App\Models\TimekeepingMemoSetup;
 use App\Models\User;
 use App\Support\MemoPdfFilename;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -29,7 +30,7 @@ class CompanyDocumentSendService
     /**
      * @return array{submission_id: int}
      */
-    public function sendToEmployee(CompanyDocumentForm $form, Employee $employee, User $sender): array
+    public function sendToEmployee(CompanyDocumentForm $form, Employee $employee, User $sender, ?string $controlNo = null): array
     {
         @set_time_limit(120);
 
@@ -39,7 +40,7 @@ class CompanyDocumentSendService
 
         $form->load('elements');
         $memoContext = $this->defaultMemoContext();
-        $memoContext['control_no'] = $this->controlNumbers->allocate();
+        $memoContext['control_no'] = filled($controlNo) ? $controlNo : $this->controlNumbers->allocate();
         $emailAttachments = $this->buildEmailAttachments($form, $employee, $memoContext);
 
         $result = DB::transaction(function () use ($employee, $form, $sender, $memoContext) {
@@ -125,6 +126,65 @@ class CompanyDocumentSendService
 
         return [
             'submission_id' => $result['submission_id'],
+        ];
+    }
+
+    /**
+     * One company-document send uses a single control number for every employee in that send.
+     */
+    public function controlNumberForBatch(int $userId, int $formId, string $batchKey): string
+    {
+        $key = 'company-document-control:'.$userId.':'.$formId.':'.$batchKey;
+        $existing = Cache::get($key);
+
+        if (is_string($existing) && $existing !== '') {
+            return $existing;
+        }
+
+        $controlNo = $this->controlNumbers->allocate();
+        if (! Cache::add($key, $controlNo, now()->addHours(2))) {
+            $stored = Cache::get($key);
+
+            if (is_string($stored) && $stored !== '') {
+                return $stored;
+            }
+        }
+
+        return $controlNo;
+    }
+
+    /**
+     * @param  list<int|string>  $employeeIds
+     * @return array{sent: int, errors: list<string>, control_no: ?string}
+     */
+    public function sendToMany(CompanyDocumentForm $form, array $employeeIds, User $sender): array
+    {
+        $sent = 0;
+        $errors = [];
+        $controlNo = null;
+
+        foreach ($employeeIds as $employeeId) {
+            $employee = Employee::query()->find($employeeId);
+            if ($employee === null) {
+                continue;
+            }
+
+            if ($controlNo === null) {
+                $controlNo = $this->controlNumbers->allocate();
+            }
+
+            try {
+                $this->sendToEmployee($form, $employee, $sender, $controlNo);
+                $sent++;
+            } catch (RuntimeException $exception) {
+                $errors[] = trim($employee->full_name).': '.$exception->getMessage();
+            }
+        }
+
+        return [
+            'sent' => $sent,
+            'errors' => $errors,
+            'control_no' => $controlNo,
         ];
     }
 

@@ -17,6 +17,16 @@ class TimekeepingMemoFacultyScheduleResolver
     /** @var array<string, array<string, list<array<string, mixed>>>> */
     private static array $skolarisLoadsByRange = [];
 
+    private ?string $prefetchKey = null;
+
+    private bool $skipRemoteSchedule = false;
+
+    /** @var Collection<int|string, Collection<int, RawEmployeeLoadEntry>>|null */
+    private ?Collection $prefetchedEntries = null;
+
+    /** @var Collection<int|string, Collection<int, TeachingLoadSession>>|null */
+    private ?Collection $prefetchedTeaching = null;
+
     public function __construct(private readonly SkolarisApiService $skolaris) {}
 
     /**
@@ -28,17 +38,51 @@ class TimekeepingMemoFacultyScheduleResolver
      *     has_real_attendance: bool
      * }>>
      */
+    /**
+     * @param  list<int>  $employeeIds
+     */
+    public function prefetch(array $employeeIds, string $dateFrom, string $dateTo): void
+    {
+        $this->prefetchKey = $dateFrom.'|'.$dateTo;
+        $this->skipRemoteSchedule = true;
+        $this->prefetchedEntries = collect();
+        $this->prefetchedTeaching = collect();
+
+        if ($employeeIds !== []) {
+            $this->prefetchedEntries = RawEmployeeLoadEntry::query()
+                ->whereIn('employee_id', $employeeIds)
+                ->whereDate('session_date', '>=', $dateFrom)
+                ->whereDate('session_date', '<=', $dateTo)
+                ->orderBy('session_date')
+                ->get()
+                ->groupBy(fn (RawEmployeeLoadEntry $entry) => (int) $entry->employee_id);
+
+            $this->prefetchedTeaching = TeachingLoadSession::query()
+                ->whereIn('employee_id', $employeeIds)
+                ->whereDate('session_date', '>=', $dateFrom)
+                ->whereDate('session_date', '<=', $dateTo)
+                ->orderBy('session_date')
+                ->get()
+                ->groupBy(fn (TeachingLoadSession $session) => (int) $session->employee_id);
+        }
+    }
+
+    /**
+     * @return Collection<string, Collection<int, RawEmployeeLoadEntry>>
+     */
+    public function loadEntriesByDate(int $employeeId, string $dateFrom, string $dateTo): Collection
+    {
+        $entries = $this->entriesFor($employeeId, $dateFrom, $dateTo);
+
+        return $entries->groupBy(fn (RawEmployeeLoadEntry $entry) => $entry->session_date?->toDateString() ?? '');
+    }
+
     public function sessionsByDate(Employee $employee, string $dateFrom, string $dateTo): Collection
     {
         $employeeId = (int) $employee->employee_id;
         $sessions = collect();
 
-        $entries = RawEmployeeLoadEntry::query()
-            ->where('employee_id', $employeeId)
-            ->whereDate('session_date', '>=', $dateFrom)
-            ->whereDate('session_date', '<=', $dateTo)
-            ->orderBy('session_date')
-            ->get();
+        $entries = $this->entriesFor($employeeId, $dateFrom, $dateTo);
 
         foreach ($entries as $entry) {
             if (! $entry instanceof RawEmployeeLoadEntry || $entry->session_date === null) {
@@ -50,12 +94,7 @@ class TimekeepingMemoFacultyScheduleResolver
         }
 
         if ($sessions->isEmpty()) {
-            $pulled = TeachingLoadSession::query()
-                ->where('employee_id', $employeeId)
-                ->whereDate('session_date', '>=', $dateFrom)
-                ->whereDate('session_date', '<=', $dateTo)
-                ->orderBy('session_date')
-                ->get();
+            $pulled = $this->teachingFor($employeeId, $dateFrom, $dateTo);
 
             foreach ($pulled as $session) {
                 if ($session->session_date === null) {
@@ -145,7 +184,7 @@ class TimekeepingMemoFacultyScheduleResolver
      */
     private function sessionsFromSkolarisCache(Employee $employee, string $dateFrom, string $dateTo): Collection
     {
-        if (! (bool) config('timekeeping.memo.faculty_use_skolaris_schedule', true)) {
+        if ($this->skipRemoteSchedule || ! (bool) config('timekeeping.memo.faculty_use_skolaris_schedule', true)) {
             return collect();
         }
 
@@ -246,6 +285,40 @@ class TimekeepingMemoFacultyScheduleResolver
         $schedule = trim((string) ($load['class_schedule'] ?? $load['schedule'] ?? ''));
 
         return $schedule !== '' ? $schedule : null;
+    }
+
+    /**
+     * @return Collection<int, RawEmployeeLoadEntry>
+     */
+    private function entriesFor(int $employeeId, string $dateFrom, string $dateTo): Collection
+    {
+        if ($this->prefetchKey === $dateFrom.'|'.$dateTo && $this->prefetchedEntries !== null) {
+            return $this->prefetchedEntries->get($employeeId, collect());
+        }
+
+        return RawEmployeeLoadEntry::query()
+            ->where('employee_id', $employeeId)
+            ->whereDate('session_date', '>=', $dateFrom)
+            ->whereDate('session_date', '<=', $dateTo)
+            ->orderBy('session_date')
+            ->get();
+    }
+
+    /**
+     * @return Collection<int, TeachingLoadSession>
+     */
+    private function teachingFor(int $employeeId, string $dateFrom, string $dateTo): Collection
+    {
+        if ($this->prefetchKey === $dateFrom.'|'.$dateTo && $this->prefetchedTeaching !== null) {
+            return $this->prefetchedTeaching->get($employeeId, collect());
+        }
+
+        return TeachingLoadSession::query()
+            ->where('employee_id', $employeeId)
+            ->whereDate('session_date', '>=', $dateFrom)
+            ->whereDate('session_date', '<=', $dateTo)
+            ->orderBy('session_date')
+            ->get();
     }
 
     private function normalizeClock(mixed $value): ?string

@@ -1,5 +1,6 @@
 @php
-    $query = request()->only(['date_from', 'date_to', 'violation_type', 'min_count', 'search']);
+    $query = request()->only(['date_from', 'date_to', 'violation_type', 'min_count']);
+    $clientPerPage = $paginator?->perPage() ?? 10;
 @endphp
 
 @if (($rows ?? []) === [] || count($rows) === 0)
@@ -33,7 +34,11 @@
                 <tbody class="divide-y divide-gray-100">
                     @foreach ($rows as $row)
                         @php $employee = $row['employee']; @endphp
-                        <tr>
+                        <tr
+                            data-memo-row
+                            data-memo-search="{{ strtolower(trim($employee->employee_number.' '.$employee->full_name)) }}"
+                            @class(['hidden' => $loop->index >= $clientPerPage])
+                        >
                             @can('memo.update')
                                 <td class="px-4 py-3">
                                     <input
@@ -89,9 +94,9 @@
         </div>
     </div>
 
-    @if ($paginator)
-        <div class="mt-4">
-            {{ $paginator->links() }}
-        </div>
-    @endif
+    <div data-memo-client-empty class="mt-4 hidden rounded-xl border border-gray-200 bg-white px-5 py-10 text-center text-sm text-gray-500">
+        No employees match this search.
+    </div>
+
+    <div class="mt-4" data-memo-client-pager></div>
 @endif

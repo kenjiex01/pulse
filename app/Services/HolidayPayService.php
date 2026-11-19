@@ -27,6 +27,16 @@ class HolidayPayService
     /** @var array<int, list<int>> */
     private array $restDayIdsCache = [];
 
+    /** @var array<int, Employee|null> */
+    private array $holidayEmployees = [];
+
+    /**
+     * Holiday dates for one employee and calendar year, keyed by Y-m-d.
+     *
+     * @var array<string, array<string, object{date: CarbonImmutable, is_legal: bool}>>
+     */
+    private array $holidayDatesByEmployeeYear = [];
+
     public function __construct(
         private readonly TimeLogsPayrollService $timeLogsPayroll,
         private readonly EmployeeLoadPayrollService $employeeLoadPayroll,
@@ -309,17 +319,41 @@ class HolidayPayService
 
     private function holidayOnDate(int $employeeId, CarbonImmutable $date): ?object
     {
-        $employee = Employee::query()
-            ->with('timekeepingSetup.holidayGroup.holidays')
-            ->find($employeeId);
+        $cacheKey = $employeeId.'|'.$date->year;
 
-        if ($employee === null) {
-            return null;
+        if (! isset($this->holidayDatesByEmployeeYear[$cacheKey])) {
+            $this->holidayDatesByEmployeeYear[$cacheKey] = $this->loadHolidayDatesForYear($employeeId, $date->year);
         }
 
-        $holiday = $this->holidaysForEmployeeInPeriod($employee, $date, $date)->first();
+        return $this->holidayDatesByEmployeeYear[$cacheKey][$date->toDateString()] ?? null;
+    }
 
-        return $holiday !== null ? $holiday : null;
+    /**
+     * @return array<string, object{date: CarbonImmutable, is_legal: bool}>
+     */
+    private function loadHolidayDatesForYear(int $employeeId, int $year): array
+    {
+        if (! array_key_exists($employeeId, $this->holidayEmployees)) {
+            $this->holidayEmployees[$employeeId] = Employee::query()
+                ->with('timekeepingSetup.holidayGroup.holidays')
+                ->find($employeeId);
+        }
+
+        $employee = $this->holidayEmployees[$employeeId];
+
+        if ($employee === null) {
+            return [];
+        }
+
+        $from = CarbonImmutable::create($year, 1, 1)->startOfDay();
+        $to = CarbonImmutable::create($year, 12, 31)->startOfDay();
+        $map = [];
+
+        foreach ($this->holidaysForEmployeeInPeriod($employee, $from, $to) as $holiday) {
+            $map[$holiday->date->toDateString()] = $holiday;
+        }
+
+        return $map;
     }
 
     private function adjacentWorkingDay(int $employeeId, CarbonImmutable $holidayDate, int $direction): ?CarbonImmutable

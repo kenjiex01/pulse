@@ -3,6 +3,7 @@
 namespace Tests;
 
 use App\Support\DesktopConnectivity;
+use App\Support\TimekeepingPolicy;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
@@ -12,5 +13,6 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
 
         DesktopConnectivity::fake(null);
+        TimekeepingPolicy::flushEquivalentCache();
     }
 }

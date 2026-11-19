@@ -118,6 +118,185 @@ class EmployeeAttendanceViewService
     }
 
     /**
+     * Late, undertime, absent, and break-late days without overtime or night-diff math.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function computeAttendanceFlags(Employee $employee, string $dateFrom, string $dateTo): array
+    {
+        return $this->buildDaysForRange(
+            $employee,
+            $dateFrom,
+            $dateTo,
+            forceComputeMetrics: true,
+            includePremiums: false,
+        );
+    }
+
+    /**
+     * Count late, undertime, or absent days for many non-faculty employees in one pass.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @return array<int, int>
+     */
+    public function countStaffViolations(
+        Collection $employees,
+        string $dateFrom,
+        string $dateTo,
+        string $violationType,
+    ): array {
+        if ($employees->isEmpty()) {
+            return [];
+        }
+
+        $from = CarbonImmutable::parse($dateFrom)->startOfDay();
+        $to = CarbonImmutable::parse($dateTo)->startOfDay();
+
+        if ($to->lt($from)) {
+            [$from, $to] = [$to, $from];
+        }
+
+        $employees->loadMissing([
+            'timekeepingSetup.policy',
+            'timekeepingSetup.shiftCode.breaks',
+            'timekeepingRestDays',
+        ]);
+
+        $padMinutes = 60;
+        $ids = [];
+
+        foreach ($employees as $employee) {
+            $buffers = $this->timeLogsPayroll->rememberEmployeeBuffers($employee);
+            $padMinutes = max($padMinutes, $buffers['in_minutes'], $buffers['out_minutes']);
+            $ids[] = (int) $employee->employee_id;
+        }
+
+        $this->shiftResolver->preloadEmployees($employees, $from->subDays(2), $to->addDays(2));
+        $this->timeLogsPayroll->prefetchPunches($ids, $from, $to, $padMinutes);
+
+        $counts = [];
+
+        try {
+            foreach ($employees as $employee) {
+                $counts[(int) $employee->employee_id] = $this->countStaffViolationDays(
+                    $employee,
+                    $from,
+                    $to,
+                    $violationType,
+                );
+            }
+        } finally {
+            $this->timeLogsPayroll->clearPunchPrefetch();
+            $this->shiftResolver->clearCache();
+        }
+
+        return $counts;
+    }
+
+    private function countStaffViolationDays(
+        Employee $employee,
+        CarbonImmutable $from,
+        CarbonImmutable $to,
+        string $violationType,
+    ): int {
+        $employeeId = (int) $employee->employee_id;
+        $policy = $employee->timekeepingSetup?->policy;
+        $defaultShift = $employee->timekeepingSetup?->shiftCode;
+        $restDayIds = $employee->timekeepingRestDays
+            ->pluck('day_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        $logsByDate = $this->timeLogsPayroll->dayPunchesForPeriod($employeeId, $from, $to);
+
+        if ($logsByDate->isEmpty() && $violationType !== 'absent') {
+            return 0;
+        }
+
+        $count = 0;
+        $cursor = $from;
+
+        while ($cursor->lte($to)) {
+            $isRestDay = in_array((int) $cursor->dayOfWeek + 1, $restDayIds, true);
+
+            if (! $isRestDay && $this->staffDayIsViolation(
+                $violationType,
+                $employeeId,
+                $cursor,
+                $logsByDate->get($cursor->toDateString(), collect()),
+                $policy,
+                $defaultShift,
+            )) {
+                $count++;
+            }
+
+            $cursor = $cursor->addDay();
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param  Collection<int, RawTimekeepingInandout>  $dayLogs
+     */
+    private function staffDayIsViolation(
+        string $violationType,
+        int $employeeId,
+        CarbonImmutable $date,
+        Collection $dayLogs,
+        ?TimekeepingPolicy $policy,
+        ?ShiftCode $defaultShift,
+    ): bool {
+        $shift = $this->shiftResolver->forDate($employeeId, $date, $defaultShift);
+        $session = $dayLogs->isEmpty()
+            ? ['time_in' => null, 'time_out' => null]
+            : $this->timeLogsPayroll->sessionTimes($dayLogs, $date);
+        $isFlexi = $shift !== null && (bool) $shift->is_flexi_time;
+
+        if ($dayLogs->isEmpty()) {
+            return $violationType === 'absent' && $shift !== null;
+        }
+
+        if (! $isFlexi && ! filled($session['time_in'] ?? null)) {
+            return $violationType === 'absent';
+        }
+
+        if ($isFlexi && ! filled($session['time_in'] ?? null)) {
+            return false;
+        }
+
+        $metrics = $this->metricsForDay(
+            $employeeId,
+            $date,
+            $session['time_in'],
+            $session['time_out'],
+            $dayLogs,
+            $policy,
+            $shift,
+            0,
+            false,
+        );
+        $isAbsent = ! $isFlexi && (
+            (bool) ($metrics['is_half_day'] ?? false)
+            || (bool) ($metrics['is_absent'] ?? false)
+            || (bool) ($metrics['late_marks_absent'] ?? false)
+        );
+
+        if ($violationType === 'absent') {
+            return $isAbsent;
+        }
+
+        if ($isAbsent) {
+            return false;
+        }
+
+        if ($violationType === 'undertime') {
+            return (int) round(((float) ($metrics['undertime'] ?? 0)) * 60) > 0;
+        }
+
+        return (int) round((((float) ($metrics['late'] ?? 0)) + ((float) ($metrics['break_late'] ?? 0))) * 60) > 0;
+    }
+
+    /**
      * Day metrics (hours) computed from given punch times instead of recorded logs.
      *
      * @return array{basic: float|null, excess_hours: float|null, ot: float|null, sot: float|null, ndiff: float|null, ndot: float|null, ndsot: float|null, late: float|null, undertime: float|null, break_late: float|null}
@@ -154,6 +333,7 @@ class EmployeeAttendanceViewService
         string $dateFrom,
         string $dateTo,
         bool $forceComputeMetrics,
+        bool $includePremiums = true,
     ): array {
         $employee->loadMissing([
             'timekeepingSetup.policy',
@@ -206,7 +386,7 @@ class EmployeeAttendanceViewService
         }
 
         $otMinutesByDate = [];
-        if ($needLiveMetricsDates !== []) {
+        if ($includePremiums && $needLiveMetricsDates !== []) {
             try {
                 $otMinutesByDate = $this->payrollDayBreakdown->otMinutesByDate(
                     $employeeId,
@@ -232,6 +412,7 @@ class EmployeeAttendanceViewService
             /** @var PayrollAttendanceDay|null $saved */
             $saved = $savedDays->get($dateKey);
             $inPayroll = $forceComputeMetrics || $saved !== null || isset($payrollDates[$dateKey]);
+            $computedLive = false;
 
             $timeIn = $session['time_in'] ?? null;
             $timeOut = $session['time_out'] ?? null;
@@ -273,7 +454,9 @@ class EmployeeAttendanceViewService
                     $policy,
                     $shift,
                     (int) ($otMinutesByDate[$dateKey] ?? 0),
+                    $includePremiums,
                 );
+                $computedLive = true;
             } else {
                 $metrics = $this->emptyMetrics();
             }
@@ -283,7 +466,7 @@ class EmployeeAttendanceViewService
                 $metrics['basic'] = $this->scheduledHours($cursor, $shift?->time_in, $shift?->time_out, $shift);
             }
 
-            if (! $isRestDay && filled($timeIn)) {
+            if (! $computedLive && ! $isRestDay && filled($timeIn)) {
                 $live = $this->metricsForDay(
                     $employeeId,
                     $cursor,
@@ -293,6 +476,7 @@ class EmployeeAttendanceViewService
                     $policy,
                     $shift,
                     (int) ($otMinutesByDate[$dateKey] ?? 0),
+                    $includePremiums,
                 );
                 $metrics['is_half_day'] = (bool) ($live['is_half_day'] ?? false);
                 $metrics['is_absent'] = (bool) ($live['is_absent'] ?? false);
@@ -534,6 +718,7 @@ class EmployeeAttendanceViewService
         ?TimekeepingPolicy $policy,
         ?ShiftCode $shift,
         int $approvedOtMinutes,
+        bool $includePremiums = true,
     ): array {
         $metrics = $this->emptyMetrics();
 
@@ -599,9 +784,12 @@ class EmployeeAttendanceViewService
         $deductionHours = ($lateMinutes + $undertimeMinutes + $breakLateMinutes) / 60;
         $basic = max(0.0, round($scheduled - $deductionHours, 2));
 
-        $isRegularDay = $this->holidayPay->isRegularWorkDay($employeeId, $date);
+        $isRegularDay = $includePremiums
+            ? $this->holidayPay->isRegularWorkDay($employeeId, $date)
+            : true;
 
-        $otBreakdown = $this->overtimePayroll->billableMinutesBreakdownForSession(
+        $otBreakdown = $includePremiums
+            ? $this->overtimePayroll->billableMinutesBreakdownForSession(
             $date,
             $timeIn,
             $timeOut,
@@ -609,14 +797,17 @@ class EmployeeAttendanceViewService
             $scheduleEnd,
             $policy,
             $isRegularDay,
-        );
+        )
+            : ['regular_minutes' => 0, 'special_minutes' => 0];
 
         $excessMinutes = (int) ($otBreakdown['regular_minutes'] ?? 0) + (int) ($otBreakdown['special_minutes'] ?? 0);
         $otHours = round($approvedOtMinutes / 60, 2);
         $sotHours = round(((int) ($otBreakdown['special_minutes'] ?? 0)) / 60, 2);
 
         // NDIF / NDOT / NDSOT: show ND basic from policy window when punches overlap; OT variants stay 0 until dedicated split exists.
-        $ndiffHours = $this->nightDiffHours($date, $timeIn, $timeOut, $policy);
+        $ndiffHours = $includePremiums
+            ? $this->nightDiffHours($date, $timeIn, $timeOut, $policy)
+            : 0.0;
 
         $metrics['basic'] = $basic;
         $metrics['excess_hours'] = round($excessMinutes / 60, 2);

@@ -4,14 +4,20 @@ namespace App\Http\Controllers;
 
 use App\Models\CompanyDocumentForm;
 use App\Models\TimekeepingMemoSetup;
+use App\Services\CompanyDocumentMemoControlNumberService;
 use App\Services\SysLogService;
 use App\Support\TimekeepingMemoSetup as TimekeepingMemoSetupSupport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class TimekeepingMemoSetupController extends Controller
 {
+    public function __construct(
+        private readonly CompanyDocumentMemoControlNumberService $controlNumbers,
+    ) {}
+
     public function index(): View
     {
         TimekeepingMemoSetupSupport::authorize(auth()->user(), 'view');
@@ -37,6 +43,7 @@ class TimekeepingMemoSetupController extends Controller
         return view('timekeeping.memo-setup.index', [
             'setups' => $setups,
             'memoForms' => $memoForms,
+            'controlNumber' => $this->controlNumbers->status(),
         ]);
     }
 
@@ -45,6 +52,7 @@ class TimekeepingMemoSetupController extends Controller
         TimekeepingMemoSetupSupport::authorize($request->user(), 'update');
 
         $rules = [
+            'control_number' => ['required', 'integer', 'min:1', 'max:999999'],
             'late_form_id' => ['nullable', 'integer', 'exists:tbl_company_document_forms,company_document_form_id'],
             'undertime_form_id' => ['nullable', 'integer', 'exists:tbl_company_document_forms,company_document_form_id'],
             'absent_form_id' => ['nullable', 'integer', 'exists:tbl_company_document_forms,company_document_form_id'],
@@ -74,6 +82,16 @@ class TimekeepingMemoSetupController extends Controller
 
         $validated = $request->validate($rules);
 
+        try {
+            $this->controlNumbers->assignNext((int) $validated['control_number']);
+        } catch (ValidationException $exception) {
+            return redirect()
+                ->route(TimekeepingMemoSetupSupport::routeName('index'))
+                ->withInput()
+                ->withErrors($exception->errors())
+                ->with('error', (string) collect($exception->errors())->flatten()->first());
+        }
+
         foreach (TimekeepingMemoSetup::TYPES as $type) {
             TimekeepingMemoSetup::query()
                 ->where('violation_type', $type)
@@ -91,7 +109,7 @@ class TimekeepingMemoSetupController extends Controller
         SysLogService::record(
             action: 'update',
             table: 'tbl_timekeeping_memo_setups',
-            description: 'Updated Memo Setup templates, occurrence counts, and email settings for late, undertime, and absent',
+            description: 'Updated Memo Setup templates, occurrence counts, email settings, and next control number '.$this->controlNumbers->format((int) now('Asia/Manila')->year, (int) $validated['control_number']),
         );
 
         return redirect()
