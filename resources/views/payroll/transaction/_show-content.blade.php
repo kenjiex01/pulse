@@ -194,6 +194,7 @@
                     </th>
                     <th class="px-3 py-2 text-left">Employee No.</th>
                     <th class="px-3 py-2 text-left">Employee Name</th>
+                    <th class="px-3 py-2 text-right">Net Pay</th>
                     <th class="w-16 px-3 py-2 text-right">Actions</th>
                 </tr>
             </thead>
@@ -217,6 +218,7 @@
                             'font-medium text-red-600' => $belowHalfPeriod,
                             'text-gray-600' => ! $belowHalfPeriod,
                         ])>{{ $detail->employee?->full_name ?? '—' }}</td>
+                        <td class="px-3 py-2 text-right tabular-nums text-gray-900">{{ number_format(\App\Support\PayrollBatchNetPayLines::netPay($detail), 2) }}</td>
                         <td class="px-3 py-2 text-right">
                             <a
                                 href="{{ route(\App\Support\PayrollTransactionModule::routeName('employees.show'), [$batch, $detail->payroll_batch_detail_id]) }}?batch_employee_search={{ urlencode($batchEmployeeSearch) }}&search={{ urlencode(request('search', '')) }}"
@@ -230,7 +232,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="4" class="px-3 py-8 text-center text-gray-500">
+                        <td colspan="5" class="px-3 py-8 text-center text-gray-500">
                             No employees in this batch yet.
                             @if ($batchEditable)
                                 Click <strong>Add Employees</strong> to assign employees.

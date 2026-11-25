@@ -107,7 +107,9 @@ class HrLookupUploadTest extends TestCase
             'Type Name' => 'PW Upload Type',
             'Active' => 'Yes',
         ]);
-        $this->assertNotNull(EmploymentType::query()->where('type_name', 'PW Upload Type')->first());
+        $uploadedType = EmploymentType::query()->where('type_name', 'PW Upload Type')->first();
+        $this->assertNotNull($uploadedType);
+        $this->assertTrue($uploadedType->deduct_government_deductions);
 
         $this->uploadCsv($user, 'employee-departments', [
             'Department Code' => 'UPD',
@@ -139,6 +141,61 @@ class HrLookupUploadTest extends TestCase
             'Active' => 'Yes',
         ]);
         $this->assertNotNull(DocumentType::query()->where('type_name', 'PW Upload Document')->first());
+    }
+
+    public function test_employment_type_government_deduction_flag_is_saved_on_create_update_and_upload(): void
+    {
+        $user = $this->admin();
+
+        $index = $this->actingAs($user)
+            ->get(route(HrLookup::routeName('employment-types')))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Deduct Government Deductions', $index);
+        $this->assertStringContainsString('Govt Deductions', $index);
+
+        $template = $this->actingAs($user)
+            ->get(route(HrLookup::routeName('employment-types', 'upload.template')))
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringContainsString('Deduct Government Deductions', $template);
+
+        $this->actingAs($user)
+            ->post(route(HrLookup::routeName('employment-types', 'store')), [
+                'type_code' => 'CAS',
+                'type_name' => 'Casual Flag',
+                'deduct_government_deductions' => '0',
+                'is_active' => '1',
+                'form_context' => 'create-employment-types',
+            ])
+            ->assertRedirect(route(HrLookup::routeName('employment-types')));
+
+        $type = EmploymentType::query()->where('type_code', 'CAS')->firstOrFail();
+        $this->assertFalse($type->deduct_government_deductions);
+
+        $this->actingAs($user)
+            ->put(route(HrLookup::routeName('employment-types', 'update'), $type->employment_type_id), [
+                'type_code' => 'CAS',
+                'type_name' => 'Casual Flag',
+                'deduct_government_deductions' => '1',
+                'is_active' => '1',
+                'form_context' => 'edit-employment-types-'.$type->employment_type_id,
+                'edit_record_id' => $type->employment_type_id,
+            ])
+            ->assertRedirect(route(HrLookup::routeName('employment-types')));
+
+        $this->assertTrue($type->fresh()->deduct_government_deductions);
+
+        $this->uploadCsv($user, 'employment-types', [
+            'Type Code' => 'CAS',
+            'Type Name' => 'Casual Flag',
+            'Deduct Government Deductions' => 'No',
+            'Active' => 'Yes',
+        ]);
+
+        $this->assertFalse($type->fresh()->deduct_government_deductions);
     }
 
     private function admin(): User

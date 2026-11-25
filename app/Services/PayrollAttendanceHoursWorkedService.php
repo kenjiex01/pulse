@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Models\BasicComputation;
 use App\Models\DayType;
+use App\Models\EmployeeCategory;
 use App\Models\EmployeeSalary;
 use App\Models\PayrollBatchDetail;
+use App\Models\PayrollCalendar;
 use App\Models\RawEmployeeLoadEntry;
 use App\Models\ShiftCode;
 use App\Models\TimekeepingPolicy;
@@ -71,6 +73,12 @@ class PayrollAttendanceHoursWorkedService
         $periodTo = EmployeePayrollPeriod::effectiveEnd($employee, $calendar->dt_from, $calendar->dt_to);
 
         if ($periodTo === null) {
+            return collect();
+        }
+
+        // Faculty basic, OT, and night diff come from teaching loads.
+        // Biometric punches must not create hours when this cutoff is teaching-load only.
+        if ($this->paysFromTeachingLoadsOnly($calendar, $usesTeachingLoads)) {
             return collect();
         }
 
@@ -500,6 +508,22 @@ class PayrollAttendanceHoursWorkedService
         }
 
         return collect($rows);
+    }
+
+    private function paysFromTeachingLoadsOnly(PayrollCalendar $calendar, bool $employeeUsesTeachingLoads): bool
+    {
+        $calendar->loadMissing('userTypes');
+
+        $types = $calendar->userTypes
+            ->pluck('user_type')
+            ->filter(fn ($type) => is_string($type) && trim($type) !== '')
+            ->values();
+
+        if ($types->isEmpty()) {
+            return $employeeUsesTeachingLoads;
+        }
+
+        return $types->every(fn ($type) => EmployeeCategory::usesTeachingLoads($type));
     }
 
     private function regularDayTypeId(): int

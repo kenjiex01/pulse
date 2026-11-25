@@ -4,13 +4,13 @@ use App\Models\Campus;
 use App\Models\College;
 use App\Models\Designation;
 use App\Models\DocumentType;
+use App\Models\EmployeeCategory;
 use App\Models\EmployeeDepartment;
 use App\Models\EmploymentType;
 use App\Models\LuIcctOffense;
 use App\Models\LuIcctOffenseCategory;
 use App\Models\LuIcctOffenseFrequency;
 use App\Models\LuIcctOffensePenalty;
-use App\Models\EmployeeCategory;
 use App\Models\Position;
 use App\Models\Program;
 use App\Models\Rank;
@@ -159,6 +159,7 @@ return [
             ['key' => 'type_code', 'label' => 'Code'],
             ['key' => 'type_name', 'label' => 'Type'],
             ['key' => 'sort_order', 'label' => 'Sort'],
+            ['key' => 'deduct_government_deductions', 'label' => 'Govt Deductions', 'type' => 'yes_no'],
             ['key' => 'is_active', 'label' => 'Status', 'type' => 'boolean'],
         ],
         'fields' => [
@@ -166,6 +167,14 @@ return [
             ['name' => 'type_name', 'label' => 'Type Name', 'type' => 'text', 'rules' => ['required', 'string', 'max:100'], 'unique' => true],
             ['name' => 'description', 'label' => 'Description', 'type' => 'textarea', 'rules' => ['nullable', 'string']],
             ['name' => 'sort_order', 'label' => 'Sort Order', 'type' => 'number', 'rules' => ['nullable', 'integer', 'min:0']],
+            [
+                'name' => 'deduct_government_deductions',
+                'label' => 'Deduct Government Deductions',
+                'type' => 'checkbox',
+                'rules' => ['sometimes', 'boolean'],
+                'default' => true,
+                'help' => 'Untick to skip SSS, PhilHealth, Pag-IBIG, and withholding tax for employees of this type, even when those deductions are checked on the payroll calendar.',
+            ],
             ['name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'rules' => ['sometimes', 'boolean']],
         ],
     ],

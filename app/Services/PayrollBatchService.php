@@ -894,6 +894,7 @@ class PayrollBatchService
 
         $computesBasic = $calendar->computesBasic();
         $hoursWorkedIncomes = $this->hoursWorkedPayroll->computeIncomeTotalsForDetail($detail, $primarySalary);
+        $hasUploadedHoursWorked = $this->hoursWorkedPayroll->uploadedRowsForDetail($detail)->isNotEmpty();
         $attendanceTo = $computesBasic
             ? EmployeePayrollPeriod::effectiveEnd($employee, $calendar->dt_from, $calendar->dt_to)
             : null;
@@ -905,6 +906,7 @@ class PayrollBatchService
             $hoursWorkedIncomes,
             $calendar,
             $computesBasic,
+            $hasUploadedHoursWorked,
             $employee,
             $policy,
             $shiftCode,
@@ -987,7 +989,15 @@ class PayrollBatchService
                     $isBasicIncome = PayrollPeriodComputation::isBasicIncomeType($incomeLine['incomeType']);
                     $days = null;
 
-                    if (($isFixedRate || $usesCalendarDays) && $isBasicIncome) {
+                    if ($computesBasic && $useFacultyPath && $isBasicIncome && ! $hasUploadedHoursWorked) {
+                        // Faculty basic follows teaching loads. Punches and the salary BASC amount do not fill it.
+                        $taxable = (float) ($loadPayroll['basic_taxable'] ?? 0);
+                        $nonTaxable = (float) ($loadPayroll['basic_non_taxable'] ?? 0);
+                        $hours = $this->incomeHoursFromAmounts([
+                            'hours' => (float) ($loadPayroll['computed_hours'] ?? 0),
+                        ]);
+                        $days = $this->incomeDaysFromCount((float) ($loadPayroll['worked_days'] ?? 0));
+                    } elseif (($isFixedRate || $usesCalendarDays) && $isBasicIncome) {
                         $hours = null;
                         $days = null;
                     } elseif ($computesBasic && $hoursWorkedIncomes !== null && $isBasicIncome && ! $hoursWorkedApplied) {
@@ -1167,8 +1177,11 @@ class PayrollBatchService
             $useFacultyPathInBatch = collect($slices)->contains(
                 fn (array $slice) => (bool) ($slice['use_faculty_path'] ?? false),
             );
+            $facultyOnlyBatch = collect($slices)->every(
+                fn (array $slice) => (bool) ($slice['use_faculty_path'] ?? false),
+            );
 
-            if ($hoursWorkedIncomes !== null) {
+            if ($hoursWorkedIncomes !== null && ! ($facultyOnlyBatch && ! $hasUploadedHoursWorked)) {
                 $extraIncomeTypes = IncomeType::query()
                     ->whereIn('income_type_id', array_keys($hoursWorkedIncomes['by_income_type']))
                     ->get()
@@ -2011,6 +2024,8 @@ class PayrollBatchService
                 'employee.employmentInformations.salaries',
                 'employee.timekeepingRestDays',
                 'incomes.incomeType',
+                'deductions',
+                'loanPayments',
                 'attendanceDays',
             ])
             ->where('trn_payroll_batch_details.payroll_batch_id', $batch->payroll_batch_id)

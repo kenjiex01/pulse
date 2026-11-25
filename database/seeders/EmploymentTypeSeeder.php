@@ -34,7 +34,10 @@ class EmploymentTypeSeeder extends Seeder
                 continue;
             }
 
-            EmploymentType::query()->create(array_merge($employmentType, ['is_active' => true]));
+            EmploymentType::query()->create(array_merge($employmentType, [
+                'is_active' => true,
+                'deduct_government_deductions' => true,
+            ]));
         }
     }
 }

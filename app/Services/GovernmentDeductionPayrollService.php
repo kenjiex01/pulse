@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\DeductionType;
+use App\Models\EmployeeSalary;
+use App\Models\EmploymentType;
 use App\Models\GovtTablePagibig;
 use App\Models\GovtTablePhilhealth;
 use App\Models\GovtTablePhilhealthMinimum;
@@ -47,6 +49,10 @@ class GovernmentDeductionPayrollService
         }
 
         $calendar->loadMissing(['deductions.deductionType']);
+
+        if (! $this->employmentTypeAllowsGovernmentDeductions($detail, $batch)) {
+            return collect();
+        }
 
         $periodGrossTaxable = (float) $detail->incomes()->sum('taxable');
         $monthlyGrossTaxable = $this->monthlyGrossTaxable($detail, $batch);
@@ -694,5 +700,59 @@ class GovernmentDeductionPayrollService
             $detail,
             $this->computeForDetail($detail, $batch),
         );
+    }
+
+    /**
+     * Payroll calendar government deductions apply only when the employee's
+     * employment type also allows them. A salary in this pay period wins;
+     * otherwise the current employment records are used.
+     */
+    private function employmentTypeAllowsGovernmentDeductions(PayrollBatchDetail $detail, PayrollBatch $batch): bool
+    {
+        return EmploymentType::allowsGovernmentDeductions(
+            $this->employmentTypeNamesForDetail($detail, $batch),
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function employmentTypeNamesForDetail(PayrollBatchDetail $detail, PayrollBatch $batch): array
+    {
+        $calendar = $batch->payrollCalendar;
+        $names = collect();
+
+        if ($calendar?->dt_from !== null && $calendar->dt_to !== null && $calendar->pay_type_id) {
+            $names = EmployeeSalary::query()
+                ->where('pay_type_id', $calendar->pay_type_id)
+                ->whereDate('date_effective_from', '<=', $calendar->dt_to->toDateString())
+                ->where(function ($query) use ($calendar) {
+                    $query->whereNull('date_effective_to')
+                        ->orWhereDate('date_effective_to', '>=', $calendar->dt_from->toDateString());
+                })
+                ->whereHas('employmentInformation', fn ($query) => $query->where('employee_id', $detail->employee_id))
+                ->with('employmentInformation:employment_info_id,employment_type')
+                ->get()
+                ->map(fn (EmployeeSalary $salary) => $salary->employmentInformation?->employment_type);
+        }
+
+        $names = $names
+            ->map(fn ($name) => trim((string) $name))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($names->isNotEmpty()) {
+            return $names->all();
+        }
+
+        $detail->loadMissing('employee.employmentInformations');
+
+        return collect($detail->employee?->employmentInformations ?? [])
+            ->map(fn ($info) => trim((string) ($info->employment_type ?? '')))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 }

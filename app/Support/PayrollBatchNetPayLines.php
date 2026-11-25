@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\PayrollBatchDetail;
 use Illuminate\Support\Collection;
 
 class PayrollBatchNetPayLines
@@ -94,6 +95,26 @@ class PayrollBatchNetPayLines
             ->filter(fn (array $line) => $line['amount'] > 0)
             ->values()
             ->all();
+    }
+
+    /**
+     * Gross income minus the employee share of deductions and loan payments.
+     * Employer share is excluded, matching the employee Net Pay tab.
+     */
+    public static function netPay(PayrollBatchDetail $detail): float
+    {
+        $detail->loadMissing(['incomes', 'deductions', 'loanPayments']);
+
+        $gross = round($detail->incomes->sum(
+            fn ($income) => (float) $income->taxable + (float) $income->non_taxable,
+        ), 2);
+        $deductions = round(
+            $detail->deductions->sum(fn ($deduction) => (float) $deduction->employee_amount)
+            + $detail->loanPayments->sum(fn ($payment) => (float) $payment->payment + (float) ($payment->penalty ?? 0)),
+            2,
+        );
+
+        return round($gross - $deductions, 2);
     }
 
     /**

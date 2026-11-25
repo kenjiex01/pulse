@@ -29,6 +29,9 @@
                 <input type="checkbox" name="{{ $fieldName }}" value="1" class="rounded border-gray-300 text-[#00A3E6] focus:ring-[#00A3E6]" @checked(filter_var(old($fieldName, $record?->{$fieldName} ?? ($field['default'] ?? true)), FILTER_VALIDATE_BOOLEAN))>
                 <span class="text-sm font-medium text-gray-900">{{ $field['label'] }}</span>
             </label>
+            @if (! empty($field['help']))
+                <p class="-mt-2 text-xs text-gray-500">{{ $field['help'] }}</p>
+            @endif
             @error($fieldName)<p class="text-xs text-red-600">{{ $message }}</p>@enderror
         @elseif ($fieldType === 'textarea')
             <div>
