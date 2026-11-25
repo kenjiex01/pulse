@@ -577,8 +577,15 @@ class EmployeeLoadPayrollService
     public function resolvedLateForEntry(RawEmployeeLoadEntry $entry, ?TimekeepingPolicy $policy = null): array
     {
         $raw = $this->lateRawMinutesForEntry($entry, $policy);
+        $resolved = $this->resolveLateMinutes($raw, $policy?->timekeeping_policy_id);
 
-        return $this->resolveLateMinutes($raw, $policy?->timekeeping_policy_id);
+        // Faculty late is the teaching-load clock gap. A Policy Group only converts that
+        // gap (grace, tardiness bands). Without one, the class start still counts as late.
+        if ($policy === null && $raw > 0) {
+            $resolved['billable_minutes'] = $raw;
+        }
+
+        return $resolved;
     }
 
     /**
@@ -677,25 +684,9 @@ class EmployeeLoadPayrollService
 
     public function overtimeMinutesForEntry(RawEmployeeLoadEntry $entry): int
     {
-        if ($entry->session_date === null || $entry->time_out === null || $entry->time_out === '') {
-            return 0;
-        }
-
-        $scheduleEnd = $this->parseScheduleEnd($entry->class_schedule);
-
-        if ($scheduleEnd === null) {
-            return 0;
-        }
-
-        $sessionDate = CarbonImmutable::parse($entry->session_date->toDateString());
-        $scheduledEnd = $sessionDate->setTimeFromTimeString($scheduleEnd);
-        $timeOutAt = $sessionDate->setTimeFromTimeString($entry->time_out);
-
-        if ($timeOutAt->lessThanOrEqualTo($scheduledEnd)) {
-            return 0;
-        }
-
-        return (int) $scheduledEnd->diffInMinutes($timeOutAt);
+        // Faculty overtime is not inferred from a time-out past class end.
+        // It is paid only after approval, when HR uploads the overtime computation.
+        return 0;
     }
 
     /**

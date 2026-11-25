@@ -50,6 +50,45 @@ class FacultyLoadPayrollServiceTest extends TestCase
     }
 
     #[Test]
+    public function faculty_late_without_policy_uses_teaching_load_clock_gap(): void
+    {
+        $service = app(EmployeeLoadPayrollService::class);
+
+        $entry = new RawEmployeeLoadEntry([
+            'class_schedule' => 'WED 06:00 - 07:30',
+            'session_date' => CarbonImmutable::parse('2026-11-04'),
+            'time_in' => '06:43:00',
+            'time_out' => null,
+            'late_waived' => false,
+        ]);
+
+        $resolved = $service->resolvedLateForEntry($entry, null);
+        $metrics = $service->attendanceMetricsForEntry($entry, null);
+
+        $this->assertSame(43, $resolved['raw_minutes']);
+        $this->assertSame(43, $resolved['billable_minutes']);
+        $this->assertFalse($resolved['is_absent']);
+        $this->assertSame('43 min', $metrics['late_display']);
+    }
+
+    #[Test]
+    public function faculty_overtime_is_not_inferred_from_time_out_past_class_end(): void
+    {
+        $service = app(EmployeeLoadPayrollService::class);
+
+        $entry = new RawEmployeeLoadEntry([
+            'class_schedule' => '15:00 - 16:30',
+            'session_date' => CarbonImmutable::parse('2026-11-05'),
+            'time_in' => null,
+            'time_out' => '18:58:00',
+            'late_waived' => false,
+        ]);
+
+        $this->assertSame(0, $service->overtimeMinutesForEntry($entry));
+        $this->assertSame(0, $service->attendanceMetricsForEntry($entry, null)['overtime_minutes']);
+    }
+
+    #[Test]
     public function hours_for_entry_falls_back_to_class_schedule_duration(): void
     {
         $service = app(EmployeeLoadPayrollService::class);

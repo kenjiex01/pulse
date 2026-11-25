@@ -568,7 +568,7 @@ class TimekeepingMemoTest extends TestCase
         $this->assertSame(1, preg_match_all('/\/Type\s*\/Page[^s]/', $pdf->getContent()));
     }
 
-    public function test_memo_list_minimum_count_cannot_go_below_setup(): void
+    public function test_memo_list_minimum_count_keeps_a_value_below_setup(): void
     {
         TimekeepingMemoSetup::query()->where('violation_type', 'late')->update([
             'occurrence_count' => 4,
@@ -582,7 +582,8 @@ class TimekeepingMemoTest extends TestCase
                 'min_count' => 1,
             ]))
             ->assertOk()
-            ->assertSee('value="4"', false);
+            ->assertSee('value="1"', false)
+            ->assertDontSee('value="4"', false);
     }
 
     public function test_memo_send_is_blocked_until_the_setup_count_is_reached(): void

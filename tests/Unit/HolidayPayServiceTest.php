@@ -110,6 +110,25 @@ class HolidayPayServiceTest extends TestCase
     }
 
     #[Test]
+    public function test_special_holiday_does_not_get_unworked_holiday_pay_even_with_logs_before_and_after(): void
+    {
+        ['employee' => $employee, 'detail' => $detail, 'salary' => $salary] = $this->makeHolidayScenario(
+            holidayDate: '2026-08-25',
+            restDayId: null,
+            isLegal: false,
+        );
+
+        $user = User::query()->firstOrFail();
+        $logs = app(EmployeeAttendanceLogService::class);
+        $logs->create($employee, CarbonImmutable::parse('2026-08-24 08:00:00'), true, $user->id);
+        $logs->create($employee, CarbonImmutable::parse('2026-08-24 17:00:00'), false, $user->id);
+        $logs->create($employee, CarbonImmutable::parse('2026-08-26 08:00:00'), true, $user->id);
+        $logs->create($employee, CarbonImmutable::parse('2026-08-26 17:00:00'), false, $user->id);
+
+        $this->assertNull($this->holidayPay->absentHolidayIncomeForDetail($detail, $salary));
+    }
+
+    #[Test]
     public function test_present_on_holiday_uses_holiday_day_type_in_hours_worked_payroll(): void
     {
         ['employee' => $employee, 'detail' => $detail, 'salary' => $salary] = $this->makeHolidayScenario(
@@ -135,7 +154,7 @@ class HolidayPayServiceTest extends TestCase
     /**
      * @return array{employee: Employee, detail: PayrollBatchDetail, salary: EmployeeSalary}
      */
-    private function makeHolidayScenario(string $holidayDate, ?int $restDayId): array
+    private function makeHolidayScenario(string $holidayDate, ?int $restDayId, bool $isLegal = true): array
     {
         $shift = ShiftCode::query()->create([
             'shift_code' => 'HOLS',
@@ -154,7 +173,7 @@ class HolidayPayServiceTest extends TestCase
             'timekeeping_holiday_code' => 'IND',
             'description' => 'Independence Day',
             'dt_datestamp' => $holidayDate,
-            'is_legal' => true,
+            'is_legal' => $isLegal,
             'recurring' => false,
         ]);
 
@@ -170,7 +189,7 @@ class HolidayPayServiceTest extends TestCase
             'timekeeping_holiday_id' => $holiday->timekeeping_holiday_id,
             'timekeeping_holiday_code' => $holiday->timekeeping_holiday_code,
             'dt_datestamp' => $holidayDate,
-            'is_legal' => true,
+            'is_legal' => $isLegal,
             'recurring' => false,
         ]);
 

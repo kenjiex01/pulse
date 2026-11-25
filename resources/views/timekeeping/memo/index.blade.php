@@ -71,7 +71,7 @@
             <div>
                 <label for="min_count" class="form-label">Minimum count</label>
                 <input type="number" min="1" step="1" id="min_count" name="min_count" value="{{ $memoFilters['min_count'] ?? 1 }}" class="form-input w-full" required>
-                <p class="mt-1 text-xs text-gray-500">Cannot be lower than the Count in Memo Setup.</p>
+                <p class="mt-1 text-xs text-gray-500">Defaults to the Count in Memo Setup. A lower number lists employees before they reach that count. Sending a memo still requires the setup count.</p>
             </div>
             <div class="flex items-end gap-2">
                 <button type="submit" class="btn-primary w-full">Apply Filters</button>

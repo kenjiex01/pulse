@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Models\RawEmployeeLoadEntry;
+use App\Models\RawTimekeepingInandout;
 use App\Models\TimekeepingMemoSendLog;
 use App\Models\TimekeepingMemoSetup;
 use App\Models\TimekeepingPolicy;
@@ -273,6 +274,7 @@ class TimekeepingMemoAttendanceService
         $policy = $employee->timekeepingSetup?->policy;
 
         $loadEntries = $this->facultySchedule->loadEntriesByDate((int) $employee->employee_id, $dateFrom, $dateTo);
+        $rawLogsByDate = $this->rawLogsByDate((int) $employee->employee_id, $dateFrom, $dateTo);
 
         $rows = [];
 
@@ -281,15 +283,19 @@ class TimekeepingMemoAttendanceService
                 continue;
             }
 
+            $dayEntries = $loadEntries->get($workDate, collect());
+            $dayLogs = $rawLogsByDate->get($workDate, collect());
+            [$dayTimeIn, $dayTimeOut] = $this->facultyDayClock($daySessions, $dayEntries, $dayLogs);
+
             $minutes = match ($violationType) {
-                TimekeepingMemoSetup::TYPE_ABSENT => $this->facultyAbsentMinutesForDay($daySessions),
+                TimekeepingMemoSetup::TYPE_ABSENT => $this->facultyAbsentMinutesForDay($daySessions, $dayTimeIn, $dayTimeOut),
                 TimekeepingMemoSetup::TYPE_LATE => $this->facultyLateMinutesForDay(
-                    $loadEntries->get($workDate, collect()),
+                    $dayEntries,
                     $daySessions,
                     $policy,
                 ),
                 TimekeepingMemoSetup::TYPE_UNDERTIME => $this->facultyUndertimeMinutesForDay(
-                    $loadEntries->get($workDate, collect()),
+                    $dayEntries,
                     $policy,
                 ),
                 default => null,
@@ -299,7 +305,10 @@ class TimekeepingMemoAttendanceService
                 continue;
             }
 
-            [$timeIn, $timeOut] = $this->facultyDisplayTimesForDay($daySessions, $loadEntries->get($workDate, collect()));
+            [$timeIn, $timeOut] = [$dayTimeIn, $dayTimeOut];
+            if ($timeIn === null && $timeOut === null) {
+                [$timeIn, $timeOut] = $this->facultyDisplayTimesForDay($daySessions, $dayEntries);
+            }
 
             $rows[] = [
                 'work_date' => (string) $workDate,
@@ -314,25 +323,121 @@ class TimekeepingMemoAttendanceService
     }
 
     /**
+     * A scheduled faculty day is absent when that day has no Time In or no Time Out.
+     * The clock is the day's first Time In and last Time Out, same as Calendar View.
+     *
      * @param  Collection<int, array<string, mixed>>  $daySessions
      */
-    private function facultyAbsentMinutesForDay(Collection $daySessions): ?int
+    private function facultyAbsentMinutesForDay(Collection $daySessions, ?string $dayTimeIn, ?string $dayTimeOut): ?int
     {
+        $sawSchedule = false;
+
+        foreach ($daySessions as $session) {
+            if (! is_array($session) || ! filled($session['class_schedule'] ?? null)) {
+                continue;
+            }
+
+            $sawSchedule = true;
+            break;
+        }
+
+        if (! $sawSchedule) {
+            return null;
+        }
+
+        if ($dayTimeIn === null || $dayTimeOut === null) {
+            return 0;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return Collection<string, Collection<int, RawTimekeepingInandout>>
+     */
+    private function rawLogsByDate(int $employeeId, string $dateFrom, string $dateTo): Collection
+    {
+        return RawTimekeepingInandout::query()
+            ->where('employee_id', $employeeId)
+            ->whereBetween('dt_datetime', [$dateFrom.' 00:00:00', $dateTo.' 23:59:59'])
+            ->orderBy('dt_datetime')
+            ->orderBy('timekeeping_inandout_id')
+            ->get()
+            ->groupBy(fn (RawTimekeepingInandout $log) => $log->dt_datetime?->format('Y-m-d') ?? '');
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $daySessions
+     * @param  Collection<int, RawEmployeeLoadEntry>  $dayEntries
+     * @param  Collection<int, RawTimekeepingInandout>  $rawLogs
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function facultyDayClock(Collection $daySessions, Collection $dayEntries, Collection $rawLogs): array
+    {
+        $inAt = null;
+        $outAt = null;
+
+        $considerIn = function (?string $value) use (&$inAt): void {
+            $at = $this->clockSortKey($value);
+            if ($at !== null && ($inAt === null || $at < $inAt)) {
+                $inAt = $at;
+            }
+        };
+        $considerOut = function (?string $value) use (&$outAt): void {
+            $at = $this->clockSortKey($value);
+            if ($at !== null && ($outAt === null || $at > $outAt)) {
+                $outAt = $at;
+            }
+        };
+
+        foreach ($rawLogs as $log) {
+            if (! $log instanceof RawTimekeepingInandout || $log->dt_datetime === null) {
+                continue;
+            }
+
+            $clock = $log->dt_datetime->format('H:i:s');
+            if ((bool) $log->is_in) {
+                $considerIn($clock);
+            } else {
+                $considerOut($clock);
+            }
+        }
+
+        foreach ($dayEntries as $entry) {
+            if (! $entry instanceof RawEmployeeLoadEntry) {
+                continue;
+            }
+
+            $considerIn($entry->time_in);
+            $considerOut($entry->time_out);
+        }
+
         foreach ($daySessions as $session) {
             if (! is_array($session)) {
                 continue;
             }
 
-            if (! filled($session['class_schedule'] ?? null)) {
-                continue;
-            }
-
-            if (! (bool) ($session['has_real_attendance'] ?? false)) {
-                return 0;
-            }
+            $considerIn(is_string($session['time_in'] ?? null) ? $session['time_in'] : null);
+            $considerOut(is_string($session['time_out'] ?? null) ? $session['time_out'] : null);
         }
 
-        return null;
+        return [
+            $inAt !== null ? substr($inAt, 0, 5) : null,
+            $outAt !== null ? substr($outAt, 0, 5) : null,
+        ];
+    }
+
+    private function clockSortKey(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        try {
+            return CarbonImmutable::parse((string) $value)->format('H:i:s');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
@@ -344,10 +449,6 @@ class TimekeepingMemoAttendanceService
         Collection $daySessions,
         ?TimekeepingPolicy $policy,
     ): ?int {
-        if ($this->facultyAbsentMinutesForDay($daySessions) === 0) {
-            return null;
-        }
-
         $minutes = 0;
 
         foreach ($dayEntries as $entry) {
@@ -361,8 +462,10 @@ class TimekeepingMemoAttendanceService
 
             $resolved = $this->employeeLoadPayroll->resolvedLateForEntry($entry, $policy);
 
+            // A class marked absent by the policy is an absence, not a late.
+            // Other classes the same day can still be late.
             if ($resolved['is_absent']) {
-                return null;
+                continue;
             }
 
             $minutes += (int) ($resolved['billable_minutes'] ?? 0);

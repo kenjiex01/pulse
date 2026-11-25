@@ -231,8 +231,9 @@ class HolidayPayService
     }
 
     /**
-     * Unworked holiday pay at daily rate when employee has time logs before and after
-     * (skipping rest days). Present-on-holiday pay comes from hours-worked rate rows.
+     * Unworked holiday pay at daily rate for legal holidays only, when the employee has
+     * time logs before and after (skipping rest days). Special holidays do not qualify.
+     * Present-on-holiday pay comes from hours-worked rate rows.
      *
      * @return array{income_type_id: int, taxable: float, non_taxable: float, days: float}|null
      */
@@ -291,6 +292,10 @@ class HolidayPayService
         $paidDays = 0.0;
 
         foreach ($holidays as $holiday) {
+            if (! $holiday->is_legal) {
+                continue;
+            }
+
             if ($this->hasTimeLogOnDate((int) $employee->employee_id, $holiday->date, $policy, $defaultShift)) {
                 continue;
             }

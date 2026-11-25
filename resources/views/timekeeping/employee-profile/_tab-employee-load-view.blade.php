@@ -58,7 +58,6 @@
                         <th class="px-3 py-2 text-left font-medium text-gray-600">Hours</th>
                         <th class="px-3 py-2 text-left font-medium text-gray-600">Late</th>
                         <th class="px-3 py-2 text-left font-medium text-gray-600">Undertime</th>
-                        <th class="px-3 py-2 text-left font-medium text-gray-600">Overtime</th>
                         <th class="px-3 py-2 text-left font-medium text-gray-600">Remarks</th>
                     </tr>
                 </thead>
@@ -79,12 +78,11 @@
                             <td class="px-3 py-2 text-gray-900 font-medium whitespace-nowrap">{{ number_format($metrics['hours'], 2) }}</td>
                             <td class="px-3 py-2 whitespace-nowrap {{ $metrics['late_is_absent'] ? 'font-medium text-red-600' : 'text-gray-600' }}">{{ $metrics['late_display'] }}</td>
                             <td class="px-3 py-2 text-gray-600 whitespace-nowrap">{{ $employeeLoadPayroll->formatDurationMinutes($metrics['undertime_minutes']) }}</td>
-                            <td class="px-3 py-2 text-gray-600 whitespace-nowrap">{{ $employeeLoadPayroll->formatDurationMinutes($metrics['overtime_minutes']) }}</td>
                             <td class="px-3 py-2 text-gray-600">{{ $entry->remarks ?: '—' }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="11" class="px-3 py-8 text-center text-gray-500">No employee load entries found for this employee. Pull Teaching Loads from Time Logs or upload Employee Load.</td>
+                            <td colspan="10" class="px-3 py-8 text-center text-gray-500">No employee load entries found for this employee. Pull Teaching Loads from Time Logs or upload Employee Load.</td>
                         </tr>
                     @endforelse
                 </tbody>

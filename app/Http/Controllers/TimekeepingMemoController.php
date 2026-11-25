@@ -402,7 +402,8 @@ class TimekeepingMemoController extends Controller
         $violationType = $this->attendanceService->normalizeViolationType($request->input('violation_type'));
         $setupCount = $this->occurrenceCountFor($violationType);
         $requestedCount = $request->filled('min_count') ? (int) $request->input('min_count') : $setupCount;
-        $minCount = max($setupCount, $requestedCount);
+        // The Memo Setup count is the default and the send threshold. The list filter can go lower so HR can review employees before they reach it.
+        $minCount = max(1, $requestedCount);
 
         $applied = $dateFrom !== '' && $dateTo !== '';
 

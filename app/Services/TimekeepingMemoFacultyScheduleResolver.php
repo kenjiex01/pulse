@@ -139,7 +139,7 @@ class TimekeepingMemoFacultyScheduleResolver
             'class_schedule' => $entry->class_schedule,
             'time_in' => $timeIn,
             'time_out' => $timeOut,
-            'has_real_attendance' => $timeIn !== null,
+            'has_real_attendance' => $timeIn !== null || $timeOut !== null,
         ];
     }
 
@@ -162,7 +162,9 @@ class TimekeepingMemoFacultyScheduleResolver
         $timeInNorm = $this->normalizeClock($timeIn);
         $timeOutNorm = $this->normalizeClock($timeOut);
 
-        $hasReal = SkolarisCheckerLoadStatus::countsAsPresent($statusCode);
+        $hasReal = $timeInNorm !== null
+            || $timeOutNorm !== null
+            || SkolarisCheckerLoadStatus::countsAsPresent($statusCode);
 
         return [
             'session_date' => $dateKey,
