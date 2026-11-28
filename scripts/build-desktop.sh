@@ -127,6 +127,11 @@ if [[ -f "$FIREWALL_NSH" ]]; then
   cp "$FIREWALL_NSH" "$FIREWALL_NSH_DEST"
   echo "    Applied Windows firewall rules for People360 LAN discovery"
 fi
+NSIS_CLOSE_PATCH="$ROOT/scripts/patches/patch-nsis-close-dialog.py"
+if [[ -f "$NSIS_CLOSE_PATCH" ]]; then
+  python3 "$NSIS_CLOSE_PATCH" "$ROOT"
+  echo "    Applied Windows installer close-dialog patch"
+fi
 NOTARIZE_JS="$ROOT/vendor/nativephp/electron/resources/js/build/notarize.js"
 NOTARIZE_PATCH="$ROOT/scripts/patches/notarize.js"
 if [[ -f "$NOTARIZE_PATCH" && -f "$NOTARIZE_JS" ]]; then
