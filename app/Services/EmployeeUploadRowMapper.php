@@ -76,7 +76,7 @@ class EmployeeUploadRowMapper
             fn (Campus $campus) => strtolower(trim((string) $campus->campus_name))
         );
 
-        $payTypes = PayType::query()->get();
+        $payTypes = PayType::query()->where('pay_type_id', '!=', PayType::THIRTEENTH_MONTH)->get();
         $this->payTypesById = $payTypes->keyBy('pay_type_id');
         $this->payTypesByName = $payTypes->keyBy(fn ($row) => strtolower((string) $row->pay_type));
 

@@ -195,7 +195,7 @@ class EmployeeSkolarisSyncService
      */
     private function buildPendingCandidates(): array
     {
-        $updates = $this->skolarisApi->listLocalEmployeeUpdates('pending', 500);
+        $updates = $this->skolarisApi->listLocalEmployeeUpdates('pending', 2000);
         $grouped = [];
 
         foreach ($updates as $update) {
@@ -217,6 +217,8 @@ class EmployeeSkolarisSyncService
 
             $grouped[$skolarisId][] = $update;
         }
+
+        $grouped = $this->fillProfileUpdatesHiddenByNewerRows($grouped);
 
         $pending = [];
 
@@ -256,6 +258,64 @@ class EmployeeSkolarisSyncService
         usort($pending, fn (array $left, array $right) => strcasecmp((string) $left['name'], (string) $right['name']));
 
         return $pending;
+    }
+
+    /**
+     * The global pending feed is newest-first and capped. Document rows can fill that
+     * window and hide older contact or address updates for the same employee.
+     *
+     * @param  array<string, array<int, array<string, mixed>>>  $grouped
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private function fillProfileUpdatesHiddenByNewerRows(array $grouped): array
+    {
+        $needsFullHistory = [];
+
+        foreach ($grouped as $employeeId => $rows) {
+            if (! $this->groupHasApplicableField($rows)) {
+                $needsFullHistory[] = (string) $employeeId;
+            }
+        }
+
+        if ($needsFullHistory === []) {
+            return $grouped;
+        }
+
+        foreach ($this->skolarisApi->listLocalEmployeeUpdatesForEmployees($needsFullHistory) as $employeeId => $rows) {
+            if ($rows === []) {
+                continue;
+            }
+
+            $byId = [];
+
+            foreach (array_merge($grouped[$employeeId] ?? [], $rows) as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+
+                $byId[(int) ($row['update_id'] ?? 0)] = $row;
+            }
+
+            $grouped[$employeeId] = array_values($byId);
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     */
+    private function groupHasApplicableField(array $rows): bool
+    {
+        foreach ($rows as $row) {
+            $field = trim((string) ($row['field_name'] ?? ''));
+
+            if ($field !== '' && isset(self::APPLY_FIELDS[$field])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function matchPulseEmployee(string $employeeId): ?Employee

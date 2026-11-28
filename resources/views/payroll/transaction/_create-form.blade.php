@@ -15,6 +15,7 @@
         'suggestedBatchNo' => $batchForm['suggestedBatchNo'],
         'periodsByPayType' => $batchForm['periodsByPayType'],
         'yearsByPayType' => $batchForm['yearsByPayType'],
+        'postedSourceBatches' => $batchForm['postedSourceBatches'] ?? [],
     ])
     @include('partials.modal-form-actions', ['submitLabel' => 'Create Batch'])
 </form>

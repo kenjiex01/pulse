@@ -118,6 +118,7 @@ class ReferenceDataBootstrapService
             PayType::WEEKLY,
             PayType::SEMI_MONTHLY,
             PayType::MONTHLY,
+            PayType::THIRTEENTH_MONTH,
         ];
 
         $existingIds = PayType::query()

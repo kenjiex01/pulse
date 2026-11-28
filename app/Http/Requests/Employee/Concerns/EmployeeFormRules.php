@@ -47,7 +47,10 @@ trait EmployeeFormRules
             'employee_salaries.*.date_effective_from' => ['required', 'date'],
             'employee_salaries.*.date_effective_to' => ['nullable', 'date'],
             'employee_salaries.*.basic_computation_id' => ['required', Rule::exists('lu_basic_computations', 'basic_computation_id')],
-            'employee_salaries.*.pay_type_id' => ['required', Rule::exists('lu_pay_types', 'pay_type_id')],
+            'employee_salaries.*.pay_type_id' => [
+                'required',
+                Rule::exists('lu_pay_types', 'pay_type_id')->whereNot('pay_type_id', PayType::THIRTEENTH_MONTH),
+            ],
             'employee_salaries.*.rate_group_id' => ['required', Rule::exists('tbl_rate_groups', 'rate_group_id')],
             'employee_salaries.*.nd_rate_group_id' => ['nullable', Rule::exists('tbl_nd_rate_groups', 'nd_rate_group_id')],
             'employee_salaries.*.days_per_period' => ['nullable', 'numeric', 'min:0'],

@@ -158,6 +158,37 @@ class EmployeeSkolarisSyncTest extends TestCase
         $this->assertContains('first_name', $fields);
     }
 
+    public function test_pending_includes_profile_fields_hidden_behind_newer_document_rows(): void
+    {
+        $employee = $this->createPulseEmployee([
+            'employee_number' => '23-ISHTM290493',
+            'first_name' => 'Alex Sandria',
+            'middle_name' => 'Echem',
+            'last_name' => 'Rodolfo-Rabang',
+            'home_phone' => null,
+        ]);
+
+        $this->fakeLocalUpdates(
+            [$this->pendingUpdate(10399, $employee->employee_id, 'document_verification', '{"verified_status":"verified"}')],
+            [],
+            [
+                (string) $employee->employee_id => [
+                    $this->pendingUpdate(10399, $employee->employee_id, 'document_verification', '{"verified_status":"verified"}'),
+                    $this->pendingUpdate(101, $employee->employee_id, 'home_phone', '86580554'),
+                ],
+            ],
+        );
+
+        $response = $this->actingAs(User::query()->firstOrFail())
+            ->getJson(route('employees.sync.pending'));
+
+        $response->assertOk();
+        $row = collect($response->json('employees'))->firstWhere('pulse_employee_number', '23-ISHTM290493');
+        $this->assertNotNull($row);
+        $this->assertSame('Alex Sandria Echem Rodolfo-Rabang', $row['name']);
+        $this->assertSame(1, $row['change_count']);
+    }
+
     public function test_apply_updates_pulse_employee_and_marks_applied(): void
     {
         $employee = $this->createPulseEmployee([
@@ -225,10 +256,11 @@ class EmployeeSkolarisSyncTest extends TestCase
     /**
      * @param  array<int, array<string, mixed>>  $updates
      * @param  array<string, array<string, mixed>>  $timekeepingCards
+     * @param  array<string, array<int, array<string, mixed>>>  $updatesByEmployeeId
      */
-    private function fakeLocalUpdates(array $updates, array $timekeepingCards = []): void
+    private function fakeLocalUpdates(array $updates, array $timekeepingCards = [], array $updatesByEmployeeId = []): void
     {
-        Http::fake(function ($request) use ($updates, $timekeepingCards) {
+        Http::fake(function ($request) use ($updates, $timekeepingCards, $updatesByEmployeeId) {
             $url = $request->url();
 
             if (preg_match('#timekeeping/employees/(\d+)/attendance#', $url, $matches) === 1) {
@@ -254,10 +286,15 @@ class EmployeeSkolarisSyncTest extends TestCase
             }
 
             if (str_contains($url, 'local-employee-updates')) {
+                $employeeId = trim((string) ($request->data()['employee_id'] ?? ''));
+                $rows = $employeeId !== '' && isset($updatesByEmployeeId[$employeeId])
+                    ? $updatesByEmployeeId[$employeeId]
+                    : $updates;
+
                 return Http::response([
                     'success' => true,
                     'message' => 'Local employee updates retrieved successfully',
-                    'data' => $updates,
+                    'data' => $rows,
                 ]);
             }
 

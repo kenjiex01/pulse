@@ -54,6 +54,7 @@ class PayrollBatch extends Model
             }
 
             $batch->details()->delete();
+            $batch->sourceLinks()->delete();
         });
     }
 
@@ -90,6 +91,24 @@ class PayrollBatch extends Model
     public function details(): HasMany
     {
         return $this->hasMany(PayrollBatchDetail::class, 'payroll_batch_id', 'payroll_batch_id');
+    }
+
+    public function sourceLinks(): HasMany
+    {
+        return $this->hasMany(PayrollBatchSource::class, 'payroll_batch_id', 'payroll_batch_id');
+    }
+
+    public function sourceOptionLabel(): string
+    {
+        $calendar = $this->payrollCalendar;
+        $payType = $calendar?->payType?->pay_type ?? 'Payroll';
+        $period = $calendar
+            ? $calendar->formattedPayPeriod()
+                .' ('.$calendar->dt_from->format('M j')
+                .' – '.$calendar->dt_to->format('M j, Y').')'
+            : '—';
+
+        return 'Batch #'.$this->formattedBatchNo().' · '.$payType.' · '.$period;
     }
 
     public function formattedBatchNo(): string

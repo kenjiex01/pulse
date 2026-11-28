@@ -61,6 +61,20 @@
         @endif
     </div>
 
+    @if ((int) ($batch->payrollCalendar?->pay_type_id) === \App\Models\PayType::THIRTEENTH_MONTH)
+        <div class="rounded-lg border border-gray-200 px-3 py-2">
+            <p class="text-xs text-gray-500">Posted batches included</p>
+            <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-gray-900">
+                @forelse ($batch->sourceLinks as $sourceLink)
+                    <li>{{ $sourceLink->sourceBatch?->sourceOptionLabel() ?? '—' }}</li>
+                @empty
+                    <li>None selected.</li>
+                @endforelse
+            </ul>
+            <p class="mt-2 text-xs text-gray-500">13th month pay is each employee's gross on these batches, divided by 12.</p>
+        </div>
+    @endif
+
     @if ($batch->dt_posted)
         <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             This batch is posted and can no longer be modified or re-processed.

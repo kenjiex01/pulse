@@ -19,6 +19,7 @@ class PayrollCalendarModule
         'weekly' => PayType::WEEKLY,
         'semi-monthly' => PayType::SEMI_MONTHLY,
         'monthly' => PayType::MONTHLY,
+        '13th-month' => PayType::THIRTEENTH_MONTH,
     ];
 
     /** @var array<int, string> */
@@ -27,6 +28,7 @@ class PayrollCalendarModule
         PayType::WEEKLY => 'Weekly',
         PayType::SEMI_MONTHLY => 'Semi-Monthly',
         PayType::MONTHLY => 'Monthly',
+        PayType::THIRTEENTH_MONTH => '13th Month',
     ];
 
     /** @var array<string, string> */

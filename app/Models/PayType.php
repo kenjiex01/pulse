@@ -14,6 +14,8 @@ class PayType extends Model
 
     public const MONTHLY = 4;
 
+    public const THIRTEENTH_MONTH = 5;
+
     public $timestamps = false;
 
     protected $table = 'lu_pay_types';

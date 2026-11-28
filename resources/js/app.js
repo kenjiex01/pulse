@@ -3360,6 +3360,32 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshSearchableSelect(select);
     };
 
+    const syncThirteenthMonthSources = (form) => {
+        const panel = form.querySelector('[data-pb-thirteenth-sources]');
+        const payTypeSelect = form.querySelector('[data-pb-pay-type]');
+
+        if (!panel || !payTypeSelect) {
+            return;
+        }
+
+        const active = String(payTypeSelect.value) === String(panel.getAttribute('data-pb-thirteenth-id') || '');
+        panel.classList.toggle('hidden', !active);
+
+        if (!active) {
+            panel.querySelectorAll('input[type="checkbox"]').forEach((box) => {
+                box.checked = false;
+            });
+        }
+
+        const hint = form.querySelector('[data-pb-include-all-hint]');
+
+        if (hint) {
+            hint.textContent = active
+                ? 'Adds employees who are on the selected posted batches and are not yet in another batch for this pay period.'
+                : 'Adds active employees with the same pay type who are not yet in another batch for this pay period.';
+        }
+    };
+
     const syncPayrollBatchPeriod = (form) => {
         const payTypeSelect = form.querySelector('[data-pb-pay-type]');
         const payYearSelect = form.querySelector('[data-pb-pay-year]');
@@ -3421,6 +3447,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         defaults.payYear = null;
         syncPayrollBatchPeriod(form);
+        syncThirteenthMonthSources(form);
     };
 
     const initPayrollBatchForm = (form) => {

@@ -61,12 +61,16 @@ class PayrollBatchService
      *     taxComputations: \Illuminate\Database\Eloquent\Collection<int, WithholdingTaxComputation>,
      *     suggestedBatchNo: int,
      *     yearsByPayType: array<int|string, list<int>>,
-     *     periodsByPayType: array<int|string, array<int|string, list<array{id: int, label: string}>>>
+     *     periodsByPayType: array<int|string, array<int|string, list<array{id: int, label: string}>>>,
+     *     postedSourceBatches: list<array{id: int, label: string}>
      * }
      */
     public function formData(bool $forUpload = false): array
     {
-        $payTypes = PayType::query()->orderBy('pay_type_id')->get();
+        $payTypes = PayType::query()
+            ->when($forUpload, fn (Builder $query) => $query->where('pay_type_id', '!=', PayType::THIRTEENTH_MONTH))
+            ->orderBy('pay_type_id')
+            ->get();
         $taxComputations = WithholdingTaxComputation::query()
             ->orderBy('withholding_tax_computation_id')
             ->get();
@@ -112,7 +116,9 @@ class PayrollBatchService
             })
             ->all();
 
-        return compact('payTypes', 'taxComputations', 'suggestedBatchNo', 'yearsByPayType', 'periodsByPayType');
+        $postedSourceBatches = $forUpload ? [] : $this->postedSourceBatchOptions();
+
+        return compact('payTypes', 'taxComputations', 'suggestedBatchNo', 'yearsByPayType', 'periodsByPayType', 'postedSourceBatches');
     }
 
     public function assertCalendarOpenForUpload(int $calendarId): void
@@ -135,6 +141,90 @@ class PayrollBatchService
             ->pluck('payroll_calendar_id')
             ->map(fn ($id) => (int) $id)
             ->all();
+    }
+
+    /**
+     * @return list<array{id: int, label: string}>
+     */
+    private function postedSourceBatchOptions(): array
+    {
+        return PayrollBatch::query()
+            ->where('payroll_batch_status_id', PayrollBatchStatus::POSTED)
+            ->whereHas('payrollCalendar', fn (Builder $query) => $query->where('pay_type_id', '!=', PayType::THIRTEENTH_MONTH))
+            ->with(['payrollCalendar.payType'])
+            ->orderByDesc('batch_no')
+            ->get()
+            ->map(fn (PayrollBatch $batch) => [
+                'id' => (int) $batch->payroll_batch_id,
+                'label' => $batch->sourceOptionLabel(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Gross earned on the selected posted batches, divided by 12.
+     *
+     * @param  list<int>  $sourceBatchIds
+     */
+    public function thirteenthMonthPay(int $employeeId, array $sourceBatchIds): float
+    {
+        $sourceBatchIds = array_values(array_unique(array_filter(array_map('intval', $sourceBatchIds))));
+
+        if ($employeeId <= 0 || $sourceBatchIds === []) {
+            return 0.0;
+        }
+
+        $gross = (float) PayrollIncome::query()
+            ->whereHas('payrollBatchDetail', function (Builder $query) use ($employeeId, $sourceBatchIds) {
+                $query->where('employee_id', $employeeId)
+                    ->whereIn('payroll_batch_id', $sourceBatchIds);
+            })
+            ->sum(DB::raw('COALESCE(taxable, 0) + COALESCE(non_taxable, 0)'));
+
+        return round($gross / 12, 2);
+    }
+
+    private function prepareThirteenthMonthDetail(PayrollBatchDetail $detail): void
+    {
+        $batch = $detail->payrollBatch;
+
+        if ($batch === null) {
+            return;
+        }
+
+        $sourceIds = $batch->sourceLinks()
+            ->pluck('source_payroll_batch_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        $amount = $this->thirteenthMonthPay((int) $detail->employee_id, $sourceIds);
+
+        if ($amount <= 0) {
+            return;
+        }
+
+        $incomeType = IncomeType::query()->where('income_type_code', '13TH')->first();
+
+        if ($incomeType === null) {
+            throw ValidationException::withMessages([
+                'batch' => '13th Month Pay income type is not set up.',
+            ]);
+        }
+
+        $nonTaxable = $incomeType->is_non_taxable ? $amount : 0.0;
+        $taxable = $incomeType->is_non_taxable ? 0.0 : $amount;
+
+        PayrollIncome::query()->create([
+            'payroll_batch_detail_id' => $detail->payroll_batch_detail_id,
+            'income_type_id' => $incomeType->income_type_id,
+            'taxable' => $taxable,
+            'non_taxable' => $nonTaxable,
+            'orig_taxable' => $taxable,
+            'orig_non_taxable' => $nonTaxable,
+            'is_manual' => false,
+            'is_editable' => true,
+            'is_deletable' => true,
+        ]);
     }
 
     public function suggestedBatchNo(): int
@@ -177,6 +267,30 @@ class PayrollBatchService
                 Rule::exists('lu_withholding_tax_computations', 'withholding_tax_computation_id'),
             ],
             'include_all_employees' => ['sometimes', 'boolean'],
+            'source_payroll_batch_ids' => [
+                Rule::excludeIf(fn () => (int) ($input['pay_type_id'] ?? 0) !== PayType::THIRTEENTH_MONTH),
+                'required',
+                'array',
+                'min:1',
+            ],
+            'source_payroll_batch_ids.*' => [
+                Rule::excludeIf(fn () => (int) ($input['pay_type_id'] ?? 0) !== PayType::THIRTEENTH_MONTH),
+                'integer',
+                'distinct',
+                Rule::exists('trn_payroll_batches', 'payroll_batch_id')->where(function ($query) {
+                    $query->where('payroll_batch_status_id', PayrollBatchStatus::POSTED)
+                        ->whereNull('deleted_at')
+                        ->whereIn('payroll_calendar_id', function ($calendar) {
+                            $calendar->select('payroll_calendar_id')
+                                ->from('tbl_payroll_calendar')
+                                ->where('pay_type_id', '!=', PayType::THIRTEENTH_MONTH);
+                        });
+                }),
+            ],
+        ], [
+            'source_payroll_batch_ids.required' => 'Select at least one posted payroll batch to include in 13th month pay.',
+            'source_payroll_batch_ids.min' => 'Select at least one posted payroll batch to include in 13th month pay.',
+            'source_payroll_batch_ids.*.exists' => 'Only posted payroll batches can be included in 13th month pay.',
         ])->validate();
     }
 
@@ -208,6 +322,14 @@ class PayrollBatchService
                 'payroll_batch_status_id' => PayrollBatchStatus::PENDING,
                 'withholding_tax_computation_id' => (int) $validated['withholding_tax_computation_id'],
             ]);
+
+            if ((int) $calendar->pay_type_id === PayType::THIRTEENTH_MONTH) {
+                foreach (array_unique(array_map('intval', $validated['source_payroll_batch_ids'] ?? [])) as $sourceBatchId) {
+                    $batch->sourceLinks()->create([
+                        'source_payroll_batch_id' => $sourceBatchId,
+                    ]);
+                }
+            }
 
             if (! empty($validated['include_all_employees'])) {
                 $batch->load('payrollCalendar');
@@ -827,6 +949,7 @@ class PayrollBatchService
                 'processedBy',
                 'postedBy',
                 'withholdingTaxComputation',
+                'sourceLinks.sourceBatch.payrollCalendar.payType',
             ])
             ->find($batchId);
     }
@@ -864,6 +987,12 @@ class PayrollBatchService
         $payTypeId = $calendar?->pay_type_id;
 
         if (! $payTypeId || ! $calendar) {
+            return;
+        }
+
+        if ((int) $payTypeId === PayType::THIRTEENTH_MONTH) {
+            $this->prepareThirteenthMonthDetail($detail);
+
             return;
         }
 
@@ -2066,6 +2195,10 @@ class PayrollBatchService
             return Employee::query()->whereRaw('1 = 0');
         }
 
+        if ((int) $calendar->pay_type_id === PayType::THIRTEENTH_MONTH) {
+            return $this->thirteenthMonthEmployeesQuery($batch);
+        }
+
         return $this->constrainToCalendarEligibility(
             Employee::query()
                 ->where('is_active', true)
@@ -2088,6 +2221,14 @@ class PayrollBatchService
 
         $payTypeLabel = $calendar->payType?->pay_type ?? 'this pay type';
         $categoryPhrase = $this->calendarCategoryPhrase($calendar);
+
+        if ((int) $calendar->pay_type_id === PayType::THIRTEENTH_MONTH) {
+            if ($this->thirteenthMonthEmployeesQuery($batch)->count() === 0) {
+                return 'No active employees are on the selected posted batches.';
+            }
+
+            return 'All employees from the selected posted batches are already assigned to a batch for this pay period.';
+        }
 
         if ($this->employeesWithPayTypeQuery($batch)->count() === 0) {
             return 'No active employees have an employee salary with pay type '.$payTypeLabel
@@ -2114,6 +2255,14 @@ class PayrollBatchService
         $alreadyAssigned = PayrollBatchDetail::query()
             ->whereHas('payrollBatch', fn ($query) => $query->where('payroll_calendar_id', $calendar->payroll_calendar_id))
             ->pluck('employee_id');
+
+        if ((int) $calendar->pay_type_id === PayType::THIRTEENTH_MONTH) {
+            return $this->thirteenthMonthEmployeesQuery($batch)
+                ->when($alreadyAssigned->isNotEmpty(), fn ($query) => $query->whereNotIn('employee_id', $alreadyAssigned))
+                ->when($search !== null && $search !== '', fn ($query) => $query->search($search))
+                ->orderBy('last_name')
+                ->orderBy('first_name');
+        }
 
         return $this->constrainToCalendarEligibility(
             Employee::query()
@@ -2246,6 +2395,34 @@ class PayrollBatchService
             ->unique()
             ->values()
             ->all();
+    }
+
+    /**
+     * Active employees who were paid on the posted batches selected for this 13th month batch.
+     *
+     * @return Builder<Employee>
+     */
+    private function thirteenthMonthEmployeesQuery(PayrollBatch $batch): Builder
+    {
+        $sourceIds = $batch->sourceLinks()->pluck('source_payroll_batch_id')->all();
+
+        if ($sourceIds === []) {
+            return Employee::query()->whereRaw('1 = 0');
+        }
+
+        $employeeIds = PayrollBatchDetail::query()
+            ->whereIn('payroll_batch_id', $sourceIds)
+            ->distinct()
+            ->pluck('employee_id');
+
+        if ($employeeIds->isEmpty()) {
+            return Employee::query()->whereRaw('1 = 0');
+        }
+
+        return Employee::query()
+            ->where('is_active', true)
+            ->where('employment_status', Employee::STATUS_ACTIVE)
+            ->whereIn('employee_id', $employeeIds);
     }
 
     /**

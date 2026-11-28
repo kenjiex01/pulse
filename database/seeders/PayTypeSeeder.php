@@ -14,6 +14,7 @@ class PayTypeSeeder extends Seeder
             PayType::WEEKLY => 'Weekly',
             PayType::SEMI_MONTHLY => 'Semi-Monthly',
             PayType::MONTHLY => 'Monthly',
+            PayType::THIRTEENTH_MONTH => '13th Month',
         ] as $id => $payType) {
             PayType::query()->updateOrCreate(
                 ['pay_type_id' => $id],

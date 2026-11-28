@@ -27,6 +27,7 @@ class PayrollCalendarGeneratorService
             PayType::WEEKLY => $this->generateWeekly($input),
             PayType::SEMI_MONTHLY => $this->generateSemiMonthly($input),
             PayType::MONTHLY => $this->generateMonthly($input),
+            PayType::THIRTEENTH_MONTH => $this->generateThirteenthMonth($input),
             default => throw new InvalidArgumentException('Unsupported pay type.'),
         };
     }
@@ -270,6 +271,29 @@ class PayrollCalendarGeneratorService
         }
 
         return $created;
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     * @return Collection<int, PayrollCalendar>
+     */
+    private function generateThirteenthMonth(array $input): Collection
+    {
+        $payYear = (int) $input['pay_year'];
+        $dateFrom = Carbon::parse($input['date_from'])->startOfDay();
+        $dateTo = Carbon::parse($input['date_to'])->startOfDay();
+
+        return collect([
+            $this->createPeriod(
+                PayType::THIRTEENTH_MONTH,
+                $payYear,
+                PayrollCalendarModule::nextPayPeriod(PayType::THIRTEENTH_MONTH, $payYear),
+                $dateFrom,
+                $dateTo,
+                (bool) ($input['is_regular_period'] ?? false),
+                (bool) ($input['is_allowance_period'] ?? false),
+            ),
+        ]);
     }
 
     private function createPeriod(

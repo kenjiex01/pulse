@@ -84,6 +84,13 @@
             <input id="autofill-occurrences" type="number" name="occurrences" class="form-input" min="1" value="{{ old('occurrences') }}">
             @error('occurrences')<p class="form-error">{{ $message }}</p>@enderror
         </div>
+    @elseif ($payTypeId === PayType::THIRTEENTH_MONTH)
+        <div>
+            <label class="form-label" for="autofill-date-to">Date To <span class="text-red-500">*</span></label>
+            <input id="autofill-date-to" type="date" name="date_to" class="form-input" required value="{{ old('date_to') }}">
+            <p class="mt-1 text-xs text-gray-500">One 13th month pay period is created from Date From through Date To.</p>
+            @error('date_to')<p class="form-error">{{ $message }}</p>@enderror
+        </div>
     @else
         <div>
             <label class="form-label">Generate Until</label>

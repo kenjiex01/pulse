@@ -459,6 +459,9 @@ class PayrollCalendarController extends Controller
             PayType::MONTHLY => array_merge($baseRules, [
                 'frequency_day' => ['nullable', Rule::in(array_merge(range(1, 30), ['last']))],
             ]),
+            PayType::THIRTEENTH_MONTH => array_merge($baseRules, [
+                'date_to' => ['required', 'date', 'after_or_equal:date_from'],
+            ]),
             default => $baseRules,
         };
 

@@ -1084,7 +1084,7 @@ class SkolarisApiService
     {
         $params = [
             'status' => $status,
-            'limit' => min(max(1, $limit), 500),
+            'limit' => min(max(1, $limit), 2000),
         ];
 
         if ($employeeId !== null && $employeeId !== '') {
@@ -1095,6 +1095,70 @@ class SkolarisApiService
         $data = $response->json('data') ?? [];
 
         return is_array($data) ? array_values($data) : [];
+    }
+
+    /**
+     * Full pending rows for employees whose newest updates are outside the global list window.
+     *
+     * @param  array<int, int|string>  $employeeIds
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    public function listLocalEmployeeUpdatesForEmployees(array $employeeIds): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(
+            fn ($id) => trim((string) $id),
+            $employeeIds,
+        ), fn (string $id) => $id !== '')));
+
+        $out = [];
+        foreach ($ids as $id) {
+            $out[$id] = [];
+        }
+
+        if ($ids === [] || ! $this->usesPulseApiKey()) {
+            foreach ($ids as $id) {
+                $out[$id] = $this->listLocalEmployeeUpdates('pending', 500, $id);
+            }
+
+            return $out;
+        }
+
+        $apiKey = EncryptedEnv::reveal((string) config('skolaris.pulse_api_key'));
+        $baseUrl = rtrim((string) config('skolaris.pulse_api_base_url'), '/');
+
+        foreach (array_chunk($ids, 20) as $chunk) {
+            $responses = Http::pool(function (Pool $pool) use ($chunk, $apiKey, $baseUrl) {
+                $requests = [];
+
+                foreach ($chunk as $id) {
+                    $requests[] = $pool->as($id)
+                        ->baseUrl($baseUrl)
+                        ->acceptJson()
+                        ->timeout(60)
+                        ->withHeaders(['X-API-Key' => $apiKey])
+                        ->get('/local-employee-updates', [
+                            'status' => 'pending',
+                            'limit' => 500,
+                            'employee_id' => $id,
+                        ]);
+                }
+
+                return $requests;
+            });
+
+            foreach ($chunk as $id) {
+                $response = $responses[$id] ?? null;
+
+                if (! $response instanceof Response || $response->failed()) {
+                    continue;
+                }
+
+                $data = $response->json('data') ?? [];
+                $out[$id] = is_array($data) ? array_values($data) : [];
+            }
+        }
+
+        return $out;
     }
 
     /**

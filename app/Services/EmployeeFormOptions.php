@@ -52,7 +52,10 @@ class EmployeeFormOptions
             'ranks' => Rank::query()->active()->orderBy('rank_name')->get(),
             'employmentTypes' => EmploymentType::query()->active()->orderBy('sort_order')->orderBy('type_name')->get(),
             'employeeDepartments' => EmployeeDepartment::query()->active()->orderBy('sort_order')->orderBy('department_name')->get(),
-            'payTypes' => PayType::query()->orderBy('pay_type_id')->get(),
+            'payTypes' => PayType::query()
+                ->where('pay_type_id', '!=', PayType::THIRTEENTH_MONTH)
+                ->orderBy('pay_type_id')
+                ->get(),
             'basicComputations' => BasicComputation::query()->orderBy('basic_computation_id')->get(),
             'rateGroups' => RateGroup::query()->orderBy('description')->get(),
             'ndRateGroups' => NdRateGroup::query()->orderBy('description')->get(),
