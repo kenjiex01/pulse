@@ -1861,8 +1861,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         return value.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
+            minimumFractionDigits: 4,
+            maximumFractionDigits: 4,
         });
     };
 
@@ -3711,7 +3711,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 parts.push(`${payload.minutes} min`);
             }
             if (payload.hourly_rate) {
-                parts.push(`Hourly rate ${Number(payload.hourly_rate).toFixed(2)}`);
+                parts.push(`Hourly rate ${Number(payload.hourly_rate).toFixed(4)}`);
             }
             if (payload.amount !== null && payload.amount !== undefined) {
                 parts.push(`Amount ${Number(payload.amount).toFixed(2)}`);

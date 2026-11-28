@@ -466,6 +466,21 @@ class EmployeeLoadPayrollService
 
     public function dailyRate(EmployeeSalary $salary, ?float $rateDays = null): ?float
     {
+        if ($salary->use_basic_income_as_hourly_rate) {
+            $hourly = $salary->hourlyRate($rateDays);
+            $hoursPerDay = (float) ($salary->hours_per_day ?? 0);
+
+            if ($hourly === null || $hourly <= 0) {
+                return null;
+            }
+
+            if ($hoursPerDay <= 0) {
+                $hoursPerDay = 8.0;
+            }
+
+            return $hourly * $hoursPerDay;
+        }
+
         $basicIncome = $salary->basicIncomeAmount();
         $daysPerPeriod = ($rateDays !== null && $rateDays > 0) ? $rateDays : $salary->days_per_period;
 
@@ -672,14 +687,14 @@ class EmployeeLoadPayrollService
         }
 
         $sessionDate = CarbonImmutable::parse($entry->session_date->toDateString());
-        $scheduledEnd = $sessionDate->setTimeFromTimeString($scheduleEnd);
-        $timeOutAt = $sessionDate->setTimeFromTimeString($entry->time_out);
+        $scheduledEnd = $sessionDate->setTimeFromTimeString($scheduleEnd)->startOfMinute();
+        $timeOutAt = $sessionDate->setTimeFromTimeString($entry->time_out)->startOfMinute();
 
         if ($timeOutAt->greaterThanOrEqualTo($scheduledEnd)) {
             return 0;
         }
 
-        return (int) $timeOutAt->diffInMinutes($scheduledEnd);
+        return (int) round($timeOutAt->diffInMinutes($scheduledEnd, true));
     }
 
     public function overtimeMinutesForEntry(RawEmployeeLoadEntry $entry): int

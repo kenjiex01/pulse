@@ -213,6 +213,11 @@ class HolidayPayService
         return false;
     }
 
+    private function holidayDayAlreadyInBasic(EmployeeSalary $salary): bool
+    {
+        return (bool) $salary->is_fixed_rate || (bool) $salary->use_payroll_calendar_days;
+    }
+
     public function qualifiesForAbsentHolidayPay(
         int $employeeId,
         CarbonImmutable $holidayDate,
@@ -231,9 +236,10 @@ class HolidayPayService
     }
 
     /**
-     * Unworked holiday pay at daily rate for legal holidays only, when the employee has
-     * time logs before and after (skipping rest days). Special holidays do not qualify.
-     * Present-on-holiday pay comes from hours-worked rate rows.
+     * Daily-rate holiday pay for legal holidays only, when the employee has time logs
+     * before and after (skipping rest days). Special holidays do not qualify.
+     * If they also worked the holiday, this day pay is added on top of the hours they
+     * worked, unless that day is already inside basic (calendar days or fixed rate).
      *
      * @return array{income_type_id: int, taxable: float, non_taxable: float, days: float}|null
      */
@@ -296,7 +302,9 @@ class HolidayPayService
                 continue;
             }
 
-            if ($this->hasTimeLogOnDate((int) $employee->employee_id, $holiday->date, $policy, $defaultShift)) {
+            $workedHoliday = $this->hasTimeLogOnDate((int) $employee->employee_id, $holiday->date, $policy, $defaultShift);
+
+            if ($workedHoliday && $this->holidayDayAlreadyInBasic($salary)) {
                 continue;
             }
 

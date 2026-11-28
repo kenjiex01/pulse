@@ -131,6 +131,22 @@ class TimeLogsCrossMidnightBufferTest extends TestCase
         ));
     }
 
+    #[Test]
+    public function undertime_uses_the_minute_shown_on_screen_and_ignores_seconds(): void
+    {
+        $minutes = app(TimeLogsPayrollService::class)->undertimeRawMinutesForSession(
+            [
+                'date' => CarbonImmutable::parse('2026-10-28'),
+                'time_in' => '07:22:13',
+                'time_out' => '15:45:35',
+            ],
+            '17:00',
+            '08:00',
+        );
+
+        $this->assertSame(75, $minutes);
+    }
+
     private function employeeWithPmShift(): Employee
     {
         $policy = TimekeepingPolicy::query()->create([

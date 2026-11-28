@@ -102,4 +102,43 @@ class PayrollBatchPurgeTest extends TestCase
             'deleted_at' => null,
         ]);
     }
+
+    #[Test]
+    public function batches_list_shows_a_delete_button_on_each_deletable_row(): void
+    {
+        $calendar = PayrollCalendar::query()->create([
+            'pay_type_id' => PayType::SEMI_MONTHLY,
+            'pay_year' => 2026,
+            'pay_period' => 904,
+            'dt_from' => '2026-08-01 00:00:00',
+            'dt_to' => '2026-08-15 00:00:00',
+            'calendar_month' => 8,
+            'is_regular_period' => true,
+        ]);
+
+        $pending = PayrollBatch::query()->create([
+            'payroll_calendar_id' => $calendar->payroll_calendar_id,
+            'batch_no' => 9101,
+            'created_by_id' => $this->user->id,
+            'dt_created' => now(),
+            'payroll_batch_status_id' => PayrollBatchStatus::PENDING,
+            'withholding_tax_computation_id' => 1,
+        ]);
+        $posted = PayrollBatch::query()->create([
+            'payroll_calendar_id' => $calendar->payroll_calendar_id,
+            'batch_no' => 9102,
+            'created_by_id' => $this->user->id,
+            'dt_created' => now(),
+            'payroll_batch_status_id' => PayrollBatchStatus::POSTED,
+            'withholding_tax_computation_id' => 1,
+        ]);
+
+        $html = $this->actingAs($this->user)
+            ->get(route('payroll.transaction.tab', ['tab' => 'batches']))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Delete batch '.$pending->formattedBatchNo(), $html);
+        $this->assertStringNotContainsString('Delete batch '.$posted->formattedBatchNo(), $html);
+    }
 }

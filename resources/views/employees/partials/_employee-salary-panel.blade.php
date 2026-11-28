@@ -292,7 +292,7 @@
             tabindex="-1"
             class="form-input bg-gray-50 text-right font-medium text-gray-900"
             data-salary-hourly-rate
-            value="{{ $initialHourlyRate !== null ? number_format($initialHourlyRate, 2, '.', ',') : '—' }}"
+            value="{{ $initialHourlyRate !== null ? number_format($initialHourlyRate, 4, '.', ',') : '—' }}"
         >
         <p class="mt-1 text-xs text-gray-500" data-salary-hourly-rate-hint>
             {{ $useBasicIncomeAsHourlyRate

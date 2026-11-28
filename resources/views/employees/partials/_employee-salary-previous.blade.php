@@ -45,7 +45,7 @@
                             </td>
                             <td class="text-gray-600">{{ $previousSalary->payType?->pay_type ?: '—' }}</td>
                             <td class="text-right text-gray-900">{{ number_format($basicIncome, 2) }}</td>
-                            <td class="text-right text-gray-900">{{ $hourlyRate !== null ? number_format($hourlyRate, 2) : '—' }}</td>
+                            <td class="text-right text-gray-900">{{ $hourlyRate !== null ? number_format($hourlyRate, 4) : '—' }}</td>
                         </tr>
                     @endforeach
                 </tbody>

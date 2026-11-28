@@ -8,6 +8,7 @@ use App\Http\Controllers\DatabaseController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\EmployeeRequestController;
 use App\Http\Controllers\EmployeeCredentialController;
 use App\Http\Controllers\EmployeeDeductionController;
 use App\Http\Controllers\EmployeeLoanController;
@@ -141,6 +142,11 @@ Route::middleware('auth')->group(function () {
             Route::delete("hr/$lookup/{record}", [HrLookupController::class, 'destroy'])->name(HrLookup::routeName($lookup, 'destroy'));
         });
     }
+
+    Route::middleware('module:employee-requests.index')->group(function () {
+        Route::get('hr/employee-requests', [EmployeeRequestController::class, 'index'])->name('employee-requests.index');
+        Route::post('hr/employee-requests/pull', [EmployeeRequestController::class, 'pull'])->name('employee-requests.pull');
+    });
 
     Route::middleware('module:hr.setup.index')->group(function () {
         Route::get('hr/setup', [HrSetupController::class, 'index'])->name('hr.setup.index');

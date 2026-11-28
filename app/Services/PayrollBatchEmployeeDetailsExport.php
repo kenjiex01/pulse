@@ -577,7 +577,7 @@ class PayrollBatchEmployeeDetailsExport
         $deductionRows = PayrollBatchNetPayLines::deductionRows($detail->deductions);
         $loanLines = PayrollBatchNetPayLines::loanPaymentLines($detail->loanPayments);
         $deductions = round(
-            $deductionRows->sum(fn (array $row) => (float) $row['employee_amount']) + $loanLines->sum('amount'),
+            $deductionRows->sum(fn (array $row) => (float) ($row['net_employee_amount'] ?? $row['employee_amount'])) + $loanLines->sum('amount'),
             2,
         );
 

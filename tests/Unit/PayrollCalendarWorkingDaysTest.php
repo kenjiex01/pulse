@@ -65,7 +65,7 @@ class PayrollCalendarWorkingDaysTest extends TestCase
         $salary->setRelation('incomes', collect([$income]));
 
         $this->assertEqualsWithDelta(125.0, $salary->hourlyRate(), 0.001);
-        $this->assertSame(116.07, $salary->hourlyRate(14));
+        $this->assertSame(116.0714, $salary->hourlyRate(14));
     }
 
     #[Test]

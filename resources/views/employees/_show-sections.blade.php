@@ -207,7 +207,7 @@
                             <div><p class="text-sm text-gray-600">Is Fixed Rate</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->salary->is_fixed_rate ? 'Yes' : 'No' }}</p></div>
                             <div><p class="text-sm text-gray-600">Use Payroll Calendar Days</p><p class="mt-1 font-medium text-gray-900">{{ $employmentInfo->salary->use_payroll_calendar_days ? 'Yes' : 'No' }}</p></div>
                             <div><p class="text-sm text-gray-600">Night Diff. Rate Group</p><p class="mt-1 font-medium text-gray-900">{{ $employee->displayValue($employmentInfo->salary->ndRateGroup?->description) }}</p></div>
-                            <div><p class="text-sm text-gray-600">Hourly Rate</p><p class="mt-1 font-medium text-gray-900">@php($hourlyRate = $employmentInfo->salary->hourlyRate()){{ $hourlyRate !== null ? number_format($hourlyRate, 2) : '—' }}</p></div>
+                            <div><p class="text-sm text-gray-600">Hourly Rate</p><p class="mt-1 font-medium text-gray-900">@php($hourlyRate = $employmentInfo->salary->hourlyRate()){{ $hourlyRate !== null ? number_format($hourlyRate, 4) : '—' }}</p></div>
                         </div>
 
                         @if ($employmentInfo->salary->incomes->isNotEmpty())

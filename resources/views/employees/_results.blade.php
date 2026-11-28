@@ -47,6 +47,7 @@
                     <th>Dept/College</th>
                     <th>Compliance</th>
                     <th>Status</th>
+                    <th>Length of Service</th>
                     <th class="text-right">Actions</th>
                 </tr>
             </thead>
@@ -64,6 +65,7 @@
                                 {{ $employee->employment_status }}
                             </span>
                         </td>
+                        <td class="text-gray-600 whitespace-nowrap">{{ \App\Support\LengthOfService::since($employee->hire_date) ?: '—' }}</td>
                         <td>
                             <div class="flex items-center justify-end gap-1.5">
                                 @if ($listPermissions['canView'])
@@ -90,7 +92,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="py-12 text-center">
+                        <td colspan="9" class="py-12 text-center">
                             <svg class="mx-auto mb-3 h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                             <p class="text-sm font-medium text-gray-500">No employees found</p>
                             <p class="mt-1 text-xs text-gray-400">

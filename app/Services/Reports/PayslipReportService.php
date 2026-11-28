@@ -334,7 +334,9 @@ class PayslipReportService
         }
 
         $totalEarnings = round(collect($earnings)->sum('amount'), 2);
-        $totalDeductions = round(collect($deductions)->sum('amount'), 2);
+        $totalDeductions = round(collect($deductions)->sum(
+            fn (array $line) => ($line['counts_toward_net'] ?? true) ? (float) $line['amount'] : 0.0
+        ), 2);
         $netPay = round($totalEarnings - $totalDeductions, 2);
         $calendar = $batch->payrollCalendar;
 

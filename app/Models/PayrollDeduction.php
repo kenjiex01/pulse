@@ -27,6 +27,7 @@ class PayrollDeduction extends Model
         'is_editable',
         'is_deletable',
         'is_manual',
+        'counts_toward_net',
         'time_in',
         'time_out',
     ];
@@ -42,6 +43,7 @@ class PayrollDeduction extends Model
             'is_editable' => 'boolean',
             'is_deletable' => 'boolean',
             'is_manual' => 'boolean',
+            'counts_toward_net' => 'boolean',
         ];
     }
 

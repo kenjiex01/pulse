@@ -5,9 +5,11 @@ namespace Tests\Unit;
 use App\Models\DocumentType;
 use App\Models\Employee;
 use App\Models\EmployeeCredential;
+use App\Models\EmployeeEmploymentInformation;
 use App\Models\Report;
 use App\Models\User;
 use App\Services\Reports\EmployeeCredentialsReportService;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -56,6 +58,14 @@ class EmployeeCredentialsReportServiceTest extends TestCase
             'file_size' => 100,
         ]);
 
+        Carbon::setTestNow('2026-11-28');
+        EmployeeEmploymentInformation::query()->create([
+            'employee_id' => $without->employee_id,
+            'user_type' => EmployeeEmploymentInformation::TYPE_STAFF,
+            'hire_date' => '2024-09-15',
+            'sort_order' => 0,
+        ]);
+
         $service = new EmployeeCredentialsReportService();
         $result = $service->generate(
             new Report(['title' => 'Employee']),
@@ -67,7 +77,14 @@ class EmployeeCredentialsReportServiceTest extends TestCase
         $this->assertContains('Employee Name', $result->headers);
         $this->assertContains('Assignments', $result->headers);
         $this->assertContains('Shift Code', $result->headers);
-        $this->assertContains('Loans', $result->headers);
+        $this->assertContains('Hire Date', $result->headers);
+        $this->assertContains('Length of Service', $result->headers);
+        $hireIndex = array_search('Hire Date', $result->headers, true);
+        $this->assertNotFalse($hireIndex);
+        $this->assertSame('Length of Service', $result->headers[$hireIndex + 1]);
+        $this->assertSame('2 years, 2 months, 13 days', $result->rows[0][$hireIndex + 1]);
+        $this->assertSame('', $result->rows[1][$hireIndex + 1]);
+        Carbon::setTestNow();
         $this->assertNotContains('TIN ID', $result->headers);
         $this->assertNotContains('SSS ID', $result->headers);
         $this->assertSame('Loans', $result->headers[array_key_last($result->headers)]);
@@ -124,16 +141,19 @@ class EmployeeCredentialsReportServiceTest extends TestCase
 
         \App\Models\EmployeeSalary::query()->create([
             'employment_info_id' => $facultyInfo->employment_info_id,
+            'date_effective_from' => '2026-01-01',
             'days_per_period' => 11,
             'hours_per_day' => 8,
         ]);
         \App\Models\EmployeeSalary::query()->create([
             'employment_info_id' => $staffInfo->employment_info_id,
+            'date_effective_from' => '2026-01-01',
             'days_per_period' => 13,
             'hours_per_day' => 8,
         ]);
         \App\Models\EmployeeSalary::query()->create([
             'employment_info_id' => $plainStaff->employment_info_id,
+            'date_effective_from' => '2026-01-01',
             'days_per_period' => 13,
             'hours_per_day' => 8,
         ]);
@@ -148,6 +168,7 @@ class EmployeeCredentialsReportServiceTest extends TestCase
         $daysIndex = array_search('Days / Period', $result->headers, true);
         $this->assertNotFalse($daysIndex);
         $this->assertSame('13', $result->rows[0][$daysIndex]);
+        $this->assertSame('11 (Faculty) · 13 (Staff)', $result->rows[1][$daysIndex]);
         $this->assertSame('11 (Faculty) · 13 (Staff)', $result->rows[1][$daysIndex]);
     }
 }

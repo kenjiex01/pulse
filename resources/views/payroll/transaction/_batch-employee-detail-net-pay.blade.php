@@ -10,6 +10,7 @@
             'hours' => ($deduction['show_hours'] ?? false) ? (float) ($deduction['hours'] ?? 0) : null,
             'days' => ($deduction['show_days'] ?? false) ? (float) ($deduction['days'] ?? 0) : null,
             'amount' => (float) $deduction['employee_amount'],
+            'counts_toward_net' => (bool) ($deduction['counts_toward_net'] ?? true),
         ])
         ->filter(fn (array $line) => $line['amount'] !== 0.0)
         ->values();
@@ -49,7 +50,12 @@
         <div class="space-y-1 md:ml-auto md:w-full md:max-w-sm">
             @forelse ($deductionLines as $line)
                 <div class="flex items-baseline justify-between gap-4 text-sm">
-                    <span class="text-gray-700">{{ $line['label'] }}:</span>
+                    <span class="text-gray-700">
+                        {{ $line['label'] }}:
+                        @if (($line['counts_toward_net'] ?? true) === false)
+                            <span class="block text-xs font-normal text-gray-500">Already in basic</span>
+                        @endif
+                    </span>
                     <div class="flex shrink-0 items-baseline gap-3 tabular-nums text-gray-900">
                         @if ($line['minutes'] !== null)
                             <span class="text-gray-500">{{ number_format((int) $line['minutes']) }} min</span>
@@ -67,11 +73,11 @@
                 <p class="text-sm text-gray-500">No deduction lines yet.</p>
             @endforelse
 
-            @if ($deductionLines->isNotEmpty() || $employeeShareTotal > 0)
+            @if ($deductionLines->isNotEmpty() || $netDeductionTotal > 0)
                 <div class="my-3 border-t border-dashed border-gray-300"></div>
                 <div class="flex items-baseline justify-between gap-4 text-sm font-semibold text-gray-900">
                     <span>Total Deductions:</span>
-                    <span class="shrink-0 tabular-nums">-{{ number_format($employeeShareTotal, 2) }}</span>
+                    <span class="shrink-0 tabular-nums">-{{ number_format($netDeductionTotal, 2) }}</span>
                 </div>
             @endif
         </div>

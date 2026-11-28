@@ -243,7 +243,7 @@ class PayrollAttendanceHoursWorkedService
             + $breakLateMinutes
         ) / 60;
 
-        $basicHours = max(0.0, round($scheduledHours - $deductionHours, 4));
+        $basicHours = max(0.0, $scheduledHours - $deductionHours);
 
         if ($basicHours > 0) {
             $this->addHours($totals, $dayTypeId, 1, $basicHours, $sessionDate);
@@ -501,7 +501,7 @@ class PayrollAttendanceHoursWorkedService
             $rows[] = (object) [
                 'day_type_id' => $dayTypeId,
                 'time_type_id' => $timeTypeId,
-                'hours' => round($hours, 4),
+                'hours' => $hours,
                 'days' => isset($this->basicWorkDates[$key]) ? (float) count($this->basicWorkDates[$key]) : null,
                 'time_type_code' => $timeTypeCodes[$timeTypeId] ?? null,
             ];

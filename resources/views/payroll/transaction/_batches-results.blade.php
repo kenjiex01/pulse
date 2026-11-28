@@ -57,14 +57,38 @@
                         <td class="text-gray-600">{{ $batch->createdBy?->name ?? '—' }}</td>
                         <td class="whitespace-nowrap text-gray-600">{{ $batch->dt_created?->format('M j, Y g:i A') ?? '—' }}</td>
                         <td class="text-right">
-                            <a
-                                href="{{ route(\App\Support\PayrollTransactionModule::routeName('tab'), ['tab' => 'batches', 'view_payroll_batch' => $batch->payroll_batch_id, 'search' => request('search')]) }}"
-                                class="btn-icon"
-                                title="View batch"
-                                data-no-loader
-                            >
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                            </a>
+                            <div class="flex items-center justify-end gap-1.5">
+                                <a
+                                    href="{{ route(\App\Support\PayrollTransactionModule::routeName('tab'), ['tab' => 'batches', 'view_payroll_batch' => $batch->payroll_batch_id, 'search' => request('search')]) }}"
+                                    class="btn-icon"
+                                    title="View batch"
+                                    data-no-loader
+                                >
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                </a>
+                                @can('payroll-transaction.delete')
+                                    @if (in_array((int) $batch->payroll_batch_status_id, [
+                                        \App\Models\PayrollBatchStatus::PENDING,
+                                        \App\Models\PayrollBatchStatus::LOCKED,
+                                        \App\Models\PayrollBatchStatus::PROCESSED,
+                                    ], true))
+                                        <form
+                                            method="POST"
+                                            action="{{ route(\App\Support\PayrollTransactionModule::routeName('batches.destroy')) }}"
+                                            class="inline"
+                                            onsubmit="return confirm('Delete payroll batch {{ $batch->formattedBatchNo() }}?')"
+                                        >
+                                            @csrf
+                                            @method('DELETE')
+                                            <input type="hidden" name="selected_ids[]" value="{{ $batch->payroll_batch_id }}">
+                                            <input type="hidden" name="search" value="{{ request('search') }}">
+                                            <button type="submit" class="btn-icon text-red-500 hover:bg-red-50 hover:text-red-600" title="Delete batch {{ $batch->formattedBatchNo() }}">
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </form>
+                                    @endif
+                                @endcan
+                            </div>
                         </td>
                     </tr>
                 @empty

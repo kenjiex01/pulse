@@ -110,7 +110,7 @@ class EmployeeSalary extends Model
             return null;
         }
 
-        return round($basicIncomeAmount / $daysPerPeriod / $hoursPerDay, 2);
+        return round($basicIncomeAmount / $daysPerPeriod / $hoursPerDay, 4);
     }
 
     public function basicIncomeAmount(): float
@@ -138,6 +138,21 @@ class EmployeeSalary extends Model
      */
     public function hourlyRate(?float $rateDays = null): ?float
     {
+        $rate = $this->preciseHourlyRate($rateDays);
+
+        if ($rate === null || $this->use_basic_income_as_hourly_rate) {
+            return $rate;
+        }
+
+        return round($rate, 4);
+    }
+
+    /**
+     * Unrounded hourly rate. Payroll rounds the peso amount once, so one late minute
+     * on a 16,770 / 26 / 8 salary is 1.34 and the basic is 7,738.66, not 7,739.13.
+     */
+    public function preciseHourlyRate(?float $rateDays = null): ?float
+    {
         if ($this->use_basic_income_as_hourly_rate) {
             $basicIncomeAmount = $this->basicIncomeAmount();
 
@@ -154,10 +169,14 @@ class EmployeeSalary extends Model
             $daysPerPeriod = PayType::autoDaysPerPeriod((int) $this->pay_type_id);
         }
 
-        return self::computeHourlyRate(
-            $this->basicIncomeAmount(),
-            $daysPerPeriod,
-            $this->hours_per_day,
-        );
+        $daysPerPeriod = (float) $daysPerPeriod;
+        $hoursPerDay = (float) ($this->hours_per_day ?? 0);
+        $basicIncomeAmount = $this->basicIncomeAmount();
+
+        if ($basicIncomeAmount <= 0 || $daysPerPeriod <= 0 || $hoursPerDay <= 0) {
+            return null;
+        }
+
+        return $basicIncomeAmount / $daysPerPeriod / $hoursPerDay;
     }
 }

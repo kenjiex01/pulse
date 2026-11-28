@@ -50,6 +50,7 @@ class PayrollBatchService
         private readonly LoanPayrollService $loanPayroll,
         private readonly EmployeeDeductionPayrollService $employeeDeductionPayroll,
         private readonly PayrollDisputeService $disputePayroll,
+        private readonly EmployeeRequestPayrollService $employeeRequestPayroll,
         private readonly ManualAttendanceDeductionService $manualAttendanceDeductions,
         private readonly FacultyConsultationAllowancePayrollService $facultyConsultationAllowance,
         private readonly StaffAllowancePayrollService $staffAllowancePayroll,
@@ -1059,6 +1060,10 @@ class PayrollBatchService
                     ]);
                 }
 
+                // Hours-worked basic already drops these minutes. The lines stay on
+                // Net Pay for display and are left out of the total.
+                $alreadyInBasic = $hoursWorkedApplied;
+
                 if ($computesBasic && ! $isFixedRate && $loadPayroll !== null) {
                     $lateMinutes = (int) ($loadPayroll['late_minutes'] ?? 0) + (int) ($loadPayroll['break_late_minutes'] ?? 0);
                     $lateDeduction = round((float) ($loadPayroll['late_deduction'] ?? 0) + (float) ($loadPayroll['break_late_deduction'] ?? 0), 2);
@@ -1078,6 +1083,7 @@ class PayrollBatchService
                                 'is_manual' => false,
                                 'is_editable' => true,
                                 'is_deletable' => true,
+                                'counts_toward_net' => ! $alreadyInBasic,
                             ]);
                         }
                     }
@@ -1098,6 +1104,7 @@ class PayrollBatchService
                             'is_manual' => false,
                             'is_editable' => true,
                             'is_deletable' => true,
+                            'counts_toward_net' => ! $alreadyInBasic,
                         ]);
                     }
                 }
@@ -1150,6 +1157,7 @@ class PayrollBatchService
                             'is_manual' => false,
                             'is_editable' => true,
                             'is_deletable' => true,
+                            'counts_toward_net' => ! $alreadyInBasic,
                         ]);
                     }
                 }
@@ -1227,6 +1235,7 @@ class PayrollBatchService
             }
 
             $this->disputePayroll->applyToDetail($detail);
+            $this->employeeRequestPayroll->applyToDetail($detail);
 
             $detail->load('incomes');
             $batch->loadMissing('payrollCalendar.deductions.deductionType');

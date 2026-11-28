@@ -1158,6 +1158,7 @@ class SkolarisApiService
         $params = [
             'date_from' => $dateFrom,
             'date_to' => $dateTo,
+            'all_campuses' => 1,
         ];
 
         $timeout = $this->employeeLoadApiTimeout();
@@ -1237,6 +1238,7 @@ class SkolarisApiService
                     ->get('/timekeeping/employees/'.$id.'/attendance', [
                         'date_from' => $dateFrom,
                         'date_to' => $dateTo,
+                        'all_campuses' => 1,
                     ]);
             }
 
@@ -1289,6 +1291,42 @@ class SkolarisApiService
             'synced_at' => is_string($payload['synced_at'] ?? null) ? $payload['synced_at'] : null,
             'pagination' => is_array($payload['pagination'] ?? null) ? $payload['pagination'] : null,
         ];
+    }
+
+    /**
+     * Approved employee requests only. For Approval, draft, rejected, and cancelled are left in Skolaris.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function approvedEmployeeRequests(): array
+    {
+        $page = 1;
+        $rows = [];
+
+        do {
+            $response = $this->request('get', '/pulse-employee-requests', [
+                'status' => 'approved',
+                'all' => 1,
+                'scope' => 'all',
+                'per_page' => 100,
+                'page' => $page,
+            ]);
+            $payload = $response->json();
+            $batch = $payload['data'] ?? [];
+
+            if (is_array($batch)) {
+                foreach ($batch as $row) {
+                    if (is_array($row)) {
+                        $rows[] = $row;
+                    }
+                }
+            }
+
+            $lastPage = max(1, (int) ($payload['meta']['last_page'] ?? 1));
+            $page++;
+        } while ($page <= $lastPage && $page <= 50);
+
+        return $rows;
     }
 
     private function usesPulseApiKey(): bool

@@ -79,7 +79,9 @@ class PayrollRegisterRowBuilder
         $grossIncome = $taxableIncome + $nonTaxableIncome;
         $loanPayments = $detail->relationLoaded('loanPayments') ? $detail->loanPayments : collect();
         $loanPaymentTotal = $loanPayments->sum(fn ($payment) => (float) $payment->payment + (float) ($payment->penalty ?? 0));
-        $totalDeductions = $detail->deductions->sum(fn ($deduction) => (float) $deduction->employee_amount) + $loanPaymentTotal;
+        $totalDeductions = $detail->deductions->sum(fn ($deduction) => ($deduction->counts_toward_net ?? true) !== false
+            ? (float) $deduction->employee_amount
+            : 0.0) + $loanPaymentTotal;
         $netPay = $grossIncome - $totalDeductions;
 
         $hourlyRate = $basc['hours'] > 0

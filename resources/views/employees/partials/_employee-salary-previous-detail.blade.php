@@ -131,6 +131,6 @@
             {{ $previousSalary->use_payroll_calendar_days ? 'Yes' : 'No' }}
         </p>
         <p class="form-label">Hourly Rate</p>
-        <p class="mt-1 text-sm font-medium text-gray-900">{{ $hourlyRate !== null ? number_format($hourlyRate, 2) : '—' }}</p>
+        <p class="mt-1 text-sm font-medium text-gray-900">{{ $hourlyRate !== null ? number_format($hourlyRate, 4) : '—' }}</p>
     </div>
 </div>

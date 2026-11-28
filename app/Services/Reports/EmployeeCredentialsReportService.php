@@ -9,6 +9,7 @@ use App\Models\EmployeeLoan;
 use App\Models\EmployeeSalary;
 use App\Models\Report;
 use App\Models\User;
+use App\Support\LengthOfService;
 use App\Support\SpreadsheetDownload;
 use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -136,6 +137,7 @@ class EmployeeCredentialsReportService
             'Rank',
             'Employment Type',
             'Hire Date',
+            'Length of Service',
             'Pay Type',
             'Basic Computation',
             'Days / Period',
@@ -222,12 +224,17 @@ class EmployeeCredentialsReportService
             $this->joinEmployment($employments, fn (EmployeeEmploymentInformation $info) => (string) ($info->rank ?? '')),
             $this->joinEmployment($employments, fn (EmployeeEmploymentInformation $info) => (string) ($info->employment_type ?? '')),
             $this->joinEmployment($employments, fn (EmployeeEmploymentInformation $info) => $info->hire_date?->format('Y-m-d') ?? ''),
+            $this->joinEmployment($employments, fn (EmployeeEmploymentInformation $info) => LengthOfService::since($info->hire_date)),
             $this->joinEmployment($employments, fn (EmployeeEmploymentInformation $info) => (string) ($info->salary?->payType?->pay_type ?? ''), $tagSalary),
             $this->joinEmployment($employments, fn (EmployeeEmploymentInformation $info) => (string) ($info->salary?->basicComputation?->basic_computation ?? ''), $tagSalary),
             $this->joinEmployment($employments, fn (EmployeeEmploymentInformation $info) => $this->numberOrBlank($info->salary?->days_per_period), $tagSalary),
             $this->joinEmployment($employments, fn (EmployeeEmploymentInformation $info) => $this->numberOrBlank($info->salary?->hours_per_day), $tagSalary),
             $this->joinEmployment($employments, fn (EmployeeEmploymentInformation $info) => $this->moneyOrBlank($info->salary?->basicIncomeAmount()), $tagSalary),
-            $this->joinEmployment($employments, fn (EmployeeEmploymentInformation $info) => $this->moneyOrBlank($info->salary?->hourlyRate()), $tagSalary),
+            $this->joinEmployment($employments, function (EmployeeEmploymentInformation $info) {
+                $rate = $info->salary?->hourlyRate();
+
+                return $rate !== null ? number_format((float) $rate, 4, '.', '') : '';
+            }, $tagSalary),
             $this->joinEmployment($employments, fn (EmployeeEmploymentInformation $info) => $this->moneyOrBlank($info->salary?->cola_rate_per_hour), $tagSalary),
             $this->joinEmployment($employments, fn (EmployeeEmploymentInformation $info) => (string) ($info->salary?->rateGroup?->rate_group_code ?? $info->salary?->rateGroup?->description ?? ''), $tagSalary),
             $this->joinEmployment($employments, fn (EmployeeEmploymentInformation $info) => (string) ($info->salary?->ndRateGroup?->nd_rate_group_code ?? $info->salary?->ndRateGroup?->description ?? ''), $tagSalary),

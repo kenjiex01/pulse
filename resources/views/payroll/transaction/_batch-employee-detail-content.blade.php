@@ -17,6 +17,8 @@
     $loanPaymentLines = PayrollBatchNetPayLines::loanPaymentLines($detail->loanPayments);
     $employeeShareTotal = $deductionRows->sum(fn (array $row) => $row['employee_amount'])
         + $loanPaymentLines->sum('amount');
+    $netDeductionTotal = $deductionRows->sum(fn (array $row) => (float) ($row['net_employee_amount'] ?? $row['employee_amount']))
+        + $loanPaymentLines->sum('amount');
     $employerShareTotal = $deductionRows->sum(fn (array $row) => $row['employer_amount']);
     $deductionHoursTotal = $deductionRows->contains(fn (array $row) => ($row['show_hours'] ?? false))
         ? $deductionRows->sum(fn (array $row) => ($row['show_hours'] ?? false) ? (float) ($row['hours'] ?? 0) : 0.0)
@@ -28,7 +30,7 @@
         ? $deductionRows->sum(fn (array $row) => ($row['show_days'] ?? false) ? (float) ($row['days'] ?? 0) : 0.0)
         : null;
     $grossIncomeTotal = $taxableTotal + $nonTaxableTotal;
-    $netPayTotal = $grossIncomeTotal - $employeeShareTotal;
+    $netPayTotal = $grossIncomeTotal - $netDeductionTotal;
     $attendanceDayBreakdown = $attendanceDayBreakdown ?? ['LTDE' => [], 'UTDE' => [], 'OVRT' => [], 'ABST' => []];
     $lateBreakdown = $attendanceDayBreakdown['LTDE'] ?? [];
     $undertimeBreakdown = $attendanceDayBreakdown['UTDE'] ?? [];

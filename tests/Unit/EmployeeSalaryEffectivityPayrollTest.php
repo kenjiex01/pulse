@@ -118,5 +118,21 @@ class EmployeeSalaryEffectivityPayrollTest extends TestCase
 
         $this->assertSame(1000.0, $service->dailyRate($oldSalary));
         $this->assertSame(1500.0, $service->dailyRate($newSalary));
+
+        $hourlySalary = new EmployeeSalary([
+            'pay_type_id' => PayType::SEMI_MONTHLY,
+            'days_per_period' => 26,
+            'hours_per_day' => 8,
+            'use_basic_income_as_hourly_rate' => true,
+        ]);
+        $hourlyIncome = new EmployeeSalaryIncome([
+            'income_type_id' => $basicIncomeType->income_type_id,
+            'taxable' => 170,
+            'non_taxable' => 0,
+        ]);
+        $hourlyIncome->setRelation('incomeType', $basicIncomeType);
+        $hourlySalary->setRelation('incomes', collect([$hourlyIncome]));
+
+        $this->assertSame(1360.0, $service->dailyRate($hourlySalary));
     }
 }

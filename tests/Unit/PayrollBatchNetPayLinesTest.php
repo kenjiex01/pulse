@@ -98,4 +98,53 @@ class PayrollBatchNetPayLinesTest extends TestCase
         $this->assertSame('Philhealth Premium', $lines[0]['label']);
         $this->assertNull($lines[0]['minutes']);
     }
+
+    public function test_late_already_in_basic_is_shown_and_left_out_of_net_pay(): void
+    {
+        $basicType = IncomeType::query()->where('income_type_code', 'BASC')->firstOrFail();
+        $lateType = DeductionType::query()->where('deduction_type_code', 'LTDE')->firstOrFail();
+        $sssType = DeductionType::query()->where('deduction_type_code', 'SSSP')->firstOrFail();
+
+        $income = new PayrollIncome([
+            'income_type_id' => $basicType->income_type_id,
+            'hours' => 95.9833,
+            'days' => 12,
+            'taxable' => 7738.65,
+            'non_taxable' => 0,
+        ]);
+        $income->setRelation('incomeType', $basicType);
+
+        $late = new PayrollDeduction([
+            'deduction_type_id' => $lateType->deduction_type_id,
+            'hours' => 0.0167,
+            'days' => 1,
+            'employee_amount' => 1.34,
+            'employer_amount' => 0,
+            'counts_toward_net' => false,
+        ]);
+        $late->setRelation('deductionType', $lateType);
+
+        $sss = new PayrollDeduction([
+            'deduction_type_id' => $sssType->deduction_type_id,
+            'employee_amount' => 375,
+            'employer_amount' => 0,
+            'counts_toward_net' => true,
+        ]);
+        $sss->setRelation('deductionType', $sssType);
+
+        $rows = PayrollBatchNetPayLines::deductionRows(collect([$late, $sss]));
+        $lateRow = $rows->firstWhere('code', 'LTDE');
+
+        $this->assertNotNull($lateRow);
+        $this->assertSame(1.34, $lateRow['employee_amount']);
+        $this->assertFalse($lateRow['counts_toward_net']);
+        $this->assertSame(0.0, $lateRow['net_employee_amount']);
+
+        $detail = new \App\Models\PayrollBatchDetail;
+        $detail->setRelation('incomes', collect([$income]));
+        $detail->setRelation('deductions', collect([$late, $sss]));
+        $detail->setRelation('loanPayments', collect());
+
+        $this->assertSame(7363.65, PayrollBatchNetPayLines::netPay($detail));
+    }
 }

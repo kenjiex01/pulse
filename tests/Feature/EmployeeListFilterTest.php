@@ -7,6 +7,7 @@ use App\Models\College;
 use App\Models\Employee;
 use App\Models\EmployeeEmploymentInformation;
 use App\Models\User;
+use Carbon\Carbon;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -88,6 +89,30 @@ class EmployeeListFilterTest extends TestCase
         $response->assertOk();
         $response->assertSee('EMP-FAC-1', false);
         $response->assertDontSee('EMP-STAFF-1', false);
+    }
+
+    public function test_employee_list_shows_length_of_service_from_hire_date(): void
+    {
+        Carbon::setTestNow('2026-11-28');
+
+        $campus = Campus::query()->where('campus_code', 'CA')->firstOrFail();
+        $employee = $this->createListEmployee($campus, 'EMP-LOS-1', 'College of Arts & Sciences');
+
+        EmployeeEmploymentInformation::query()->create([
+            'employee_id' => $employee->employee_id,
+            'user_type' => EmployeeEmploymentInformation::TYPE_STAFF,
+            'position' => 'Clerk',
+            'hire_date' => '2024-09-15',
+            'sort_order' => 0,
+        ]);
+
+        $this->actingAs(User::query()->firstOrFail())
+            ->get(route('employees.index', ['search' => 'EMP-LOS-1']))
+            ->assertOk()
+            ->assertSee('Length of Service', false)
+            ->assertSee('2 years, 2 months, 13 days', false);
+
+        Carbon::setTestNow();
     }
 
     private function createListEmployee(Campus $campus, string $employeeNumber, string $college): Employee

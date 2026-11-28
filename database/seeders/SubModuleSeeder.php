@@ -39,6 +39,7 @@ class SubModuleSeeder extends Seeder
             'employees.index',
             'company-documents.index',
             'company-documents.approvals.index',
+            'employee-requests.index',
             'hr.setup.index',
         ])
             ->merge(collect(HrLookup::keys())->map(fn (string $lookup) => HrLookup::routeName($lookup)))
@@ -86,6 +87,18 @@ class SubModuleSeeder extends Seeder
                 'icon' => 'company-documents',
                 'sort_order' => 3,
                 'is_active' => false,
+            ],
+        );
+
+        SubModule::query()->updateOrCreate(
+            ['route_name' => 'employee-requests.index'],
+            [
+                'module_id' => $humanResource->id,
+                'name' => 'Employee Request',
+                'route_pattern' => 'employee-requests.*',
+                'icon' => 'employee-request',
+                'sort_order' => 3,
+                'is_active' => true,
             ],
         );
 

@@ -1365,11 +1365,15 @@ class TimeLogsPayrollService
             return 0;
         }
 
+        // The screen shows hours and minutes only. 15:45:35 against a 17:00 out is 75 minutes.
+        $scheduledEnd = $scheduledEnd->startOfMinute();
+        $timeOutAt = $timeOutAt->startOfMinute();
+
         if ($timeOutAt->greaterThanOrEqualTo($scheduledEnd)) {
             return 0;
         }
 
-        return (int) $timeOutAt->diffInMinutes($scheduledEnd);
+        return (int) round($timeOutAt->diffInMinutes($scheduledEnd, true));
     }
 
     public function lateDeductionTypeId(): ?int

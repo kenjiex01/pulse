@@ -10,8 +10,8 @@ use App\Models\TeachingLoadPullBatchEmployee;
 use App\Models\TeachingLoadSession;
 use App\Models\TeachingLoadSyncStatus;
 use App\Models\User;
-use App\Support\EmployeeNumberMatch;
 use App\Support\PhpExecutionTime;
+use App\Support\SkolarisAttendancePageLoads;
 use App\Support\SkolarisCheckerLoadStatus;
 use App\Support\SkolarisLoadSessionTimes;
 use App\Support\SkolarisScheduleWeekdays;
@@ -37,7 +37,6 @@ class TeachingLoadPullService
 
     public function __construct(
         private readonly SkolarisApiService $skolaris,
-        private readonly EmployeeLoadAttendanceMatcher $attendanceMatcher,
     ) {}
 
     /**
@@ -387,88 +386,21 @@ class TeachingLoadPullService
 
         PhpExecutionTime::ensureAtLeast(max(30, (int) config('employee_load.pull_step_time_limit_seconds', 900)));
 
-        $skolarisEmployee = $prefetchedLogs === null
-            ? $this->skolaris->resolveSkolarisEmployeeRecord($employee)
-            : null;
-        $skolarisEmployeeId = (int) ($skolarisEmployee['employee_id'] ?? 0);
-        $skolarisNumber = trim((string) ($skolarisEmployee['employee_number'] ?? ''));
+        $logs = $prefetchedLogs;
 
-        $incoming = [];
-
-        if ($prefetchedLogs !== null) {
-            $incoming = $this->normalizeIncomingLoads($prefetchedLogs, $employeeNumber);
-        } elseif ($skolarisEmployeeId > 0) {
-            $attendance = $this->skolaris->timekeepingEmployeeAttendance(
-                $skolarisEmployeeId,
-                $dateFrom,
-                $dateTo,
-            );
-            $incoming = $this->normalizeIncomingLoads($attendance['logs'], $employeeNumber);
+        if ($logs === null) {
+            $skolarisEmployee = $this->skolaris->resolveSkolarisEmployeeRecord($employee);
+            $skolarisEmployeeId = (int) ($skolarisEmployee['employee_id'] ?? 0);
+            $logs = $skolarisEmployeeId > 0
+                ? $this->skolaris->timekeepingEmployeeAttendance($skolarisEmployeeId, $dateFrom, $dateTo)['logs']
+                : [];
         }
 
-        if ($incoming === [] && $prefetchedLogs === null) {
-            $dailyLoadNumbers = array_values(array_unique(array_filter([
-                $employeeNumber,
-                $skolarisNumber,
-            ])));
-
-            $rows = $this->skolaris->dailyLoads($dateFrom, $dateTo, $dailyLoadNumbers);
-            $employeePayload = null;
-
-            foreach ($rows as $row) {
-                if (! is_array($row)) {
-                    continue;
-                }
-
-                $rowNumber = trim((string) ($row['employee_number'] ?? ''));
-
-                if ($rowNumber === $employeeNumber
-                    || ($skolarisNumber !== '' && EmployeeNumberMatch::same($rowNumber, $skolarisNumber))) {
-                    $employeePayload = $row;
-                    break;
-                }
-            }
-
-            $incoming = $this->normalizeIncomingLoads(
-                is_array($employeePayload['loads'] ?? null) ? $employeePayload['loads'] : [],
-                $employeeNumber,
-            );
-        }
-
-        $useSlowFallbacks = (bool) config('employee_load.pull_slow_fallbacks', false);
-
-        if ($incoming === [] && $useSlowFallbacks) {
-            $incoming = $this->fetchUploadedFacultyLoadingSchedules(
-                $employee,
-                $dateFrom,
-                $dateTo,
-            );
-        }
-
-        if ($incoming !== [] && $prefetchedLogs === null) {
-            $incoming = $this->mergeAttendanceCheckerLoads(
-                $employeeNumber,
-                $dateFrom,
-                $dateTo,
-                $incoming,
-            );
-        } elseif ($useSlowFallbacks && $prefetchedLogs === null) {
-            $incoming = $this->mergeAttendanceCheckerLoads(
-                $employeeNumber,
-                $dateFrom,
-                $dateTo,
-                $incoming,
-            );
-        }
+        $incoming = $this->normalizeIncomingLoads($logs, $employeeNumber);
 
         if ($incoming === []) {
-            $suffix = $useSlowFallbacks
-                ? ' Also tried Attendance Checker and Uploaded Faculty Loading.'
-                : ' Run Process Attendance on Skolaris for that faculty and date range, or set EMPLOYEE_LOAD_PULL_SLOW_FALLBACKS=true for PDF/checker fallbacks.';
-
             throw new RuntimeException(
-                'No teaching load in Skolaris Employee Attendance for this date range (timekeeping/employees/{employee_id}/attendance).'
-                .$suffix
+                'No teaching load on the Skolaris Employee Attendance page for this date range. Open timekeeping attendance for this faculty and run Process Attendance if the schedule is missing.'
             );
         }
 
@@ -668,13 +600,11 @@ class TeachingLoadPullService
             })
             ->get();
 
-        $matched = $this->attendanceMatcher->applyToEntries($employee, $entries);
-
-        if (! $scheduleChanged && $matched === 0) {
+        if (! $scheduleChanged) {
             return 0;
         }
 
-        return max($entries->count(), $matched);
+        return $entries->count();
     }
 
     /**
@@ -685,7 +615,7 @@ class TeachingLoadPullService
     {
         $normalized = [];
 
-        foreach ($loads as $load) {
+        foreach (SkolarisAttendancePageLoads::rows($loads) as $load) {
             if (! is_array($load)) {
                 continue;
             }

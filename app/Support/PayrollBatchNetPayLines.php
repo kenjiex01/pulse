@@ -54,6 +54,10 @@ class PayrollBatchNetPayLines
                     'show_days' => $hasDays,
                     'employee_amount' => $group->sum(fn ($deduction) => (float) $deduction->employee_amount),
                     'employer_amount' => $group->sum(fn ($deduction) => (float) $deduction->employer_amount),
+                    'counts_toward_net' => $group->contains(fn ($deduction) => ($deduction->counts_toward_net ?? true) !== false),
+                    'net_employee_amount' => $group->sum(fn ($deduction) => ($deduction->counts_toward_net ?? true) !== false
+                        ? (float) $deduction->employee_amount
+                        : 0.0),
                 ];
             })
             ->sortBy('code')
@@ -91,6 +95,7 @@ class PayrollBatchNetPayLines
                 'label' => $deduction['description'] ?? $deduction['code'] ?? 'Deduction',
                 'minutes' => ($deduction['minutes'] ?? null) !== null ? (int) $deduction['minutes'] : null,
                 'amount' => round((float) $deduction['employee_amount'], 2),
+                'counts_toward_net' => (bool) ($deduction['counts_toward_net'] ?? true),
             ])
             ->filter(fn (array $line) => $line['amount'] > 0)
             ->values()
@@ -109,7 +114,9 @@ class PayrollBatchNetPayLines
             fn ($income) => (float) $income->taxable + (float) $income->non_taxable,
         ), 2);
         $deductions = round(
-            $detail->deductions->sum(fn ($deduction) => (float) $deduction->employee_amount)
+            $detail->deductions->sum(fn ($deduction) => ($deduction->counts_toward_net ?? true) !== false
+                ? (float) $deduction->employee_amount
+                : 0.0)
             + $detail->loanPayments->sum(fn ($payment) => (float) $payment->payment + (float) ($payment->penalty ?? 0)),
             2,
         );

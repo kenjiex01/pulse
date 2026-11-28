@@ -124,7 +124,7 @@ class EmployeeController extends Controller
                 ])
                 ->with([
                     'campus:campus_id,campus_name,campus_code',
-                    'employmentInformations:employment_info_id,employee_id,user_type,position,sort_order',
+                    'employmentInformations:employment_info_id,employee_id,user_type,position,hire_date,sort_order',
                 ])
                 ->orderBy('last_name')
                 ->orderBy('first_name')

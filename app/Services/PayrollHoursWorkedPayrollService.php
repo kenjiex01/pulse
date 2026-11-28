@@ -108,11 +108,20 @@ class PayrollHoursWorkedPayrollService
                     'taxable' => 0.0,
                     'non_taxable' => 0.0,
                     'hours' => 0.0,
+                    'days' => 0.0,
                 ];
+            }
+
+            $paidDays = (float) ($absentHoliday['days'] ?? 0);
+            $hoursPerDay = (float) ($salary->hours_per_day ?? 0);
+            if ($hoursPerDay <= 0) {
+                $hoursPerDay = 8.0;
             }
 
             $totals['by_income_type'][$incomeTypeId]['taxable'] += (float) $absentHoliday['taxable'];
             $totals['by_income_type'][$incomeTypeId]['non_taxable'] += (float) $absentHoliday['non_taxable'];
+            $totals['by_income_type'][$incomeTypeId]['days'] = (float) ($totals['by_income_type'][$incomeTypeId]['days'] ?? 0) + $paidDays;
+            $totals['by_income_type'][$incomeTypeId]['hours'] = (float) ($totals['by_income_type'][$incomeTypeId]['hours'] ?? 0) + ($paidDays * $hoursPerDay);
         }
 
         if ($totals['by_income_type'] === []) {
@@ -171,7 +180,7 @@ class PayrollHoursWorkedPayrollService
     {
         $byIncomeType = [];
         $hasOvertime = false;
-        $hourlyRate = $salary->hourlyRate($rateDays);
+        $hourlyRate = $salary->preciseHourlyRate($rateDays);
 
         foreach ($rows as $row) {
             $line = $this->computeLineAmount($salary, $row, $hourlyRate);
@@ -262,13 +271,11 @@ class PayrollHoursWorkedPayrollService
             }
         }
 
+        // Keep the summed hours exact. Rounding to 4 decimals before × hourly rate
+        // turns 104 late minutes on an 18,200 / 26 / 8 salary into 8,248.34
+        // instead of 8,400.00 − 151.67 = 8,248.33. Display hours are rounded later.
         return collect(array_values($merged))
-            ->map(function (object $row) {
-                $row->hours = round((float) $row->hours, 4);
-
-                return $row;
-            })
-            ->filter(fn (object $row) => $row->hours > 0)
+            ->filter(fn (object $row) => (float) $row->hours > 0)
             ->values();
     }
 
