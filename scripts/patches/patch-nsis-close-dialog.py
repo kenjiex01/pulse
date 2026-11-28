@@ -31,28 +31,30 @@ EXTRACT_NEW = """      DetailPrint `Copy failed. Overwriting "${PRODUCT_NAME}" f
 
 def replace_once(path: Path, old: str, new: str, label: str) -> None:
     text = path.read_text()
-    if new in text:
-        print(f"already patched: {path}")
-        return
     if old not in text:
+        if new in text:
+            print(f"already patched: {path}")
+            return
         raise SystemExit(f"{label} block not found in {path}")
     path.write_text(text.replace(old, new, 1))
     print(f"patched: {path}")
 
 
+def drop_unused_label(path: Path, block: str) -> None:
+    text = path.read_text()
+    if block not in text:
+        return
+    path.write_text(text.replace(block, "", 1))
+    print(f"removed unused label: {path}")
+
+
 def main() -> None:
-    replace_once(
-        NSIS / "include/installUtil.nsh",
-        UNINSTALL_OLD,
-        UNINSTALL_NEW,
-        "uninstallOldVersion",
-    )
-    replace_once(
-        NSIS / "include/extractAppPackage.nsh",
-        EXTRACT_OLD,
-        EXTRACT_NEW,
-        "extractUsing7za",
-    )
+    install_util = NSIS / "include/installUtil.nsh"
+    extract = NSIS / "include/extractAppPackage.nsh"
+    replace_once(install_util, UNINSTALL_OLD, UNINSTALL_NEW, "uninstallOldVersion")
+    drop_unused_label(install_util, "  OneMoreAttempt:\n")
+    replace_once(extract, EXTRACT_OLD, EXTRACT_NEW, "extractUsing7za")
+    drop_unused_label(extract, "  AbortExtract7za:\n    Quit\n\n")
 
 
 if __name__ == "__main__":

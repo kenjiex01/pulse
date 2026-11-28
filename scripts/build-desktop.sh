@@ -339,6 +339,12 @@ case "$TARGET" in
     if [[ -f "$STARTUP_SPEED_PATCH" ]]; then
       python3 "$STARTUP_SPEED_PATCH" "$ROOT"
     fi
+    if [[ -f "$NSIS_CLOSE_PATCH" ]]; then
+      python3 "$NSIS_CLOSE_PATCH" "$ROOT"
+    fi
+    if [[ -f "$FIREWALL_NSH" ]]; then
+      cp "$FIREWALL_NSH" "$FIREWALL_NSH_DEST"
+    fi
     if [[ -d "$ELECTRON_JS/node_modules" ]]; then
       while IFS= read -r vscode_dir; do
         pkg="$(dirname "$vscode_dir")"
